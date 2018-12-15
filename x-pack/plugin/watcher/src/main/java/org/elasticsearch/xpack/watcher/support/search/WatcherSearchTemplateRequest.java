@@ -116,7 +116,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
      * Defaults to false.
      */
     public void setRestTotalHitsAsInt(boolean value) {
-        this.restTotalHitsAsInt = restTotalHitsAsInt;
+        this.restTotalHitsAsInt = value;
     }
 
     public BytesReference getSearchSource() {

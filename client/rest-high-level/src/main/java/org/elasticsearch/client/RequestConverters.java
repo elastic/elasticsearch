@@ -70,6 +70,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -316,7 +317,9 @@ final class RequestConverters {
     }
 
     static Request update(UpdateRequest updateRequest) throws IOException {
-        String endpoint = endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
+        String endpoint = updateRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
+            ? endpoint(updateRequest.index(), "_update", updateRequest.id())
+            : endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         Params parameters = new Params(request);
@@ -354,8 +357,15 @@ final class RequestConverters {
         return request;
     }
 
-    static Request search(SearchRequest searchRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), "_search"));
+    /**
+     * Convert a {@linkplain SearchRequest} into a {@linkplain Request}.
+     * @param searchRequest the request to convert
+     * @param searchEndpoint the name of the search endpoint. {@literal _search}
+     *    for standard searches and {@literal _rollup_search} for rollup
+     *    searches.
+     */
+    static Request search(SearchRequest searchRequest, String searchEndpoint) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), searchEndpoint));
 
         Params params = new Params(request);
         addSearchRequestParams(params, searchRequest);
@@ -455,8 +465,10 @@ final class RequestConverters {
     }
 
     static Request explain(ExplainRequest explainRequest) throws IOException {
-        Request request = new Request(HttpGet.METHOD_NAME,
-            endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain"));
+        String endpoint = explainRequest.isTypeless()
+            ? endpoint(explainRequest.index(), "_explain", explainRequest.id())
+            : endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain");
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         Params params = new Params(request);
         params.withStoredFields(explainRequest.storedFields());
@@ -615,8 +627,18 @@ final class RequestConverters {
     }
 
     static Request termVectors(TermVectorsRequest tvrequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPart(
-            tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId()).addPathPartAsIs("_termvectors").build();
+        String endpoint;
+        if (tvrequest.getType() != null) {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId())
+                .addPathPartAsIs("_termvectors")
+                .build();
+        } else {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex())
+                .addPathPartAsIs("_termvectors")
+                .addPathPart(tvrequest.getId())
+                .build();
+        }
+
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new Params(request);
         params.withRouting(tvrequest.getRouting());

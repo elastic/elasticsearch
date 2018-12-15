@@ -6,14 +6,12 @@
 
 package org.elasticsearch.xpack.ccr.repository;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -40,6 +38,7 @@ import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -52,22 +51,20 @@ import java.util.Set;
  */
 public class CcrRepository extends AbstractLifecycleComponent implements Repository {
 
-    public static final String SNAPSHOT_UUID = "_latest_";
+    public static final String LATEST = "_latest_";
     public static final String TYPE = "_ccr_";
     public static final String NAME_PREFIX = "_ccr_";
+    private static final SnapshotId SNAPSHOT_ID = new SnapshotId(LATEST, LATEST);
 
     private final RepositoryMetaData metadata;
     private final String remoteClusterAlias;
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
-    // The snapshot will be compatible because remote cluster connections must be compatible with our cluster
-    // version. So the snapshot version is not too important.
-    // TODO: Evaluate where we eventually want to pull the version from
-    private final Version version = Version.CURRENT;
 
     public CcrRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings) {
         super(settings);
         this.metadata = metadata;
+        assert metadata.name().startsWith(NAME_PREFIX) : "CcrRepository metadata.name() must start with: " + NAME_PREFIX;
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
         this.ccrLicenseChecker = ccrLicenseChecker;
         this.client = client;
@@ -95,21 +92,34 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
-        assert SNAPSHOT_UUID.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
-        return new SnapshotInfo(snapshotId, Collections.singletonList(snapshotId.getName()), SnapshotState.SUCCESS, version);
+        assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
+        Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
+        ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).setNodes(true).get();
+        ImmutableOpenMap<String, IndexMetaData> indicesMap = response.getState().metaData().indices();
+        ArrayList<String> indices = new ArrayList<>(indicesMap.size());
+        indicesMap.keysIt().forEachRemaining(indices::add);
+
+        return new SnapshotInfo(snapshotId, indices, SnapshotState.SUCCESS, response.getState().getNodes().getMaxNodeVersion());
     }
 
     @Override
     public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
-        assert SNAPSHOT_UUID.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
+        assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
-        ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).get();
+        ClusterStateResponse response = remoteClient
+            .admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setMetaData(true)
+            .setIndices("dummy_index_name") // We set a single dummy index name to avoid fetching all the index data
+            .get();
         return response.getState().metaData();
     }
 
     @Override
     public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
-        assert SNAPSHOT_UUID.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
+        assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         String leaderIndex = index.getName();
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
 
@@ -137,15 +147,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteClusterAlias);
         imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 
-        imdBuilder.settings(leaderIndexMetaData.getSettings());
-
-        // Copy mappings from leader IMD to follow IMD
-        for (ObjectObjectCursor<String, MappingMetaData> cursor : leaderIndexMetaData.getMappings()) {
-            imdBuilder.putMapping(cursor.value);
-        }
-
-        imdBuilder.setRoutingNumShards(leaderIndexMetaData.getRoutingNumShards());
-
         return imdBuilder.build();
     }
 
@@ -161,7 +162,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         ImmutableOpenMap<String, IndexMetaData> remoteIndices = remoteMetaData.getIndices();
         for (String indexName : remoteMetaData.getConcreteAllIndices()) {
-            SnapshotId snapshotId = new SnapshotId(indexName, SNAPSHOT_UUID);
+            // Both the Snapshot name and UUID are set to _latest_
+            SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
             copiedSnapshotIds.put(indexName, snapshotId);
             snapshotStates.put(indexName, SnapshotState.SUCCESS);
             Index index = remoteIndices.get(indexName).getIndex();

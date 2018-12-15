@@ -27,8 +27,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 
 import static org.elasticsearch.client.ccr.PutAutoFollowPatternRequest.FOLLOW_PATTERN_FIELD;
 import static org.elasticsearch.client.ccr.PutAutoFollowPatternRequest.LEADER_PATTERNS_FIELD;
@@ -48,7 +49,7 @@ public class GetAutoFollowPatternResponseTests extends ESTestCase {
 
     private GetAutoFollowPatternResponse createTestInstance() {
         int numPatterns = randomIntBetween(0, 16);
-        Map<String, GetAutoFollowPatternResponse.Pattern> patterns = new HashMap<>(numPatterns);
+        NavigableMap<String, GetAutoFollowPatternResponse.Pattern> patterns = new TreeMap<>();
         for (int i = 0; i < numPatterns; i++) {
             GetAutoFollowPatternResponse.Pattern pattern = new GetAutoFollowPatternResponse.Pattern(
                 randomAlphaOfLength(4), Collections.singletonList(randomAlphaOfLength(4)), randomAlphaOfLength(4));
@@ -90,17 +91,26 @@ public class GetAutoFollowPatternResponseTests extends ESTestCase {
     public static void toXContent(GetAutoFollowPatternResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         {
+            builder.startArray(GetAutoFollowPatternResponse.PATTERNS_FIELD.getPreferredName());
             for (Map.Entry<String, GetAutoFollowPatternResponse.Pattern> entry : response.getPatterns().entrySet()) {
-                builder.startObject(entry.getKey());
-                GetAutoFollowPatternResponse.Pattern pattern = entry.getValue();
-                builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), pattern.getRemoteCluster());
-                builder.field(LEADER_PATTERNS_FIELD.getPreferredName(), pattern.getLeaderIndexPatterns());
-                if (pattern.getFollowIndexNamePattern()!= null) {
-                    builder.field(FOLLOW_PATTERN_FIELD.getPreferredName(), pattern.getFollowIndexNamePattern());
+                builder.startObject();
+                {
+                    builder.field(GetAutoFollowPatternResponse.NAME_FIELD.getPreferredName(), entry.getKey());
+                    builder.startObject(GetAutoFollowPatternResponse.PATTERN_FIELD.getPreferredName());
+                    {
+                        GetAutoFollowPatternResponse.Pattern pattern = entry.getValue();
+                        builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), pattern.getRemoteCluster());
+                        builder.field(LEADER_PATTERNS_FIELD.getPreferredName(), pattern.getLeaderIndexPatterns());
+                        if (pattern.getFollowIndexNamePattern()!= null) {
+                            builder.field(FOLLOW_PATTERN_FIELD.getPreferredName(), pattern.getFollowIndexNamePattern());
+                        }
+                        entry.getValue().toXContentFragment(builder, ToXContent.EMPTY_PARAMS);
+                    }
+                    builder.endObject();
                 }
-                entry.getValue().toXContentFragment(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
             }
+            builder.endArray();
         }
         builder.endObject();
     }

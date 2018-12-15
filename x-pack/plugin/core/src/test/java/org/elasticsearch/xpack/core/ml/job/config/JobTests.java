@@ -563,6 +563,13 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertThat(builder.build().earliestValidTimestamp(dataCounts), equalTo(123455789L));
     }
 
+    public void testCopyingJobDoesNotCauseStackOverflow() {
+        Job job = createRandomizedJob();
+        for (int i = 0; i < 100000; i++) {
+            job = new Job.Builder(job).build();
+        }
+    }
+
     public static Job.Builder buildJobBuilder(String id, Date date) {
         Job.Builder builder = new Job.Builder(id);
         builder.setCreateTime(date);

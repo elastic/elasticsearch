@@ -52,12 +52,12 @@ import java.util.List;
  *                                  this case, the order will be based on the number of documents under {@code agg3}.
  *     </li>
  *     <li>
- *         {@code agg1>agg2>agg3} - where agg1 and agg2 are both single-bucket aggs and agg3 is a single-value metrics agg (eg avg, max, min, etc..).
- *                                  In this case, the order will be based on the value of {@code agg3}.
+ *         {@code agg1>agg2>agg3} - where agg1 and agg2 are both single-bucket aggs and agg3 is a single-value metrics agg (eg avg, max,
+ *                                  min, etc..). In this case, the order will be based on the value of {@code agg3}.
  *     </li>
  *     <li>
- *         {@code agg1>agg2>agg3.avg} - where agg1 and agg2 are both single-bucket aggs and agg3 is a multi-value metrics agg (eg stats, extended_stats, etc...).
- *                                  In this case, the order will be based on the avg value of {@code agg3}.
+ *         {@code agg1>agg2>agg3.avg} - where agg1 and agg2 are both single-bucket aggs and agg3 is a multi-value metrics agg (eg stats,
+ *                                  extended_stats, etc...). In this case, the order will be based on the avg value of {@code agg3}.
  *     </li>
  * </ul>
  *
@@ -331,7 +331,8 @@ public class AggregationPath {
             if (lastToken.key != null && !"doc_count".equals(lastToken.key)) {
                 throw new AggregationExecutionException("Invalid aggregation order path [" + this +
                         "]. Ordering on a single-bucket aggregation can only be done on its doc_count. " +
-                        "Either drop the key (a la \"" + lastToken.name + "\") or change it to \"doc_count\" (a la \"" + lastToken.name + ".doc_count\")");
+                        "Either drop the key (a la \"" + lastToken.name + "\") or change it to \"doc_count\" (a la \"" + lastToken.name +
+                        ".doc_count\")");
             }
             return;   // perfectly valid to sort on single-bucket aggregation (will be sored on its doc_count)
         }
@@ -340,7 +341,8 @@ public class AggregationPath {
             if (lastToken.key != null && !"value".equals(lastToken.key)) {
                 throw new AggregationExecutionException("Invalid aggregation order path [" + this +
                         "]. Ordering on a single-value metrics aggregation can only be done on its value. " +
-                        "Either drop the key (a la \"" + lastToken.name + "\") or change it to \"value\" (a la \"" + lastToken.name + ".value\")");
+                        "Either drop the key (a la \"" + lastToken.name + "\") or change it to \"value\" (a la \"" + lastToken.name +
+                        ".value\")");
             }
             return;   // perfectly valid to sort on single metric aggregation (will be sorted on its associated value)
         }

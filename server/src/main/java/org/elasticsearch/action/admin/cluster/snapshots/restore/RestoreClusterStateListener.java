@@ -39,21 +39,23 @@ public class RestoreClusterStateListener implements ClusterStateListener {
     private static final Logger LOGGER = LogManager.getLogger(RestoreClusterStateListener.class);
 
     private final ClusterService clusterService;
+    private final String uuid;
     private final Snapshot snapshot;
     private final ActionListener<RestoreSnapshotResponse> listener;
 
 
-    public RestoreClusterStateListener(ClusterService clusterService, Snapshot snapshot,
+    public RestoreClusterStateListener(ClusterService clusterService, String uuid, Snapshot snapshot,
                                        ActionListener<RestoreSnapshotResponse> listener) {
         this.clusterService = clusterService;
+        this.uuid = uuid;
         this.snapshot = snapshot;
         this.listener = listener;
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent changedEvent) {
-        final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), snapshot);
-        final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), snapshot);
+        final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), uuid);
+        final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), uuid);
         if (prevEntry == null) {
             // When there is a master failure after a restore has been started, this listener might not be registered
             // on the current master and as such it might miss some intermediary cluster states due to batching.

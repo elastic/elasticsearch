@@ -344,11 +344,11 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         // query by geohash subfield
         SearchResponse searchResponse = client().prepareSearch().addStoredField("location.geohash")
             .setQuery(matchAllQuery()).execute().actionGet();
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits());
+        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
 
         // query by latlon subfield
         searchResponse = client().prepareSearch().addStoredField("location.latlon").setQuery(matchAllQuery()).execute().actionGet();
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits());
+        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
     }
 
 
@@ -452,7 +452,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()),
             XContentType.JSON)));
 
-        assertThat(ex.getMessage(), equalTo("failed to parse"));
+        assertThat(ex.getMessage(), equalTo("failed to parse field [location] of type [geo_point]"));
         assertThat(ex.getRootCause().getMessage(), equalTo("unsupported symbol [.] in geohash [1234.333]"));
     }
 

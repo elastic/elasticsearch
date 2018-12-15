@@ -70,7 +70,7 @@ The first token is mandatory and represents the custom noun that should be added
 the dictionary. For compound nouns the custom segmentation can be provided
 after the first token (`[<token 1> ... <token n>]`). The segmentation of the
 custom compound nouns is controlled by the `decompound_mode` setting.
---
+
 
 As a demonstration of how the user dictionary can be used, save the following
 dictionary to `$ES_HOME/config/userdict_ko.txt`:
@@ -153,6 +153,42 @@ The above `analyze` request returns the following:
 // TESTRESPONSE
 
 <1> This is a compound token that spans two positions (`mixed` mode).
+--
+
+`user_dictionary_rules`::
++
+--
+
+You can also inline the rules directly in the tokenizer definition using
+the `user_dictionary_rules` option:
+
+[source,js]
+--------------------------------------------------
+PUT nori_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "tokenizer": {
+          "nori_user_dict": {
+            "type": "nori_tokenizer",
+            "decompound_mode": "mixed",
+            "user_dictionary_rules": ["c++", "C샤프", "세종", "세종시 세종 시"]
+          }
+        },
+        "analyzer": {
+          "my_analyzer": {
+            "type": "custom",
+            "tokenizer": "nori_user_dict"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+--
 
 The `nori_tokenizer` sets a number of additional attributes per token that are used by token filters
 to modify the stream.

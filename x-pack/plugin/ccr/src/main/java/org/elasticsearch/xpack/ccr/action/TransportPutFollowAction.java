@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -119,7 +120,9 @@ public final class TransportPutFollowAction
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
-        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+        // soft deletes are enabled by default on indices created on 7.0.0 or later
+        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
+            IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexMetaData.getSettings()).onOrAfter(Version.V_7_0_0)) == false) {
             listener.onFailure(
                 new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled"));
             return;
@@ -152,12 +155,12 @@ public final class TransportPutFollowAction
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        String repositoryName = CcrRepository.NAME_PREFIX + remoteCluster;
-        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(repositoryName,
-            leaderIndexMetaData.getIndex().getName(), new String[]{request.getLeaderIndex()}, request.indicesOptions(),
+        String leaderClusterRepoName = CcrRepository.NAME_PREFIX + remoteCluster;
+        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(leaderClusterRepoName,
+            CcrRepository.LATEST, new String[]{request.getLeaderIndex()}, request.indicesOptions(),
             "^(.*)$", request.getFollowRequest().getFollowerIndex(), Settings.EMPTY, request.masterNodeTimeout(), false,
             false, true, settingsBuilder.build(), new String[0],
-            "restore_snapshot[" + repositoryName + ":" + request.getLeaderIndex() + "]");
+            "restore_snapshot[" + leaderClusterRepoName + ":" + request.getLeaderIndex() + "]");
         initiateRestore(restoreRequest, restoreCompleteHandler);
     }
 
@@ -167,15 +170,15 @@ public final class TransportPutFollowAction
                 @Override
                 public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
                     final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
-
-                    clusterService.addListener(new RestoreClusterStateListener(clusterService, snapshot, listener));
+                    final String uuid = restoreCompletionResponse.getUuid();
+                    clusterService.addListener(new RestoreClusterStateListener(clusterService, uuid, snapshot, listener));
                 }
 
                 @Override
                 public void onFailure(Exception t) {
                     listener.onFailure(t);
                 }
-            }, false));
+            }));
 
     }
 

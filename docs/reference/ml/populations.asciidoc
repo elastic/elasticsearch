@@ -28,7 +28,7 @@ To specify the population, use the `over_field_name` property. For example:
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/population
+PUT _ml/anomaly_detectors/population
 {
   "description" : "Population analysis",
   "analysis_config" : {

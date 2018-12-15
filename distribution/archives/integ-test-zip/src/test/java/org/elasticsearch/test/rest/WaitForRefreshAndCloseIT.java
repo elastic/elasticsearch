@@ -67,7 +67,7 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
         Request createDoc = new Request("PUT", docPath());
         createDoc.setJsonEntity("{\"test\":\"test\"}");
         client().performRequest(createDoc);
-        Request updateDoc = new Request("POST", docPath() + "/_update");
+        Request updateDoc = new Request("POST", "test/_update/1");
         updateDoc.setJsonEntity("{\"doc\":{\"name\":\"test\"}}");
         closeWhileListenerEngaged(start(updateDoc));
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -84,7 +85,9 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
             public void onResponse(RestoreCompletionResponse restoreCompletionResponse) {
                 if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
                     final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
-                    clusterService.addListener(new RestoreClusterStateListener(clusterService, snapshot, listener));
+                    final String uuid = restoreCompletionResponse.getUuid();
+                    ClusterStateListener clusterStateListener = new RestoreClusterStateListener(clusterService, uuid, snapshot, listener);
+                    clusterService.addListener(clusterStateListener);
                 } else {
                     listener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
                 }

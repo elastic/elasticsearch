@@ -100,7 +100,7 @@ import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
  * <p>
  * Restore operation is performed in several stages.
  * <p>
- * First {@link #restoreSnapshot(RestoreRequest, org.elasticsearch.action.ActionListener, boolean)}
+ * First {@link #restoreSnapshot(RestoreRequest, org.elasticsearch.action.ActionListener)}
  * method reads information about snapshot and metadata from repository. In update cluster state task it checks restore
  * preconditions, restores global state if needed, creates {@link RestoreInProgress} record with list of shards that needs
  * to be restored and adds this shard to the routing table using {@link RoutingTable.Builder#addAsRestore(IndexMetaData, SnapshotRecoverySource)}
@@ -173,22 +173,6 @@ public class RestoreService implements ClusterStateApplier {
      * @param listener restore listener
      */
     public void restoreSnapshot(final RestoreRequest request, final ActionListener<RestoreCompletionResponse> listener) {
-        restoreSnapshot(request, listener, true);
-    }
-
-    /**
-     * Restores snapshot specified in the restore request.
-     *
-     * The incrementIndexVersion parameter only applies to the snapshot index version. If there is a
-     * pre-existing index with a version greater than the snapshot index, we will use and increment
-     * the version of the existing index.
-     *
-     * @param request  restore request
-     * @param listener restore listener
-     * @param incrementIndexVersion indicates if index version of the restored index should be incremented
-     */
-    public void restoreSnapshot(final RestoreRequest request, final ActionListener<RestoreCompletionResponse> listener,
-                                final boolean incrementIndexVersion) {
         try {
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repositoryName);
@@ -230,22 +214,23 @@ public class RestoreService implements ClusterStateApplier {
 
             // Apply renaming on index names, returning a map of names where
             // the key is the renamed index and the value is the original name
-            final Map<String, String> renamedIndices = renamedIndices(request, indicesInSnapshot);
+            final Map<String, String> indices = renamedIndices(request, indicesInSnapshot);
 
             // Now we can start the actual restore process by adding shards to be recovered in the cluster state
             // and updating cluster metadata (global and index) as needed
             clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
-
+                String restoreUUID = UUIDs.randomBase64UUID();
                 RestoreInfo restoreInfo = null;
 
                 @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    // TODO: Evaluate if we want to keep once restore at a time behavior
-                    // Check if another restore process is already running - cannot run two restore processes at the
-                    // same time
+                public ClusterState execute(ClusterState currentState) {
                     RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
-                    if (restoreInProgress != null && !restoreInProgress.entries().isEmpty()) {
-                        throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
+                    if (currentState.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
+                        // Check if another restore process is already running - cannot run two restore processes at the
+                        // same time in versions prior to 7.0
+                        if (restoreInProgress != null && restoreInProgress.isEmpty() == false) {
+                            throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
+                        }
                     }
                     // Check if the snapshot to restore is currently being deleted
                     SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
@@ -263,47 +248,35 @@ public class RestoreService implements ClusterStateApplier {
                     ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards;
                     Set<String> aliases = new HashSet<>();
 
-                    if (renamedIndices.isEmpty() == false) {
+                    if (indices.isEmpty() == false) {
                         // We have some indices to restore
                         ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
                         final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
                             .minimumIndexCompatibilityVersion();
-
-                        for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
+                        for (Map.Entry<String, String> indexEntry : indices.entrySet()) {
                             String index = indexEntry.getValue();
                             boolean partial = checkPartial(index);
-                            SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(snapshot, snapshotInfo.version(), index);
+                            SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(restoreUUID, snapshot, snapshotInfo.version(), index);
                             String renamedIndexName = indexEntry.getKey();
-                            IndexMetaData snapshotIndexMetaData = updateIndexSettings(metaData.index(index), request.indexSettings,
-                                request.ignoreIndexSettings);
-
+                            IndexMetaData snapshotIndexMetaData = metaData.index(index);
+                            snapshotIndexMetaData = updateIndexSettings(snapshotIndexMetaData, request.indexSettings, request.ignoreIndexSettings);
                             try {
                                 snapshotIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(snapshotIndexMetaData,
                                     minIndexCompatibilityVersion);
                             } catch (Exception ex) {
                                 throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
                             }
-
                             // Check that the index is closed or doesn't exist
                             IndexMetaData currentIndexMetaData = currentState.metaData().index(renamedIndexName);
                             IntSet ignoreShards = new IntHashSet();
                             final Index renamedIndex;
-
                             if (currentIndexMetaData == null) {
                                 // Index doesn't exist - create it and start recovery
                                 // Make sure that the index we are about to create has a validate name
                                 MetaDataCreateIndexService.validateIndexName(renamedIndexName, currentState);
-                                createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(),
-                                    currentState, false);
-                                Settings.Builder indexSettingsBuilder = Settings.builder()
-                                    .put(snapshotIndexMetaData.getSettings())
-                                    .put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
-
-                                IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
-                                    .state(IndexMetaData.State.OPEN)
-                                    .index(renamedIndexName)
-                                    .settings(indexSettingsBuilder.build());
-
+                                createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(), currentState, false);
+                                IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndexName);
+                                indexMdBuilder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
                                 if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();
@@ -318,20 +291,15 @@ public class RestoreService implements ClusterStateApplier {
                                 }
                                 rtBuilder.addAsNewRestore(updatedIndexMetaData, recoverySource, ignoreShards);
                                 blocks.addBlocks(updatedIndexMetaData);
-                                mdBuilder.put(updatedIndexMetaData, incrementIndexVersion);
+                                mdBuilder.put(updatedIndexMetaData, true);
                                 renamedIndex = updatedIndexMetaData.getIndex();
                             } else {
                                 validateExistingIndex(currentIndexMetaData, snapshotIndexMetaData, renamedIndexName, partial);
                                 // Index exists and it's closed - open it in metadata and start recovery
-                                long newVersion = incrementIndexVersion ? snapshotIndexMetaData.getVersion() + 1 :
-                                    snapshotIndexMetaData.getVersion();
-                                IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
-                                    .state(IndexMetaData.State.OPEN)
-                                    .version(Math.max(newVersion, currentIndexMetaData.getVersion() + 1))
-                                    .mappingVersion(Math.max(snapshotIndexMetaData.getMappingVersion(),
-                                        currentIndexMetaData.getMappingVersion() + 1))
-                                    .settingsVersion(Math.max(snapshotIndexMetaData.getSettingsVersion(),
-                                        currentIndexMetaData.getSettingsVersion() + 1));
+                                IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN);
+                                indexMdBuilder.version(Math.max(snapshotIndexMetaData.getVersion(), currentIndexMetaData.getVersion() + 1));
+                                indexMdBuilder.mappingVersion(Math.max(snapshotIndexMetaData.getMappingVersion(), currentIndexMetaData.getMappingVersion() + 1));
+                                indexMdBuilder.settingsVersion(Math.max(snapshotIndexMetaData.getSettingsVersion(), currentIndexMetaData.getSettingsVersion() + 1));
                                 if (!request.includeAliases()) {
                                     // Remove all snapshot aliases
                                     if (!snapshotIndexMetaData.getAliases().isEmpty()) {
@@ -346,40 +314,41 @@ public class RestoreService implements ClusterStateApplier {
                                         aliases.add(alias.value);
                                     }
                                 }
-                                Settings.Builder indexSettingsBuilder = Settings.builder()
-                                    .put(snapshotIndexMetaData.getSettings())
-                                    .put(SETTING_INDEX_UUID, currentIndexMetaData.getIndexUUID());
-                                indexMdBuilder.settings(indexSettingsBuilder.build());
+                                indexMdBuilder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.getIndexUUID()));
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndexName).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, recoverySource);
                                 blocks.updateBlocks(updatedIndexMetaData);
-                                // We already set the new version manually on the IndexMetaData.Builder
-                                mdBuilder.put(updatedIndexMetaData, false);
+                                mdBuilder.put(updatedIndexMetaData, true);
                                 renamedIndex = updatedIndexMetaData.getIndex();
                             }
 
                             for (int shard = 0; shard < snapshotIndexMetaData.getNumberOfShards(); shard++) {
-                                String nodeId = clusterService.state().nodes().getLocalNodeId();
-                                ShardRestoreStatus restoreStatus;
                                 if (!ignoreShards.contains(shard)) {
-                                    restoreStatus = new ShardRestoreStatus(nodeId);
+                                    shardsBuilder.put(new ShardId(renamedIndex, shard), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));
                                 } else {
-                                    restoreStatus = new ShardRestoreStatus(nodeId, RestoreInProgress.State.FAILURE);
+                                    shardsBuilder.put(new ShardId(renamedIndex, shard), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId(), RestoreInProgress.State.FAILURE));
                                 }
-                                shardsBuilder.put(new ShardId(renamedIndex, shard), restoreStatus);
                             }
                         }
 
                         shards = shardsBuilder.build();
-                        List<String> indices = Collections.unmodifiableList(new ArrayList<>(renamedIndices.keySet()));
-                        RestoreInProgress.State restoreState = overallState(RestoreInProgress.State.INIT, shards);
-                        RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshot, restoreState, indices, shards);
-                        builder.putCustom(RestoreInProgress.TYPE, new RestoreInProgress(restoreEntry));
-                    }  else {
+                        RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(
+                            restoreUUID, snapshot, overallState(RestoreInProgress.State.INIT, shards),
+                            Collections.unmodifiableList(new ArrayList<>(indices.keySet())),
+                            shards
+                        );
+                        RestoreInProgress.Builder restoreInProgressBuilder;
+                        if (restoreInProgress != null) {
+                            restoreInProgressBuilder = new RestoreInProgress.Builder(restoreInProgress);
+                        } else {
+                            restoreInProgressBuilder = new RestoreInProgress.Builder();
+                        }
+                        builder.putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.add(restoreEntry).build());
+                    } else {
                         shards = ImmutableOpenMap.of();
                     }
 
-                    checkAliasNameConflicts(renamedIndices, aliases);
+                    checkAliasNameConflicts(indices, aliases);
 
                     // Restore global state if needed
                     if (request.includeGlobalState()) {
@@ -407,35 +376,21 @@ public class RestoreService implements ClusterStateApplier {
 
                     if (completed(shards)) {
                         // We don't have any indices to restore - we are done
-                        List<String> indices = Collections.unmodifiableList(new ArrayList<>(renamedIndices.keySet()));
-                        restoreInfo = new RestoreInfo(snapshotId.getName(), indices, shards.size(), shards.size() - failedShards(shards));
+                        restoreInfo = new RestoreInfo(snapshotId.getName(),
+                                                      Collections.unmodifiableList(new ArrayList<>(indices.keySet())),
+                                                      shards.size(),
+                                                      shards.size() - failedShards(shards));
                     }
 
-                    ClusterState updatedState = builder.metaData(mdBuilder).blocks(blocks).routingTable(rtBuilder.build()).build();
+                    RoutingTable rt = rtBuilder.build();
+                    ClusterState updatedState = builder.metaData(mdBuilder).blocks(blocks).routingTable(rt).build();
                     return allocationService.reroute(updatedState, "restored snapshot [" + snapshot + "]");
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshotId), e);
-                    listener.onFailure(e);
-                }
-
-                @Override
-                public TimeValue timeout() {
-                    return request.masterNodeTimeout();
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new RestoreCompletionResponse(snapshot, restoreInfo));
                 }
 
                 private void checkAliasNameConflicts(Map<String, String> renamedIndices, Set<String> aliases) {
                     for (Map.Entry<String, String> renamedIndex : renamedIndices.entrySet()) {
                         if (aliases.contains(renamedIndex.getKey())) {
-                            throw new SnapshotRestoreException(snapshot, "cannot rename index [" + renamedIndex.getValue() + "] into [" +
-                                renamedIndex.getKey() + "] because of conflict with an alias with the same name");
+                            throw new SnapshotRestoreException(snapshot, "cannot rename index [" + renamedIndex.getValue() + "] into [" + renamedIndex.getKey() + "] because of conflict with an alias with the same name");
                         }
                     }
                 }
@@ -449,7 +404,7 @@ public class RestoreService implements ClusterStateApplier {
                 }
 
                 private boolean checkPartial(String index) {
-                    // Make sure that index was fully snapshoted
+                    // Make sure that index was fully snapshotted
                     if (failed(snapshotInfo, index)) {
                         if (request.partial()) {
                             return true;
@@ -461,27 +416,21 @@ public class RestoreService implements ClusterStateApplier {
                     }
                 }
 
-                private void validateExistingIndex(IndexMetaData currentIndexMetaData, IndexMetaData snapshotIndexMetaData,
-                                                   String renamedIndex, boolean partial) {
+                private void validateExistingIndex(IndexMetaData currentIndexMetaData, IndexMetaData snapshotIndexMetaData, String renamedIndex, boolean partial) {
                     // Index exist - checking that it's closed
                     if (currentIndexMetaData.getState() != IndexMetaData.State.CLOSE) {
                         // TODO: Enable restore for open indices
-                        throw new SnapshotRestoreException(snapshot, "cannot restore index [" + renamedIndex + "] because an open index " +
-                            "with same name already exists in the cluster. Either close or delete the existing index or restore the " +
-                            "index under a different name by providing a rename pattern and replacement name");
+                        throw new SnapshotRestoreException(snapshot, "cannot restore index [" + renamedIndex + "] because an open index with same name already exists in the cluster. " +
+                            "Either close or delete the existing index or restore the index under a different name by providing a rename pattern and replacement name");
                     }
                     // Index exist - checking if it's partial restore
                     if (partial) {
-                        throw new SnapshotRestoreException(snapshot, "cannot restore partial index [" + renamedIndex +
-                            "] because such index already exists");
+                        throw new SnapshotRestoreException(snapshot, "cannot restore partial index [" + renamedIndex + "] because such index already exists");
                     }
                     // Make sure that the number of shards is the same. That's the only thing that we cannot change
-                    int currentNumberOfShards = currentIndexMetaData.getNumberOfShards();
-                    int snapshotNumberOfShards = snapshotIndexMetaData.getNumberOfShards();
-                    if (currentNumberOfShards != snapshotNumberOfShards) {
-                        throw new SnapshotRestoreException(snapshot, "cannot restore index [" + renamedIndex + "] with [" +
-                            currentNumberOfShards + "] shards from a snapshot of index [" + snapshotIndexMetaData.getIndex().getName() +
-                            "] with [" + snapshotNumberOfShards + "] shards");
+                    if (currentIndexMetaData.getNumberOfShards() != snapshotIndexMetaData.getNumberOfShards()) {
+                        throw new SnapshotRestoreException(snapshot, "cannot restore index [" + renamedIndex + "] with [" + currentIndexMetaData.getNumberOfShards() +
+                                "] shards from a snapshot of index [" + snapshotIndexMetaData.getIndex().getName() + "] with [" + snapshotIndexMetaData.getNumberOfShards() + "] shards");
                     }
                 }
 
@@ -493,11 +442,7 @@ public class RestoreService implements ClusterStateApplier {
                     if (changeSettings.names().isEmpty() && ignoreSettings.length == 0) {
                         return indexMetaData;
                     }
-                    Settings normalizedChangeSettings = Settings.builder()
-                        .put(changeSettings)
-                        .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX)
-                        .build();
-
+                    Settings normalizedChangeSettings = Settings.builder().put(changeSettings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
                     IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
                     Settings settings = indexMetaData.getSettings();
                     Set<String> keyFilters = new HashSet<>();
@@ -528,7 +473,6 @@ public class RestoreService implements ClusterStateApplier {
                         }
                         return true;
                     };
-
                     Settings.Builder settingsBuilder = Settings.builder()
                         .put(settings.filter(settingsFilter))
                         .put(normalizedChangeSettings.filter(k -> {
@@ -538,22 +482,37 @@ public class RestoreService implements ClusterStateApplier {
                                 return true;
                             }
                         }));
-
                     return builder.settings(settingsBuilder).build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshotId), e);
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public TimeValue timeout() {
+                    return request.masterNodeTimeout();
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
                 }
             });
 
+
         } catch (Exception e) {
-            logger.warn(() ->
-                new ParameterizedMessage("[{}] failed to restore snapshot", request.repositoryName + ":" + request.snapshotName), e);
+            logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", request.repositoryName + ":" + request.snapshotName), e);
             listener.onFailure(e);
         }
     }
 
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {
         boolean changesMade = false;
-        final List<RestoreInProgress.Entry> entries = new ArrayList<>();
-        for (RestoreInProgress.Entry entry : oldRestore.entries()) {
+        RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
+        for (RestoreInProgress.Entry entry : oldRestore) {
             ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = null;
             for (ObjectObjectCursor<ShardId, ShardRestoreStatus> cursor : entry.shards()) {
                 ShardId shardId = cursor.key;
@@ -567,25 +526,31 @@ public class RestoreService implements ClusterStateApplier {
             }
             if (shardsBuilder != null) {
                 ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
-                entries.add(new RestoreInProgress.Entry(entry.snapshot(), overallState(RestoreInProgress.State.STARTED, shards), entry.indices(), shards));
+                builder.add(new RestoreInProgress.Entry(entry.uuid(), entry.snapshot(), overallState(RestoreInProgress.State.STARTED, shards), entry.indices(), shards));
             } else {
-                entries.add(entry);
+                builder.add(entry);
             }
         }
         if (changesMade) {
-            return new RestoreInProgress(entries.toArray(new RestoreInProgress.Entry[entries.size()]));
+            return builder.build();
         } else {
             return oldRestore;
         }
     }
 
     public static final class RestoreCompletionResponse {
+        private final String uuid;
         private final Snapshot snapshot;
         private final RestoreInfo restoreInfo;
 
-        private RestoreCompletionResponse(final Snapshot snapshot, final RestoreInfo restoreInfo) {
+        private RestoreCompletionResponse(final String uuid, final Snapshot snapshot, final RestoreInfo restoreInfo) {
+            this.uuid = uuid;
             this.snapshot = snapshot;
             this.restoreInfo = restoreInfo;
+        }
+
+        public String getUuid() {
+            return uuid;
         }
 
         public Snapshot getSnapshot() {
@@ -598,7 +563,7 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     public static class RestoreInProgressUpdater extends RoutingChangesObserver.AbstractRoutingChangesObserver {
-        private final Map<Snapshot, Updates> shardChanges = new HashMap<>();
+        private final Map<String, Updates> shardChanges = new HashMap<>();
 
         @Override
         public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
@@ -606,8 +571,8 @@ public class RestoreService implements ClusterStateApplier {
             if (initializingShard.primary()) {
                 RecoverySource recoverySource = initializingShard.recoverySource();
                 if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
-                    Snapshot snapshot = ((SnapshotRecoverySource) recoverySource).snapshot();
-                    changes(snapshot).shards.put(initializingShard.shardId(),
+                    changes(recoverySource).shards.put(
+                        initializingShard.shardId(),
                         new ShardRestoreStatus(initializingShard.currentNodeId(), RestoreInProgress.State.SUCCESS));
                 }
             }
@@ -618,13 +583,13 @@ public class RestoreService implements ClusterStateApplier {
             if (failedShard.primary() && failedShard.initializing()) {
                 RecoverySource recoverySource = failedShard.recoverySource();
                 if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
-                    Snapshot snapshot = ((SnapshotRecoverySource) recoverySource).snapshot();
                     // mark restore entry for this shard as failed when it's due to a file corruption. There is no need wait on retries
                     // to restore this shard on another node if the snapshot files are corrupt. In case where a node just left or crashed,
                     // however, we only want to acknowledge the restore operation once it has been successfully restored on another node.
                     if (unassignedInfo.getFailure() != null && Lucene.isCorruptionException(unassignedInfo.getFailure().getCause())) {
-                        changes(snapshot).shards.put(failedShard.shardId(), new ShardRestoreStatus(failedShard.currentNodeId(),
-                            RestoreInProgress.State.FAILURE, unassignedInfo.getFailure().getCause().getMessage()));
+                        changes(recoverySource).shards.put(
+                            failedShard.shardId(), new ShardRestoreStatus(failedShard.currentNodeId(),
+                                RestoreInProgress.State.FAILURE, unassignedInfo.getFailure().getCause().getMessage()));
                     }
                 }
             }
@@ -635,9 +600,11 @@ public class RestoreService implements ClusterStateApplier {
             // if we force an empty primary, we should also fail the restore entry
             if (unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT &&
                 initializedShard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT) {
-                Snapshot snapshot = ((SnapshotRecoverySource) unassignedShard.recoverySource()).snapshot();
-                changes(snapshot).shards.put(unassignedShard.shardId(), new ShardRestoreStatus(null,
-                    RestoreInProgress.State.FAILURE, "recovery source type changed from snapshot to " + initializedShard.recoverySource()));
+                changes(unassignedShard.recoverySource()).shards.put(
+                    unassignedShard.shardId(),
+                    new ShardRestoreStatus(null,
+                        RestoreInProgress.State.FAILURE, "recovery source type changed from snapshot to " + initializedShard.recoverySource())
+                );
             }
         }
 
@@ -646,19 +613,21 @@ public class RestoreService implements ClusterStateApplier {
             RecoverySource recoverySource = unassignedShard.recoverySource();
             if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
                 if (newUnassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
-                    Snapshot snapshot = ((SnapshotRecoverySource) recoverySource).snapshot();
                     String reason = "shard could not be allocated to any of the nodes";
-                    changes(snapshot).shards.put(unassignedShard.shardId(),
+                    changes(recoverySource).shards.put(
+                        unassignedShard.shardId(),
                         new ShardRestoreStatus(unassignedShard.currentNodeId(), RestoreInProgress.State.FAILURE, reason));
                 }
             }
         }
 
         /**
-         * Helper method that creates update entry for the given shard id if such an entry does not exist yet.
+         * Helper method that creates update entry for the given recovery source's restore uuid
+         * if such an entry does not exist yet.
          */
-        private Updates changes(Snapshot snapshot) {
-            return shardChanges.computeIfAbsent(snapshot, k -> new Updates());
+        private Updates changes(RecoverySource recoverySource) {
+            assert recoverySource.getType() == RecoverySource.Type.SNAPSHOT;
+            return shardChanges.computeIfAbsent(((SnapshotRecoverySource) recoverySource).restoreUUID(), k -> new Updates());
         }
 
         private static class Updates {
@@ -667,38 +636,38 @@ public class RestoreService implements ClusterStateApplier {
 
         public RestoreInProgress applyChanges(final RestoreInProgress oldRestore) {
             if (shardChanges.isEmpty() == false) {
-                final List<RestoreInProgress.Entry> entries = new ArrayList<>();
-                for (RestoreInProgress.Entry entry : oldRestore.entries()) {
-                    Snapshot snapshot = entry.snapshot();
-                    Updates updates = shardChanges.get(snapshot);
-                    if (updates.shards.isEmpty() == false) {
-                        ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder(entry.shards());
+                RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
+                for (RestoreInProgress.Entry entry : oldRestore) {
+                    Updates updates = shardChanges.get(entry.uuid());
+                    ImmutableOpenMap<ShardId, ShardRestoreStatus> shardStates = entry.shards();
+                    if (updates != null && updates.shards.isEmpty() == false) {
+                        ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder(shardStates);
                         for (Map.Entry<ShardId, ShardRestoreStatus> shard : updates.shards.entrySet()) {
-                            shardsBuilder.put(shard.getKey(), shard.getValue());
+                            ShardId shardId = shard.getKey();
+                            ShardRestoreStatus status = shardStates.get(shardId);
+                            if (status == null || status.state().completed() == false) {
+                                shardsBuilder.put(shardId, shard.getValue());
+                            }
                         }
 
                         ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
                         RestoreInProgress.State newState = overallState(RestoreInProgress.State.STARTED, shards);
-                        entries.add(new RestoreInProgress.Entry(entry.snapshot(), newState, entry.indices(), shards));
+                        builder.add(new RestoreInProgress.Entry(entry.uuid(), entry.snapshot(), newState, entry.indices(), shards));
                     } else {
-                        entries.add(entry);
+                        builder.add(entry);
                     }
                 }
-                return new RestoreInProgress(entries.toArray(new RestoreInProgress.Entry[entries.size()]));
+                return builder.build();
             } else {
                 return oldRestore;
             }
         }
     }
 
-    public static RestoreInProgress.Entry restoreInProgress(ClusterState state, Snapshot snapshot) {
+    public static RestoreInProgress.Entry restoreInProgress(ClusterState state, String restoreUUID) {
         final RestoreInProgress restoreInProgress = state.custom(RestoreInProgress.TYPE);
         if (restoreInProgress != null) {
-            for (RestoreInProgress.Entry e : restoreInProgress.entries()) {
-                if (e.snapshot().equals(snapshot)) {
-                    return e;
-                }
-            }
+            return restoreInProgress.get(restoreUUID);
         }
         return null;
     }
@@ -706,15 +675,15 @@ public class RestoreService implements ClusterStateApplier {
     static class CleanRestoreStateTaskExecutor implements ClusterStateTaskExecutor<CleanRestoreStateTaskExecutor.Task>, ClusterStateTaskListener {
 
         static class Task {
-            final Snapshot snapshot;
+            final String uuid;
 
-            Task(Snapshot snapshot) {
-                this.snapshot = snapshot;
+            Task(String uuid) {
+                this.uuid = uuid;
             }
 
             @Override
             public String toString() {
-                return "clean restore state for restoring snapshot " + snapshot;
+                return "clean restore state for restore " + uuid;
             }
         }
 
@@ -727,25 +696,24 @@ public class RestoreService implements ClusterStateApplier {
         @Override
         public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
             final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
-            Set<Snapshot> completedSnapshots = tasks.stream().map(e -> e.snapshot).collect(Collectors.toSet());
-            final List<RestoreInProgress.Entry> entries = new ArrayList<>();
+            Set<String> completedRestores = tasks.stream().map(e -> e.uuid).collect(Collectors.toSet());
+            RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
             final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
             boolean changed = false;
             if (restoreInProgress != null) {
-                for (RestoreInProgress.Entry entry : restoreInProgress.entries()) {
-                    if (completedSnapshots.contains(entry.snapshot()) == false) {
-                        entries.add(entry);
-                    } else {
+                for (RestoreInProgress.Entry entry : restoreInProgress) {
+                    if (completedRestores.contains(entry.uuid())) {
                         changed = true;
+                    } else {
+                        restoreInProgressBuilder.add(entry);
                     }
                 }
             }
             if (changed == false) {
                 return resultBuilder.build(currentState);
             }
-            RestoreInProgress updatedRestoreInProgress = new RestoreInProgress(entries.toArray(new RestoreInProgress.Entry[entries.size()]));
             ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(currentState.getCustoms());
-            builder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
+            builder.put(RestoreInProgress.TYPE, restoreInProgressBuilder.build());
             ImmutableOpenMap<String, ClusterState.Custom> customs = builder.build();
             return resultBuilder.build(ClusterState.builder(currentState).customs(customs).build());
         }
@@ -767,12 +735,12 @@ public class RestoreService implements ClusterStateApplier {
 
         RestoreInProgress restoreInProgress = state.custom(RestoreInProgress.TYPE);
         if (restoreInProgress != null) {
-            for (RestoreInProgress.Entry entry : restoreInProgress.entries()) {
+            for (RestoreInProgress.Entry entry : restoreInProgress) {
                 if (entry.state().completed()) {
                     assert completed(entry.shards()) : "state says completed but restore entries are not";
                     clusterService.submitStateUpdateTask(
                         "clean up snapshot restore state",
-                        new CleanRestoreStateTaskExecutor.Task(entry.snapshot()),
+                        new CleanRestoreStateTaskExecutor.Task(entry.uuid()),
                         ClusterStateTaskConfig.build(Priority.URGENT),
                         cleanRestoreStateTaskExecutor,
                         cleanRestoreStateTaskExecutor);
@@ -781,8 +749,8 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
-    private static RestoreInProgress.State overallState(RestoreInProgress.State nonCompletedState,
-                                                        ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards) {
+    public static RestoreInProgress.State overallState(RestoreInProgress.State nonCompletedState,
+                                                       ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards) {
         boolean hasFailed = false;
         for (ObjectCursor<RestoreInProgress.ShardRestoreStatus> status : shards.values()) {
             if (!status.value.state().completed()) {
@@ -869,7 +837,7 @@ public class RestoreService implements ClusterStateApplier {
         RestoreInProgress restore = currentState.custom(RestoreInProgress.TYPE);
         if (restore != null) {
             Set<Index> indicesToFail = null;
-            for (RestoreInProgress.Entry entry : restore.entries()) {
+            for (RestoreInProgress.Entry entry : restore) {
                 for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
                     if (!shard.value.state().completed()) {
                         IndexMetaData indexMetaData = currentState.metaData().index(shard.key.getIndex());
@@ -907,10 +875,10 @@ public class RestoreService implements ClusterStateApplier {
      * @return true if repository is currently in use by one of the running snapshots
      */
     public static boolean isRepositoryInUse(ClusterState clusterState, String repository) {
-        RestoreInProgress snapshots = clusterState.custom(RestoreInProgress.TYPE);
-        if (snapshots != null) {
-            for (RestoreInProgress.Entry snapshot : snapshots.entries()) {
-                if (repository.equals(snapshot.snapshot().getRepository())) {
+        RestoreInProgress restoreInProgress = clusterState.custom(RestoreInProgress.TYPE);
+        if (restoreInProgress != null) {
+            for (RestoreInProgress.Entry entry: restoreInProgress) {
+                if (repository.equals(entry.snapshot().getRepository())) {
                     return true;
                 }
             }

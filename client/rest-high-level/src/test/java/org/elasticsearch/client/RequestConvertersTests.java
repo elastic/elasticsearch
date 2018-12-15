@@ -53,11 +53,11 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.client.core.MultiTermVectorsRequest;
-import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.MultiTermVectorsRequest;
+import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -152,6 +152,10 @@ public class RequestConvertersTests extends ESTestCase {
         getAndExistsTest(RequestConverters::get, HttpGet.METHOD_NAME);
     }
 
+    public void testGetWithType() {
+        getAndExistsWithTypeTest(RequestConverters::get, HttpGet.METHOD_NAME);
+    }
+
     public void testMultiGet() throws IOException {
         Map<String, String> expectedParams = new HashMap<>();
         MultiGetRequest multiGetRequest = new MultiGetRequest();
@@ -175,7 +179,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         int numberOfRequests = randomIntBetween(0, 32);
         for (int i = 0; i < numberOfRequests; i++) {
-            MultiGetRequest.Item item = new MultiGetRequest.Item(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4));
+            MultiGetRequest.Item item = new MultiGetRequest.Item(randomAlphaOfLength(4), randomAlphaOfLength(4));
             if (randomBoolean()) {
                 item.routing(randomAlphaOfLength(4));
             }
@@ -201,11 +205,23 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(multiGetRequest, request.getEntity());
     }
 
+    public void testMultiGetWithType() throws IOException {
+        MultiGetRequest multiGetRequest = new MultiGetRequest();
+        MultiGetRequest.Item item = new MultiGetRequest.Item(randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4));
+        multiGetRequest.add(item);
+
+        Request request = RequestConverters.multiGet(multiGetRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_mget", request.getEndpoint());
+        assertToXContentBody(multiGetRequest, request.getEntity());
+    }
+
     public void testDelete() {
         String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
-        DeleteRequest deleteRequest = new DeleteRequest(index, type, id);
+        DeleteRequest deleteRequest = new DeleteRequest(index, id);
 
         Map<String, String> expectedParams = new HashMap<>();
 
@@ -223,9 +239,21 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         Request request = RequestConverters.delete(deleteRequest);
-        assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
-        assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/" + index + "/_doc/" + id, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testDeleteWithType() {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+        DeleteRequest deleteRequest = new DeleteRequest(index, type, id);
+
+        Request request = RequestConverters.delete(deleteRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
         assertNull(request.getEntity());
     }
 
@@ -233,11 +261,14 @@ public class RequestConvertersTests extends ESTestCase {
         getAndExistsTest(RequestConverters::exists, HttpHead.METHOD_NAME);
     }
 
+    public void testExistsWithType() {
+        getAndExistsWithTypeTest(RequestConverters::exists, HttpHead.METHOD_NAME);
+    }
+
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
         String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
-        GetRequest getRequest = new GetRequest(index, type, id);
+        GetRequest getRequest = new GetRequest(index, id);
 
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
@@ -285,8 +316,20 @@ public class RequestConvertersTests extends ESTestCase {
             }
         }
         Request request = requestConverter.apply(getRequest);
-        assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
+        assertEquals("/" + index + "/_doc/" + id, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+        assertEquals(method, request.getMethod());
+    }
+
+    private static void getAndExistsWithTypeTest(Function<GetRequest, Request> requestConverter, String method) {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+        GetRequest getRequest = new GetRequest(index, type, id);
+
+        Request request = requestConverter.apply(getRequest);
+        assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
         assertNull(request.getEntity());
         assertEquals(method, request.getMethod());
     }
@@ -587,10 +630,9 @@ public class RequestConvertersTests extends ESTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
 
-        UpdateRequest updateRequest = new UpdateRequest(index, type, id);
+        UpdateRequest updateRequest = new UpdateRequest(index, id);
         updateRequest.detectNoop(randomBoolean());
 
         if (randomBoolean()) {
@@ -644,7 +686,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         Request request = RequestConverters.update(updateRequest);
-        assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.getEndpoint());
+        assertEquals("/" + index + "/_update/" + id, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
 
@@ -673,6 +715,23 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             assertNull(parsedUpdateRequest.upsertRequest());
         }
+    }
+
+    public void testUpdateWithType() throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+
+        UpdateRequest updateRequest = new UpdateRequest(index, type, id);
+
+        XContentType xContentType = XContentType.JSON;
+        BytesReference source = RandomObjects.randomSource(random(), xContentType);
+        updateRequest.doc(new IndexRequest().source(source, xContentType));
+
+        Request request = RequestConverters.update(updateRequest);
+        assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertToXContentBody(updateRequest, request.getEntity());
     }
 
     public void testUpdateWithDifferentContentTypes() {
@@ -880,14 +939,16 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testSearchNullSource() throws IOException {
+        String searchEndpoint = randomFrom("_" + randomAlphaOfLength(5));
         SearchRequest searchRequest = new SearchRequest();
-        Request request = RequestConverters.search(searchRequest);
+        Request request = RequestConverters.search(searchRequest, searchEndpoint);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_search", request.getEndpoint());
+        assertEquals("/" + searchEndpoint, request.getEndpoint());
         assertNull(request.getEntity());
     }
 
     public void testSearch() throws Exception {
+        String searchEndpoint = randomFrom("_" + randomAlphaOfLength(5));
         String[] indices = randomIndicesNames(0, 5);
         SearchRequest searchRequest = new SearchRequest(indices);
 
@@ -948,7 +1009,7 @@ public class RequestConvertersTests extends ESTestCase {
             searchRequest.source(searchSourceBuilder);
         }
 
-        Request request = RequestConverters.search(searchRequest);
+        Request request = RequestConverters.search(searchRequest, searchEndpoint);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
         if (Strings.hasLength(index)) {
@@ -958,7 +1019,7 @@ public class RequestConvertersTests extends ESTestCase {
         if (Strings.hasLength(type)) {
             endpoint.add(type);
         }
-        endpoint.add("_search");
+        endpoint.add(searchEndpoint);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
@@ -1223,10 +1284,9 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testExplain() throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
 
-        ExplainRequest explainRequest = new ExplainRequest(index, type, id);
+        ExplainRequest explainRequest = new ExplainRequest(index, id);
         explainRequest.query(QueryBuilders.termQuery(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
 
         Map<String, String> expectedParams = new HashMap<>();
@@ -1252,23 +1312,33 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         Request request = RequestConverters.explain(explainRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add(index)
-            .add(type)
-            .add(id)
-            .add("_explain");
-
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals("/" + index + "/_explain/" + id, request.getEndpoint());
+
         assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(explainRequest, request.getEntity());
+    }
+
+    public void testExplainWithType() throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+
+        ExplainRequest explainRequest = new ExplainRequest(index, type, id);
+        explainRequest.query(QueryBuilders.termQuery(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
+
+        Request request = RequestConverters.explain(explainRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/" + index + "/" + type + "/" + id + "/_explain", request.getEndpoint());
+
         assertToXContentBody(explainRequest, request.getEntity());
     }
 
     public void testTermVectors() throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
-        TermVectorsRequest tvRequest = new TermVectorsRequest(index, type, id);
+
+        TermVectorsRequest tvRequest = new TermVectorsRequest(index, id);
         Map<String, String> expectedParams = new HashMap<>();
         String[] fields;
         if (randomBoolean()) {
@@ -1289,7 +1359,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         Request request = RequestConverters.termVectors(tvRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add(index).add(type).add(id).add("_termvectors");
+        endpoint.add(index).add("_termvectors").add(id);
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
@@ -1304,7 +1374,40 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(tvRequest, request.getEntity());
     }
 
+    public void testTermVectorsWithType() throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+        TermVectorsRequest tvRequest = new TermVectorsRequest(index, type, id);
+
+        Request request = RequestConverters.termVectors(tvRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add(index).add(type).add(id).add("_termvectors");
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+    }
+
     public void testMultiTermVectors() throws IOException {
+        MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest();
+
+        int numberOfRequests = randomIntBetween(0, 5);
+        for (int i = 0; i < numberOfRequests; i++) {
+            String index = randomAlphaOfLengthBetween(3, 10);
+            String id = randomAlphaOfLengthBetween(3, 10);
+            TermVectorsRequest tvRequest = new TermVectorsRequest(index, id);
+            String[] fields = generateRandomStringArray(10, 5, false, false);
+            tvRequest.setFields(fields);
+            mtvRequest.add(tvRequest);
+        }
+
+        Request request = RequestConverters.mtermVectors(mtvRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("_mtermvectors", request.getEndpoint());
+        assertToXContentBody(mtvRequest, request.getEntity());
+    }
+
+    public void testMultiTermVectorsWithType() throws IOException {
         MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest();
 
         int numberOfRequests = randomIntBetween(0, 5);

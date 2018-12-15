@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -406,6 +409,48 @@ public class MetaDataTests extends ESTestCase {
             final MetaData fromXContentMeta = MetaData.fromXContent(parser);
             assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
         }
+    }
+
+    private static CoordinationMetaData.VotingConfiguration randomVotingConfig() {
+        return new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(randomInt(10), 20, false)));
+    }
+
+    private Set<VotingConfigExclusion> randomVotingConfigExclusions() {
+        final int size = randomIntBetween(0, 10);
+        final Set<VotingConfigExclusion> nodes = new HashSet<>(size);
+        while (nodes.size() < size) {
+            assertTrue(nodes.add(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))));
+        }
+        return nodes;
+    }
+
+    public void testXContentWithCoordinationMetaData() throws IOException {
+        CoordinationMetaData originalMeta = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
+                randomVotingConfigExclusions());
+
+        MetaData metaData = MetaData.builder().coordinationMetaData(originalMeta).build();
+
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final CoordinationMetaData fromXContentMeta = MetaData.fromXContent(parser).coordinationMetaData();
+            assertThat(fromXContentMeta, equalTo(originalMeta));
+        }
+    }
+
+    public void testGlobalStateEqualsCoordinationMetaData() {
+        CoordinationMetaData coordinationMetaData1 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
+                randomVotingConfig(), randomVotingConfigExclusions());
+        MetaData metaData1 = MetaData.builder().coordinationMetaData(coordinationMetaData1).build();
+        CoordinationMetaData coordinationMetaData2 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
+                randomVotingConfig(), randomVotingConfigExclusions());
+        MetaData metaData2 = MetaData.builder().coordinationMetaData(coordinationMetaData2).build();
+
+        assertTrue(MetaData.isGlobalStateEquals(metaData1, metaData1));
+        assertFalse(MetaData.isGlobalStateEquals(metaData1, metaData2));
     }
 
     public void testSerializationWithIndexGraveyard() throws IOException {

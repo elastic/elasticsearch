@@ -300,11 +300,11 @@ public class DatafeedConfig implements ToXContentObject {
             this.jobId = config.jobId;
             this.queryDelay = config.queryDelay;
             this.frequency = config.frequency;
-            this.indices = config.indices;
-            this.types = config.types;
+            this.indices = config.indices == null ? null : new ArrayList<>(config.indices);
+            this.types = config.types == null ? null : new ArrayList<>(config.types);
             this.query = config.query;
             this.aggregations = config.aggregations;
-            this.scriptFields = config.scriptFields;
+            this.scriptFields = config.scriptFields == null ? null : new ArrayList<>(config.scriptFields);
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();

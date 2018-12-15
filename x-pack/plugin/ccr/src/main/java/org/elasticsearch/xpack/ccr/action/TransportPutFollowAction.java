@@ -165,21 +165,25 @@ public final class TransportPutFollowAction
     }
 
     private void initiateRestore(RestoreService.RestoreRequest restoreRequest, ActionListener<RestoreSnapshotResponse> listener) {
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() ->
-            restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
-                @Override
-                public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
-                    final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
-                    final String uuid = restoreCompletionResponse.getUuid();
-                    clusterService.addListener(new RestoreClusterStateListener(clusterService, uuid, snapshot, listener));
-                }
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+            try {
+                restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
+                    @Override
+                    public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
+                        final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
+                        final String uuid = restoreCompletionResponse.getUuid();
+                        clusterService.addListener(new RestoreClusterStateListener(clusterService, uuid, snapshot, listener));
+                    }
 
-                @Override
-                public void onFailure(Exception t) {
-                    listener.onFailure(t);
-                }
-            }));
-
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private void initiateFollowing(

@@ -63,6 +63,9 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     private String minimumShouldMatchField;
     private Script minimumShouldMatchScript;
 
+    private final int HARD_LIMIT_FIELD_NAME = Integer.MAX_VALUE;
+    private final int SOFT_LIMIT_FIELD_NAME = 25;
+
     public TermsSetQueryBuilder(String fieldName, List<?> values) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.values = TermsQueryBuilder.convert(Objects.requireNonNull(values));
@@ -70,7 +73,17 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     public TermsSetQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        this.fieldName = in.readString();
+        byte[] buffer = new byte[HARD_LIMIT_FIELD_NAME];
+        int bytesRead = 0;
+
+        while ((bytesRead = in.read(buffer)) >= 0) {
+            if(bytesRead == SOFT_LIMIT_FIELD_NAME) {
+                System.out.print("Warning! Field name truncates input above 50 characters.");
+            }
+            bytesRead++;
+        }
+    
+        this.fieldName = new String(buffer);
         this.values = (List<?>) in.readGenericValue();
         this.minimumShouldMatchField = in.readOptionalString();
         this.minimumShouldMatchScript = in.readOptionalWriteable(Script::new);

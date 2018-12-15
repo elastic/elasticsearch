@@ -652,6 +652,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         private final Diff<ImmutableOpenMap<String, DiffableStringMap>> customData;
         private final Diff<ImmutableOpenIntMap<Set<String>>> inSyncAllocationIds;
         private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
+        private final int SOFT_LIMIT_INDEX_NAME = 128;
+        private final int HARD_LIMIT_INDEX_NAME = 255;
 
         IndexMetaDataDiff(IndexMetaData before, IndexMetaData after) {
             index = after.index.getName();
@@ -671,7 +673,17 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         }
 
         IndexMetaDataDiff(StreamInput in) throws IOException {
-            index = in.readString();
+            byte[] buffer = new byte[HARD_LIMIT_INDEX_NAME];
+            int bytesRead = 0;
+    
+            while ((bytesRead = in.read(buffer)) >= 0) {
+                if(bytesRead == SOFT_LIMIT_INDEX_NAME) {
+                    System.out.print("Warning! Index name has a max limit of 255 characters.");
+                }
+                bytesRead++;
+            }
+        
+            index = new String(buffer);
             routingNumShards = in.readInt();
             version = in.readLong();
             if (in.getVersion().onOrAfter(Version.V_6_5_0)) {

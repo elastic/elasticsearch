@@ -67,6 +67,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private final List<?> values;
     private final TermsLookup termsLookup;
     private final Supplier<List<?>> supplier;
+    private final int HARD_LIMIT_FIELD_NAME = Integer.MAX_VALUE;
+    private final int SOFT_LIMIT_FIELD_NAME = 25;
 
     public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
         this(fieldName, null, termsLookup);
@@ -183,7 +185,18 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      */
     public TermsQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        fieldName = in.readString();
+  
+        byte[] buffer = new byte[HARD_LIMIT_FIELD_NAME];
+        int bytesRead = 0;
+
+        while ((bytesRead = in.read(buffer)) >= 0) {
+            if(bytesRead == SOFT_LIMIT_FIELD_NAME) {
+                System.out.print("Warning! Field name truncates input above 50 characters.");
+            }
+            bytesRead++;
+        }
+    
+        fieldName = new String(buffer);
         termsLookup = in.readOptionalWriteable(TermsLookup::new);
         values = (List<?>) in.readGenericValue();
         this.supplier = null;

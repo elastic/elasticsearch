@@ -33,7 +33,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A value class representing the basic required properties of an Elasticsearch index.
+ * A value class representing the basic required properties of an Elasticsearch
+ * index.
  */
 public class Index implements Writeable, ToXContentObject {
 
@@ -41,6 +42,8 @@ public class Index implements Writeable, ToXContentObject {
     private static final String INDEX_UUID_KEY = "index_uuid";
     private static final String INDEX_NAME_KEY = "index_name";
     private static final ObjectParser<Builder, Void> INDEX_PARSER = new ObjectParser<>("index", Builder::new);
+    private static final int SOFT_LIMIT_INDEX_NAME = 128;
+    private static final int HARD_LIMIT_INDEX_NAME = 255;
     static {
         INDEX_PARSER.declareString(Builder::name, new ParseField(INDEX_NAME_KEY));
         INDEX_PARSER.declareString(Builder::uuid, new ParseField(INDEX_UUID_KEY));
@@ -58,7 +61,18 @@ public class Index implements Writeable, ToXContentObject {
      * Read from a stream.
      */
     public Index(StreamInput in) throws IOException {
-        this.name = in.readString();
+        byte[] buffer = new byte[HARD_LIMIT_INDEX_NAME];
+        int bytesRead = 0;
+
+        while ((bytesRead = in.read(buffer)) >= 0) {
+            if(bytesRead == SOFT_LIMIT_INDEX_NAME) {
+                //StreamOutput out = new ByteArrayOutputStream(1024);
+                //out.writeString("Warning! Index name has a max limit of 255 characters.");
+            }
+            bytesRead++;
+        }
+    
+        this.name = new String(buffer);
         this.uuid = in.readString();
     }
 
@@ -73,8 +87,9 @@ public class Index implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         /*
-         * If we have a uuid we put it in the toString so it'll show up in logs which is useful as more and more things use the uuid rather
-         * than the name as the lookup key for the index.
+         * If we have a uuid we put it in the toString so it'll show up in logs which is
+         * useful as more and more things use the uuid rather than the name as the
+         * lookup key for the index.
          */
         if (ClusterState.UNKNOWN_UUID.equals(uuid)) {
             return "[" + name + "]";
@@ -120,7 +135,7 @@ public class Index implements Writeable, ToXContentObject {
     }
 
     /**
-     * Builder for Index objects.  Used by ObjectParser instances only.
+     * Builder for Index objects. Used by ObjectParser instances only.
      */
     private static final class Builder {
         private String name;

@@ -79,6 +79,9 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     private Routing routing;
 
+    private final int HARD_LIMIT_MAPPING_TYPE = 255;
+    private final int SOFT_LIMIT_MAPPING_TYPE = 128;
+
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
@@ -206,7 +209,18 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     }
 
     public MappingMetaData(StreamInput in) throws IOException {
-        type = in.readString();
+        byte[] buffer = new byte[HARD_LIMIT_MAPPING_TYPE];
+        int bytesRead = 0;
+
+        while ((bytesRead = in.read(buffer)) >= 0) {
+            if(bytesRead == SOFT_LIMIT_MAPPING_TYPE) {
+                System.out.print("Warning! Mapping type has a max limit of 255 characters.");
+            }
+            bytesRead++;
+        }
+    
+        this.type = new String(buffer);
+        
         source = CompressedXContent.readCompressedString(in);
         // routing
         routing = new Routing(in.readBoolean());

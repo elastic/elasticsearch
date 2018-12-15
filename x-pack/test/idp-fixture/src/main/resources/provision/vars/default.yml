@@ -20,7 +20,6 @@ tomcat_key_alias: tomcat
 shib_idp_version: 3.3.1
 shib_installdir: /opt
 shib_home: "{{ shib_installdir }}/shibboleth-idp"
-shib_dns_name: "{{ ansible_fqdn }}:60443"
 idp_sealer_password: secret
 idp_keystore_password: secret1
 ...

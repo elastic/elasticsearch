@@ -10,15 +10,20 @@ Vagrant.configure("2") do |config|
     config.cache.scope = :box
   end
 
-  config.vm.network "forwarded_port", guest: 389, host: 60389, protocol: "tcp"
-  config.vm.network "forwarded_port", guest: 636, host: 60636, protocol: "tcp"
-  config.vm.network "forwarded_port", guest: 8080, host: 60080, protocol: "tcp"
-  config.vm.network "forwarded_port", guest: 8443, host: 60443, protocol: "tcp"
+  TCP_PORTS_LIST = { "389" => 60389, "636" => 60636, "8080" => 60080, "8443" => "60443"}
+
+  TCP_PORTS_LIST.each do |guest, host|
+    config.vm.network "forwarded_port", guest: "#{guest}", host: "{host}", protocol: "tcp",
+    config.vm.usable_port_range = 389..8443,
+    auto_correct: true
 
   config.vm.provision "ansible_local" do |ansible|
     ansible.verbose = "v"
     ansible.playbook = "src/main/resources/provision/playbook.yml"
     ansible.install_mode = "pip"
+    ansible.extra_vars = {
+      ports_list: TCP_PORTS_LIST
+    }
   end
 
 end

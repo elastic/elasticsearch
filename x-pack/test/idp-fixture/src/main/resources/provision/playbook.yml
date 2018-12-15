@@ -3,6 +3,10 @@
   vars_files:
       - vars/default.yml
 
+  vars:
+      - ports: ports_list
+      - shib_dns_name: "{{ ansible_fqdn }}:{{ ports|map(attribute='8443') }}"
+      
   roles:
       - { role: java-8-openjdk, become: yes }
       - { role: certs, become: yes }

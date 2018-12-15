@@ -102,21 +102,21 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
             this.nodeId = nodeId;
         }
 
-        PutCcrRestoreSessionResponse(StreamInput streamInput) throws IOException {
-            super(streamInput);
-            nodeId = streamInput.readString();
+        PutCcrRestoreSessionResponse(StreamInput in) throws IOException {
+            super(in);
+            nodeId = in.readString();
         }
 
         @Override
-        public void readFrom(StreamInput streamInput) throws IOException {
-            super.readFrom(streamInput);
-            nodeId = streamInput.readString();
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            nodeId = in.readString();
         }
 
         @Override
-        public void writeTo(StreamOutput streamOutput) throws IOException {
-            super.writeTo(streamOutput);
-            streamOutput.writeString(nodeId);
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(nodeId);
         }
 
         public String getNodeId() {

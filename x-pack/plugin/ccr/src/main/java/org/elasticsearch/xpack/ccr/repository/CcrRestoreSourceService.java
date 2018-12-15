@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -130,7 +129,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         RestoreContext restore = onGoingRestores.remove(sessionUUID);
         if (restore == null) {
             logger.info("could not close session [{}] because session not found", sessionUUID);
-            throw new ElasticsearchException("session [" + sessionUUID + "] not found");
+            throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
         IOUtils.closeWhileHandlingException(restore);
     }
@@ -158,6 +157,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
         @Override
         public void close() {
+            assert Thread.holdsLock(CcrRestoreSourceService.this);
             removeSessionForShard(sessionUUID, indexShard);
             IOUtils.closeWhileHandlingException(commitRef);
         }

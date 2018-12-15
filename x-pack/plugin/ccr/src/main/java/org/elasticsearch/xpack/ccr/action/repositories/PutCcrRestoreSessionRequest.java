@@ -37,19 +37,19 @@ public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestor
     }
 
     @Override
-    public void readFrom(StreamInput streamInput) throws IOException {
-        super.readFrom(streamInput);
-        sessionUUID = streamInput.readString();
-        shardId = ShardId.readShardId(streamInput);
-        metaData = new Store.MetadataSnapshot(streamInput);
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        sessionUUID = in.readString();
+        shardId = ShardId.readShardId(in);
+        metaData = new Store.MetadataSnapshot(in);
     }
 
     @Override
-    public void writeTo(StreamOutput streamOutput) throws IOException {
-        super.writeTo(streamOutput);
-        streamOutput.writeString(sessionUUID);
-        shardId.writeTo(streamOutput);
-        metaData.writeTo(streamOutput);
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(sessionUUID);
+        shardId.writeTo(out);
+        metaData.writeTo(out);
     }
 
     public String getSessionUUID() {

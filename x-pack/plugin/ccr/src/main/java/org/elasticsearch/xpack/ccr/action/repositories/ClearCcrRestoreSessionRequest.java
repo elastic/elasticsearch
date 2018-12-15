@@ -55,15 +55,15 @@ public class ClearCcrRestoreSessionRequest extends BaseNodesRequest<ClearCcrRest
         }
 
         @Override
-        public void readFrom(StreamInput streamInput) throws IOException {
-            super.readFrom(streamInput);
-            sessionUUID = streamInput.readString();
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            sessionUUID = in.readString();
         }
 
         @Override
-        public void writeTo(StreamOutput streamOutput) throws IOException {
-            super.writeTo(streamOutput);
-            streamOutput.writeString(sessionUUID);
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(sessionUUID);
         }
 
         public String getSessionUUID() {

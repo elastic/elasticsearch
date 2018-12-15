@@ -80,8 +80,8 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
         private Response() {
         }
 
-        private Response(StreamInput streamInput) throws IOException {
-            readFrom(streamInput);
+        private Response(StreamInput in) throws IOException {
+            readFrom(in);
         }
 
         private Response(DiscoveryNode node) {

@@ -77,4 +77,11 @@ class CompositeKey implements Writeable {
     public int hashCode() {
         return Arrays.hashCode(values);
     }
+
+    @Override
+    public String toString() {
+        return "CompositeKey{" +
+            "values=" + Arrays.toString(values) +
+            '}';
+    }
 }

@@ -116,12 +116,13 @@ final class CompositeAggregator extends BucketsAggregator {
 
         int num = Math.min(size, queue.size());
         final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
-        int pos = 0;
-        for (int slot : queue.getSortedSlot()) {
+        int pos = queue.size() - 1;
+        while (queue.size() > 0) {
+            int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = bucketAggregations(slot);
             int docCount = queue.getDocCount(slot);
-            buckets[pos++] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
+            buckets[pos--] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
         return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
@@ -260,7 +261,7 @@ final class CompositeAggregator extends BucketsAggregator {
     }
 
     private SingleDimensionValuesSource<?> createValuesSource(BigArrays bigArrays, IndexReader reader, Query query,
-                                                              CompositeValuesSourceConfig config, int sortRank, int size) {
+                                                              CompositeValuesSourceConfig config, int size, int sortRank) {
 
         final int reverseMul = config.reverseMul();
         if (config.valuesSource() instanceof ValuesSource.Bytes.WithOrdinals && reader instanceof DirectoryReader) {

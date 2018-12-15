@@ -78,8 +78,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private static final ParseField RETRY_ON_CONFLICT = new ParseField("retry_on_conflict");
     private static final ParseField PIPELINE = new ParseField("pipeline");
     private static final ParseField SOURCE = new ParseField("_source");
-    private static final ParseField if_seq_no_match = new ParseField("if_seq_no_match");
-    private static final ParseField CAS_TERM = new ParseField("cas_term");
+    private static final ParseField IF_SEQ_NO_MATCH = new ParseField("if_seq_no_match");
+    private static final ParseField IF_PRIMARY_TERM_MATCH = new ParseField("if_primary_term_match");
 
     /**
      * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
@@ -382,9 +382,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 version = parser.longValue();
                             } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 versionType = VersionType.fromString(parser.text());
-                            } else if (if_seq_no_match.match(currentFieldName, parser.getDeprecationHandler())) {
+                            } else if (IF_SEQ_NO_MATCH.match(currentFieldName, parser.getDeprecationHandler())) {
                                 ifSeqNoMatch = parser.longValue();
-                            } else if (CAS_TERM.match(currentFieldName, parser.getDeprecationHandler())) {
+                            } else if (IF_PRIMARY_TERM_MATCH.match(currentFieldName, parser.getDeprecationHandler())) {
                                 ifPrimaryTermMatch = parser.longValue();
                             } else if (RETRY_ON_CONFLICT.match(currentFieldName, parser.getDeprecationHandler())) {
                                 retryOnConflict = parser.intValue();
@@ -414,7 +414,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
                 if ("delete".equals(action)) {
                     add(new DeleteRequest(index, type, id).routing(routing)
-                        .version(version).versionType(versionType).compareAndSet(ifSeqNoMatch, ifPrimaryTermMatch), payload);
+                        .version(version).versionType(versionType).setIfMatch(ifSeqNoMatch, ifPrimaryTermMatch), payload);
                 } else {
                     nextMarker = findNextMarker(marker, from, data, length);
                     if (nextMarker == -1) {
@@ -427,16 +427,16 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     if ("index".equals(action)) {
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                    .setPipeline(pipeline).compareAndSet(ifSeqNoMatch, ifPrimaryTermMatch)
+                                    .setPipeline(pipeline).ifMatch(ifSeqNoMatch, ifPrimaryTermMatch)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType), payload);
                         } else {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                    .create("create".equals(opType)).setPipeline(pipeline).compareAndSet(ifSeqNoMatch, ifPrimaryTermMatch)
+                                    .create("create".equals(opType)).setPipeline(pipeline).ifMatch(ifSeqNoMatch, ifPrimaryTermMatch)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                         }
                     } else if ("create".equals(action)) {
                         internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                .create(true).setPipeline(pipeline).compareAndSet(ifSeqNoMatch, ifPrimaryTermMatch)
+                                .create(true).setPipeline(pipeline).ifMatch(ifSeqNoMatch, ifPrimaryTermMatch)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                     } else if ("update".equals(action)) {
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)

@@ -114,9 +114,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetUsers() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         String[] usernames = new String[] {"user1", "user2", "user3"};
-        addUser(client, usernames[0], randomAlphaOfLength(4));
-        addUser(client, usernames[1], randomAlphaOfLength(4));
-        addUser(client, usernames[2], randomAlphaOfLength(4));
+        addUser(client, usernames[0], randomAlphaOfLengthBetween(6, 10));
+        addUser(client, usernames[1], randomAlphaOfLengthBetween(6, 10));
+        addUser(client, usernames[2], randomAlphaOfLengthBetween(6, 10));
         {
             //tag::get-users-request
             GetUsersRequest request = new GetUsersRequest(usernames[0]);
@@ -131,7 +131,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(response);
             assertThat(users.size(), equalTo(1));
-            assertThat(users.get(0), is(usernames[0]));
+            assertThat(users.get(0).getUsername(), is(usernames[0]));
         }
 
         {
@@ -159,15 +159,17 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             List<User> users = new ArrayList<>(3);
             users.addAll(response.getUsers());
             assertNotNull(response);
-            // 4 system users plus the three we created
-            assertThat(users.size(), equalTo(7));
+            // 9 users are expected to be returned
+            // test_users (3): user1, user2, user3
+            // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, remote_monitoring_user
+            assertThat(users.size(), equalTo(9));
         }
 
         {
             GetUsersRequest request = new GetUsersRequest(usernames[0]);
             ActionListener<GetUsersResponse> listener;
 
-            //tag::get-roles-execute-listener
+            //tag::get-users-execute-listener
             listener = new ActionListener<GetUsersResponse>() {
                 @Override
                 public void onResponse(GetUsersResponse getRolesResponse) {

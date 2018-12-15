@@ -158,12 +158,13 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
                 if (restoreCompletionResponse.getRestoreInfo() == null) {
                     final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
+                    final String uuid = restoreCompletionResponse.getUuid();
 
                     ClusterStateListener clusterStateListener = new ClusterStateListener() {
                         @Override
                         public void clusterChanged(ClusterChangedEvent changedEvent) {
-                            final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), snapshot);
-                            final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), snapshot);
+                            final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), uuid);
+                            final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), uuid);
                             if (prevEntry == null) {
                                 // When there is a master failure after a restore has been started, this listener might not be registered
                                 // on the current master and as such it might miss some intermediary cluster states due to batching.

@@ -203,8 +203,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * only performs this indexing request if the document was last modification was assigned the given
      * sequence number and primary term
      */
-    public IndexRequestBuilder setCompareAndSet(long seqNo, long term) {
-        request.compareAndSet(seqNo, term);
+    public IndexRequestBuilder setIfMatch(long seqNo, long term) {
+        request.ifMatch(seqNo, term);
         return this;
     }
 

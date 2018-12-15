@@ -58,7 +58,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private String routing;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
-    private long casSeqNp = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    private long ifSeqNoMatch = SequenceNumbers.UNASSIGNED_SEQ_NO;
     private long ifPrimaryTermMatch = 0;
 
     public DeleteRequest() {
@@ -116,7 +116,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
             validationException = addValidationError("version type [force] may no longer be used", validationException);
         }
 
-        if (casSeqNp != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+        if (ifSeqNoMatch != SequenceNumbers.UNASSIGNED_SEQ_NO && (
             versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
         )) {
             validationException = addValidationError("compare and write operations can not use versioning", validationException);
@@ -204,14 +204,14 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     public long ifSeqNoMatch() {
-        return casSeqNp;
+        return ifSeqNoMatch;
     }
 
     public long ifPrimaryTermMatch() {
         return ifPrimaryTermMatch;
     }
 
-    public DeleteRequest compareAndSet(long seqNo, long term) {
+    public DeleteRequest setIfMatch(long seqNo, long term) {
         if (term == 0 && seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException("seqNo is set, but primary term is [0]");
         }
@@ -224,7 +224,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         if (term < 0) {
             throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
         }
-        casSeqNp = seqNo;
+        ifSeqNoMatch = seqNo;
         ifPrimaryTermMatch = term;
         return this;
     }
@@ -251,10 +251,10 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            casSeqNp = in.readZLong();
+            ifSeqNoMatch = in.readZLong();
             ifPrimaryTermMatch = in.readVLong();
         } else {
-            casSeqNp = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            ifSeqNoMatch = SequenceNumbers.UNASSIGNED_SEQ_NO;
             ifPrimaryTermMatch = 0;
         }
     }
@@ -271,10 +271,10 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         out.writeLong(version);
         out.writeByte(versionType.getValue());
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeZLong(casSeqNp);
+            out.writeZLong(ifSeqNoMatch);
             out.writeVLong(ifPrimaryTermMatch);
-        } else if (casSeqNp != SequenceNumbers.UNASSIGNED_SEQ_NO || ifPrimaryTermMatch != 0) {
-            assert false : "compareAndSet [" + casSeqNp + "], currentDocTem [" + ifPrimaryTermMatch + "]";
+        } else if (ifSeqNoMatch != SequenceNumbers.UNASSIGNED_SEQ_NO || ifPrimaryTermMatch != 0) {
+            assert false : "setIfMatch [" + ifSeqNoMatch + "], currentDocTem [" + ifPrimaryTermMatch + "]";
             throw new IllegalStateException(
                 "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. " +
                     "Stream version [" + out.getVersion() + "]");

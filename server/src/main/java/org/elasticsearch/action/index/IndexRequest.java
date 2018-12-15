@@ -486,7 +486,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
-    public IndexRequest compareAndSet(long seqNo, long term) {
+    public IndexRequest ifMatch(long seqNo, long term) {
         if (term == 0 && seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException("seqNo is set, but primary term is [0]");
         }
@@ -582,7 +582,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             ifPrimaryTermMatch = in.readVLong();
         } else {
             ifSeqNoMatch = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            ifPrimaryTermMatch = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            ifPrimaryTermMatch = 0;
         }
     }
 
@@ -619,7 +619,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeZLong(ifSeqNoMatch);
             out.writeVLong(ifPrimaryTermMatch);
         } else if (ifSeqNoMatch != SequenceNumbers.UNASSIGNED_SEQ_NO || ifPrimaryTermMatch != 0) {
-            assert false : "compareAndSet [" + ifSeqNoMatch + "], currentDocTem [" + ifPrimaryTermMatch + "]";
+            assert false : "setIfMatch [" + ifSeqNoMatch + "], currentDocTem [" + ifPrimaryTermMatch + "]";
             throw new IllegalStateException(
                 "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. " +
                     "Stream version [" + out.getVersion() + "]");

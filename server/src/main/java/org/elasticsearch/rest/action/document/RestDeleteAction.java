@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestDeleteAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
         "document index requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
     public RestDeleteAction(Settings settings, RestController controller) {
@@ -67,7 +67,7 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.setRefreshPolicy(request.param("refresh"));
         deleteRequest.version(RestActions.parseVersion(request));
         deleteRequest.versionType(VersionType.fromString(request.param("version_type"), deleteRequest.versionType()));
-        deleteRequest.compareAndSet(
+        deleteRequest.setIfMatch(
             request.paramAsLong("if_seq_no_match", SequenceNumbers.UNASSIGNED_SEQ_NO), request.paramAsLong("if_primary_term_match", 0));
 
         String waitForActiveShards = request.param("wait_for_active_shards");

@@ -328,6 +328,7 @@ public class SearchModuleTests extends ESTestCase {
             "geo_polygon",
             "geo_shape",
             "ids",
+            "intervals",
             "match",
             "match_all",
             "match_none",

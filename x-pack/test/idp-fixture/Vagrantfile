@@ -10,7 +10,7 @@ Vagrant.configure("2") do |config|
     config.cache.scope = :box
   end
 
-  TCP_PORTS_LIST = { "389" => 60389, "636" => 60636, "8080" => 60080, "8443" => 60443}
+  TCP_PORTS_LIST = { "389" => 60389, "636" => 60636, "8080" => 60080, "8443" => "60443"}
 
   TCP_PORTS_LIST.each do |guest, host|
     config.vm.network "forwarded_port", guest: "#{guest}", host: "{host}", protocol: "tcp",

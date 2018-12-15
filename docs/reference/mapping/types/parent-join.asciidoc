@@ -436,4 +436,4 @@ PUT my_index/_doc/3?routing=1&refresh <1>
 // TEST[continued]
 
 <1> This child document must be on the same shard than its grand-parent and parent
-<2> The parent id of this document (must points to an `answer` document)
+<2> The parent id of this document (must point to an `answer` document)

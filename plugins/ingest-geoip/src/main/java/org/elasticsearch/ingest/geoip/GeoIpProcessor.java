@@ -73,9 +73,25 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final boolean ignoreMissing;
     private final GeoIpCache cache;
 
-
-    GeoIpProcessor(String tag, String field, Supplier<DatabaseReader> dbReader, String targetField, Supplier<Set<Property>> properties, boolean ignoreMissing,
-                   GeoIpCache cache) {
+    /**
+     * Construct a geo-IP processor.
+     *
+     * @param tag           the processor tag
+     * @param field         the source field to geo-IP map
+     * @param dbReader      a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
+     * @param targetField   the target field
+     * @param properties    the properties; ideally this is lazily-loaded once on first use
+     * @param ignoreMissing true if documents with a missing value for the field should be ignored
+     * @param cache         a geo-IP cache
+     */
+    GeoIpProcessor(
+            final String tag,
+            final String field,
+            final Supplier<DatabaseReader> dbReader,
+            final String targetField,
+            final Supplier<Set<Property>> properties,
+            final boolean ignoreMissing,
+            final GeoIpCache cache) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
@@ -369,7 +385,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 final AtomicBoolean set = new AtomicBoolean();
                 final Set<Property> properties = EnumSet.noneOf(Property.class);
                 propertiesSupplier = () -> {
-                    if (set.get() == false || set.compareAndSet(false, true)) {
+                    if (set.compareAndSet(false, true)) {
                         for (String fieldName : propertyNames) {
                             try {
                                 properties.add(Property.parseProperty(databaseReader.get().getMetadata().getDatabaseType(), fieldName));
@@ -384,7 +400,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 final AtomicBoolean set = new AtomicBoolean();
                 final Set<Property> properties = EnumSet.noneOf(Property.class);
                 propertiesSupplier = () -> {
-                    if (set.get() == false || set.compareAndSet(false, true)) {
+                    if (set.compareAndSet(false, true)) {
                         final String databaseType = databaseReader.get().getMetadata().getDatabaseType();
                         if (databaseType.endsWith(CITY_DB_SUFFIX)) {
                             properties.addAll(DEFAULT_CITY_PROPERTIES);

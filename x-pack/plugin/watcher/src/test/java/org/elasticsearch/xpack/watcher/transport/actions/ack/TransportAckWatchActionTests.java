@@ -67,7 +67,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         String watchId = "my_watch_id";
         doAnswer(invocation -> {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[1];
-            listener.onResponse(new GetResponse(new GetResult(Watch.INDEX, Watch.DOC_TYPE, watchId, -1, false,
+            listener.onResponse(new GetResponse(new GetResult(Watch.INDEX, Watch.DOC_TYPE, watchId, 0, 1, -1, false,
                     BytesArray.EMPTY, Collections.emptyMap())));
             return null;
         }).when(client).get(anyObject(), anyObject());

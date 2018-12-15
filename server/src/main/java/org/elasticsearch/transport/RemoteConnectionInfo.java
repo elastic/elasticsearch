@@ -105,7 +105,9 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
                                 final Tuple<String, Integer> hostPort = RemoteClusterAware.parseHostPort(s);
                                 assert hostPort.v2() != null : s;
                                 try {
-                                    return new TransportAddress(InetAddress.getByAddress(hostPort.v1(), new byte[4]), hostPort.v2());
+                                    return new TransportAddress(
+                                            InetAddress.getByAddress(hostPort.v1(), TransportAddress.META_ADDRESS.getAddress()),
+                                            hostPort.v2());
                                 } catch (final UnknownHostException e) {
                                     throw new AssertionError(e);
                                 }

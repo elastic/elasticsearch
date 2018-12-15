@@ -13,9 +13,23 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 public class FIPSChecks implements FIPSInterface {
+
+    private License.OperationMode licenseMode;
     
     static final EnumSet<License.OperationMode> ALLOWED_LICENSE_OPERATION_MODES =
             EnumSet.of(License.OperationMode.PLATINUM, License.OperationMode.TRIAL);
+
+    FIPSChecks(License.OperationMode mode){
+        licenseMode = mode;
+    }
+
+    FIPSChecks(){
+        licenseMode = null;
+    }
+
+    public License.OperationMode getLicenseOperationMode(){
+        return licenseMode;
+    }
 
 	@Override
 	public FIPSCheckResult check(FIPSContext context, Environment env) {
@@ -66,7 +80,6 @@ public class FIPSChecks implements FIPSInterface {
                 return FIPSCheckResult.failure("JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please " +
                     "revisit [" + keystorePathSettings.toDelimitedString(',') + "] settings");
             }
-
         }
         
         return FIPSCheckResult.success();
@@ -74,10 +87,9 @@ public class FIPSChecks implements FIPSInterface {
     
     public FIPSCheckResult licenseCheck(FIPSContext context) {
         if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings)) {
-            /*License license = LicenseService.getLicense(context.metaData);
-            if (license != null && ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
+            if (licenseMode != null && ALLOWED_LICENSE_OPERATION_MODES.contains(licenseMode) == false) {
                 return FIPSCheckResult.failure("FIPS mode is only allowed with a Platinum or Trial license");
-            } */
+            }
         }
         
         return FIPSCheckResult.success();
@@ -106,7 +118,7 @@ public class FIPSChecks implements FIPSInterface {
                 throw new UncheckedIOException(e);
             }
         }
-        
+
         return FIPSCheckResult.success();
     }
 }

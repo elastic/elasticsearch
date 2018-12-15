@@ -6,8 +6,7 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.bootstrap.BootstrapContext;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.bootstrap.FIPSContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.License;
@@ -15,30 +14,25 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 public class LicenseFIPSCheckTests extends ESTestCase {
-/*
     public void testBootstrapCheck() throws Exception {
-        assertTrue(new FIPSChecks().licenseCheck(new BootstrapContext(Settings.EMPTY, MetaData.EMPTY_META_DATA)).isSuccess());
-        assertTrue(new FIPSChecks().licenseCheck(new BootstrapContext(Settings.builder().put("xpack.security.fips_mode.enabled", randomBoolean()).build(), MetaData
-                .EMPTY_META_DATA)).isSuccess());
+        assertTrue(new FIPSChecks().licenseCheck(new FIPSContext(Settings.EMPTY)).isSuccess());
+        assertTrue(new FIPSChecks().licenseCheck(new FIPSContext(Settings.builder().put("xpack.security.fips_mode.enabled", randomBoolean()).build())).isSuccess());
 
-        MetaData.Builder builder = MetaData.builder();
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
-        TestUtils.putLicense(builder, license);
-        MetaData metaData = builder.build();
 
-        if (LicenseCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode())) {
-            assertTrue(new FIPSChecks().licenseCheck(new BootstrapContext(
-                Settings.builder().put("xpack.security.fips_mode.enabled", true).build(), metaData)).isSuccess());
-            assertTrue(new FIPSChecks().licenseCheck(new BootstrapContext(
-                Settings.builder().put("xpack.security.fips_mode.enabled", false).build(), metaData)).isSuccess());
+        if (FIPSChecks.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode())) {
+            assertTrue(new FIPSChecks(license.operationMode()).licenseCheck(new FIPSContext(
+                Settings.builder().put("xpack.security.fips_mode.enabled", true).build())).isSuccess());
+            assertTrue(new FIPSChecks(license.operationMode()).licenseCheck(new FIPSContext(
+                Settings.builder().put("xpack.security.fips_mode.enabled", false).build())).isSuccess());
         } else {
-            assertTrue(new FIPSChecks().licenseCheck(new BootstrapContext(
-                Settings.builder().put("xpack.security.fips_mode.enabled", false).build(), metaData)).isSuccess());
-            assertTrue(new FIPSChecks().licenseCheck(new BootstrapContext(
-                Settings.builder().put("xpack.security.fips_mode.enabled", true).build(), metaData)).isFailure());
+            assertTrue(new FIPSChecks(license.operationMode()).licenseCheck(new FIPSContext(
+                Settings.builder().put("xpack.security.fips_mode.enabled", false).build())).isSuccess());
+            assertTrue(new FIPSChecks(license.operationMode()).licenseCheck(new FIPSContext(
+                Settings.builder().put("xpack.security.fips_mode.enabled", true).build())).isFailure());
             assertEquals("FIPS mode is only allowed with a Platinum or Trial license",
-                new FIPSChecks().licenseCheck(new BootstrapContext(
-                    Settings.builder().put("xpack.security.fips_mode.enabled", true).build(), metaData)).getMessage());
+                new FIPSChecks(license.operationMode()).licenseCheck(new FIPSContext(
+                    Settings.builder().put("xpack.security.fips_mode.enabled", true).build())).getMessage());
         }
-    }*/
+    }
 }

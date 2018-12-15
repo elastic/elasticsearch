@@ -25,7 +25,7 @@ import org.elasticsearch.bootstrap.FIPSContext;
 import org.elasticsearch.env.Environment;
 
 /**
- * Encapsulates a bootstrap check.
+ * Encapsulates a FIPS check.
  */
 public interface FIPSInterface {
 
@@ -70,12 +70,7 @@ public interface FIPSInterface {
     /**
      * Test if the node fails the check
      * @param context the FIPS context
-     * @return the result of the bootstrap check
+     * @return the result of the FIPS check
      */
     FIPSCheckResult check(FIPSContext context, Environment env);
-
-    default boolean alwaysEnforce() {
-        return true;
-    }
-
 }

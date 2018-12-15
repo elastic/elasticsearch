@@ -259,6 +259,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
     private static final Logger logger = LogManager.getLogger(Security.class);
+    private static final SetOnce<FIPSChecks> FIPSChecksInstance = new SetOnce<>();
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(SecurityField.setting("audit.outputs"),
@@ -498,8 +499,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
 
         FIPSContext context = new FIPSContext(settings);
-        FIPSChecks checks = new FIPSChecks();
-        checks.check(context, env);
+        FIPSChecksInstance.set(new FIPSChecks(getLicenseState().getOperationMode()));
+        FIPSChecksInstance.get().check(context, env);
 
         return components;
     }
@@ -1006,8 +1007,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
                     DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
                 .andThen(new ValidateUpgradedSecurityIndex())
-                .andThen(new ValidateLicenseCanBeDeserialized());
-                //.andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
+                .andThen(new ValidateLicenseCanBeDeserialized())
+                .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
         }
         return null;
     }
@@ -1055,7 +1056,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
     }
 
-    /*static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
+    static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
         private final boolean inFipsMode;
 
         ValidateLicenseForFIPS(boolean inFipsMode) {
@@ -1065,16 +1066,18 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             if (inFipsMode) {
-                License license = LicenseService.getLicense(state.metaData());
-                if (license != null &&
-                    LicenseCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
-                    throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
+
+                License.OperationMode licenseOperationMode = FIPSChecksInstance.get().getLicenseOperationMode();
+
+                if (licenseOperationMode != null &&
+                    FIPSChecks.ALLOWED_LICENSE_OPERATION_MODES.contains(licenseOperationMode) == false) {
+                    throw new IllegalStateException("FIPS mode cannot be used with a [" + licenseOperationMode +
                         "] license. It is only allowed with a Platinum or Trial license.");
 
                 }
             }
         }
-    }*/
+    }
 
     @Override
     public void reloadSPI(ClassLoader loader) {

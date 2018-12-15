@@ -726,15 +726,20 @@ final class BootstrapChecks {
         public BootstrapCheckResult check(BootstrapContext context) {
             final Environment checkEnvironment = new Environment(context.settings(), null);
             final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(checkEnvironment.settings());
-            List<String> existingPathsWithClusterName = Arrays.stream(checkEnvironment.dataFiles())
+            List<Path> existingPathsWithClusterName = Arrays.stream(checkEnvironment.dataFiles())
                 .map(p -> p.resolve(clusterName.value()))
-                .filter(Files::exists).map(Path::toString).collect(Collectors.toList());
+                .filter(Files::exists).collect(Collectors.toList());
             if (existingPathsWithClusterName.isEmpty()) {
                 return BootstrapCheckResult.success();
             } else {
-                final String paths = String.join(",", existingPathsWithClusterName);
+                final List<String> clusterPathStrings = existingPathsWithClusterName.stream()
+                    .map(Path::toString).collect(Collectors.toList());
+                final List<String> dataPathStrings = existingPathsWithClusterName.stream()
+                    .map(Path::getParent).map(Path::toString).collect(Collectors.toList());
                 return BootstrapCheckResult.failure(
-                    "node cannot have cluster names as subdirectories in data paths [" + paths + "]");
+                    "Cluster name [" + clusterName.value() + "] subdirectory exists in data paths ["
+                    + String.join(",", clusterPathStrings) + "]. " +
+                    "All data under these paths must be moved up one directory to paths [" + String.join(",", dataPathStrings) + "]");
             }
         }
 

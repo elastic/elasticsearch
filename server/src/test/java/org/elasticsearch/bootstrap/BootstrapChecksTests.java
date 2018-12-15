@@ -728,7 +728,8 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             NodeValidationException.class,
             () -> BootstrapChecks.check(invalidContext, true, Collections.singletonList(check)));
         assertThat(e, hasToString(containsString(
-            "node cannot have cluster names as subdirectories in data paths [" + clusterNameDir.toString() + "]")));
+            "Cluster name [" + clusterName + "] subdirectory exists in data paths [" + clusterNameDir.toString() + "]. " +
+            "All data under these paths must be moved up one directory to paths [" + invalidDataPath.toString() + "]")));
         // expect successful check when clusterName is not found in data path
         BootstrapChecks.check(validContext, true, testChecks);
     }

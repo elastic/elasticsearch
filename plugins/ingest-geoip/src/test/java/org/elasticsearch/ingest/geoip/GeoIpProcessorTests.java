@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.is;
 
 public class GeoIpProcessorTests extends ESTestCase {
 
-    private final Supplier<DatabaseReader> databaseReaderSupplier(final InputStream database) {
+    private Supplier<DatabaseReader> databaseReaderSupplier(final InputStream database) {
         final AtomicBoolean set = new AtomicBoolean();
         final AtomicReference<DatabaseReader> databaseReader = new AtomicReference<>();
         return () -> {

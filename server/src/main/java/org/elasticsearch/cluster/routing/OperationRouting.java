@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -46,8 +44,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class OperationRouting {
-
-    private static final Logger logger = LogManager.getLogger(OperationRouting.class);
 
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING =
             Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", true,
@@ -146,15 +142,7 @@ public class OperationRouting {
                                                         @Nullable ResponseCollectorService collectorService,
                                                         @Nullable Map<String, Long> nodeCounts) {
         if (preference == null || preference.isEmpty()) {
-            if (awarenessAttributes.isEmpty()) {
-                if (useAdaptiveReplicaSelection) {
-                    return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
-                } else {
-                    return indexShard.activeInitializingShardsRandomIt();
-                }
-            } else {
-                return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes);
-            }
+            return getShardRoutings(indexShard, nodes, collectorService, nodeCounts);
         }
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
@@ -181,15 +169,7 @@ public class OperationRouting {
                 }
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
-                    if (awarenessAttributes.isEmpty()) {
-                        if (useAdaptiveReplicaSelection) {
-                            return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
-                        } else {
-                            return indexShard.activeInitializingShardsRandomIt();
-                        }
-                    } else {
-                        return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes);
-                    }
+                    return getShardRoutings(indexShard, nodes, collectorService, nodeCounts);
                 } else {
                     // update the preference and continue
                     preference = preference.substring(index + 1);
@@ -232,7 +212,20 @@ public class OperationRouting {
         }
     }
 
-    private IndexShardRoutingTable shardRoutingTable(IndexRoutingTable indexRouting, int shardId) {
+    private ShardIterator getShardRoutings(IndexShardRoutingTable indexShard, DiscoveryNodes nodes,
+            @Nullable ResponseCollectorService collectorService, @Nullable Map<String, Long> nodeCounts) {
+        if (awarenessAttributes.isEmpty()) {
+            if (useAdaptiveReplicaSelection) {
+                return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
+            } else {
+                return indexShard.activeInitializingShardsRandomIt();
+            }
+        } else {
+            return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes);
+        }
+    }
+
+    public static IndexShardRoutingTable shardRoutingTable(IndexRoutingTable indexRouting, int shardId) {
         IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
         if (indexShard == null) {
             throw new ShardNotFoundException(new ShardId(indexRouting.getIndex(), shardId));

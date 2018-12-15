@@ -162,11 +162,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             this.id = id;
         }
 
-        // package private for testing
-        byte getId() {
-            return id;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(id);
@@ -280,10 +275,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-    }
-
-    public UnassignedInfo readFrom(StreamInput in) throws IOException {
-        return new UnassignedInfo(in);
     }
 
     /**

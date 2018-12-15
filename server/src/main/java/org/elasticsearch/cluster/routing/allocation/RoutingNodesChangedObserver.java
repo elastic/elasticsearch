@@ -84,13 +84,6 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
     }
 
     @Override
-    public void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard) {
-        assert startedPrimaryShard.primary() && startedPrimaryShard.started() : "expected started primary shard " + startedPrimaryShard;
-        assert initializedShard.primary() && initializedShard.initializing(): "expected initializing primary shard " + initializedShard;
-        setChanged();
-    }
-
-    @Override
     public void replicaPromoted(ShardRouting replicaShard) {
         assert replicaShard.started() && replicaShard.primary() == false : "expected started replica shard " + replicaShard;
         setChanged();

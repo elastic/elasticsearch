@@ -185,12 +185,7 @@ public class RoutingAllocation {
         if (ignoredShardToNodes == null) {
             ignoredShardToNodes = new HashMap<>();
         }
-        Set<String> nodes = ignoredShardToNodes.get(shardId);
-        if (nodes == null) {
-            nodes = new HashSet<>();
-            ignoredShardToNodes.put(shardId, nodes);
-        }
-        nodes.add(nodeId);
+        ignoredShardToNodes.computeIfAbsent(shardId, k -> new HashSet<>()).add(nodeId);
     }
 
     /**

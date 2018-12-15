@@ -84,6 +84,12 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "plugin name is required");
         }
 
+        if ("ingest-geoip".equals(pluginName)) {
+            throw new UserException(
+                    ExitCodes.OK,
+                    "ingest-geoip is no longer a plugin but instead a module packaged with this distribution of Elasticsearch");
+        }
+
         // first make sure nothing extends this plugin
         List<String> usedBy = new ArrayList<>();
         Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());

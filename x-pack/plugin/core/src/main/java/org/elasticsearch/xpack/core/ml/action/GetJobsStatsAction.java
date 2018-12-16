@@ -118,7 +118,12 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
         @Override
         public boolean match(Task task) {
-            return OpenJobAction.JobTaskMatcher.match(task, jobId);
+            for(int i = 0; i < expandedJobsIds.size(); i++)
+            {
+                if(OpenJobAction.JobTaskMatcher.match(task, expandedJobsIds[i]) == true)
+                    return true;
+            }
+            return false;
         }
 
         @Override

@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;

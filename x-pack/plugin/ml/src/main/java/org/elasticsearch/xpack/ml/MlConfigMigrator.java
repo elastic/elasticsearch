@@ -94,7 +94,7 @@ public class MlConfigMigrator {
     private static final Logger logger = LogManager.getLogger(MlConfigMigrator.class);
 
     public static final String MIGRATED_FROM_VERSION = "migrated from version";
-    static final int CONFIG_INDEX_MAX_RESULTS_WINDOW = 10_000;
+    public static final int CONFIG_INDEX_MAX_RESULTS_WINDOW = 10_000;
 
     static final int MAX_BULK_WRITE_SIZE = 100;
 

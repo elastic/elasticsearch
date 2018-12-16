@@ -38,11 +38,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -68,13 +70,18 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * If there was an error in step 3 and the config is in both the clusterstate and
  * index then when the migrator retries it must not overwrite an existing job config
  * document as once the index document is present all update operations will function
- * on that rather than the clusterstate
+ * on that rather than the clusterstate.
+ *
+ * The number of configs indexed in each bulk operation is limited by {@link #MAX_BULK_WRITE_SIZE}
+ * pairs of datafeeds and jobs are migrated together.
  */
 public class MlConfigMigrator {
 
     private static final Logger logger = LogManager.getLogger(MlConfigMigrator.class);
 
     public static final String MIGRATED_FROM_VERSION = "migrated from version";
+
+    static final int MAX_BULK_WRITE_SIZE = 100;
 
     private final Client client;
     private final ClusterService clusterService;
@@ -111,10 +118,12 @@ public class MlConfigMigrator {
             return;
         }
 
-        Collection<DatafeedConfig> datafeedsToMigrate = stoppedDatafeedConfigs(clusterState);
-        List<Job> jobsToMigrate = nonDeletingJobs(closedJobConfigs(clusterState)).stream()
+        Collection<DatafeedConfig> stoppedDatafeeds = stoppedDatafeedConfigs(clusterState);
+        Map<String, Job> eligibleJobs = nonDeletingJobs(closedJobConfigs(clusterState)).stream()
                 .map(MlConfigMigrator::updateJobForMigration)
-                .collect(Collectors.toList());
+                .collect(Collectors.toMap(Job::getId, Function.identity(), (a, b) -> a));
+
+        JobsAndDatafeeds jobsAndDatafeedsToMigrate = limitWrites(stoppedDatafeeds, eligibleJobs);
 
         ActionListener<Boolean> unMarkMigrationInProgress = ActionListener.wrap(
                 response -> {
@@ -127,16 +136,18 @@ public class MlConfigMigrator {
                 }
         );
 
-        if (datafeedsToMigrate.isEmpty() && jobsToMigrate.isEmpty()) {
+        if (jobsAndDatafeedsToMigrate.totalCount() == 0) {
             unMarkMigrationInProgress.onResponse(Boolean.FALSE);
             return;
         }
 
-        writeConfigToIndex(datafeedsToMigrate, jobsToMigrate, ActionListener.wrap(
+        logger.debug("migrating ml configurations");
+
+        writeConfigToIndex(jobsAndDatafeedsToMigrate.datafeedConfigs, jobsAndDatafeedsToMigrate.jobs, ActionListener.wrap(
                 failedDocumentIds -> {
-                    List<String> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, jobsToMigrate);
+                    List<String> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, jobsAndDatafeedsToMigrate.jobs);
                     List<String> successfulDatafeedWrites =
-                            filterFailedDatafeedConfigWrites(failedDocumentIds, datafeedsToMigrate);
+                            filterFailedDatafeedConfigWrites(failedDocumentIds, jobsAndDatafeedsToMigrate.datafeedConfigs);
                     removeFromClusterState(successfulJobWrites, successfulDatafeedWrites, unMarkMigrationInProgress);
                 },
                 unMarkMigrationInProgress::onFailure
@@ -339,6 +350,62 @@ public class MlConfigMigrator {
         return mlMetadata.getDatafeeds().values().stream()
                 .filter(datafeedConfig-> startedDatafeedIds.contains(datafeedConfig.getId()) == false)
                 .collect(Collectors.toList());
+    }
+
+    public static class JobsAndDatafeeds  {
+        List<Job> jobs;
+        List<DatafeedConfig> datafeedConfigs;
+
+        private JobsAndDatafeeds() {
+            jobs = new ArrayList<>();
+            datafeedConfigs = new ArrayList<>();
+        }
+
+        public int totalCount() {
+            return jobs.size() + datafeedConfigs.size();
+        }
+    }
+
+    /**
+     * Return at most {@link #MAX_BULK_WRITE_SIZE} configs favouring
+     * datafeed and job pairs so if a datafeed is chosen so is its job.
+     *
+     * @param datafeedsToMigrate Datafeed configs
+     * @param jobsToMigrate      Job configs
+     * @return Job and datafeed configs
+     */
+    public static JobsAndDatafeeds limitWrites(Collection<DatafeedConfig> datafeedsToMigrate, Map<String, Job> jobsToMigrate) {
+        JobsAndDatafeeds jobsAndDatafeeds = new JobsAndDatafeeds();
+
+        if (datafeedsToMigrate.size() + jobsToMigrate.size() <= MAX_BULK_WRITE_SIZE) {
+            jobsAndDatafeeds.jobs.addAll(jobsToMigrate.values());
+            jobsAndDatafeeds.datafeedConfigs.addAll(datafeedsToMigrate);
+            return jobsAndDatafeeds;
+        }
+
+        int count = 0;
+
+        // prioritise datafeed and job pairs
+        for (DatafeedConfig datafeedConfig : datafeedsToMigrate) {
+            if (count < MAX_BULK_WRITE_SIZE) {
+                jobsAndDatafeeds.datafeedConfigs.add(datafeedConfig);
+                count++;
+                Job datafeedsJob = jobsToMigrate.remove(datafeedConfig.getJobId());
+                if (datafeedsJob != null) {
+                    jobsAndDatafeeds.jobs.add(datafeedsJob);
+                    count++;
+                }
+            }
+        }
+
+        // are there jobs without datafeeds to migrate
+        Iterator<Job> iter = jobsToMigrate.values().iterator();
+        while (iter.hasNext() && count < MAX_BULK_WRITE_SIZE) {
+            jobsAndDatafeeds.jobs.add(iter.next());
+            count++;
+        }
+
+        return jobsAndDatafeeds;
     }
 
     /**

@@ -28,8 +28,11 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -331,6 +334,83 @@ public class MlConfigMigratorTests extends ESTestCase {
                 .build();
 
         assertTrue(MlConfigMigrator.datafeedIsEligibleForMigration(datafeedId, clusterState));
+    }
+
+    public void testLimitWrites_GivenBelowLimit() {
+        MlConfigMigrator.JobsAndDatafeeds jobsAndDatafeeds = MlConfigMigrator.limitWrites(Collections.emptyList(), Collections.emptyMap());
+        assertThat(jobsAndDatafeeds.datafeedConfigs, empty());
+        assertThat(jobsAndDatafeeds.jobs, empty());
+
+        List<DatafeedConfig> datafeeds = new ArrayList<>();
+        Map<String, Job> jobs = new HashMap<>();
+
+        int numDatafeeds = MlConfigMigrator.MAX_BULK_WRITE_SIZE / 2;
+        for (int i=0; i<numDatafeeds; i++) {
+            String jobId = "job" + i;
+            jobs.put(jobId, JobTests.buildJobBuilder(jobId).build());
+            datafeeds.add(createCompatibleDatafeed(jobId));
+        }
+
+        jobsAndDatafeeds = MlConfigMigrator.limitWrites(datafeeds, jobs);
+        assertThat(jobsAndDatafeeds.datafeedConfigs, hasSize(numDatafeeds));
+        assertThat(jobsAndDatafeeds.jobs, hasSize(numDatafeeds));
+    }
+
+    public void testLimitWrites_GivenAboveLimit() {
+        List<DatafeedConfig> datafeeds = new ArrayList<>();
+        Map<String, Job> jobs = new HashMap<>();
+
+        int numDatafeeds = MlConfigMigrator.MAX_BULK_WRITE_SIZE / 2 + 10;
+        for (int i=0; i<numDatafeeds; i++) {
+            String jobId = "job" + i;
+            jobs.put(jobId, JobTests.buildJobBuilder(jobId).build());
+            datafeeds.add(createCompatibleDatafeed(jobId));
+        }
+
+        MlConfigMigrator.JobsAndDatafeeds jobsAndDatafeeds = MlConfigMigrator.limitWrites(datafeeds, jobs);
+        assertEquals(MlConfigMigrator.MAX_BULK_WRITE_SIZE, jobsAndDatafeeds.totalCount());
+        assertThat(jobsAndDatafeeds.datafeedConfigs, hasSize(MlConfigMigrator.MAX_BULK_WRITE_SIZE / 2));
+        assertThat(jobsAndDatafeeds.jobs, hasSize(MlConfigMigrator.MAX_BULK_WRITE_SIZE / 2));
+
+        // assert that for each datafeed its corresponding job is selected
+        Set<String> selectedJobIds = jobsAndDatafeeds.jobs.stream().map(Job::getId).collect(Collectors.toSet());
+        Set<String> datafeedJobIds = jobsAndDatafeeds.datafeedConfigs.stream().map(DatafeedConfig::getJobId).collect(Collectors.toSet());
+        assertEquals(selectedJobIds, datafeedJobIds);
+    }
+
+    public void testLimitWrites_GivenMoreJobsThanDatafeeds() {
+        List<DatafeedConfig> datafeeds = new ArrayList<>();
+        Map<String, Job> jobs = new HashMap<>();
+
+        int numDatafeeds = MlConfigMigrator.MAX_BULK_WRITE_SIZE / 2 - 10;
+        for (int i=0; i<numDatafeeds; i++) {
+            String jobId = "job" + i;
+            jobs.put(jobId, JobTests.buildJobBuilder(jobId).build());
+            datafeeds.add(createCompatibleDatafeed(jobId));
+        }
+
+        for (int i=numDatafeeds; i<numDatafeeds + 40; i++) {
+            String jobId = "job" + i;
+            jobs.put(jobId, JobTests.buildJobBuilder(jobId).build());
+        }
+
+        MlConfigMigrator.JobsAndDatafeeds jobsAndDatafeeds = MlConfigMigrator.limitWrites(datafeeds, jobs);
+        assertEquals(MlConfigMigrator.MAX_BULK_WRITE_SIZE, jobsAndDatafeeds.totalCount());
+        assertThat(jobsAndDatafeeds.datafeedConfigs, hasSize(numDatafeeds));
+        assertThat(jobsAndDatafeeds.jobs, hasSize(MlConfigMigrator.MAX_BULK_WRITE_SIZE - numDatafeeds));
+
+        // assert that for each datafeed its corresponding job is selected
+        Set<String> selectedJobIds = jobsAndDatafeeds.jobs.stream().map(Job::getId).collect(Collectors.toSet());
+        Set<String> datafeedJobIds = jobsAndDatafeeds.datafeedConfigs.stream().map(DatafeedConfig::getJobId).collect(Collectors.toSet());
+        assertTrue(selectedJobIds.containsAll(datafeedJobIds));
+    }
+
+    public void testLimitWrites_GivenNullJob() {
+        List<DatafeedConfig> datafeeds = Collections.singletonList(createCompatibleDatafeed("no-job-for-this-datafeed"));
+        MlConfigMigrator.JobsAndDatafeeds jobsAndDatafeeds = MlConfigMigrator.limitWrites(datafeeds, Collections.emptyMap());
+
+        assertThat(jobsAndDatafeeds.datafeedConfigs, hasSize(1));
+        assertThat(jobsAndDatafeeds.jobs, empty());
     }
 
     private DatafeedConfig createCompatibleDatafeed(String jobId) {

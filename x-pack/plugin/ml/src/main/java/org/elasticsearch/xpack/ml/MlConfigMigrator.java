@@ -124,7 +124,7 @@ public class MlConfigMigrator {
             listener.onResponse(Boolean.FALSE);
             return;
         }
-        
+
         Collection<DatafeedConfig> stoppedDatafeeds = stoppedDatafeedConfigs(clusterState);
         Map<String, Job> eligibleJobs = nonDeletingJobs(closedJobConfigs(clusterState)).stream()
                 .map(MlConfigMigrator::updateJobForMigration)

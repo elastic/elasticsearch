@@ -58,10 +58,13 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @After
-    public void remoteLocalRemote() throws Exception {
+    public void purgeCCRMetadata() throws Exception {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         removeCCRRelatedMetadataFromClusterState(clusterService);
+    }
 
+    @After
+    public void removeLocalRemote() {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());

@@ -351,7 +351,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             settingsBuilder.putList("cluster.remote.cluster_1.seeds", seedNode.getAddress().toString());
             if (randomBoolean()) {
                 pingSchedule = TimeValue.timeValueSeconds(randomIntBetween(1, 10));
-                settingsBuilder.put(TcpTransport.PING_SCHEDULE.getKey(), pingSchedule).build();
+                settingsBuilder.put(TransportSettings.PING_SCHEDULE.getKey(), pingSchedule).build();
             } else {
                 pingSchedule = TimeValue.MINUS_ONE;
             }
@@ -385,7 +385,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             Collections.shuffle(knownNodes, random());
             Settings.Builder settingsBuilder = Settings.builder();
             if (randomBoolean()) {
-                settingsBuilder.put(TcpTransport.PING_SCHEDULE.getKey(), TimeValue.timeValueSeconds(randomIntBetween(1, 10)));
+                settingsBuilder.put(TransportSettings.PING_SCHEDULE.getKey(), TimeValue.timeValueSeconds(randomIntBetween(1, 10)));
             }
             Settings transportSettings = settingsBuilder.build();
 

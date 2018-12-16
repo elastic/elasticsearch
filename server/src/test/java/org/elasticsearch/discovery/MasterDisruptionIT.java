@@ -39,7 +39,6 @@ import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.LongGCDisruption;
@@ -377,11 +376,10 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     /**
-     * Verify that the proper block is applied when nodes loose their master
+     * Verify that the proper block is applied when nodes lose their master
      */
     public void testVerifyApiBlocksDuringPartition() throws Exception {
-        // TODO: NO_MASTER_BLOCKS not dynamic in Zen2 yet
-        internalCluster().startNodes(3, Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
+        internalCluster().startNodes(3);
 
         // Makes sure that the get request can be executed on each node locally:
         assertAcked(prepareCreate("test").setSettings(Settings.builder()

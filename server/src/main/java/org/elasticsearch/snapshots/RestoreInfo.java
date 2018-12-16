@@ -184,18 +184,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
     }
 
     /**
-     * Reads restore info from {@link StreamInput}
-     *
-     * @param in stream input
-     * @return restore info
-     */
-    public static RestoreInfo readRestoreInfo(StreamInput in) throws IOException {
-        RestoreInfo snapshotInfo = new RestoreInfo();
-        snapshotInfo.readFrom(in);
-        return snapshotInfo;
-    }
-
-    /**
      * Reads optional restore info from {@link StreamInput}
      *
      * @param in stream input

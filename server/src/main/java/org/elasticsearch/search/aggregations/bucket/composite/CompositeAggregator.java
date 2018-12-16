@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -53,6 +54,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
 final class CompositeAggregator extends BucketsAggregator {
     private final int size;
@@ -73,6 +76,13 @@ final class CompositeAggregator extends BucketsAggregator {
                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
                         int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
+        // check that the provided size is not greater than the search.max_buckets setting
+        int limit = context.aggregations().multiBucketConsumer().getLimit();
+        if (size > context.aggregations().multiBucketConsumer().getLimit()) {
+            throw new MultiBucketConsumerService.TooManyBucketsException("Trying to create too many buckets. Must be less than or equal" +
+                " to: [" + limit + "] but was [" + size + "]. This limit can be set by changing the [" + MAX_BUCKET_SETTING.getKey() +
+                "] cluster level setting.", limit);
+        }
         this.size = size;
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
@@ -88,8 +98,12 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected void doClose() {
-        Releasables.close(queue);
-        Releasables.close(sources);
+        if (queue != null) {
+            Releasables.close(queue);
+        }
+        if (sources != null) {
+            Releasables.close(sources);
+        }
     }
 
     @Override

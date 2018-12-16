@@ -45,6 +45,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -181,7 +182,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                 SecurityIndexManager.SECURITY_INDEX_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
-                0, 1, 1L,
+                UNASSIGNED_SEQ_NO, 0, 1L,
                 false,
                 null,
                 Collections.emptyMap());

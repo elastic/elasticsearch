@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -43,7 +44,6 @@ public class Index implements Writeable, ToXContentObject {
     private static final String INDEX_NAME_KEY = "index_name";
     private static final ObjectParser<Builder, Void> INDEX_PARSER = new ObjectParser<>("index", Builder::new);
     private static final int SOFT_LIMIT_INDEX_NAME = 128;
-    private static final int HARD_LIMIT_INDEX_NAME = 255;
     static {
         INDEX_PARSER.declareString(Builder::name, new ParseField(INDEX_NAME_KEY));
         INDEX_PARSER.declareString(Builder::uuid, new ParseField(INDEX_UUID_KEY));
@@ -61,13 +61,17 @@ public class Index implements Writeable, ToXContentObject {
      * Read from a stream.
      */
     public Index(StreamInput in) throws IOException {
-        byte[] buffer = new byte[HARD_LIMIT_INDEX_NAME];
+        byte[] buffer = new byte[Integer.MAX_VALUE];        
         int bytesRead = 0;
 
         while ((bytesRead = in.read(buffer)) >= 0) {
             if(bytesRead == SOFT_LIMIT_INDEX_NAME) {
-                //StreamOutput out = new ByteArrayOutputStream(1024);
-                //out.writeString("Warning! Index name has a max limit of 255 characters.");
+                BytesStreamOutput output = new BytesStreamOutput();
+                String warning = "Warning! Index name has a max limit of 255 characters.";
+
+                output.writeBytes(warning.getBytes());
+
+                output.close();
             }
             bytesRead++;
         }

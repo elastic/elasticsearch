@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -79,7 +80,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     private Routing routing;
 
-    private final int HARD_LIMIT_MAPPING_TYPE = 255;
     private final int SOFT_LIMIT_MAPPING_TYPE = 128;
 
     public MappingMetaData(DocumentMapper docMapper) {
@@ -209,12 +209,17 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     }
 
     public MappingMetaData(StreamInput in) throws IOException {
-        byte[] buffer = new byte[HARD_LIMIT_MAPPING_TYPE];
+        byte[] buffer = new byte[Integer.MAX_VALUE];        
         int bytesRead = 0;
 
         while ((bytesRead = in.read(buffer)) >= 0) {
             if(bytesRead == SOFT_LIMIT_MAPPING_TYPE) {
-                System.out.print("Warning! Mapping type has a max limit of 255 characters.");
+                BytesStreamOutput output = new BytesStreamOutput();
+                String warning = "Warning! Mapping type has a max limit of 255 characters.";
+
+                output.writeBytes(warning.getBytes());
+
+                output.close();
             }
             bytesRead++;
         }

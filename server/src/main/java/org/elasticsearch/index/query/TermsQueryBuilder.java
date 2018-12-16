@@ -34,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -67,7 +68,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private final List<?> values;
     private final TermsLookup termsLookup;
     private final Supplier<List<?>> supplier;
-    private final int HARD_LIMIT_FIELD_NAME = Integer.MAX_VALUE;
     private final int SOFT_LIMIT_FIELD_NAME = 25;
 
     public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
@@ -185,13 +185,18 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      */
     public TermsQueryBuilder(StreamInput in) throws IOException {
         super(in);
-  
-        byte[] buffer = new byte[HARD_LIMIT_FIELD_NAME];
+
+        byte[] buffer = new byte[Integer.MAX_VALUE];        
         int bytesRead = 0;
 
         while ((bytesRead = in.read(buffer)) >= 0) {
             if(bytesRead == SOFT_LIMIT_FIELD_NAME) {
-                System.out.print("Warning! Field name truncates input above 50 characters.");
+                BytesStreamOutput output = new BytesStreamOutput();
+                String warning = "Warning! Field name truncates input above 50 characters.";
+
+                output.writeBytes(warning.getBytes());
+
+                output.close();
             }
             bytesRead++;
         }

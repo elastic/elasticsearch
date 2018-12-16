@@ -33,6 +33,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,15 +57,13 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     static final ParseField TERMS_FIELD = new ParseField("terms");
     static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match_field");
     static final ParseField MINIMUM_SHOULD_MATCH_SCRIPT = new ParseField("minimum_should_match_script");
+    private final int SOFT_LIMIT_FIELD_NAME = 25;
 
     private final String fieldName;
     private final List<?> values;
 
     private String minimumShouldMatchField;
     private Script minimumShouldMatchScript;
-
-    private final int HARD_LIMIT_FIELD_NAME = Integer.MAX_VALUE;
-    private final int SOFT_LIMIT_FIELD_NAME = 25;
 
     public TermsSetQueryBuilder(String fieldName, List<?> values) {
         this.fieldName = Objects.requireNonNull(fieldName);
@@ -73,12 +72,18 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     public TermsSetQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        byte[] buffer = new byte[HARD_LIMIT_FIELD_NAME];
+
+        byte[] buffer = new byte[Integer.MAX_VALUE];        
         int bytesRead = 0;
 
         while ((bytesRead = in.read(buffer)) >= 0) {
             if(bytesRead == SOFT_LIMIT_FIELD_NAME) {
-                System.out.print("Warning! Field name truncates input above 50 characters.");
+                BytesStreamOutput output = new BytesStreamOutput();
+                String warning = "Warning! Field name truncates input above 50 characters.";
+
+                output.writeBytes(warning.getBytes());
+
+                output.close();
             }
             bytesRead++;
         }

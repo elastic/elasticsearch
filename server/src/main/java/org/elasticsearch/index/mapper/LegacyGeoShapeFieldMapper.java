@@ -576,9 +576,9 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             builder.field(DeprecatedParameters.Names.PRECISION.getPreferredName(),
                 DistanceUnit.METERS.toString(50));
         }
-        if (includeDefaults || fieldType().strategy() != DeprecatedParameters.Defaults.STRATEGY) {
-            builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
-        }
+
+        builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
+
         if (includeDefaults || fieldType().distanceErrorPct() != fieldType().defaultDistanceErrorPct) {
             builder.field(DeprecatedParameters.Names.DISTANCE_ERROR_PCT.getPreferredName(), fieldType().distanceErrorPct());
         }

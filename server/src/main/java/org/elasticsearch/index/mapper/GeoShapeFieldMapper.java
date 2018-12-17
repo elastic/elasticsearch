@@ -126,8 +126,11 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
     private void indexShape(ParseContext context, Object luceneShape) {
         if (luceneShape instanceof GeoPoint) {
-            GeoPoint pt = (GeoPoint)luceneShape;
+            GeoPoint pt = (GeoPoint) luceneShape;
             indexFields(context, LatLonShape.createIndexableFields(name(), pt.lat(), pt.lon()));
+        } else if (luceneShape instanceof double[]) {
+            double[] pt = (double[]) luceneShape;
+            indexFields(context, LatLonShape.createIndexableFields(name(), pt[1], pt[0]));
         } else if (luceneShape instanceof Line) {
             indexFields(context, LatLonShape.createIndexableFields(name(), (Line)luceneShape));
         } else if (luceneShape instanceof Polygon) {
@@ -159,7 +162,7 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
                 indexShape(context, o);
             }
         } else {
-            throw new IllegalArgumentException("invalid shape type found [" + luceneShape.toString() + "] while indexing shape");
+            throw new IllegalArgumentException("invalid shape type found [" + luceneShape.getClass() + "] while indexing shape");
         }
     }
 

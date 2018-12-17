@@ -492,4 +492,15 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             .build();
         return IndexMetaData.builder(name).settings(build).build();
     }
+
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36598")
+    @Override
+    public void testMustRewrite() throws IOException {
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36598")
+    @Override
+    public void testToQuery() throws IOException {
+    }
 }

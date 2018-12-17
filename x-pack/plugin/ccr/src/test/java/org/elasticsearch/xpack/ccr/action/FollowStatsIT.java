@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
 import java.util.Comparator;
@@ -102,6 +103,9 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         response.getStatsResponses().sort(Comparator.comparing(o -> o.status().followerIndex()));
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
         assertThat(response.getStatsResponses().get(1).status().followerIndex(), equalTo("follower2"));
+
+        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
+        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower2")).actionGet());
     }
 
 }

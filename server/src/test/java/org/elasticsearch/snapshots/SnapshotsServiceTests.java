@@ -61,8 +61,6 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -108,7 +106,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             return new SnapshotInfo(
                 (SnapshotId) args[0],
                 ((List<IndexId>) args[1]).stream().map(IndexId::getName).collect(Collectors.toList()),
-                ((List<IndexShard.ShardFailure>)args[5]).isEmpty() ? SnapshotState.SUCCESS : SnapshotState.FAILED
+                ((List<IndexShard.ShardFailure>) args[5]).isEmpty() ? SnapshotState.SUCCESS : SnapshotState.FAILED
             );
         }).when(repository).finalizeSnapshot(any(), any(), anyLong(), any(), anyInt(), any(), anyLong(), anyBoolean());
         when(masterNode.repositoriesService.repository(repoName)).thenReturn(repository);
@@ -152,32 +150,25 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         startServices();
 
-        BlockingQueue<ClusterStateUpdateTask> clusterStateUpdateTasks = new ArrayBlockingQueue<>(1);
-        doAnswer(invocation -> {
-            clusterStateUpdateTasks.add((ClusterStateUpdateTask) invocation.getArguments()[1]);
-            return null;
-        }).when(masterNode.clusterService).submitStateUpdateTask(any(), any());
+        ClusterStateUpdateTask createSnapshotTask = expectOneUpdateTask(
+            masterNode.clusterService,
+            () -> masterNode.snapshotsService.createSnapshot(
+                new SnapshotsService.SnapshotRequest(repoName, snapshotName, ""),
+                new SnapshotsService.CreateSnapshotListener() {
+                    @Override
+                    public void onResponse() {
+                        successfulSnapshotStart.complete(null);
+                    }
 
-        masterNode.snapshotsService.createSnapshot(
-            new SnapshotsService.SnapshotRequest(repoName, snapshotName, ""),
-            new SnapshotsService.CreateSnapshotListener() {
-                @Override
-                public void onResponse() {
-                    successfulSnapshotStart.complete(null);
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    throw new AssertionError("Snapshot failed.");
-                }
-            });
-        ClusterStateUpdateTask createSnapshotTask = clusterStateUpdateTasks.poll(0L, TimeUnit.MILLISECONDS);
-        assertNotNull("Should have created create snapshot task.", createSnapshotTask);
+                    @Override
+                    public void onFailure(final Exception e) {
+                        throw new AssertionError("Snapshot failed.");
+                    }
+                }));
         clusterState.runStateUpdateTask(createSnapshotTask);
         assertTrue(masterNode.deterministicTaskQueue.hasRunnableTasks());
-        masterNode.deterministicTaskQueue.runAllTasks();
-        ClusterStateUpdateTask beginSnapshotTask = clusterStateUpdateTasks.poll(0L, TimeUnit.MILLISECONDS);
-        assertNotNull("Should have created begin snapshot task", beginSnapshotTask);
+        ClusterStateUpdateTask beginSnapshotTask = expectOneUpdateTask(
+            masterNode.clusterService, () -> masterNode.deterministicTaskQueue.runAllTasks());
         clusterState.runStateUpdateTask(beginSnapshotTask);
 
         successfulSnapshotStart.get(0L, TimeUnit.SECONDS);
@@ -194,9 +185,9 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         clusterState.disconnectNode(primaryNodeId);
 
-        clusterState.applyLatestChange(masterNode.node.getId(), masterNode.snapshotsService);
-        ClusterStateUpdateTask adjustSnapshotTask = clusterStateUpdateTasks.poll(0L, TimeUnit.MILLISECONDS);
-        assertNotNull("Should have created begin snapshot task", adjustSnapshotTask);
+        ClusterStateUpdateTask adjustSnapshotTask = expectOneUpdateTask(
+            masterNode.clusterService,
+            () -> clusterState.applyLatestChange(masterNode.node.getId(), masterNode.snapshotsService));
 
         // Notify the previous primary shard's SnapshotShardsService of the new Snapshot by reconnecting
         clusterState.connectNode(primaryNode.node, primaryNode.snapshotShardsService);
@@ -262,6 +253,25 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertThat(snapshotsInProgress.entries(), empty());
     }
 
+    /**
+     * Execute given {@link Runnable} and expect a single {@link ClusterStateUpdateTask} to be
+     * submitted to the given {@link ClusterService}.
+     * @param clusterService ClusterService that should receive state update task
+     * @param action Action to run
+     * @return ClusterStateUpdateTask received by cluster service
+     */
+    private static ClusterStateUpdateTask expectOneUpdateTask(ClusterService clusterService, Runnable action) {
+        SetOnce<ClusterStateUpdateTask> taskHolder = new SetOnce<>();
+        doAnswer(invocation -> {
+            taskHolder.set((ClusterStateUpdateTask) invocation.getArguments()[1]);
+            return null;
+        }).when(clusterService).submitStateUpdateTask(any(), any());
+        action.run();
+        ClusterStateUpdateTask updateTask = taskHolder.get();
+        assertNotNull(updateTask);
+        return updateTask;
+    }
+
     private void startServices() {
         masterNode.start();
         dataNode1.start();
@@ -297,11 +307,11 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     /**
-     * Holds the current cluster state and its predecessor.
+     * Holds the current cluster state, its predecessor and the initial cluster state.
      */
     private final class TestClusterState {
 
-        private ClusterState initialState;
+        private final ClusterState initialState;
 
         private ClusterState current;
 
@@ -338,14 +348,13 @@ public class SnapshotsServiceTests extends ESTestCase {
             return current;
         }
 
-        public ClusterState disconnectNode(String nodeId) {
+        public void disconnectNode(String nodeId) {
             previous = current;
             current = allocationService.deassociateDeadNodes(
                 ClusterState.builder(current)
                     .nodes(DiscoveryNodes.builder(current.nodes()).remove(nodeId).build()).incrementVersion().build()
                 , false, ""
             );
-            return current;
         }
 
         /**

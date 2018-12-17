@@ -76,12 +76,12 @@ score
 SELECT emp_no, first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'Erez') ORDER BY SCORE();
 
    emp_no:i    | first_name:s  |   SCORE():f
-10076          |Erez           |4.2096553
+10076          |Erez           |4.1053944
 ;
 
 scoreAsSomething
 SELECT emp_no, first_name, SCORE() as s FROM test_emp WHERE MATCH(first_name, 'Erez') ORDER BY SCORE();
 
    emp_no:i    | first_name:s  |   s:f
-10076          |Erez           |4.2096553
+10076          |Erez           |4.1053944
 ;

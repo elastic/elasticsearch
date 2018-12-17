@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
@@ -35,7 +35,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(Configuration.DEFAULT, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         AnalysisException e = expectThrows(AnalysisException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
@@ -49,7 +49,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(Configuration.DEFAULT, new FunctionRegistry(), resolution, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), resolution, new Verifier(new Metrics()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
@@ -178,9 +178,22 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     // GROUP BY
+    public void testGroupBySelectWithAlias() {
+        assertNotNull(accept("SELECT int AS i FROM test GROUP BY i"));
+    }
+
+    public void testGroupBySelectWithAliasOrderOnActualField() {
+        assertNotNull(accept("SELECT int AS i FROM test GROUP BY i ORDER BY int"));
+    }
+
     public void testGroupBySelectNonGrouped() {
         assertEquals("1:8: Cannot use non-grouped column [text], expected [int]",
                 error("SELECT text, int FROM test GROUP BY int"));
+    }
+
+    public void testGroupByFunctionSelectFieldFromGroupByFunction() {
+        assertEquals("1:8: Cannot use non-grouped column [int], expected [ABS(int)]",
+                error("SELECT int FROM test GROUP BY ABS(int)"));
     }
 
     public void testGroupByOrderByNonGrouped() {
@@ -203,13 +216,18 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
     }
 
+    public void testGroupByOrderByFieldFromGroupByFunction() {
+        assertEquals("1:54: Cannot use non-grouped column [int], expected [ABS(int)]",
+                error("SELECT ABS(int) FROM test GROUP BY ABS(int) ORDER BY int"));
+    }
+
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
         assertEquals("1:71: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
             error("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY YEAR(date)"));
     }
 
     public void testGroupByHavingNonGrouped() {
-        assertEquals("1:48: Cannot filter by non-grouped column [int], expected [text]",
+        assertEquals("1:48: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
                 error("SELECT AVG(int) FROM test GROUP BY text HAVING int > 10"));
     }
 

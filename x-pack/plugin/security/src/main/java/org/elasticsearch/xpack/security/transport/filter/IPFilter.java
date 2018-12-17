@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.net.InetSocketAddress;
@@ -128,7 +128,7 @@ public class IPFilter {
         isHttpFilterEnabled = IP_FILTER_ENABLED_HTTP_SETTING.get(settings);
         isIpFilterEnabled = IP_FILTER_ENABLED_SETTING.get(settings);
 
-        this.profiles = settings.getGroups("transport.profiles.",true).keySet().stream().filter(k -> TcpTransport
+        this.profiles = settings.getGroups("transport.profiles.",true).keySet().stream().filter(k -> TransportSettings
                 .DEFAULT_PROFILE.equals(k) == false).collect(Collectors.toSet()); // exclude default profile -- it's handled differently
         for (String profile : profiles) {
             Setting<List<String>> allowSetting = PROFILE_FILTER_ALLOW_SETTING.getConcreteSettingForNamespace(profile);
@@ -237,7 +237,7 @@ public class IPFilter {
 
             if (isIpFilterEnabled && boundTransportAddress.get() != null) {
                 TransportAddress[] localAddresses = boundTransportAddress.get().boundAddresses();
-                profileRules.put(TcpTransport.DEFAULT_PROFILE, createRules(transportAllowFilter, transportDenyFilter, localAddresses));
+                profileRules.put(TransportSettings.DEFAULT_PROFILE, createRules(transportAllowFilter, transportDenyFilter, localAddresses));
                 for (String profile : profiles) {
                     BoundTransportAddress profileBoundTransportAddress = profileBoundAddress.get().get(profile);
                     if (profileBoundTransportAddress == null) {

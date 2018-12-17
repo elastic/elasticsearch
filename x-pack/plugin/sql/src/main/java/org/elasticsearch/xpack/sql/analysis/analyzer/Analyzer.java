@@ -108,7 +108,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveAggsInHaving()
                 //new ImplicitCasting()
                 );
-        return Arrays.asList(substitution, resolution);
+        Batch finish = new Batch("Finish Analysis",
+                new PruneSubqueryAliases(),
+                CleanAliases.INSTANCE
+                );
+        return Arrays.asList(substitution, resolution, finish);
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -931,14 +935,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (!condition.resolved()) {
                         // that's why try to resolve the condition
                         Aggregate tryResolvingCondition = new Aggregate(agg.location(), agg.child(), agg.groupings(),
-                                singletonList(new Alias(f.location(), ".having", condition)));
+                                combine(agg.aggregates(), new Alias(f.location(), ".having", condition)));
 
-                        LogicalPlan conditionResolved = analyze(tryResolvingCondition, false);
+                        tryResolvingCondition = (Aggregate) analyze(tryResolvingCondition, false);
 
                         // if it got resolved
-                        if (conditionResolved.resolved()) {
+                        if (tryResolvingCondition.resolved()) {
                             // replace the condition with the resolved one
-                            condition = ((Alias) ((Aggregate) conditionResolved).aggregates().get(0)).child();
+                            condition = ((Alias) tryResolvingCondition.aggregates()
+                                .get(tryResolvingCondition.aggregates().size() - 1)).child();
                         } else {
                             // else bail out
                             return plan;
@@ -954,6 +959,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         // preserve old output
                         return new Project(f.location(), newFilter, f.output());
                     }
+
+                    return new Filter(f.location(), f.child(), condition);
                 }
                 return plan;
             }
@@ -1056,6 +1063,69 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return e;
         }
     }
+
+
+    public static class PruneSubqueryAliases extends AnalyzeRule<SubQueryAlias> {
+
+        @Override
+        protected LogicalPlan rule(SubQueryAlias alias) {
+            return alias.child();
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+    }
+
+    public static class CleanAliases extends AnalyzeRule<LogicalPlan> {
+
+        public static final CleanAliases INSTANCE = new CleanAliases();
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof Project) {
+                Project p = (Project) plan;
+                return new Project(p.location(), p.child(), cleanExpressions(p.projections()));
+            }
+
+            if (plan instanceof Aggregate) {
+                Aggregate a = (Aggregate) plan;
+                // clean group expressions
+                List<Expression> cleanedGroups = a.groupings().stream().map(CleanAliases::trimAliases).collect(toList());
+                return new Aggregate(a.location(), a.child(), cleanedGroups, cleanExpressions(a.aggregates()));
+            }
+
+            return plan.transformExpressionsOnly(e -> {
+                if (e instanceof Alias) {
+                    return ((Alias) e).child();
+                }
+                return e;
+            });
+        }
+
+        private List<NamedExpression> cleanExpressions(List<? extends NamedExpression> args) {
+            return args.stream().map(CleanAliases::trimNonTopLevelAliases).map(NamedExpression.class::cast).collect(toList());
+        }
+
+        public static Expression trimNonTopLevelAliases(Expression e) {
+            if (e instanceof Alias) {
+                Alias a = (Alias) e;
+                return new Alias(a.location(), a.name(), a.qualifier(), trimAliases(a.child()), a.id());
+            }
+            return trimAliases(e);
+        }
+
+        private static Expression trimAliases(Expression e) {
+            return e.transformDown(Alias::child, Alias.class);
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+    }
+
 
     abstract static class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 

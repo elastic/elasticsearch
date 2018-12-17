@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -57,6 +58,8 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private String routing;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
+    private long ifSeqNoMatch = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    private long ifPrimaryTermMatch = 0;
 
     public DeleteRequest() {
     }
@@ -111,6 +114,12 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
         if (versionType == VersionType.FORCE) {
             validationException = addValidationError("version type [force] may no longer be used", validationException);
+        }
+
+        if (ifSeqNoMatch != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
+        )) {
+            validationException = addValidationError("compare and write operations can not use versioning", validationException);
         }
         return validationException;
     }
@@ -194,6 +203,32 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         return this;
     }
 
+    public long ifSeqNoMatch() {
+        return ifSeqNoMatch;
+    }
+
+    public long ifPrimaryTermMatch() {
+        return ifPrimaryTermMatch;
+    }
+
+    public DeleteRequest setIfMatch(long seqNo, long term) {
+        if (term == 0 && seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("seqNo is set, but primary term is [0]");
+        }
+        if (term != 0 && seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("seqNo is unassigned, but primary term is [" + term + "]");
+        }
+        if (seqNo < 0 && seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+        }
+        if (term < 0) {
+            throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
+        }
+        ifSeqNoMatch = seqNo;
+        ifPrimaryTermMatch = term;
+        return this;
+    }
+
     @Override
     public VersionType versionType() {
         return this.versionType;
@@ -215,6 +250,13 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            ifSeqNoMatch = in.readZLong();
+            ifPrimaryTermMatch = in.readVLong();
+        } else {
+            ifSeqNoMatch = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            ifPrimaryTermMatch = 0;
+        }
     }
 
     @Override
@@ -228,6 +270,15 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
         out.writeLong(version);
         out.writeByte(versionType.getValue());
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeZLong(ifSeqNoMatch);
+            out.writeVLong(ifPrimaryTermMatch);
+        } else if (ifSeqNoMatch != SequenceNumbers.UNASSIGNED_SEQ_NO || ifPrimaryTermMatch != 0) {
+            assert false : "setIfMatch [" + ifSeqNoMatch + "], currentDocTem [" + ifPrimaryTermMatch + "]";
+            throw new IllegalStateException(
+                "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. " +
+                    "Stream version [" + out.getVersion() + "]");
+        }
     }
 
     @Override

@@ -9,7 +9,7 @@ a specified list of privileges.
 
 ==== Request
 
-`GET _xpack/security/user/_has_privileges`
+`GET /_security/user/_has_privileges`
 
 
 ==== Description
@@ -53,7 +53,7 @@ cluster, index, and application privileges:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/security/user/_has_privileges
+GET /_security/user/_has_privileges
 {
   "cluster": [ "monitor", "manage" ],
   "index" : [

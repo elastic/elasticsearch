@@ -310,11 +310,9 @@ public class DiscoveryUpgradeService {
      * we lie and claim to have an impossible ID that compares above all genuine IDs.
      */
     public static DiscoveryNode createDiscoveryNodeWithImpossiblyHighId(DiscoveryNode node) {
-        // IDs are base-64-encoded UUIDs, which means they the character set [0-9A-Za-z_-]. The highest character in this set is 'z', and
-        // 'z' < '{', so by starting the ID with '{' we can be sure it's greater. This is terrible.
-        final String fakeId = "{zen2}" + node.getId();
-        assert node.getId().compareTo(fakeId) < 0 : node + " vs " + fakeId;
-        return new DiscoveryNode(node.getName(), fakeId, node.getEphemeralId(), node.getHostName(),
+        // IDs are base-64-encoded UUIDs, which means they use the character set [0-9A-Za-z_-]. The highest character in this set is 'z',
+        // and 'z' < '{', so by starting the ID with '{' we can be sure it's greater. This is terrible.
+        return new DiscoveryNode(node.getName(), "{zen2}" + node.getId(), node.getEphemeralId(), node.getHostName(),
             node.getHostAddress(), node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
     }
 }

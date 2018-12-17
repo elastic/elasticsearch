@@ -72,6 +72,10 @@ Project mainProject = project
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
+forbiddenPatterns {
+  exclude '**/system_key'
+}
+
 /**
  * Subdirectories of this project are test rolling upgrades with various
  * configuration options based on their name.
@@ -95,6 +99,10 @@ subprojects {
         srcDirs = ["${mainProject.projectDir}/src/test/resources"]
       }
     }
+  }
+
+  forbiddenPatterns {
+    exclude '**/system_key'
   }
 
   String outputDir = "${buildDir}/generated-resources/${project.name}"

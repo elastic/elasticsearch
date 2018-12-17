@@ -9,7 +9,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.CheckedFunction;
@@ -256,9 +255,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             // it could be waiting for pending tasks while monitoring is still running).
             ESRestTestCase.waitForPendingTasks(adminClient(), task -> {
                     // Don't check rollup jobs because we clear them in the superclass.
-                    return task.contains(RollupJob.NAME)
-                        // Also ignore the zen2 discovery task
-                        || task.contains(GetDiscoveredNodesAction.NAME);
+                    return task.contains(RollupJob.NAME);
             });
         }
     }

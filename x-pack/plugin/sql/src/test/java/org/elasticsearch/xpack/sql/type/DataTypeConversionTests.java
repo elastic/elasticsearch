@@ -111,7 +111,7 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(dateTime(18000000L), conversion.convert("1970-01-01T00:00:00-05:00"));
         
         // double check back and forth conversion
-        ZonedDateTime dt = ZonedDateTime.now(DateUtils.UTC);
+        ZonedDateTime dt = ZonedDateTime.now(DateUtils.UTC_ZI);
         Conversion forward = conversionFor(DATE, KEYWORD);
         Conversion back = conversionFor(KEYWORD, DATE);
         assertEquals(dt, back.convert(forward.convert(dt)));

@@ -109,7 +109,6 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
     }
 
     public void testMigrateConfigs() throws InterruptedException, IOException {
-
         // and jobs and datafeeds clusterstate
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(buildJobBuilder("job-foo").build(), false);
@@ -164,6 +163,82 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         assertNull(exceptionHolder.get());
         assertThat(datafeedsHolder.get(), hasSize(1));
         assertEquals("df-1", datafeedsHolder.get().get(0).getId());
+    }
+
+    public void testMigrateConfigs_GivenLargeNumberOfJobsAndDatafeeds() throws InterruptedException {
+        int jobCount = randomIntBetween(150, 201);
+        int datafeedCount = randomIntBetween(150, jobCount);
+
+        // and jobs and datafeeds clusterstate
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        for (int i = 0; i < jobCount; i++) {
+            mlMetadata.putJob(buildJobBuilder("job-" + i).build(), false);
+        }
+        for (int i = 0; i < datafeedCount; i++) {
+            DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df-" + i, "job-" + i);
+            builder.setIndices(Collections.singletonList("beats*"));
+            mlMetadata.putDatafeed(builder.build(), Collections.emptyMap());
+        }
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder()
+                .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+            .build();
+
+        doAnswer(invocation -> {
+            ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];
+            listener.clusterStateProcessed("source", mock(ClusterState.class), mock(ClusterState.class));
+            return null;
+        }).when(clusterService).submitStateUpdateTask(eq("remove-migrated-ml-configs"), any());
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<Boolean> responseHolder = new AtomicReference<>();
+
+        // do the migration
+        MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+            responseHolder, exceptionHolder);
+
+        assertNull(exceptionHolder.get());
+        assertTrue(responseHolder.get());
+
+        // check the jobs have been migrated
+        AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
+        JobConfigProvider jobConfigProvider = new JobConfigProvider(client());
+        blockingCall(actionListener -> jobConfigProvider.expandJobs("*", true, true, actionListener),
+            jobsHolder, exceptionHolder);
+
+        assertNull(exceptionHolder.get());
+        assertThat(jobsHolder.get(), hasSize(jobCount));
+
+        // check datafeeds are migrated
+        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client(), xContentRegistry());
+        AtomicReference<List<DatafeedConfig.Builder>> datafeedsHolder = new AtomicReference<>();
+        blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedConfigs("*", true, actionListener),
+            datafeedsHolder, exceptionHolder);
+
+        assertNull(exceptionHolder.get());
+        assertThat(datafeedsHolder.get(), hasSize(datafeedCount));
+    }
+
+    public void testMigrateConfigs_GivenNoJobsOrDatafeeds() throws InterruptedException {
+        // Add empty ML metadata
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder()
+                .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+            .build();
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<Boolean> responseHolder = new AtomicReference<>();
+
+        // do the migration
+        MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+            responseHolder, exceptionHolder);
+
+        assertNull(exceptionHolder.get());
+        assertFalse(responseHolder.get());
     }
 
     public void testMigrateConfigsWithoutTasks_GivenMigrationIsDisabled() throws InterruptedException {

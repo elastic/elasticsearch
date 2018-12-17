@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -141,8 +142,9 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         ShardRequest(){
         }
 
-        public ShardRequest(final ShardId shardId) {
+        public ShardRequest(final ShardId shardId, final TaskId parentTaskId) {
             super(shardId);
+            setParentTask(parentTaskId);
         }
 
         @Override

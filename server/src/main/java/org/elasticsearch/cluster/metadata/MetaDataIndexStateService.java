@@ -333,13 +333,11 @@ public class MetaDataIndexStateService {
                 listener.onResponse(response);
                 return;
             }
+            final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), request.taskId());
             final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
-                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId);
+                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, parentTaskId);
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
-            }
-            if (request.taskId() != null) {
-                shardRequest.setParentTask(new TaskId(clusterService.localNode().getId(), request.taskId()));
             }
             // TODO propagate a task id from the parent CloseIndexRequest to the ShardCloseRequests
             transportVerifyShardBeforeCloseAction.execute(shardRequest, listener);

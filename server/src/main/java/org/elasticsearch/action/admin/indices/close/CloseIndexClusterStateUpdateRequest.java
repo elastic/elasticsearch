@@ -25,17 +25,13 @@ import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
  */
 public class CloseIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<CloseIndexClusterStateUpdateRequest> {
 
-    private long taskId;
+    private final long taskId;
 
-    public CloseIndexClusterStateUpdateRequest() {
-    }
-
-    public Long taskId() {
-        return taskId;
-    }
-
-    public CloseIndexClusterStateUpdateRequest taskId(final long taskId) {
+    public CloseIndexClusterStateUpdateRequest(final long taskId) {
         this.taskId = taskId;
-        return this;
+    }
+
+    public long taskId() {
+        return taskId;
     }
 }

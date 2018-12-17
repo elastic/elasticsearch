@@ -121,10 +121,9 @@ public final class TransportFreezeIndexAction extends
             return;
         }
 
-        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest()
+        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId())
             .ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
-            .taskId(task.getId())
             .indices(concreteIndices);
 
         indexStateService.closeIndices(closeRequest, new ActionListener<AcknowledgedResponse>() {

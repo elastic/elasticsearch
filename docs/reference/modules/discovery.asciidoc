@@ -248,8 +248,12 @@ given using this setting:
 This setting can be given on the command line when starting up each
 master-eligible node, or added to the `elasticsearch.yml` configuration file on
 those nodes. Once the cluster has formed this setting is no longer required and
-may be removed. It should be omitted on master-ineligible nodes, and on
-master-eligible nodes that are started to join an existing cluster.
+is ignored. It need not be set on master-ineligible nodes, nor on
+master-eligible nodes that are started to join an existing cluster. Note that
+master-eligible nodes should use storage that persists across restarts. If they
+do not, and `cluster.initial_master_nodes` is set, and a full cluster restart
+occurs, then another brand-new cluster will form and this may result in data
+loss.
 
 For a cluster with 3 master-eligible nodes (with <<node.name,node names>>
 `master-a`, `master-b` and `master-c`) the configuration will look as follows:

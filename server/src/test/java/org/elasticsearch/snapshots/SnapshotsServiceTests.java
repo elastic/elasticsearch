@@ -97,6 +97,7 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     public void testSnapshotWithOutOfSyncAllocationTable() throws Exception {
+        // Set up fake repository
         String repoName = "repo";
         String snapshotName = "snapshot";
         final Repository repository = mock(Repository.class);
@@ -115,7 +116,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         CompletableFuture<Void> successfulSnapshotStart = new CompletableFuture<>();
 
-        String index = "test";
+        String index = randomAlphaOfLength(10);
         MetaData metaData = MetaData.builder().putCustom(
             RepositoriesMetaData.TYPE,
             new RepositoriesMetaData(
@@ -165,11 +166,11 @@ public class SnapshotsServiceTests extends ESTestCase {
                         throw new AssertionError("Snapshot failed.");
                     }
                 }));
-        clusterState.runStateUpdateTask(createSnapshotTask);
+        clusterState.updateAndGet(createSnapshotTask);
         assertTrue(masterNode.deterministicTaskQueue.hasRunnableTasks());
         ClusterStateUpdateTask beginSnapshotTask = expectOneUpdateTask(
             masterNode.clusterService, () -> masterNode.deterministicTaskQueue.runAllTasks());
-        clusterState.runStateUpdateTask(beginSnapshotTask);
+        clusterState.updateAndGet(beginSnapshotTask);
 
         successfulSnapshotStart.get(0L, TimeUnit.SECONDS);
 
@@ -194,41 +195,42 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertTrue("SnapshotShardService did not enqueue a snapshot task.", primaryNode.deterministicTaskQueue.hasRunnableTasks());
 
         // Now fix the SnapshotsInProgress by running the cluster state update task on master
-        clusterState.runStateUpdateTask(adjustSnapshotTask);
+        clusterState.updateAndGet(adjustSnapshotTask);
 
         // Allow the state update task to run on the non-master node to avoid having to mock the master node action request handling.
         // This should be safe since we only capture the state update executor and task anyway and then manually run it.
         when(primaryNode.clusterService.state()).thenReturn(clusterState.currentState(masterNode.node.getId()));
-        SetOnce<ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>> taskExec = new SetOnce<>();
+        SetOnce<ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>> removeSnapshotTaskHolder = new SetOnce<>();
         SetOnce<UpdateIndexShardSnapshotStatusRequest> statusUpdateRequest = new SetOnce<>();
         doAnswer(invocation -> {
             Object[] arguments = invocation.getArguments();
-            taskExec.set((ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>) arguments[3]);
+            removeSnapshotTaskHolder.set((ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>) arguments[3]);
             statusUpdateRequest.set((UpdateIndexShardSnapshotStatusRequest) arguments[1]);
             return null;
         }).when(primaryNode.clusterService).submitStateUpdateTask(anyString(), any(), any(), any(), any());
 
-        // The enqueued shard snapshot action must fail since we changed the routing table and the node isn't primary anymore.
         primaryNode.deterministicTaskQueue.runAllTasks();
-
-        clusterState.applyLatestChange(masterNode.node.getId(), masterNode.snapshotsService);
+        // The enqueued shard snapshot action must fail since we changed the routing table and the node isn't primary anymore.
+        ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest> removeSnapshotExecutor = removeSnapshotTaskHolder.get();
+        assertNotNull("No cluster state update task executor enqueued even though a shard should have failed.", removeSnapshotExecutor);
 
         // Remove short-circuiting master action on primary shard's node
         when(primaryNode.clusterService.state()).thenReturn(clusterState.currentState(primaryNodeId));
 
+        // Apply latest cluster state c
+        clusterState.applyLatestChange(masterNode.node.getId(), masterNode.snapshotsService);
+
         assertFalse(dataNode1.deterministicTaskQueue.hasRunnableTasks());
         assertFalse(dataNode2.deterministicTaskQueue.hasRunnableTasks());
         assertFalse(masterNode.deterministicTaskQueue.hasRunnableTasks());
-        assertNotNull("No cluster state update task executor enqueued even though a shard should have failed.", taskExec.get());
         assertNotNull(statusUpdateRequest.get());
 
         // Run the cluster state update that was caused by the failing shard
         SnapshotsInProgress snapshotsInProgress = clusterState.updateState(
             currentClusterState -> {
                 try {
-                    ClusterStateTaskExecutor.ClusterTasksResult<UpdateIndexShardSnapshotStatusRequest> updateFailedSnapshotStateResult =
-                        taskExec.get().execute(currentClusterState, Collections.singletonList(statusUpdateRequest.get()));
-                    return updateFailedSnapshotStateResult.resultingState;
+                    return removeSnapshotExecutor.execute(
+                        currentClusterState, Collections.singletonList(statusUpdateRequest.get())).resultingState;
                 } catch (Exception e) {
                     throw new IllegalStateException(e);
                 }
@@ -241,15 +243,9 @@ public class SnapshotsServiceTests extends ESTestCase {
         // that we capture and run.
         // TODO: This should not result in a failing snapshot, simply retry on the new primary and finish the snapshot?
         assertTrue(primaryNode.deterministicTaskQueue.hasRunnableTasks());
-        SetOnce<ClusterStateUpdateTask> removeSnapshotTaskHolder = new SetOnce<>();
-        doAnswer(invocation -> {
-            removeSnapshotTaskHolder.set((ClusterStateUpdateTask) invocation.getArguments()[1]);
-            return null;
-        }).when(primaryNode.clusterService).submitStateUpdateTask(anyString(), any());
-        primaryNode.deterministicTaskQueue.runAllTasks();
-        ClusterStateUpdateTask removeSnapshotTask = removeSnapshotTaskHolder.get();
-        assertNotNull(removeSnapshotTask);
-        snapshotsInProgress = clusterState.runStateUpdateTask(removeSnapshotTask).custom(SnapshotsInProgress.TYPE);
+        ClusterStateUpdateTask removeSnapshotTask =
+            expectOneUpdateTask(primaryNode.clusterService, primaryNode.deterministicTaskQueue::runAllTasks);
+        snapshotsInProgress = clusterState.updateAndGet(removeSnapshotTask).custom(SnapshotsInProgress.TYPE);
         assertThat(snapshotsInProgress.entries(), empty());
     }
 
@@ -265,7 +261,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             taskHolder.set((ClusterStateUpdateTask) invocation.getArguments()[1]);
             return null;
-        }).when(clusterService).submitStateUpdateTask(any(), any());
+        }).when(clusterService).submitStateUpdateTask(anyString(), any());
         action.run();
         ClusterStateUpdateTask updateTask = taskHolder.get();
         assertNotNull(updateTask);
@@ -334,7 +330,13 @@ public class SnapshotsServiceTests extends ESTestCase {
             return ClusterState.builder(initialState).nodes(DiscoveryNodes.builder(previous.nodes()).localNodeId(nodeId)).build();
         }
 
-        public ClusterState runStateUpdateTask(ClusterStateUpdateTask stateUpdateTask) throws Exception {
+        /**
+         * Run given {@link ClusterStateUpdateTask} and return the resulting {@link ClusterState}
+         * on the master node
+         * @param stateUpdateTask ClusterStateUpdateTask to run
+         * @return Resulting ClusterState on master
+         */
+        public ClusterState updateAndGet(ClusterStateUpdateTask stateUpdateTask) throws Exception {
             previous = currentState(current.nodes().getMasterNodeId());
             ClusterState currentClusterState = stateUpdateTask.execute(previous);
             stateUpdateTask.clusterStateProcessed("", previous, currentClusterState);
@@ -348,6 +350,10 @@ public class SnapshotsServiceTests extends ESTestCase {
             return current;
         }
 
+        /**
+         * Remove given node from cluster state
+         * @param nodeId Node id to remove from cluster state
+         */
         public void disconnectNode(String nodeId) {
             previous = current;
             current = allocationService.deassociateDeadNodes(
@@ -427,5 +433,4 @@ public class SnapshotsServiceTests extends ESTestCase {
             snapshotShardsService.start();
         }
     }
-
 }

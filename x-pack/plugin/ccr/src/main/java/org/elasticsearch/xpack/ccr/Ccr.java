@@ -163,7 +163,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Arrays.asList(
             ccrLicenseChecker,
             restoreSourceService,
-            new AutoFollowCoordinator(client, clusterService, ccrLicenseChecker)
+            new AutoFollowCoordinator(client, clusterService, ccrLicenseChecker, threadPool::relativeTimeInMillis)
         );
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
 import static org.elasticsearch.xpack.ccr.action.AutoFollowStatsTests.randomReadExceptions;
+import static org.elasticsearch.xpack.ccr.action.AutoFollowStatsTests.randomTrackingClusters;
 import static org.elasticsearch.xpack.ccr.action.StatsResponsesTests.createStatsResponse;
 
 public class AutoFollowStatsResponseTests extends AbstractWireSerializingTestCase<CcrStatsAction.Response> {
@@ -27,7 +28,8 @@ public class AutoFollowStatsResponseTests extends AbstractWireSerializingTestCas
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomReadExceptions()
+            randomReadExceptions(),
+            randomTrackingClusters()
         );
         FollowStatsAction.StatsResponses statsResponse = createStatsResponse();
         return new CcrStatsAction.Response(autoFollowStats, statsResponse);

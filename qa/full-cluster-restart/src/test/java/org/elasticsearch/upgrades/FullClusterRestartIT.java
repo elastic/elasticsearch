@@ -27,6 +27,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
@@ -626,6 +627,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         String docId = (String) hit.get("_id");
 
         Request updateRequest = new Request("POST", "/" + index + "/doc/" + docId + "/_update");
+        updateRequest.setOptions(expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
         updateRequest.setJsonEntity("{ \"doc\" : { \"foo\": \"bar\"}}");
         client().performRequest(updateRequest);
 

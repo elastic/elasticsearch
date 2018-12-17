@@ -66,9 +66,9 @@ class DatabaseReaderLazyLoader implements Closeable {
         if (fileSize <= 512) {
             throw new IOException("unexpected file length [" + fileSize + "] for [" + databasePath + "]");
         }
-        final int[] DATABASE_TYPE_MARKER = {'d', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e'};
+        final int[] databaseTypeMarker = {'d', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e'};
         try (InputStream in = Files.newInputStream(databasePath)) {
-            // read last 512 bytes
+            // read the last 512 bytes
             final long skipped = in.skip(fileSize - 512);
             if (skipped != fileSize - 512) {
                 throw new IOException("failed to skip [" + (fileSize - 512) + "] bytes while reading [" + databasePath + "]");
@@ -89,12 +89,12 @@ class DatabaseReaderLazyLoader implements Closeable {
             for (int i = 0; i < tail.length; i++) {
                 byte b = tail[i];
 
-                if (b == DATABASE_TYPE_MARKER[markerOffset]) {
+                if (b == databaseTypeMarker[markerOffset]) {
                     markerOffset++;
                 } else {
                     markerOffset = 0;
                 }
-                if (markerOffset == DATABASE_TYPE_MARKER.length) {
+                if (markerOffset == databaseTypeMarker.length) {
                     metadataOffset = i + 1;
                     break;
                 }

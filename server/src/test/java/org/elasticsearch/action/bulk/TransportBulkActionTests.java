@@ -152,6 +152,5 @@ public class TransportBulkActionTests extends ESTestCase {
 
         UpdateRequest badUpsertRequest = new UpdateRequest("index", "type", "id1");
         assertNull(TransportBulkAction.getIndexWriteRequest(badUpsertRequest));
-
     }
 }

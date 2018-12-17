@@ -124,11 +124,11 @@ teardown:
         refresh: true
         body: |
           {"update":{"_id":"6","_index":"test","_type":"test"}}
-          {"script":{"source":"ctx._source.ran_script = true"},"upsert":{"bytes_source_field":"1kb"}}
+          {"script":"ctx._source.ran_script = true","upsert":{"bytes_source_field":"1kb"}}
           {"update":{"_id":"7","_index":"test","_type":"test"}}
           {"doc":{"bytes_source_field":"2kb"}, "doc_as_upsert":true}
           {"update":{"_id":"8","_index":"test","_type":"test"}}
-          {"script":{"source":"ctx._source.ran_script = true"},"upsert":{"bytes_source_field":"3kb"}, "scripted_upsert" : true}
+          {"script": "ctx._source.ran_script = true","upsert":{"bytes_source_field":"3kb"}, "scripted_upsert" : true}
 
   - do:
       mget:

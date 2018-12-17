@@ -584,7 +584,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexRequest -> bulkRequestModifier.markCurrentItemAsDropped());
     }
 
-
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
 
         final BulkRequest bulkRequest;

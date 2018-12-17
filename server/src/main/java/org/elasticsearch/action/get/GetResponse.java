@@ -98,7 +98,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     }
 
     /**
-     * The primary term of the last primary that have changed this document, if found.
+     * The primary term of the last primary that has changed this document, if found.
      */
     public long getPrimaryTerm() {
         return getResult.getPrimaryTerm();

@@ -237,3 +237,18 @@ versions of the HotSpot JVM.
 The all permission check ensures that the security policy used during bootstrap
 does not grant the `java.security.AllPermission` to Elasticsearch. Running with
 the all permission granted is equivalent to disabling the security manager.
+
+[[cluster-name-in-path-check]]
+=== Cluster-name-in-path check
+
+The cluster-name-in-path check ensures that there is no sub-directory with
+the same name as the cluster in the data paths (`path.data`).
+
+Elasticsearch 2.x nodes structured all the contents of `path.data` inside
+a directory named after the cluster name. This was changed in 5.x nodes
+to remove the directory with the cluster name and move its contents up a level.
+A 5.x node would still read the 2.x structure correctly in a backwards-
+compatible way. 6.x stopped reading this directory and silently ignored
+its existence. This would mean that the node would be seen as having no data.
+If this directory contained data structured from the old 2.x structure, it is
+important that this content be moved up one directory level.

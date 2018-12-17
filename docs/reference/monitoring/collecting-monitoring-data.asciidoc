@@ -101,10 +101,12 @@ the `xpack.monitoring.collection.interval` setting 10 seconds. See
 +
 --
 By default, the data is stored on the same cluster by using a 
-<<local-exporter,`local` exporter>>. 
-
-Alternatively, you can use an <<http-exporter,`http` exporter>> to send data to 
+<<local-exporter,`local` exporter>>. Alternatively, you can use an <<http-exporter,`http` exporter>> to send data to 
 a separate _monitoring cluster_. 
+
+IMPORTANT: The {es} {monitor-features} use ingest pipelines, therefore the
+cluster that stores the monitoring data must have at least one 
+<<ingest,ingest node>>. 
 
 For more information about typical monitoring architectures, 
 see {stack-ov}/how-monitoring-works.html[How Monitoring Works].

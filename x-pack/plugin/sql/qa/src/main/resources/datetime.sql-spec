@@ -125,5 +125,5 @@ SELECT MONTH(CURRENT_TIMESTAMP()) AS result;
 currentTimestampHour-Ignore
 SELECT HOUR(CURRENT_TIMESTAMP()) AS result;
 
-currentTimestampMinute
+currentTimestampMinute-Ignore
 SELECT MINUTE(CURRENT_TIMESTAMP()) AS result;

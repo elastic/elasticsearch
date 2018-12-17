@@ -26,7 +26,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -37,7 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeIntegrationIT extends ESIntegTestCase {
+public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
 
     /**
      * Test that orientation parameter correctly persists across cluster restart
@@ -45,21 +45,23 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     public void testOrientationPersistence() throws Exception {
         String idxName = "orientation";
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("orientation", "left")
-            .endObject().endObject()
-            .endObject().endObject());
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", "quadtree")
+                .field("orientation", "left")
+                .endObject().endObject()
+                .endObject().endObject());
 
         // create index
         assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("orientation", "right")
-            .endObject().endObject()
-            .endObject().endObject());
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", "quadtree")
+                .field("orientation", "right")
+                .endObject().endObject()
+                .endObject().endObject());
 
         assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping, XContentType.JSON));
         ensureGreen(idxName, idxName+"2");
@@ -71,9 +73,9 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
         IndexService indexService = indicesService.indexService(resolveIndex(idxName));
         MappedFieldType fieldType = indexService.mapperService().fullName("location");
-        assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
+        assertThat(fieldType, instanceOf(LegacyGeoShapeFieldMapper.GeoShapeFieldType.class));
 
-        GeoShapeFieldMapper.GeoShapeFieldType gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;
+        LegacyGeoShapeFieldMapper.GeoShapeFieldType gsfm = (LegacyGeoShapeFieldMapper.GeoShapeFieldType)fieldType;
         ShapeBuilder.Orientation orientation = gsfm.orientation();
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
@@ -83,9 +85,9 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
         indexService = indicesService.indexService(resolveIndex((idxName+"2")));
         fieldType = indexService.mapperService().fullName("location");
-        assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
+        assertThat(fieldType, instanceOf(LegacyGeoShapeFieldMapper.GeoShapeFieldType.class));
 
-        gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;
+        gsfm = (LegacyGeoShapeFieldMapper.GeoShapeFieldType)fieldType;
         orientation = gsfm.orientation();
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
@@ -98,7 +100,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     public void testIgnoreMalformed() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("geometry", "shape", "type=geo_shape,ignore_malformed=true").get());
+            .addMapping("geometry", "shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get());
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
@@ -132,7 +134,8 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
             "    },\n" +
             "    \"properties\": {\n" +
             "      \"shape\": {\n" +
-            "        \"type\": \"geo_shape\"\n" +
+            "        \"type\": \"geo_shape\",\n" +
+            "        \"tree\" : \"quadtree\"\n" +
             "      }\n" +
             "    }\n" +
             "  }";

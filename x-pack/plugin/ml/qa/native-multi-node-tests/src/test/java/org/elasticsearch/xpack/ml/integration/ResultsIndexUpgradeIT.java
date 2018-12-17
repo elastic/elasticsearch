@@ -34,12 +34,18 @@ import org.elasticsearch.xpack.ml.ResultsIndexUpgradeService;
 import org.junit.After;
 import org.junit.Assert;
 
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeedBuilder;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
@@ -327,9 +333,10 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
             while (shouldContinueToIndex.get()) {
                 try {
                     Thread.sleep(1000);
-                    long indexed = indexSomeDocs("data-for-migration-1");
+                    long indexed = postSomeDataToJob(openedJob.getId());
+                    logger.info("POST [" +  indexed + "] data points to job [" + openedJob.getId() + "]");
                     dataCount.addAndGet(indexed);
-                } catch (InterruptedException ex) {
+                } catch (InterruptedException | IOException ex) {
                     Thread.currentThread().interrupt();
                 }
             }
@@ -368,7 +375,7 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         assertBusy(() -> {
             GetJobsStatsAction.Response.JobStats stats = getJobStats(openedJob.getId()).get(0);
             assertThat(stats.getDataCounts().getInputRecordCount(), equalTo(dataCount.get()));
-        }, 120, TimeUnit.SECONDS);
+        });
 
         assertThat(getJobResultsCount(openedJob.getId()), greaterThan(closedJobTotal));
 
@@ -377,12 +384,20 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         waitUntilJobIsClosed(openedJob.getId());
     }
 
-    private long indexSomeDocs(String index) {
+    private long postSomeDataToJob(String jobId) throws IOException {
         long numDocs = ESTestCase.randomIntBetween(15, 30);
         long now = System.currentTimeMillis();
         long abitAgo = now - 100;
-
-        indexDocs(logger, index, numDocs, abitAgo, now);
+        long delta = 100/numDocs;
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        List<String> data = new ArrayList<>();
+        for (int count = 0; count < numDocs; count++) {
+            Map<String, Object> record = new HashMap<>();
+            record.put("time", sdf.format(new Date(abitAgo)));
+            data.add(createJsonRecord(record));
+            abitAgo += delta;
+        }
+        postData(jobId, data.stream().collect(Collectors.joining()));
         return numDocs;
     }
 

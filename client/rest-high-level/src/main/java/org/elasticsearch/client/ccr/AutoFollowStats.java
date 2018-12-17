@@ -41,7 +41,7 @@ public final class AutoFollowStats {
     static final ParseField AUTO_FOLLOW_EXCEPTION = new ParseField("auto_follow_exception");
     static final ParseField AUTO_FOLLOWED_CLUSTERS = new ParseField("auto_followed_clusters");
     static final ParseField CLUSTER_NAME = new ParseField("cluster_name");
-    static final ParseField TIME_SINCE_LAST_AUTO_FOLLOW_MILLIS = new ParseField("time_since_last_auto_follow_millis");
+    static final ParseField TIME_SINCE_LAST_CHECK_MILLIS = new ParseField("time_since_last_check_millis");
     static final ParseField LAST_SEEN_METADATA_VERSION = new ParseField("last_seen_metadata_version");
 
     @SuppressWarnings("unchecked")
@@ -78,7 +78,7 @@ public final class AutoFollowStats {
             AUTO_FOLLOW_EXCEPTION);
 
         AUTO_FOLLOWED_CLUSTERS_PARSER.declareString(ConstructingObjectParser.constructorArg(), CLUSTER_NAME);
-        AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_AUTO_FOLLOW_MILLIS);
+        AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_CHECK_MILLIS);
         AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_SEEN_METADATA_VERSION);
 
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED);
@@ -130,16 +130,16 @@ public final class AutoFollowStats {
 
     public static class AutoFollowedCluster {
 
-        private final long timeSinceLastAutoFollowMillis;
+        private final long timeSinceLastCheckMillis;
         private final long lastSeenMetadataVersion;
 
-        public AutoFollowedCluster(long timeSinceLastAutoFollowMillis, long lastSeenMetadataVersion) {
-            this.timeSinceLastAutoFollowMillis = timeSinceLastAutoFollowMillis;
+        public AutoFollowedCluster(long timeSinceLastCheckMillis, long lastSeenMetadataVersion) {
+            this.timeSinceLastCheckMillis = timeSinceLastCheckMillis;
             this.lastSeenMetadataVersion = lastSeenMetadataVersion;
         }
 
-        public long getTimeSinceLastAutoFollowMillis() {
-            return timeSinceLastAutoFollowMillis;
+        public long getTimeSinceLastCheckMillis() {
+            return timeSinceLastCheckMillis;
         }
 
         public long getLastSeenMetadataVersion() {

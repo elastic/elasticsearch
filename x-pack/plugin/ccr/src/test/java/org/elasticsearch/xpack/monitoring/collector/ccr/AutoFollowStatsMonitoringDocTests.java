@@ -121,8 +121,8 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                         + "\"auto_followed_clusters\":["
                             + "{"
                                 + "\"cluster_name\":\"" + trackingClusters.keySet().iterator().next() + "\","
-                                + "\"time_since_last_auto_follow_millis\":"  +
-                                    trackingClusters.values().iterator().next().getTimeSinceLastAutoFollowMillis() + ","
+                                + "\"time_since_last_check_millis\":"  +
+                                    trackingClusters.values().iterator().next().getTimeSinceLastCheckMillis() + ","
                                 + "\"last_seen_metadata_version\":"  +
                                     trackingClusters.values().iterator().next().getLastSeenMetadataVersion()
                             + "}"
@@ -183,8 +183,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                     assertThat(innerFieldMapping.size(), equalTo(innerFieldValue.size()));
 
                     assertThat(XContentMapValues.extractValue("cluster_name.type", innerFieldMapping), equalTo("keyword"));
-                    assertThat(XContentMapValues.extractValue("time_since_last_auto_follow_millis.type", innerFieldMapping),
-                        equalTo("long"));
+                    assertThat(XContentMapValues.extractValue("time_since_last_check_millis.type", innerFieldMapping), equalTo("long"));
                     assertThat(XContentMapValues.extractValue("last_seen_metadata_version.type", innerFieldMapping), equalTo("long"));
                 } else {
                     fail("unexpected field value type [" + fieldValue.getClass() + "] for field [" + fieldName + "]");

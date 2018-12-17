@@ -37,7 +37,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     private static final ParseField AUTO_FOLLOW_EXCEPTION = new ParseField("auto_follow_exception");
     private static final ParseField AUTO_FOLLOWED_CLUSTERS = new ParseField("auto_followed_clusters");
     private static final ParseField CLUSTER_NAME = new ParseField("cluster_name");
-    private static final ParseField TIME_SINCE_LAST_AUTO_FOLLOW_MILLIS = new ParseField("time_since_last_auto_follow_millis");
+    private static final ParseField TIME_SINCE_LAST_CHECK_MILLIS = new ParseField("time_since_last_check_millis");
     private static final ParseField LAST_SEEN_METADATA_VERSION = new ParseField("last_seen_metadata_version");
 
     @SuppressWarnings("unchecked")
@@ -72,7 +72,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
             (p, c) -> ElasticsearchException.fromXContent(p),
             AUTO_FOLLOW_EXCEPTION);
         AUTO_FOLLOWED_CLUSTERS_PARSER.declareString(ConstructingObjectParser.constructorArg(), CLUSTER_NAME);
-        AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_AUTO_FOLLOW_MILLIS);
+        AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_CHECK_MILLIS);
         AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_SEEN_METADATA_VERSION);
 
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED);
@@ -188,8 +188,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
                 builder.startObject();
                 {
                     builder.field(CLUSTER_NAME.getPreferredName(), entry.getKey());
-                    builder.field(TIME_SINCE_LAST_AUTO_FOLLOW_MILLIS.getPreferredName(),
-                        entry.getValue().getTimeSinceLastAutoFollowMillis());
+                    builder.field(TIME_SINCE_LAST_CHECK_MILLIS.getPreferredName(), entry.getValue().getTimeSinceLastCheckMillis());
                     builder.field(LAST_SEEN_METADATA_VERSION.getPreferredName(), entry.getValue().getLastSeenMetadataVersion());
                 }
                 builder.endObject();
@@ -250,11 +249,11 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
 
     public static class AutoFollowedCluster implements Writeable {
 
-        private final long timeSinceLastAutoFollowMillis;
+        private final long timeSinceLastCheckMillis;
         private final long lastSeenMetadataVersion;
 
-        public AutoFollowedCluster(long timeSinceLastAutoFollowMillis, long lastSeenMetadataVersion) {
-            this.timeSinceLastAutoFollowMillis = timeSinceLastAutoFollowMillis;
+        public AutoFollowedCluster(long timeSinceLastCheckMillis, long lastSeenMetadataVersion) {
+            this.timeSinceLastCheckMillis = timeSinceLastCheckMillis;
             this.lastSeenMetadataVersion = lastSeenMetadataVersion;
         }
 
@@ -262,8 +261,8 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
             this(in.readZLong(), in.readVLong());
         }
 
-        public long getTimeSinceLastAutoFollowMillis() {
-            return timeSinceLastAutoFollowMillis;
+        public long getTimeSinceLastCheckMillis() {
+            return timeSinceLastCheckMillis;
         }
 
         public long getLastSeenMetadataVersion() {
@@ -272,7 +271,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeZLong(timeSinceLastAutoFollowMillis);
+            out.writeZLong(timeSinceLastCheckMillis);
             out.writeVLong(lastSeenMetadataVersion);
         }
 
@@ -281,19 +280,19 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AutoFollowedCluster that = (AutoFollowedCluster) o;
-            return timeSinceLastAutoFollowMillis == that.timeSinceLastAutoFollowMillis &&
+            return timeSinceLastCheckMillis == that.timeSinceLastCheckMillis &&
                 lastSeenMetadataVersion == that.lastSeenMetadataVersion;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(timeSinceLastAutoFollowMillis, lastSeenMetadataVersion);
+            return Objects.hash(timeSinceLastCheckMillis, lastSeenMetadataVersion);
         }
 
         @Override
         public String toString() {
             return "AutoFollowedCluster{" +
-                "timeSinceLastAutoFollowMillis=" + timeSinceLastAutoFollowMillis +
+                "timeSinceLastCheckMillis=" + timeSinceLastCheckMillis +
                 ", lastSeenMetadataVersion=" + lastSeenMetadataVersion +
                 '}';
         }

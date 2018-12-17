@@ -106,9 +106,9 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             long lastAutoFollowTimeInMillis = entry.getValue().lastAutoFollowTimeInMillis;
             long lastSeenMetadataVersion = entry.getValue().metadataVersion;
             if (lastAutoFollowTimeInMillis != -1) {
-                long timeSinceLastAutoFollowInMillis = relativeMillisTimeProvider.getAsLong() - lastAutoFollowTimeInMillis;
+                long timeSinceLastCheckInMillis = relativeMillisTimeProvider.getAsLong() - lastAutoFollowTimeInMillis;
                 timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(),
-                    new AutoFollowedCluster(timeSinceLastAutoFollowInMillis, lastSeenMetadataVersion));
+                    new AutoFollowedCluster(timeSinceLastCheckInMillis, lastSeenMetadataVersion));
             } else {
                 timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(), new AutoFollowedCluster(-1L, lastSeenMetadataVersion));
             }

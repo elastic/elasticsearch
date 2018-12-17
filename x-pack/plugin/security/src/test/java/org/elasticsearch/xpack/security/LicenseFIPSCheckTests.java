@@ -16,7 +16,8 @@ import org.elasticsearch.test.ESTestCase;
 public class LicenseFIPSCheckTests extends ESTestCase {
     public void testBootstrapCheck() throws Exception {
         assertTrue(new FIPSChecks().licenseCheck(new FIPSContext(Settings.EMPTY)).isSuccess());
-        assertTrue(new FIPSChecks().licenseCheck(new FIPSContext(Settings.builder().put("xpack.security.fips_mode.enabled", randomBoolean()).build())).isSuccess());
+        assertTrue(new FIPSChecks().licenseCheck(new FIPSContext(Settings.builder().put("xpack.security.fips_mode.enabled",
+            randomBoolean()).build())).isSuccess());
 
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
 

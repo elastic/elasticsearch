@@ -12,7 +12,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -26,57 +25,39 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMasterListener {
+public class MlAssignmentNotifier implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAssignmentNotifier.class);
 
     private final Auditor auditor;
-    private final ClusterService clusterService;
     private final MlConfigMigrator mlConfigMigrator;
     private final ThreadPool threadPool;
-    private final AtomicBoolean enabled = new AtomicBoolean(false);
 
     MlAssignmentNotifier(Settings settings, Auditor auditor, ThreadPool threadPool, Client client, ClusterService clusterService) {
         this.auditor = auditor;
-        this.clusterService = clusterService;
         this.mlConfigMigrator = new MlConfigMigrator(settings, client, clusterService);
         this.threadPool = threadPool;
-        clusterService.addLocalNodeMasterListener(this);
+        clusterService.addListener(this);
     }
 
     MlAssignmentNotifier(Auditor auditor, ThreadPool threadPool, MlConfigMigrator mlConfigMigrator, ClusterService clusterService) {
         this.auditor = auditor;
-        this.clusterService = clusterService;
         this.mlConfigMigrator = mlConfigMigrator;
         this.threadPool = threadPool;
-        clusterService.addLocalNodeMasterListener(this);
+        clusterService.addListener(this);
     }
 
-    @Override
-    public void onMaster() {
-        if (enabled.compareAndSet(false, true)) {
-            clusterService.addListener(this);
-        }
-    }
-
-    @Override
-    public void offMaster() {
-        if (enabled.compareAndSet(true, false)) {
-            clusterService.removeListener(this);
-        }
-    }
-
-    @Override
-    public String executorName() {
+    private String executorName() {
         return ThreadPool.Names.GENERIC;
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (enabled.get() == false) {
+
+        if (event.localNodeMaster() == false) {
             return;
         }
+
         if (event.metaDataChanged() == false) {
             return;
         }

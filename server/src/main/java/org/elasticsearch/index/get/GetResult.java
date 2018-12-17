@@ -82,8 +82,8 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         this.id = id;
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
-        assert (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO && primaryTerm == 0) ||
-            (seqNo >= 0 && primaryTerm >=1) : "seqNo: " + seqNo + " primaryTerm: " + primaryTerm;
+        assert (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO && primaryTerm == 0) || (seqNo >= 0 && primaryTerm >= 1) :
+            "seqNo: " + seqNo + " primaryTerm: " + primaryTerm;
         assert exists || (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO && primaryTerm == 0) :
             "doc not found but seqNo/primaryTerm are set";
         this.version = version;

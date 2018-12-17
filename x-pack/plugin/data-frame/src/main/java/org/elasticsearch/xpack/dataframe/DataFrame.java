@@ -14,12 +14,15 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -29,10 +32,12 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
@@ -52,6 +57,7 @@ import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobState;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameJobConfigManager;
 import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameJobsAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameJobsStatsAction;
@@ -83,6 +89,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     private final boolean enabled;
     private final Settings settings;
     private final boolean transportClientMode;
+    private DataFrameJobConfigManager dataFrameJobConfigManager;
 
     public DataFrame(Settings settings) {
         this.settings = settings;
@@ -153,6 +160,21 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     }
 
     @Override
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
+            Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+        if (enabled == false || transportClientMode) {
+            return emptyList();
+        }
+
+        DataFrameInitializationService dataFrameInitializationService = new DataFrameInitializationService(clusterService, threadPool,
+                client);
+        dataFrameJobConfigManager = new DataFrameJobConfigManager(client, xContentRegistry);
+
+        return Arrays.asList(dataFrameInitializationService, dataFrameJobConfigManager);
+    }
+
+    @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
             Client client, SettingsModule settingsModule) {
         if (enabled == false || transportClientMode) {
@@ -160,8 +182,11 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
 
         SchedulerEngine schedulerEngine = new SchedulerEngine(settings, Clock.systemUTC());
-        return Collections.singletonList(new DataFrameJobPersistentTasksExecutor(client,
-                schedulerEngine, threadPool));
+
+        // the job config manager should have been created
+        assert dataFrameJobConfigManager != null;
+        return Collections
+                .singletonList(new DataFrameJobPersistentTasksExecutor(client, dataFrameJobConfigManager, schedulerEngine, threadPool));
     }
 
     @Override

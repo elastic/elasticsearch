@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.dataframe.job;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -26,24 +25,21 @@ public class DataFrameJob extends AbstractDiffable<DataFrameJob> implements XPac
 
     public static final String NAME = DataFrameField.TASK_NAME;
 
-    private DataFrameJobConfig config;
-
-    private static final ParseField CONFIG = new ParseField("config");
+    private String jobId;
 
     public static final ConstructingObjectParser<DataFrameJob, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new DataFrameJob((DataFrameJobConfig) a[0]));
+            a -> new DataFrameJob((String) a[0]));
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataFrameJobConfig.fromXContent(p, null),
-                CONFIG);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameField.ID);
     }
 
-    public DataFrameJob(DataFrameJobConfig config) {
-        this.config = Objects.requireNonNull(config);
+    public DataFrameJob(String jobId) {
+        this.jobId = jobId;
     }
 
     public DataFrameJob(StreamInput in) throws IOException {
-        this.config = new DataFrameJobConfig(in);
+        this.jobId  = in.readString();
     }
 
     @Override
@@ -59,19 +55,19 @@ public class DataFrameJob extends AbstractDiffable<DataFrameJob> implements XPac
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        config.writeTo(out);
+        out.writeString(jobId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CONFIG.getPreferredName(), config);
+        builder.field(DataFrameField.ID.getPreferredName(), jobId);
         builder.endObject();
         return builder;
     }
 
-    public DataFrameJobConfig getConfig() {
-        return config;
+    public String getId() {
+        return jobId;
     }
 
     public static DataFrameJob fromXContent(XContentParser parser) throws IOException {
@@ -90,12 +86,12 @@ public class DataFrameJob extends AbstractDiffable<DataFrameJob> implements XPac
 
         DataFrameJob that = (DataFrameJob) other;
 
-        return Objects.equals(this.config, that.config);
+        return Objects.equals(this.jobId, that.jobId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(config);
+        return Objects.hash(jobId);
     }
 
     public Map<String, String> getHeaders() {

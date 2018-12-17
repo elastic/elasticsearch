@@ -41,22 +41,31 @@ public class DataFrameJobConfig implements NamedWriteable, ToXContentObject {
     private final SourceConfig sourceConfig;
     private final AggregationConfig aggregationConfig;
 
-    public static final ConstructingObjectParser<DataFrameJobConfig, String> PARSER = new ConstructingObjectParser<>(NAME, false,
-            (args, optionalId) -> {
-                String id = args[0] != null ? (String) args[0] : optionalId;
-                String indexPattern = (String) args[1];
-                String destinationIndex = (String) args[2];
-                SourceConfig sourceConfig= (SourceConfig) args[3];
-                AggregationConfig aggregationConfig = (AggregationConfig) args[4];
-                return new DataFrameJobConfig(id, indexPattern, destinationIndex, sourceConfig, aggregationConfig);
-            });
+    public static final ConstructingObjectParser<DataFrameJobConfig, String> PARSER = createParser(false);
+    public static final ConstructingObjectParser<DataFrameJobConfig, String> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(optionalConstructorArg(), DataFrameField.ID);
-        PARSER.declareString(constructorArg(), INDEX_PATTERN);
-        PARSER.declareString(constructorArg(), DESTINATION_INDEX);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p), SOURCES);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p), AGGREGATIONS);
+    private static ConstructingObjectParser<DataFrameJobConfig, String> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<DataFrameJobConfig, String> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
+                (args, optionalId) -> {
+                    String id = args[0] != null ? (String) args[0] : optionalId;
+                    String indexPattern = (String) args[1];
+                    String destinationIndex = (String) args[2];
+                    SourceConfig sourceConfig = (SourceConfig) args[3];
+                    AggregationConfig aggregationConfig = (AggregationConfig) args[4];
+                    return new DataFrameJobConfig(id, indexPattern, destinationIndex, sourceConfig, aggregationConfig);
+                });
+
+        parser.declareString(optionalConstructorArg(), DataFrameField.ID);
+        parser.declareString(constructorArg(), INDEX_PATTERN);
+        parser.declareString(constructorArg(), DESTINATION_INDEX);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p), SOURCES);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p), AGGREGATIONS);
+
+        return parser;
+    }
+
+    public static String documentId(String jobId) {
+        return "dataframe-" + jobId;
     }
 
     public DataFrameJobConfig(final String id,

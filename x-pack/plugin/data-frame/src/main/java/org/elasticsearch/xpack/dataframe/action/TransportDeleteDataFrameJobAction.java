@@ -51,7 +51,7 @@ public class TransportDeleteDataFrameJobAction extends TransportTasksAction<Data
 
     @Override
     protected void taskOperation(Request request, DataFrameJobTask task, ActionListener<Response> listener) {
-        assert task.getConfig().getId().equals(request.getId());
+        assert task.getJobId().equals(request.getId());
         IndexerState state = task.getState().getIndexerState();
         if (state.equals(IndexerState.STOPPED)) {
             task.onCancelled();

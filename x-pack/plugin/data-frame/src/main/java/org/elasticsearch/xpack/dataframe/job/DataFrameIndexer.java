@@ -22,7 +22,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
@@ -40,19 +39,12 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
     private static final Logger logger = LogManager.getLogger(DataFrameIndexer.class);
-    private DataFrameJob job;
 
-    public DataFrameIndexer(Executor executor, DataFrameJob job, AtomicReference<IndexerState> initialState,
-            Map<String, Object> initialPosition) {
+    public DataFrameIndexer(Executor executor, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition) {
         super(executor, initialState, initialPosition, new DataFrameIndexerJobStats());
-
-        this.job = job;
     }
 
-    @Override
-    protected String getJobId() {
-        return job.getConfig().getId();
-    }
+    protected abstract DataFrameJobConfig getConfig();
 
     @Override
     protected void onStartJob(long now) {
@@ -74,9 +66,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
      * in later versions, see {@link IngestDocument).
      */
     private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
-        String indexName = job.getConfig().getDestinationIndex();
-        List<CompositeValuesSourceBuilder<?>> sources = job.getConfig().getSourceConfig().getSources();
-        Collection<AggregationBuilder> aggregationBuilders = job.getConfig().getAggregationConfig().getAggregatorFactories();
+        final DataFrameJobConfig jobConfig = getConfig();
+        String indexName = jobConfig.getDestinationIndex();
+        List<CompositeValuesSourceBuilder<?>> sources = jobConfig.getSourceConfig().getSources();
+        Collection<AggregationBuilder> aggregationBuilders = jobConfig.getAggregationConfig().getAggregatorFactories();
 
         return AggregationResultUtils.extractCompositeAggregationResults(agg, sources, aggregationBuilders, getStats()).map(document -> {
             XContentBuilder builder;
@@ -95,11 +88,12 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     @Override
     protected SearchRequest buildSearchRequest() {
         final Map<String, Object> position = getPosition();
+        final DataFrameJobConfig jobConfig = getConfig();
 
         QueryBuilder queryBuilder = new MatchAllQueryBuilder();
-        SearchRequest searchRequest = new SearchRequest(job.getConfig().getIndexPattern());
+        SearchRequest searchRequest = new SearchRequest(jobConfig.getIndexPattern());
 
-        List<CompositeValuesSourceBuilder<?>> sources = job.getConfig().getSourceConfig().getSources();
+        List<CompositeValuesSourceBuilder<?>> sources = jobConfig.getSourceConfig().getSources();
 
         CompositeAggregationBuilder compositeAggregation = new CompositeAggregationBuilder(COMPOSITE_AGGREGATION_NAME, sources);
         compositeAggregation.size(1000);
@@ -108,7 +102,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             compositeAggregation.aggregateAfter(position);
         }
 
-        for (AggregationBuilder agg : job.getConfig().getAggregationConfig().getAggregatorFactories()) {
+        for (AggregationBuilder agg : jobConfig.getAggregationConfig().getAggregatorFactories()) {
             compositeAggregation.subAggregation(agg);
         }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameJobConfigManager;
 
 import java.util.Map;
 
@@ -27,13 +28,15 @@ public class DataFrameJobPersistentTasksExecutor extends PersistentTasksExecutor
     private static final Logger logger = LogManager.getLogger(DataFrameJobPersistentTasksExecutor.class);
 
     private final Client client;
+    private final DataFrameJobConfigManager jobConfigManager;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
 
-    public DataFrameJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine,
+    public DataFrameJobPersistentTasksExecutor(Client client, DataFrameJobConfigManager jobConfigManager, SchedulerEngine schedulerEngine,
             ThreadPool threadPool) {
         super(DataFrameField.TASK_NAME, DataFrame.TASK_THREAD_POOL_NAME);
         this.client = client;
+        this.jobConfigManager = jobConfigManager;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
     }
@@ -42,7 +45,7 @@ public class DataFrameJobPersistentTasksExecutor extends PersistentTasksExecutor
     protected void nodeOperation(AllocatedPersistentTask task, @Nullable DataFrameJob params, PersistentTaskState state) {
         DataFrameJobTask buildTask = (DataFrameJobTask) task;
         SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(
-                DataFrameJobTask.SCHEDULE_NAME + "_" + params.getConfig().getId(), next());
+                DataFrameJobTask.SCHEDULE_NAME + "_" + params.getId(), next());
 
         // Note that while the task is added to the scheduler here, the internal state
         // will prevent
@@ -50,7 +53,7 @@ public class DataFrameJobPersistentTasksExecutor extends PersistentTasksExecutor
         schedulerEngine.register(buildTask);
         schedulerEngine.add(schedulerJob);
 
-        logger.info("Data frame job [" + params.getConfig().getId() + "] created.");
+        logger.info("Data frame job [" + params.getId() + "] created.");
     }
 
     static SchedulerEngine.Schedule next() {
@@ -63,6 +66,6 @@ public class DataFrameJobPersistentTasksExecutor extends PersistentTasksExecutor
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
             PersistentTasksCustomMetaData.PersistentTask<DataFrameJob> persistentTask, Map<String, String> headers) {
         return new DataFrameJobTask(id, type, action, parentTaskId, persistentTask.getParams(),
-                (DataFrameJobState) persistentTask.getState(), client, schedulerEngine, threadPool, headers);
+                (DataFrameJobState) persistentTask.getState(), client, jobConfigManager, schedulerEngine, threadPool, headers);
     }
 }

@@ -46,7 +46,7 @@ public class TransportStartDataFrameJobAction extends
         // todo: re-factor, see rollup TransportTaskHelper
         for (Task task : taskManager.getTasks().values()) {
             if (task instanceof DataFrameJobTask
-                    && ((DataFrameJobTask) task).getConfig().getId().equals(request.getId())) {
+                    && ((DataFrameJobTask) task).getJobId().equals(request.getId())) {
                 if (matchingTask != null) {
                     throw new IllegalArgumentException("Found more than one matching task for data frame job [" + request.getId()
                             + "] when " + "there should only be one.");
@@ -75,10 +75,10 @@ public class TransportStartDataFrameJobAction extends
     @Override
     protected void taskOperation(StartDataFrameJobAction.Request request, DataFrameJobTask jobTask,
             ActionListener<StartDataFrameJobAction.Response> listener) {
-        if (jobTask.getConfig().getId().equals(request.getId())) {
+        if (jobTask.getJobId().equals(request.getId())) {
             jobTask.start(listener);
         } else {
-            listener.onFailure(new RuntimeException("ID of data frame job task [" + jobTask.getConfig().getId()
+            listener.onFailure(new RuntimeException("ID of data frame job task [" + jobTask.getJobId()
                     + "] does not match request's ID [" + request.getId() + "]"));
         }
     }

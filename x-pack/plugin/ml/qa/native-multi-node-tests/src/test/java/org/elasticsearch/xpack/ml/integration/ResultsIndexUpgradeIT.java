@@ -35,13 +35,15 @@ import org.junit.After;
 import org.junit.Assert;
 
 import java.io.IOException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -389,11 +391,12 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         long now = System.currentTimeMillis();
         long abitAgo = now - 100;
         long delta = 100/numDocs;
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
         List<String> data = new ArrayList<>();
         for (int count = 0; count < numDocs; count++) {
             Map<String, Object> record = new HashMap<>();
-            record.put("time", sdf.format(new Date(abitAgo)));
+            String timeStr = Instant.ofEpochSecond(abitAgo).atZone(ZoneId.of("UTC")).format(formatter);
+            record.put("time", timeStr);
             data.add(createJsonRecord(record));
             abitAgo += delta;
         }

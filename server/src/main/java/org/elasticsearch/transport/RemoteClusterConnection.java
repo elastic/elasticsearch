@@ -39,6 +39,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -100,7 +101,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     private final Predicate<DiscoveryNode> nodePredicate;
     private final ThreadPool threadPool;
     private volatile String proxyAddress;
-    private volatile List<Supplier<DiscoveryNode>> seedNodes;
+    private volatile List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes;
     private volatile boolean skipUnavailable;
     private final ConnectHandler connectHandler;
     private final TimeValue initialConnectionTimeout;
@@ -116,7 +117,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
      * @param nodePredicate a predicate to filter eligible remote nodes to connect to
      * @param proxyAddress the proxy address
      */
-    RemoteClusterConnection(Settings settings, String clusterAlias, List<Supplier<DiscoveryNode>> seedNodes,
+    RemoteClusterConnection(Settings settings, String clusterAlias, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
                             TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
                             String proxyAddress) {
         this(settings, clusterAlias, seedNodes, transportService, maxNumRemoteConnections, nodePredicate, proxyAddress,
@@ -124,7 +125,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     // Public for tests to pass a StubbableConnectionManager
-    RemoteClusterConnection(Settings settings, String clusterAlias, List<Supplier<DiscoveryNode>> seedNodes,
+    RemoteClusterConnection(Settings settings, String clusterAlias, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
                             TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
                             String proxyAddress, ConnectionManager connectionManager) {
         this.transportService = transportService;
@@ -160,7 +161,10 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     /**
      * Updates the list of seed nodes for this cluster connection
      */
-    synchronized void updateSeedNodes(String proxyAddress, List<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> connectListener) {
+    synchronized void updateSeedNodes(
+            final String proxyAddress,
+            final List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
+            final ActionListener<Void> connectListener) {
         this.seedNodes = Collections.unmodifiableList(new ArrayList<>(seedNodes));
         this.proxyAddress = proxyAddress;
         connectHandler.connect(connectListener);
@@ -470,7 +474,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                             maybeConnect();
                         }
                     });
-                    collectRemoteNodes(seedNodes.iterator(), transportService, connectionManager, listener);
+                    collectRemoteNodes(seedNodes.stream().map(Tuple::v2).iterator(), transportService, connectionManager, listener);
                 }
             });
         }
@@ -719,10 +723,10 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                         }
                     }
                     RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(clusterAlias,
-                        seedNodes.stream().map(sup -> sup.get().getAddress()).collect(Collectors.toList()),
-                        new ArrayList<>(httpAddresses),
-                        maxNumRemoteConnections, connectedNodes.size(),
-                        initialConnectionTimeout, skipUnavailable);
+                            seedNodes.stream().map(Tuple::v1).collect(Collectors.toList()),
+                            new ArrayList<>(httpAddresses),
+                            maxNumRemoteConnections, connectedNodes.size(),
+                            initialConnectionTimeout, skipUnavailable);
                     listener.onResponse(remoteConnectionInfo);
                 }
 
@@ -740,10 +744,9 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     RemoteConnectionInfo getLocalConnectionInfo() { // for tests
-        List<TransportAddress> seedNodeAddresses = seedNodes.stream().map(node -> node.get().getAddress()).collect
-            (Collectors.toList());
-        return new RemoteConnectionInfo(clusterAlias, Collections.emptyList(),
-            seedNodeAddresses, maxNumRemoteConnections, connectedNodes.size(), initialConnectionTimeout, skipUnavailable);
+        List<String> seedNodeAddresses = seedNodes.stream().map(Tuple::v1).collect(Collectors.toList());
+        return new RemoteConnectionInfo(clusterAlias, seedNodeAddresses,
+                Collections.emptyList(), maxNumRemoteConnections, connectedNodes.size(), initialConnectionTimeout, skipUnavailable);
     }
 
     int getNumNodesConnected() {

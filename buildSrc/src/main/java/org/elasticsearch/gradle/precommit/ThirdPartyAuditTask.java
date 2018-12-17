@@ -45,12 +45,14 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 @CacheableTask
 public class ThirdPartyAuditTask extends DefaultTask {
@@ -67,6 +69,10 @@ public class ThirdPartyAuditTask extends DefaultTask {
      * patterns for classes to exclude, because we understand their issues
      */
     private Set<String> excludes = new TreeSet<>();
+
+    private Set<String> missingClassExcludes = new TreeSet<>();
+
+    private Set<String> violationsExcludes = new TreeSet<>();
 
     private File signatureFile;
 
@@ -116,18 +122,33 @@ public class ThirdPartyAuditTask extends DefaultTask {
     }
 
     public void setExcludes(String... classes) {
-        excludes.clear();
-        for (String each : classes) {
-            if (each.indexOf('*') != -1) {
-                throw new IllegalArgumentException("illegal third party audit exclusion: '" + each + "', wildcards are not permitted!");
-            }
-            excludes.add(each);
+
+    }
+
+    public void allowMissingClasses(String... classesOrPackages) {
+        for (String each : classesOrPackages) {
+            missingClassExcludes.add(each);
+        }
+    }
+
+    public void allowViolations(String... violatingClasses) {
+        for (String each : violatingClasses) {
+            violationsExcludes.add(each);
         }
     }
 
     @Input
+    public Set<String> getMissingClassExcludes() {
+        return missingClassExcludes;
+    }
+
+    @Input
+    public Set<String> getViolationsExcludes() {
+        return violationsExcludes;
+    }
+
     public Set<String> getExcludes() {
-        return Collections.unmodifiableSet(excludes);
+        return new HashSet<>();
     }
 
     @InputFiles
@@ -239,27 +260,50 @@ public class ThirdPartyAuditTask extends DefaultTask {
         } else {
             throw new IllegalStateException(
                 "Audit of third party dependencies failed:\n" +
-                    (missingText.isEmpty() ?  "" : "Missing classes:\n" + missingText) +
+                    (missingText.isEmpty() ? "" : "Missing classes:\n" + missingText) +
                     (violationsText.isEmpty() ? "" : "Classes with violations:\n" + violationsText)
             );
         }
     }
 
     private void assertNoPointlessExclusions(Set<String> missingClasses, Set<String> violationsClasses, Set<String> jdkJarHellClasses) {
-        // keep our whitelist up to date
-        Set<String> bogusExclusions = new TreeSet<>(excludes);
-        bogusExclusions.removeAll(missingClasses);
-        bogusExclusions.removeAll(jdkJarHellClasses);
-        bogusExclusions.removeAll(violationsClasses);
-        if (bogusExclusions.isEmpty() == false) {
-            if (bogusExclusions.size() == excludes.size()) {
-                throw new IllegalStateException("All excluded classes seem to have no issues. " +
-                    "This is sometimes an indication that the check silently failed");
-            }
+        long bogousExcludesCount = Stream.concat(missingClassExcludes.stream(), violationsExcludes.stream())
+            .filter(each -> missingClasses.contains(each) == false)
+            .filter(each -> violationsClasses.contains(each) == false)
+            .count();
+        if (bogousExcludesCount == missingClassExcludes.size() + violationsExcludes.size()) {
             throw new IllegalStateException(
-                "Invalid exclusions, nothing is wrong with these classes: " + formatClassList(bogusExclusions)
+                "All excluded classes seem to have no issues. " +
+                    "This is sometimes an indication that the check silently failed"
             );
         }
+
+        String notMissing = missingClassExcludes.stream()
+            .filter(each -> missingClasses.contains(each) == false)
+            .map(each -> "  * " + each)
+            .collect(Collectors.joining("\n"));
+        if (notMissing.isEmpty() == false) {
+            throw new IllegalStateException(
+                "Invalid exclusions, following classes are not missing: " + notMissing
+            );
+        }
+
+        String noViolations = violationsExcludes.stream()
+            .filter(each -> violationsClasses.contains(each) == false)
+            .map(each -> "  * " + each)
+            .collect(Collectors.joining("\n"));
+        if (noViolations.isEmpty() == false) {
+            throw new IllegalStateException(
+                "Invalid exclusions, following classes don't have forbidden APIs: " + noViolations
+            );
+        }
+    }
+
+    private String formatClassList(Set<String> classList) {
+        return classList.stream()
+            .map(name -> "  * " + name)
+            .sorted()
+            .collect(Collectors.joining("\n"));
     }
 
     private String runForbiddenAPIsCli() throws IOException {
@@ -290,12 +334,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
             forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8.name());
         }
         return forbiddenApisOutput;
-    }
-
-    private String formatClassList(Set<String> classList) {
-        return classList.stream()
-            .map(name -> "  * " + name)
-            .collect(Collectors.joining("\n"));
     }
 
     private Set<String> runJdkJarHellCheck() throws IOException {

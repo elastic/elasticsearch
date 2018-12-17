@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
@@ -104,7 +103,6 @@ public class SnapshotsServiceTests extends ESTestCase {
      * and one replica, adds the snapshot in progress for the primary shard's node, then removes
      * the primary shard allocation from the state and ensures that the snapshot completes.
      */
-    @Repeat(iterations = 100)
     public void testSnapshotWithOutOfSyncAllocationTable() throws Exception {
         // Set up fake repository
         String repoName = "repo";
@@ -254,7 +252,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             // The failing shard must result in a task for removing the SnapshotInProgress from the cluster state
             // that we capture and run.
         } else {
-            clusterState.applyLatestChange(primaryNodeId, primaryNode.snapshotShardsService);
+            clusterState.handleLatestChange(primaryNodeId, primaryNode.snapshotShardsService);
             assertHasTasks(primaryNode);
             IndexService indexService = mock(IndexService.class);
             ClusterState currentState = clusterState.currentState(primaryNodeId);
@@ -454,7 +452,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             );
         }
 
-        public void applyLatestChange(String nodeId, ClusterStateListener clusterStateApplier) {
+        public void handleLatestChange(String nodeId, ClusterStateListener clusterStateApplier) {
             clusterStateApplier.clusterChanged(
                 new ClusterChangedEvent("", currentState(nodeId), initialState(nodeId))
             );

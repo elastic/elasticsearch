@@ -274,13 +274,13 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
             // setup prefix trees regardless of strategy (this is used for the QueryBuilder)
             // recursive:
-            RecursivePrefixTreeStrategy rpts = new RecursivePrefixTreeStrategy(prefixTree, name());
+            RecursivePrefixTreeStrategy rpts = new RecursivePrefixTreeStrategy(prefixTree, ft.name());
             rpts.setDistErrPct(ft.distanceErrorPct());
             rpts.setPruneLeafyBranches(false);
             ft.recursiveStrategy = rpts;
 
             // term:
-            TermQueryPrefixTreeStrategy termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, name());
+            TermQueryPrefixTreeStrategy termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, ft.name());
             termStrategy.setDistErrPct(ft.distanceErrorPct());
             ft.termStrategy = termStrategy;
 
@@ -295,7 +295,7 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
             // field mapper handles this at build time
             // but prefix tree strategies require a name, so throw a similar exception
-            if (name().isEmpty()) {
+            if (fieldType().name().isEmpty()) {
                 throw new IllegalArgumentException("name cannot be empty string");
             }
 

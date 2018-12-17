@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -66,6 +67,8 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.setRefreshPolicy(request.param("refresh"));
         deleteRequest.version(RestActions.parseVersion(request));
         deleteRequest.versionType(VersionType.fromString(request.param("version_type"), deleteRequest.versionType()));
+        deleteRequest.setIfMatch(
+            request.paramAsLong("if_seq_no_match", SequenceNumbers.UNASSIGNED_SEQ_NO), request.paramAsLong("if_primary_term_match", 0));
 
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

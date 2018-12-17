@@ -25,6 +25,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -93,6 +94,8 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
+        indexRequest.ifMatch(
+            request.paramAsLong("if_seq_no_match", SequenceNumbers.UNASSIGNED_SEQ_NO), request.paramAsLong("if_primary_term_match", 0));
         String sOpType = request.param("op_type");
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

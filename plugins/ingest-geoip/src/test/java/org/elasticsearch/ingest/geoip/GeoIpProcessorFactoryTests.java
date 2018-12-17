@@ -23,6 +23,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
@@ -315,21 +317,36 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertNull(lazyLoader.databaseReader.get());
         }
 
+        final IngestDocument document =
+                new IngestDocument("index", "type", "id", "routing", 1L, VersionType.EXTERNAL, Collections.singletonMap("_field", "1.1.1.1"));
+
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-City.mmdb");
-        factory.create(null, "_tag", config);
+        final GeoIpProcessor city = factory.create(null, "_tag", config);
+
+        // these are lazy loaded until first use so we expect null here
+        assertNull(databaseReaders.get("GeoLite2-City.mmdb").databaseReader.get());
+        city.execute(document);
+        assertNotNull(databaseReaders.get("GeoLite2-City.mmdb").databaseReader.get());
+
         config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
-        factory.create(null, "_tag", config);
+        final GeoIpProcessor country = factory.create(null, "_tag", config);
+
+        assertNull(databaseReaders.get("GeoLite2-Country.mmdb").databaseReader.get());
+        country.execute(document);
+        assertNotNull(databaseReaders.get("GeoLite2-Country.mmdb").databaseReader.get());
+
         config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-ASN.mmdb");
-        factory.create(null, "_tag", config);
+        final GeoIpProcessor asn = factory.create(null, "_tag", config);
 
-        for (DatabaseReaderLazyLoader lazyLoader : databaseReaders.values()) {
-            assertNotNull(lazyLoader.databaseReader.get());
-        }
+        assertNull(databaseReaders.get("GeoLite2-ASN.mmdb").databaseReader.get());
+        asn.execute(document);
+        assertNotNull(databaseReaders.get("GeoLite2-ASN.mmdb").databaseReader.get());
     }
+
 }

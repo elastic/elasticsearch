@@ -31,7 +31,6 @@ import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Subdivision;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -51,8 +50,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -69,7 +66,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final DatabaseReaderLazyLoader dbReader;
-    private final CheckedSupplier<Set<Property>, IOException> properties;
+    private final Set<Property> properties;
     private final boolean ignoreMissing;
     private final GeoIpCache cache;
 
@@ -89,7 +86,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             final String field,
             final DatabaseReaderLazyLoader dbReader,
             final String targetField,
-            final CheckedSupplier<Set<Property>, IOException> properties,
+            final Set<Property> properties,
             final boolean ignoreMissing,
             final GeoIpCache cache) {
         super(tag);
@@ -166,7 +163,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     Set<Property> getProperties() throws IOException {
-        return properties.get();
+        return properties;
     }
 
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) throws IOException {
@@ -189,7 +186,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Subdivision subdivision = response.getMostSpecificSubdivision();
 
         Map<String, Object> geoData = new HashMap<>();
-        for (Property property : this.properties.get()) {
+        for (Property property : this.properties) {
             switch (property) {
                 case IP:
                     geoData.put("ip", NetworkAddress.format(ipAddress));
@@ -272,7 +269,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Continent continent = response.getContinent();
 
         Map<String, Object> geoData = new HashMap<>();
-        for (Property property : this.properties.get()) {
+        for (Property property : this.properties) {
             switch (property) {
                 case IP:
                     geoData.put("ip", NetworkAddress.format(ipAddress));
@@ -317,7 +314,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         String organization_name = response.getAutonomousSystemOrganization();
 
         Map<String, Object> geoData = new HashMap<>();
-        for (Property property : this.properties.get()) {
+        for (Property property : this.properties) {
             switch (property) {
                 case IP:
                     geoData.put("ip", NetworkAddress.format(ipAddress));
@@ -359,7 +356,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         @Override
         public GeoIpProcessor create(
-                final Map<String, Processor.Factory> registry, final String processorTag, final Map<String, Object> config) {
+                final Map<String, Processor.Factory> registry,
+                final String processorTag,
+                final Map<String, Object> config) throws IOException {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
             String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
@@ -372,44 +371,32 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
 
-            final CheckedSupplier<Set<Property>, IOException> propertiesSupplier;
+            final String databaseType = lazyLoader.getDatabaseType();
+
+            final Set<Property> properties;
             if (propertyNames != null) {
-                final AtomicBoolean set = new AtomicBoolean();
-                final Set<Property> properties = EnumSet.noneOf(Property.class);
-                propertiesSupplier = () -> {
-                    if (set.compareAndSet(false, true)) {
-                        for (String fieldName : propertyNames) {
-                            try {
-                                properties.add(Property.parseProperty(lazyLoader.get().getMetadata().getDatabaseType(), fieldName));
-                            } catch (IllegalArgumentException e) {
-                                throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
-                            }
-                        }
+                properties = EnumSet.noneOf(Property.class);
+                for (String fieldName : propertyNames) {
+                    try {
+                        properties.add(Property.parseProperty(databaseType, fieldName));
+                    } catch (IllegalArgumentException e) {
+                        throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
                     }
-                    return properties;
-                };
+                }
             } else {
-                final AtomicBoolean set = new AtomicBoolean();
-                final AtomicReference<Set<Property>> properties = new AtomicReference<>();
-                propertiesSupplier = () -> {
-                    if (set.compareAndSet(false, true)) {
-                        final String databaseType = lazyLoader.get().getMetadata().getDatabaseType();
-                        if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                            properties.set(DEFAULT_CITY_PROPERTIES);
-                        } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                            properties.set(DEFAULT_COUNTRY_PROPERTIES);
-                        } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                            properties.set(DEFAULT_ASN_PROPERTIES);
-                        } else {
-                            throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
-                                    + databaseType + "]");
-                        }
-                    }
-                    return properties.get();
-                };
+                if (databaseType.endsWith(CITY_DB_SUFFIX)) {
+                    properties = DEFAULT_CITY_PROPERTIES;
+                } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
+                    properties = DEFAULT_COUNTRY_PROPERTIES;
+                } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+                    properties = DEFAULT_ASN_PROPERTIES;
+                } else {
+                    throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
+                            + databaseType + "]");
+                }
             }
 
-            return new GeoIpProcessor(processorTag, ipField, lazyLoader, targetField, propertiesSupplier, ignoreMissing, cache);
+            return new GeoIpProcessor(processorTag, ipField, lazyLoader, targetField, properties, ignoreMissing, cache);
         }
     }
 

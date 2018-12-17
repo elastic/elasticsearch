@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
@@ -27,30 +28,79 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
 
 /**
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
  * no memory is being wasted on the database reader.
  */
-final class DatabaseReaderLazyLoader implements Closeable {
+class DatabaseReaderLazyLoader implements Closeable {
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
-    private final String databaseFileName;
+    private final Path databasePath;
     private final CheckedSupplier<DatabaseReader, IOException> loader;
-    // package protected for testing only:
     final SetOnce<DatabaseReader> databaseReader;
 
-    DatabaseReaderLazyLoader(String databaseFileName, CheckedSupplier<DatabaseReader, IOException> loader) {
-        this.databaseFileName = databaseFileName;
-        this.loader = loader;
+    DatabaseReaderLazyLoader(final Path databasePath, final CheckedSupplier<DatabaseReader, IOException> loader) {
+        this.databasePath = Objects.requireNonNull(databasePath);
+        this.loader = Objects.requireNonNull(loader);
         this.databaseReader = new SetOnce<>();
+    }
+
+    final String getDatabaseType() throws IOException {
+        final long fileSize = Files.size(databasePath);
+        final int[] DATABASE_TYPE_MARKER = {'d', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e'};
+        try (InputStream in = databaseInputStream()) {
+            // read last 512 bytes
+            in.skip(fileSize - 512);
+            byte[] tail = new byte[512];
+            in.read(tail);
+
+            // find the database_type header
+            int metadataOffset = -1;
+            int markerOffset = 0;
+            for (int i = 0; i < tail.length; i++) {
+                byte b = tail[i];
+
+                if (b == DATABASE_TYPE_MARKER[markerOffset]) {
+                    markerOffset++;
+                } else {
+                    markerOffset = 0;
+                }
+                if (markerOffset == DATABASE_TYPE_MARKER.length) {
+                    metadataOffset = i + 1;
+                    break;
+                }
+            }
+
+            // read the database type
+            final int offsetByte = tail[metadataOffset] & 0xFF;
+            final int type = offsetByte >>> 5;
+            if (type != 2) {
+                throw new RuntimeException("type must be UTF8_STRING");
+            }
+            int size = offsetByte & 0x1f;
+            return new String(tail, metadataOffset + 1, size, StandardCharsets.UTF_8);
+        }
+    }
+
+    InputStream databaseInputStream() throws IOException {
+        return Files.newInputStream(databasePath);
     }
 
     synchronized DatabaseReader get() throws IOException {
         if (databaseReader.get() == null) {
-            databaseReader.set(loader.get());
-            LOGGER.debug("Loaded [{}] geoip database", databaseFileName);
+            synchronized (databaseReader) {
+                if (databaseReader.get() == null) {
+                    databaseReader.set(loader.get());
+                    LOGGER.debug("Loaded [{}] geo-IP database", databasePath);
+                }
+            }
         }
         return databaseReader.get();
     }
@@ -59,4 +109,5 @@ final class DatabaseReaderLazyLoader implements Closeable {
     public synchronized void close() throws IOException {
         IOUtils.close(databaseReader.get());
     }
+
 }

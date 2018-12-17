@@ -68,6 +68,17 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertSettingsAndIssue("http.enabled", Boolean.toString(randomBoolean()), expected);
     }
 
+    public void testAuditLoggingPrefixSettingsCheck() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "Audit log node info settings renamed",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "#audit-logfile-local-node-info",
+            "nodes with audit log settings that have been renamed: [node_check]");
+        assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_host_address", Boolean.toString(randomBoolean()), expected);
+        assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_host_name", Boolean.toString(randomBoolean()), expected);
+        assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_name", Boolean.toString(randomBoolean()), expected);
+    }
+
     public void testIndexThreadPoolCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Index thread pool removed in favor of combined write thread pool",

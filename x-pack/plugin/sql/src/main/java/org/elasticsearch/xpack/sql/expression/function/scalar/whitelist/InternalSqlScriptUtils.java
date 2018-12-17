@@ -165,6 +165,7 @@ public final class InternalSqlScriptUtils {
     // Regex
     //
     public static Boolean regex(String value, String pattern) {
+        // TODO: this needs to be improved to avoid creating the pattern on every call
         return RegexOperation.match(value, pattern);
     }
 

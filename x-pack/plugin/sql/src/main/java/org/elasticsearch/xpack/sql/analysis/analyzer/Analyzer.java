@@ -935,14 +935,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (!condition.resolved()) {
                         // that's why try to resolve the condition
                         Aggregate tryResolvingCondition = new Aggregate(agg.location(), agg.child(), agg.groupings(),
-                                singletonList(new Alias(f.location(), ".having", condition)));
+                                combine(agg.aggregates(), new Alias(f.location(), ".having", condition)));
 
-                        LogicalPlan conditionResolved = analyze(tryResolvingCondition, false);
+                        tryResolvingCondition = (Aggregate) analyze(tryResolvingCondition, false);
 
                         // if it got resolved
-                        if (conditionResolved.resolved()) {
+                        if (tryResolvingCondition.resolved()) {
                             // replace the condition with the resolved one
-                            condition = ((Alias) ((Aggregate) conditionResolved).aggregates().get(0)).child();
+                            condition = ((Alias) tryResolvingCondition.aggregates()
+                                .get(tryResolvingCondition.aggregates().size() - 1)).child();
                         } else {
                             // else bail out
                             return plan;
@@ -958,6 +959,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         // preserve old output
                         return new Project(f.location(), newFilter, f.output());
                     }
+
+                    return new Filter(f.location(), f.child(), condition);
                 }
                 return plan;
             }

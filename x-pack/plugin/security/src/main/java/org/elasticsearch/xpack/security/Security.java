@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.bootstrap.FIPSContext;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -221,6 +222,7 @@ import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServe
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
+
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -257,6 +259,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
     private static final Logger logger = LogManager.getLogger(Security.class);
+    private static final SetOnce<FIPSChecks> FIPSChecksInstance = new SetOnce<>();
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(SecurityField.setting("audit.outputs"),
@@ -303,11 +306,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             checks.addAll(Arrays.asList(
                 new TokenSSLBootstrapCheck(),
                 new PkiRealmBootstrapCheck(getSslService()),
-                new TLSLicenseBootstrapCheck(),
-                new FIPS140SecureSettingsBootstrapCheck(settings, env),
-                new FIPS140JKSKeystoreBootstrapCheck(),
-                new FIPS140PasswordHashingAlgorithmBootstrapCheck(),
-                new FIPS140LicenseBootstrapCheck()));
+                new TLSLicenseBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
             Automatons.updateConfiguration(settings);
@@ -498,6 +497,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
+
+        FIPSContext context = new FIPSContext(settings);
+        FIPSChecksInstance.set(new FIPSChecks(getLicenseState().getOperationMode()));
+        FIPSChecksInstance.get().check(context, env);
 
         return components;
     }
@@ -1063,10 +1066,12 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             if (inFipsMode) {
-                License license = LicenseService.getLicense(state.metaData());
-                if (license != null &&
-                    FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
-                    throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
+
+                License.OperationMode licenseOperationMode = FIPSChecksInstance.get().getLicenseOperationMode();
+
+                if (licenseOperationMode != null &&
+                    FIPSChecks.ALLOWED_LICENSE_OPERATION_MODES.contains(licenseOperationMode) == false) {
+                    throw new IllegalStateException("FIPS mode cannot be used with a [" + licenseOperationMode +
                         "] license. It is only allowed with a Platinum or Trial license.");
 
                 }

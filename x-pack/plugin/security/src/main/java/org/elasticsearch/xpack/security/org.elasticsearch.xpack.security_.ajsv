@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--AgileJ Ltd. (http://www.agilej.com)--><ajsv>
+    <diagram creationDate="2018-nov-25 11:35" licenseGrade="evaluation" licenseeName="anon" licenseeOrganization="unknown" populationMethod="manual" version="1.9.1.v20170319-1519">
+        <filterScript>
+
+// no filter script yet defined for this class diagram
+// use CTRL+SPACE for completion suggestions
+
+</filterScript>
+        <class className="org.elasticsearch.xpack.security.SecureSettingsCheck" modelMemberId="org.elasticsearch.xpack.security.SecureSettingsCheck" project="elasticsearch-master" xLocation="730" yLocation="143"/>
+        <class className="org.elasticsearch.xpack.security.LicenseCheck" modelMemberId="org.elasticsearch.xpack.security.LicenseCheck" project="elasticsearch-master" xLocation="562" yLocation="564"/>
+        <class className="org.elasticsearch.xpack.security.KeystoreCheck" modelMemberId="org.elasticsearch.xpack.security.KeystoreCheck" project="elasticsearch-master" xLocation="100" yLocation="100"/>
+        <class className="org.elasticsearch.xpack.security.PasswordHashingAlgorithmCheck" modelMemberId="org.elasticsearch.xpack.security.PasswordHashingAlgorithmCheck" project="elasticsearch-master" xLocation="136" yLocation="800"/>
+        <class className="org.elasticsearch.xpack.security.FIPSChecks" modelMemberId="org.elasticsearch.xpack.security.FIPSChecks" project="elasticsearch-master" xLocation="271" yLocation="341"/>
+    </diagram>
+</ajsv>

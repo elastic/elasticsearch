@@ -95,6 +95,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -1044,7 +1045,7 @@ public final class TokenService {
                 Authentication authentication = new Authentication(in);
                 return authentication.getUser().principal().equals(username);
             } catch (IOException e) {
-                return false;
+                throw new UncheckedIOException(e);
             }
         };
     }

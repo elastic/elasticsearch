@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -52,12 +51,7 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
     public TokensInvalidationResult(StreamInput in) throws IOException {
         this.invalidatedTokens = in.readList(StreamInput::readString);
         this.previouslyInvalidatedTokens = in.readList(StreamInput::readString);
-        int errorsSize = in.readVInt();
-        List<ElasticsearchException> errors = new ArrayList<>(errorsSize);
-        for (int i = 0; i < errorsSize; i++) {
-            errors.add(in.readException());
-        }
-        this.errors = errors;
+        this.errors = in.readList(StreamInput::readException);
         this.attemptCount = in.readVInt();
     }
 
@@ -65,9 +59,6 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         return new TokensInvalidationResult(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0);
     }
 
-    public static TokensInvalidationResult emptyResultWithCounter(int attemptCount) {
-        return new TokensInvalidationResult(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), attemptCount);
-    }
 
     public List<String> getInvalidatedTokens() {
         return invalidatedTokens;
@@ -110,10 +101,7 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringList(invalidatedTokens);
         out.writeStringList(previouslyInvalidatedTokens);
-        out.writeVInt(errors.size());
-        for (Exception e : errors) {
-            out.writeException(e);
-        }
+        out.writeCollection(errors, StreamOutput::writeException);
         out.writeVInt(attemptCount);
     }
 

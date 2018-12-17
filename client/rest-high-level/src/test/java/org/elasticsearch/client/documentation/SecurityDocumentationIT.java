@@ -1317,8 +1317,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/36362")
     public void testInvalidateToken() throws Exception {
-        assumeFalse("Until the Enhance Invalidate API HLRC PR is merged - https://github.com/elastic/elasticsearch/pull/36362", true);
         RestHighLevelClient client = highLevelClient();
 
         String accessToken;

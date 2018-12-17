@@ -252,6 +252,10 @@ public class ThirdPartyAuditTask extends DefaultTask {
         bogusExclusions.removeAll(jdkJarHellClasses);
         bogusExclusions.removeAll(violationsClasses);
         if (bogusExclusions.isEmpty() == false) {
+            if (bogusExclusions.size() == excludes.size()) {
+                throw new IllegalStateException("All excluded classes seem to have no issues. " +
+                    "This is sometimes an indication that the check silently failed");
+            }
             throw new IllegalStateException(
                 "Invalid exclusions, nothing is wrong with these classes: " + formatClassList(bogusExclusions)
             );

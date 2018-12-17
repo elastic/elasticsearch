@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.sql.proto;
 
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * Sql protocol defaults and end-points shared between JDBC and REST protocol implementations
  */
 public final class Protocol {
-    public static final TimeZone TIME_ZONE = TimeZone.getTimeZone("UTC");
+    public static final ZoneId TIME_ZONE = ZoneId.of("Z");
 
     /**
      * Global choice for the default fetch size.

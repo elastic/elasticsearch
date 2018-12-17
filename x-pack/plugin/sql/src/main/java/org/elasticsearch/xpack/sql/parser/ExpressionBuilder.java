@@ -232,7 +232,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 e = new Like(loc, exp, visitPattern(pCtx.pattern()));
                 break;
             case SqlBaseParser.RLIKE:
-                e = new RLike(loc, exp, new Literal(source(pCtx.regex), string(pCtx.regex), DataType.KEYWORD));
+                e = new RLike(loc, exp, string(pCtx.regex));
                 break;
             case SqlBaseParser.NULL:
                 // shortcut to avoid double negation later on (since there's no IsNull (missing in ES is a negated exists))
@@ -301,7 +301,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
 
-        return new LikePattern(source(ctx), pattern, escape);
+        return new LikePattern(pattern, escape);
     }
 
 

@@ -328,6 +328,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         // these are lazy loaded until first use so we expect null here
         assertNull(databaseReaders.get("GeoLite2-City.mmdb").databaseReader.get());
         city.execute(document);
+        // the first ingest should trigger a database load
         assertNotNull(databaseReaders.get("GeoLite2-City.mmdb").databaseReader.get());
 
         config = new HashMap<>();
@@ -335,8 +336,10 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoLite2-Country.mmdb");
         final GeoIpProcessor country = factory.create(null, "_tag", config);
 
+        // these are lazy loaded until first use so we expect null here
         assertNull(databaseReaders.get("GeoLite2-Country.mmdb").databaseReader.get());
         country.execute(document);
+        // the first ingest should trigger a database load
         assertNotNull(databaseReaders.get("GeoLite2-Country.mmdb").databaseReader.get());
 
         config = new HashMap<>();
@@ -344,8 +347,10 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoLite2-ASN.mmdb");
         final GeoIpProcessor asn = factory.create(null, "_tag", config);
 
+        // these are lazy loaded until first use so we expect null here
         assertNull(databaseReaders.get("GeoLite2-ASN.mmdb").databaseReader.get());
         asn.execute(document);
+        // the first ingest should trigger a database load
         assertNotNull(databaseReaders.get("GeoLite2-ASN.mmdb").databaseReader.get());
     }
 

@@ -151,9 +151,9 @@ public class MlConfigMigrator {
 
         if (configIndexCreated.get() == false &&
                 clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+
             createConfigIndex(ActionListener.wrap(
                     response -> {
-                        configIndexCreated.set(true);
                         unMarkMigrationInProgress.onResponse(Boolean.FALSE);
                     },
                     unMarkMigrationInProgress::onFailure

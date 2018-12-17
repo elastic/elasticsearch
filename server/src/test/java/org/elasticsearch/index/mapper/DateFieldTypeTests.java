@@ -31,8 +31,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -61,13 +61,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         addModifier(new Modifier("format", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
+                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
             }
         });
         addModifier(new Modifier("locale", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
+                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("date_optional_time").withLocale(Locale.CANADA));
             }
         });
         nowInMillis = randomNonNegativeLong();
@@ -144,7 +144,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         assertEquals("2015-10-12T15:10:55.000+01:00",
                 ft.docValueFormat(null, DateTimeZone.forOffsetHours(1)).format(instant));
         assertEquals("2015",
-                createDefaultFieldType().docValueFormat("YYYY", DateTimeZone.UTC).format(instant));
+                createDefaultFieldType().docValueFormat("yyyy", DateTimeZone.UTC).format(instant));
         assertEquals(instant,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", false, null));
         assertEquals(instant + 999,

@@ -100,17 +100,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.settings.Setting.affixKeySetting;
-import static org.elasticsearch.common.settings.Setting.boolSetting;
-import static org.elasticsearch.common.settings.Setting.intSetting;
-import static org.elasticsearch.common.settings.Setting.listSetting;
-import static org.elasticsearch.common.settings.Setting.timeSetting;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -120,59 +113,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = "transport_worker";
 
-    public static final Setting<List<String>> HOST =
-        listSetting("transport.host", emptyList(), Function.identity(), Setting.Property.NodeScope);
-    public static final Setting<List<String>> BIND_HOST =
-        listSetting("transport.bind_host", HOST, Function.identity(), Setting.Property.NodeScope);
-    public static final Setting<List<String>> PUBLISH_HOST =
-        listSetting("transport.publish_host", HOST, Function.identity(), Setting.Property.NodeScope);
-    public static final Setting<String> PORT =
-        new Setting<>("transport.tcp.port", "9300-9400", Function.identity(), Setting.Property.NodeScope);
-    public static final Setting<Integer> PUBLISH_PORT =
-        intSetting("transport.publish_port", -1, -1, Setting.Property.NodeScope);
-    public static final String DEFAULT_PROFILE = "default";
-    // the scheduled internal ping interval setting, defaults to disabled (-1)
-    public static final Setting<TimeValue> PING_SCHEDULE =
-        timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), Setting.Property.NodeScope);
-    public static final Setting<Boolean> TCP_NO_DELAY =
-        boolSetting("transport.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
-    public static final Setting<Boolean> TCP_KEEP_ALIVE =
-        boolSetting("transport.tcp.keep_alive", NetworkService.TCP_KEEP_ALIVE, Setting.Property.NodeScope);
-    public static final Setting<Boolean> TCP_REUSE_ADDRESS =
-        boolSetting("transport.tcp.reuse_address", NetworkService.TCP_REUSE_ADDRESS, Setting.Property.NodeScope);
-    public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
-        Setting.byteSizeSetting("transport.tcp.send_buffer_size", NetworkService.TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope);
-    public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
-        Setting.byteSizeSetting("transport.tcp.receive_buffer_size", NetworkService.TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope);
-
-
-    public static final Setting.AffixSetting<Boolean> TCP_NO_DELAY_PROFILE = affixKeySetting("transport.profiles.", "tcp_no_delay",
-        key -> boolSetting(key, TcpTransport.TCP_NO_DELAY, Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<Boolean> TCP_KEEP_ALIVE_PROFILE = affixKeySetting("transport.profiles.", "tcp_keep_alive",
-        key -> boolSetting(key, TcpTransport.TCP_KEEP_ALIVE, Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<Boolean> TCP_REUSE_ADDRESS_PROFILE = affixKeySetting("transport.profiles.", "reuse_address",
-        key -> boolSetting(key, TcpTransport.TCP_REUSE_ADDRESS, Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<ByteSizeValue> TCP_SEND_BUFFER_SIZE_PROFILE = affixKeySetting("transport.profiles.",
-        "send_buffer_size", key -> Setting.byteSizeSetting(key, TcpTransport.TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE_PROFILE = affixKeySetting("transport.profiles.",
-        "receive_buffer_size", key -> Setting.byteSizeSetting(key, TcpTransport.TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope));
-
-    public static final Setting.AffixSetting<List<String>> BIND_HOST_PROFILE = affixKeySetting("transport.profiles.", "bind_host",
-        key -> listSetting(key, BIND_HOST, Function.identity(), Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<List<String>> PUBLISH_HOST_PROFILE = affixKeySetting("transport.profiles.", "publish_host",
-        key -> listSetting(key, PUBLISH_HOST, Function.identity(), Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<String> PORT_PROFILE = affixKeySetting("transport.profiles.", "port",
-        key -> new Setting<>(key, PORT, Function.identity(), Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<Integer> PUBLISH_PORT_PROFILE = affixKeySetting("transport.profiles.", "publish_port",
-        key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
 
     // This is the number of bytes necessary to read the message size
     private static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);
 
-    public static final String FEATURE_PREFIX = "transport.features";
-    public static final Setting<Settings> DEFAULT_FEATURES_SETTING = Setting.groupSetting(FEATURE_PREFIX + ".", Setting.Property.NodeScope);
     private final String[] features;
 
     protected final Settings settings;
@@ -195,7 +141,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
-    private final boolean compressResponses;
+    private final boolean compressAllResponses;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
 
@@ -220,20 +166,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.compressResponses = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
+        this.compressAllResponses = TransportSettings.TRANSPORT_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
         this.transportLogger = new TransportLogger();
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> sendRequestToChannel(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
-                TransportRequestOptions.EMPTY, v, TransportStatus.setHandshake((byte) 0)),
+                TransportRequestOptions.EMPTY, v, false, TransportStatus.setHandshake((byte) 0)),
             (v, features, channel, response, requestId) -> sendResponse(v, features, channel, response, requestId,
-                TransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, TransportStatus.setHandshake((byte) 0)));
+                TransportHandshaker.HANDSHAKE_ACTION_NAME, false, TransportStatus.setHandshake((byte) 0)));
         this.keepAlive = new TransportKeepAlive(threadPool, this::internalSendMessage);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
-        final Settings defaultFeatures = DEFAULT_FEATURES_SETTING.get(settings);
+        final Settings defaultFeatures = TransportSettings.DEFAULT_FEATURES_SETTING.get(settings);
         if (defaultFeatures == null) {
             this.features = new String[0];
         } else {
@@ -337,11 +283,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
-
-            if (compress) {
-                options = TransportRequestOptions.builder(options).withCompress(true).build();
-            }
-            sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), (byte) 0);
+            sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), compress, (byte) 0);
         }
     }
 
@@ -504,7 +446,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             publishHosts = Arrays.asList(boundAddressesHostStrings);
         }
         if (publishHosts.isEmpty()) {
-            publishHosts = NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings);
+            publishHosts = NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings);
         }
 
         final InetAddress publishInetAddress;
@@ -550,15 +492,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             String profileExplanation = profileSettings.isDefaultProfile ? "" : " for profile " + profileSettings.profileName;
             throw new BindTransportException("Failed to auto-resolve publish port" + profileExplanation + ", multiple bound addresses " +
                 boundAddresses + " with distinct ports and none of them matched the publish address (" + publishInetAddress + "). " +
-                "Please specify a unique port by setting " + PORT.getKey() + " or " +
-                PUBLISH_PORT.getKey());
+                "Please specify a unique port by setting " + TransportSettings.PORT.getKey() + " or " +
+                TransportSettings.PUBLISH_PORT.getKey());
         }
         return publishPort;
     }
 
     @Override
     public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
-        return parse(address, settings.get("transport.profiles.default.port", PORT.get(settings)), perAddressLimit);
+        return parse(address, settings.get("transport.profiles.default.port", TransportSettings.PORT.get(settings)), perAddressLimit);
     }
 
     // this code is a take on guava's HostAndPort, like a HostAndPortRange
@@ -768,11 +710,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private void sendRequestToChannel(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                                       final TransportRequest request, TransportRequestOptions options, Version channelVersion,
-                                      byte status) throws IOException, TransportException {
+                                      boolean compressRequest, byte status) throws IOException, TransportException {
 
         // only compress if asked and the request is not bytes. Otherwise only
         // the header part is compressed, and the "body" can't be extracted as compressed
-        final boolean compressMessage = options.compress() && canCompress(request);
+        final boolean compressMessage = compressRequest && canCompress(request);
 
         status = TransportStatus.setRequest(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
@@ -871,8 +813,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final TransportResponse response,
         final long requestId,
         final String action,
-        final TransportResponseOptions options) throws IOException {
-        sendResponse(nodeVersion, features, channel, response, requestId, action, options, (byte) 0);
+        final boolean compress) throws IOException {
+        sendResponse(nodeVersion, features, channel, response, requestId, action, compress, (byte) 0);
     }
 
     private void sendResponse(
@@ -882,18 +824,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final TransportResponse response,
         final long requestId,
         final String action,
-        TransportResponseOptions options,
+        boolean compress,
         byte status) throws IOException {
-        if (compressResponses && options.compress() == false) {
-            options = TransportResponseOptions.builder(options).withCompress(true).build();
-        }
+        boolean compressMessage = compress || compressAllResponses;
 
         status = TransportStatus.setResponse(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, options.compress());
+        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compressMessage);
         boolean addedReleaseListener = false;
         try {
-            if (options.compress()) {
+            if (compressMessage) {
                 status = TransportStatus.setCompress(status);
             }
             threadPool.getThreadContext().writeTo(stream);
@@ -901,10 +841,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             stream.setFeatures(features);
             BytesReference message = buildMessage(requestId, status, nodeVersion, response, stream);
 
-            final TransportResponseOptions finalOptions = options;
             // this might be called in a different thread
             ReleaseListener releaseListener = new ReleaseListener(stream,
-                () -> messageListener.onResponseSent(requestId, action, response, finalOptions));
+                () -> messageListener.onResponseSent(requestId, action, response));
             internalSendMessage(channel, message, releaseListener);
             addedReleaseListener = true;
         } finally {
@@ -1470,12 +1409,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         boolean isDefaultSet = false;
         for (String profile : settings.getGroups("transport.profiles.", true).keySet()) {
             profiles.add(new ProfileSettings(settings, profile));
-            if (DEFAULT_PROFILE.equals(profile)) {
+            if (TransportSettings.DEFAULT_PROFILE.equals(profile)) {
                 isDefaultSet = true;
             }
         }
         if (isDefaultSet == false) {
-            profiles.add(new ProfileSettings(settings, DEFAULT_PROFILE));
+            profiles.add(new ProfileSettings(settings, TransportSettings.DEFAULT_PROFILE));
         }
         return Collections.unmodifiableSet(profiles);
     }
@@ -1498,23 +1437,22 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         public ProfileSettings(Settings settings, String profileName) {
             this.profileName = profileName;
-            isDefaultProfile = DEFAULT_PROFILE.equals(profileName);
-            tcpKeepAlive = TCP_KEEP_ALIVE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
-            tcpNoDelay = TCP_NO_DELAY_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
-            reuseAddress = TCP_REUSE_ADDRESS_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
-            sendBufferSize = TCP_SEND_BUFFER_SIZE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
-            receiveBufferSize = TCP_RECEIVE_BUFFER_SIZE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
-            List<String> profileBindHosts = BIND_HOST_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
-            bindHosts = (profileBindHosts.isEmpty() ? NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.get(settings)
-                : profileBindHosts);
-            publishHosts = PUBLISH_HOST_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
-            Setting<String> concretePort = PORT_PROFILE.getConcreteSettingForNamespace(profileName);
+            isDefaultProfile = TransportSettings.DEFAULT_PROFILE.equals(profileName);
+            tcpKeepAlive = TransportSettings.TCP_KEEP_ALIVE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            tcpNoDelay = TransportSettings.TCP_NO_DELAY_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            reuseAddress = TransportSettings.TCP_REUSE_ADDRESS_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            sendBufferSize = TransportSettings.TCP_SEND_BUFFER_SIZE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            receiveBufferSize = TransportSettings.TCP_RECEIVE_BUFFER_SIZE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            List<String> profileBindHosts = TransportSettings.BIND_HOST_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            bindHosts = (profileBindHosts.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : profileBindHosts);
+            publishHosts = TransportSettings.PUBLISH_HOST_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            Setting<String> concretePort = TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(profileName);
             if (concretePort.exists(settings) == false && isDefaultProfile == false) {
                 throw new IllegalStateException("profile [" + profileName + "] has no port configured");
             }
-            portOrRange = PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
-            publishPort = isDefaultProfile ? PUBLISH_PORT.get(settings) :
-                PUBLISH_PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            portOrRange = TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            publishPort = isDefaultProfile ? TransportSettings.PUBLISH_PORT.get(settings) :
+                TransportSettings.PUBLISH_PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
         }
     }
 
@@ -1530,9 +1468,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions finalOptions) {
+        public void onResponseSent(long requestId, String action, TransportResponse response) {
             for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action, response, finalOptions);
+                listener.onResponseSent(requestId, action, response);
             }
         }
 

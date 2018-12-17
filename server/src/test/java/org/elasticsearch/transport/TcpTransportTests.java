@@ -223,7 +223,7 @@ public class TcpTransportTests extends ESTestCase {
             };
 
             DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-            ConnectionProfile.Builder profileBuilder = new ConnectionProfile.Builder(MockTcpTransport.LIGHT_PROFILE);
+            ConnectionProfile.Builder profileBuilder = new ConnectionProfile.Builder(TestProfiles.LIGHT_PROFILE);
             if (compressed) {
                 profileBuilder.setCompressionEnabled(true);
             } else {

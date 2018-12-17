@@ -52,19 +52,17 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
                 .put(super.nodeSettings())
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL)
-                .put("xpack.security.authc.realms.file.type", "file")
-                .put("xpack.security.authc.realms.file.order", "0")
-                .put("xpack.security.authc.realms.pki1.type", "pki")
-                .put("xpack.security.authc.realms.pki1.order", "1")
-                .put("xpack.security.authc.realms.pki1.truststore.path",
+                .put("xpack.security.authc.realms.file.file.order", "0")
+                .put("xpack.security.authc.realms.pki.pki1.order", "1")
+                .put("xpack.security.authc.realms.pki.pki1.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
-                .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
+                .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
                 .put("transport.profiles.want_client_auth.port", randomClientPortRange)
                 .put("transport.profiles.want_client_auth.bind_host", "localhost")
                 .put("transport.profiles.want_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.OPTIONAL);
 
         SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
-                secureSettings.setString("xpack.security.authc.realms.pki1.truststore.secure_password", "truststore-testnode-only"));
+                secureSettings.setString("xpack.security.authc.realms.pki.pki1.truststore.secure_password", "truststore-testnode-only"));
         return builder.build();
 
     }

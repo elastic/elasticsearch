@@ -29,34 +29,16 @@ include-tagged::{doc-tests-file}[{api}-request-basic]
 [[java-rest-high-count-request-optional]]
 ===== Count Request optional arguments
 
-Let's first look at some of the optional arguments of a +{request}+:
+A +{request}+ also takes the following optional arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-indices-types]
+include-tagged::{doc-tests-file}[{api}-request-args]
 --------------------------------------------------
 <1> Restricts the request to an index
-<2> Limits the request to a type
-
-There are a couple of other interesting optional parameters:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-routing]
---------------------------------------------------
-<1> Set a routing parameter
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
---------------------------------------------------
-<1> Setting `IndicesOptions` controls how unavailable indices are resolved and how wildcard expressions are expanded
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-preference]
---------------------------------------------------
-<1> Use the preference parameter e.g. to execute the search to prefer local shards. The default is to randomize across shards.
+<2> Set a routing parameter
+<3> Setting `IndicesOptions` controls how unavailable indices are resolved and how wildcard expressions are expanded
+<4> Use the preference parameter e.g. to execute the search to prefer local shards. The default is to randomize across shards.
 
 ===== Using the SearchSourceBuilder in CountRequest
 

@@ -6,15 +6,19 @@
 <titleabbrev>Delete Policy</titleabbrev>
 ++++
 
-Deletes an existing lifecycle policy
+beta[]
+
+Deletes a lifecycle policy.
 
 ==== Request
 
-`DELETE _ilm/policy/<policy>`
+`DELETE _ilm/policy/<policy_id>`
 
 ==== Description
 
-Deletes an existing lifecycle policy
+Deletes the specified lifecycle policy definition. You cannot delete policies
+that are currently in use. If the policy is being used to manage any indices,
+the request fails and returns an error.
 
 ==== Path Parameters
 
@@ -23,21 +27,15 @@ Deletes an existing lifecycle policy
 
 ==== Request Parameters
 
-`timeout`::
-  (time units) Specifies the period of time to wait for the completion of the 
-  DELETE operation. When this period of time elapses, the API fails and returns
-  an error. The default value is `30s`. For more information about time units, 
-  see <<time-units>>.
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
-`master_timeout`::
-  (time units) Specifies the period of time to wait for the connection with master.
-  When this period of time elapses, the API fails and returns an error.
-  The default value is `30s`. For more information about time units, see <<time-units>>.
+==== Authorization
 
+include::ilm-cluster-mgt-privilege.asciidoc[]
 
 ==== Examples
 
-The following example deletes an existing policy named `my_policy`:
+The following example deletes `my_policy`:
 
 //////////////////////////
 
@@ -77,7 +75,7 @@ DELETE _ilm/policy/my_policy
 // CONSOLE
 // TEST[continued]
 
-If the request does not encounter errors, you receive the following result:
+When the policy is successfully deleted, you receive the following result:
 
 [source,js]
 --------------------------------------------------

@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -127,17 +128,28 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
-    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
+    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
         TransportAddress address = node.getAddress();
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
-        Connection connection;
-        if (behavior == null) {
-            connection = delegate.openConnection(node, profile);
-        } else {
-            connection = behavior.openConnection(delegate, node, profile);
-        }
 
-        return new WrappedConnection(connection);
+        ActionListener<Connection> wrappedListener = new ActionListener<Connection>() {
+
+            @Override
+            public void onResponse(Connection connection) {
+                listener.onResponse(new WrappedConnection(connection));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
+
+        if (behavior == null) {
+            return delegate.openConnection(node, profile, wrappedListener);
+        } else {
+            return behavior.openConnection(delegate, node, profile, wrappedListener);
+        }
     }
 
     @Override
@@ -211,11 +223,6 @@ public final class StubbableTransport implements Transport {
         }
 
         @Override
-        public boolean sendPing() {
-            return connection.sendPing();
-        }
-
-        @Override
         public void addCloseListener(ActionListener<Void> listener) {
             connection.addCloseListener(listener);
         }
@@ -248,7 +255,9 @@ public final class StubbableTransport implements Transport {
 
     @FunctionalInterface
     public interface OpenConnectionBehavior {
-        Connection openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile);
+
+        Releasable openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
+                                  ActionListener<Connection> listener);
     }
 
     @FunctionalInterface

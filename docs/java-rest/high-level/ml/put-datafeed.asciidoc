@@ -65,6 +65,18 @@ include-tagged::{doc-tests-file}[{api}-config-set-query-delay]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-delayed-data-check-config]
+--------------------------------------------------
+<1> Sets the delayed data check configuration.
+The window must be larger than the Job's bucket size, but smaller than 24 hours,
+and span less than 10,000 buckets.
+Defaults to `null`, which causes an appropriate window span to be calculated when
+the datafeed runs.
+The default `check_window` span calculation is the max between `2h` or `8 * bucket_span`.
+To explicitly disable, pass `DelayedDataCheckConfig.disabledDelayedDataCheckConfig()`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-config-set-script-fields]
 --------------------------------------------------
 <1> Allows the use of script fields.

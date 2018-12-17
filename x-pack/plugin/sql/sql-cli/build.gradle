@@ -16,7 +16,7 @@ archivesBaseName = 'elasticsearch-sql-cli'
 description = 'Command line interface to Elasticsearch that speaks SQL'
 
 dependencies {
-    compile "org.jline:jline:3.6.0"
+    compile "org.jline:jline:3.8.2"
     compile xpackProject('plugin:sql:sql-client')
     compile xpackProject('plugin:sql:sql-action')
     compile "org.elasticsearch:elasticsearch-cli:${version}"

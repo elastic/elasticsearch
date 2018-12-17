@@ -45,10 +45,11 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
-import org.elasticsearch.xpack.sql.tree.Node;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.InvalidMappedField;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
 
 import java.util.ArrayList;
@@ -60,23 +61,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
-    /**
-     * Verify a plan.
-     */
-    public static Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
-    }
-
     /**
      * Valid functions.
      */
@@ -86,15 +77,20 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      */
     private final IndexResolution indexResolution;
     /**
-     * Time zone in which we're executing this SQL. It is attached to functions
-     * that deal with date and time.
+     * Per-request specific settings needed in some of the functions (timezone, username and clustername),
+     * to which they are attached.
      */
-    private final TimeZone timeZone;
+    private final Configuration configuration;
+    /**
+     * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
+     */
+    private final Verifier verifier;
 
-    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone) {
+    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
+        this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
-        this.timeZone = timeZone;
+        this.verifier = verifier;
     }
 
     @Override
@@ -112,7 +108,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveAggsInHaving()
                 //new ImplicitCasting()
                 );
-        return Arrays.asList(substitution, resolution);
+        Batch finish = new Batch("Finish Analysis",
+                new PruneSubqueryAliases(),
+                CleanAliases.INSTANCE
+                );
+        return Arrays.asList(substitution, resolution, finish);
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -131,7 +131,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan);
+        Collection<Failure> failures = verifier.verify(plan);
         if (!failures.isEmpty()) {
             throw new VerificationException(failures);
         }
@@ -153,8 +153,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     //
     // Shared methods around the analyzer rules
     //
-
     private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList) {
+        return resolveAgainstList(u, attrList, false);
+    }
+
+    private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, boolean allowCompound) {
         List<Attribute> matches = new ArrayList<>();
 
         // first take into account the qualified version
@@ -181,7 +184,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         if (matches.size() == 1) {
-            return matches.get(0);
+            return handleSpecialFields(u, matches.get(0), allowCompound);
         }
 
         return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
@@ -191,6 +194,31 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                  .sorted()
                  .collect(toList())
                 );
+    }
+
+    private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
+        // if it's a object/compound type, keep it unresolved with a nice error message
+        if (named instanceof FieldAttribute) {
+            FieldAttribute fa = (FieldAttribute) named;
+
+            // incompatible mappings
+            if (fa.field() instanceof InvalidMappedField) {
+                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being "
+                        + ((InvalidMappedField) fa.field()).errorMessage());
+            }
+            // unsupported types
+            else if (DataTypes.isUnsupported(fa.dataType())) {
+                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
+                named = u.withUnresolvedMessage(
+                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() + "] as is unsupported");
+            }
+            // compound fields
+            else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
+                named = u.withUnresolvedMessage(
+                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esType + "] only its subfields");
+            }
+        }
+        return named;
     }
 
     private static boolean hasStar(List<? extends Expression> exprs) {
@@ -209,7 +237,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     private static boolean containsAggregate(Expression exp) {
         return containsAggregate(singletonList(exp));
     }
-
 
     private static class CTESubstitution extends AnalyzeRule<With> {
 
@@ -348,21 +375,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     NamedExpression named = resolveAgainstList(u, childrenOutput);
                     // if resolved, return it; otherwise keep it in place to be resolved later
                     if (named != null) {
-                        // if it's a object/compound type, keep it unresolved with a nice error message
-                        if (named instanceof FieldAttribute) {
-                            FieldAttribute fa = (FieldAttribute) named;
-                            if (DataTypes.isUnsupported(fa.dataType())) {
-                                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
-                                named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() +
-                                                "] as is unsupported");
-                            }
-                            else if (!fa.dataType().isPrimitive()) {
-                                named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esType + "] only its subfields");
-                            }
-                        }
-
                         if (log.isTraceEnabled()) {
                             log.trace("Resolved {} to {}", u, named);
                         }
@@ -407,15 +419,19 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (us.qualifier() != null) {
                 // resolve the so-called qualifier first
                 // since this is an unresolved start we don't know whether it's a path or an actual qualifier
-                Attribute q = resolveAgainstList(us.qualifier(), output);
+                Attribute q = resolveAgainstList(us.qualifier(), output, true);
 
                 // the wildcard couldn't be expanded because the field doesn't exist at all
                 // so, add to the list of expanded attributes its qualifier (the field without the wildcard)
                 // the qualifier will be unresolved and later used in the error message presented to the user
                 if (q == null) {
-                    expanded.add(us.qualifier());
-                    return expanded;
+                    return singletonList(us.qualifier());
                 }
+                // qualifier is unknown (e.g. unsupported type), bail out early
+                else if (q.resolved() == false) {
+                    return singletonList(q);
+                }
+
                 // now use the resolved 'qualifier' to match
                 for (Attribute attr : output) {
                     // filter the attributes that match based on their path
@@ -558,7 +574,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         private Integer findOrdinal(Expression expression) {
             if (expression instanceof Literal) {
                 Literal l = (Literal) expression;
-                if (l.dataType().isInteger) {
+                if (l.dataType().isInteger()) {
                     Object v = l.value();
                     if (v instanceof Number) {
                         return Integer.valueOf(((Number) v).intValue());
@@ -803,7 +819,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                     // TODO: look into Generator for significant terms, etc..
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                    Function f = uf.buildResolved(timeZone, def);
+                    Function f = uf.buildResolved(configuration, def);
 
                     list.add(f);
                     return f;
@@ -919,14 +935,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (!condition.resolved()) {
                         // that's why try to resolve the condition
                         Aggregate tryResolvingCondition = new Aggregate(agg.location(), agg.child(), agg.groupings(),
-                                singletonList(new Alias(f.location(), ".having", condition)));
+                                combine(agg.aggregates(), new Alias(f.location(), ".having", condition)));
 
-                        LogicalPlan conditionResolved = analyze(tryResolvingCondition, false);
+                        tryResolvingCondition = (Aggregate) analyze(tryResolvingCondition, false);
 
                         // if it got resolved
-                        if (conditionResolved.resolved()) {
+                        if (tryResolvingCondition.resolved()) {
                             // replace the condition with the resolved one
-                            condition = ((Alias) ((Aggregate) conditionResolved).aggregates().get(0)).child();
+                            condition = ((Alias) tryResolvingCondition.aggregates()
+                                .get(tryResolvingCondition.aggregates().size() - 1)).child();
                         } else {
                             // else bail out
                             return plan;
@@ -942,6 +959,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         // preserve old output
                         return new Project(f.location(), newFilter, f.output());
                     }
+
+                    return new Filter(f.location(), f.child(), condition);
                 }
                 return plan;
             }
@@ -1044,6 +1063,69 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return e;
         }
     }
+
+
+    public static class PruneSubqueryAliases extends AnalyzeRule<SubQueryAlias> {
+
+        @Override
+        protected LogicalPlan rule(SubQueryAlias alias) {
+            return alias.child();
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+    }
+
+    public static class CleanAliases extends AnalyzeRule<LogicalPlan> {
+
+        public static final CleanAliases INSTANCE = new CleanAliases();
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof Project) {
+                Project p = (Project) plan;
+                return new Project(p.location(), p.child(), cleanExpressions(p.projections()));
+            }
+
+            if (plan instanceof Aggregate) {
+                Aggregate a = (Aggregate) plan;
+                // clean group expressions
+                List<Expression> cleanedGroups = a.groupings().stream().map(CleanAliases::trimAliases).collect(toList());
+                return new Aggregate(a.location(), a.child(), cleanedGroups, cleanExpressions(a.aggregates()));
+            }
+
+            return plan.transformExpressionsOnly(e -> {
+                if (e instanceof Alias) {
+                    return ((Alias) e).child();
+                }
+                return e;
+            });
+        }
+
+        private List<NamedExpression> cleanExpressions(List<? extends NamedExpression> args) {
+            return args.stream().map(CleanAliases::trimNonTopLevelAliases).map(NamedExpression.class::cast).collect(toList());
+        }
+
+        public static Expression trimNonTopLevelAliases(Expression e) {
+            if (e instanceof Alias) {
+                Alias a = (Alias) e;
+                return new Alias(a.location(), a.name(), a.qualifier(), trimAliases(a.child()), a.id());
+            }
+            return trimAliases(e);
+        }
+
+        private static Expression trimAliases(Expression e) {
+            return e.transformDown(Alias::child, Alias.class);
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+    }
+
 
     abstract static class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 

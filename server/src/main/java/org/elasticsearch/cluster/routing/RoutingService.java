@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,6 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * </p>
  */
 public class RoutingService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(RoutingService.class);
 
     private static final String CLUSTER_UPDATE_TASK_SOURCE = "cluster_reroute";
 

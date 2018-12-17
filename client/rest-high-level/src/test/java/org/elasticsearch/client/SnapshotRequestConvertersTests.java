@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SnapshotRequestConvertersTests extends ESTestCase {
-    
+
     public void testGetRepositories() {
         Map<String, String> expectedParams = new HashMap<>();
         StringBuilder endpoint = new StringBuilder("/_snapshot");
@@ -61,14 +61,14 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomLocal(getRepositoriesRequest, expectedParams);
 
         if (randomBoolean()) {
-            String[] entries = new String[] { "a", "b", "c" };
+            String[] entries = new String[]{"a", "b", "c"};
             getRepositoriesRequest.repositories(entries);
             endpoint.append("/" + String.join(",", entries));
         }
 
         Request request = SnapshotRequestConverters.getRepositories(getRepositoriesRequest);
-        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
-        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
         assertThat(expectedParams, equalTo(request.getParameters()));
     }
 
@@ -88,8 +88,8 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
                 .build());
 
         Request request = SnapshotRequestConverters.createRepository(putRepositoryRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(request.getEndpoint(), equalTo(endpoint));
+        assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
         RequestConvertersTests.assertToXContentBody(putRepositoryRequest, request.getEntity());
     }
 
@@ -105,9 +105,9 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomTimeout(deleteRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         Request request = SnapshotRequestConverters.deleteRepository(deleteRepositoryRequest);
-        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
-        assertThat(HttpDelete.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
         assertNull(request.getEntity());
     }
 
@@ -121,9 +121,9 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomTimeout(verifyRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         Request request = SnapshotRequestConverters.verifyRepository(verifyRepositoryRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(request.getEndpoint(), equalTo(endpoint));
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
     public void testCreateSnapshot() throws IOException {
@@ -137,14 +137,12 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         Boolean waitForCompletion = randomBoolean();
         createSnapshotRequest.waitForCompletion(waitForCompletion);
 
-        if (waitForCompletion) {
-            expectedParams.put("wait_for_completion", waitForCompletion.toString());
-        }
+        expectedParams.put("wait_for_completion", waitForCompletion.toString());
 
         Request request = SnapshotRequestConverters.createSnapshot(createSnapshotRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(request.getEndpoint(), equalTo(endpoint));
+        assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
         RequestConvertersTests.assertToXContentBody(createSnapshotRequest, request.getEntity());
     }
 
@@ -178,9 +176,9 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         }
 
         Request request = SnapshotRequestConverters.getSnapshots(getSnapshotsRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(request.getEndpoint(), equalTo(endpoint));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
         assertNull(request.getEntity());
     }
 
@@ -202,9 +200,9 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         expectedParams.put("verbose", Boolean.toString(verbose));
 
         Request request = SnapshotRequestConverters.getSnapshots(getSnapshotsRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(request.getEndpoint(), equalTo(endpoint));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
         assertNull(request.getEntity());
     }
 
@@ -239,10 +237,10 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
 
         RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repository, snapshot);
         RequestConvertersTests.setRandomMasterTimeout(restoreSnapshotRequest, expectedParams);
-        if (randomBoolean()) {
-            restoreSnapshotRequest.waitForCompletion(true);
-            expectedParams.put("wait_for_completion", "true");
-        }
+        boolean waitForCompletion = randomBoolean();
+        restoreSnapshotRequest.waitForCompletion(waitForCompletion);
+        expectedParams.put("wait_for_completion", Boolean.toString(waitForCompletion));
+
         if (randomBoolean()) {
             String timeout = randomTimeValue();
             restoreSnapshotRequest.masterNodeTimeout(timeout);
@@ -250,9 +248,9 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         }
 
         Request request = SnapshotRequestConverters.restoreSnapshot(restoreSnapshotRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(request.getEndpoint(), equalTo(endpoint));
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
         RequestConvertersTests.assertToXContentBody(restoreSnapshotRequest, request.getEntity());
     }
 
@@ -269,9 +267,9 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomMasterTimeout(deleteSnapshotRequest, expectedParams);
 
         Request request = SnapshotRequestConverters.deleteSnapshot(deleteSnapshotRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpDelete.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(request.getEndpoint(), equalTo(endpoint));
+        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
         assertNull(request.getEntity());
     }
 }

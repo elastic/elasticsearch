@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -38,7 +39,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,8 +50,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -92,15 +93,15 @@ public class BroadcastReplicationTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY,
-            threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService, new NamedWriteableRegistry(Collections.emptyList()),
-            new NetworkService(Collections.emptyList()));
+        MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT,
+            threadPool, new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            new NamedWriteableRegistry(Collections.emptyList()), circuitBreakerService);
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, clusterService, transportService,
+        broadcastReplicationAction = new TestBroadcastReplicationAction(clusterService, transportService,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), null);
     }
 
@@ -210,10 +211,10 @@ public class BroadcastReplicationTests extends ESTestCase {
         protected final Set<Tuple<ShardId, ActionListener<ReplicationResponse>>> capturedShardRequests =
             ConcurrentCollections.newConcurrentSet();
 
-        TestBroadcastReplicationAction(Settings settings, ClusterService clusterService, TransportService transportService,
+        TestBroadcastReplicationAction(ClusterService clusterService, TransportService transportService,
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                 TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> action) {
-            super("internal:test-broadcast-replication-action", DummyBroadcastRequest::new, settings, clusterService, transportService,
+            super("internal:test-broadcast-replication-action", DummyBroadcastRequest::new, clusterService, transportService,
                     actionFilters, indexNameExpressionResolver, action);
         }
 

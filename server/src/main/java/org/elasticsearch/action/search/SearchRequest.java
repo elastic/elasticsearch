@@ -77,7 +77,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private Boolean allowPartialSearchResults;
 
-
     private Scroll scroll;
 
     private int batchedReduceSize = DEFAULT_BATCHED_REDUCE_SIZE;
@@ -88,11 +87,30 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public SearchRequest() {
+    }
+
+    /**
+     * Constructs a new search request from the provided search request
+     */
+    public SearchRequest(SearchRequest searchRequest) {
+        this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
+        this.batchedReduceSize = searchRequest.batchedReduceSize;
+        this.indices = searchRequest.indices;
+        this.indicesOptions = searchRequest.indicesOptions;
+        this.maxConcurrentShardRequests = searchRequest.maxConcurrentShardRequests;
+        this.preference = searchRequest.preference;
+        this.preFilterShardSize = searchRequest.preFilterShardSize;
+        this.requestCache = searchRequest.requestCache;
+        this.routing = searchRequest.routing;
+        this.scroll = searchRequest.scroll;
+        this.searchType = searchRequest.searchType;
+        this.source = searchRequest.source;
+        this.types = searchRequest.types;
     }
 
     /**
@@ -217,7 +235,11 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * The document types to execute the search against. Defaults to be executed against
      * all types.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
      */
+    @Deprecated
     public String[] types() {
         return types;
     }
@@ -225,7 +247,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * The document types to execute the search against. Defaults to be executed against
      * all types.
-     * @deprecated Types are going away, prefer filtering on a type.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
      */
     @Deprecated
     public SearchRequest types(String... types) {

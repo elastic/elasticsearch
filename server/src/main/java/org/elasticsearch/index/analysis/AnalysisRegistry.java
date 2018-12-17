@@ -169,7 +169,8 @@ public final class AnalysisRegistry implements Closeable {
 
     public Map<String, CharFilterFactory> buildCharFilterFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> charFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_CHAR_FILTER);
-        return buildMapping(Component.CHAR_FILTER, indexSettings, charFiltersSettings, charFilters, prebuiltAnalysis.preConfiguredCharFilterFactories);
+        return buildMapping(Component.CHAR_FILTER, indexSettings, charFiltersSettings, charFilters,
+            prebuiltAnalysis.preConfiguredCharFilterFactories);
     }
 
     public Map<String, AnalyzerProvider<?>> buildAnalyzerFactories(IndexSettings indexSettings) throws IOException {
@@ -287,7 +288,8 @@ public final class AnalysisRegistry implements Closeable {
                     if (currentSettings.get("tokenizer") != null) {
                         factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
                     } else {
-                        throw new IllegalArgumentException(component + " [" + name + "] must specify either an analyzer type, or a tokenizer");
+                        throw new IllegalArgumentException(component + " [" + name + "] " +
+                            "must specify either an analyzer type, or a tokenizer");
                     }
                 } else if (typeName.equals("custom")) {
                     factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
@@ -425,14 +427,15 @@ public final class AnalysisRegistry implements Closeable {
                 tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
-            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers,
-                    "keyword", tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
+            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers, "keyword",
+                tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
             processNormalizerFactory(entry.getKey(), entry.getValue(), whitespaceNormalizers,
                     "whitespace", () -> new WhitespaceTokenizer(), tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
 
         if (!analyzers.containsKey("default")) {
-            processAnalyzerFactory(indexSettings, "default", new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS),
+            processAnalyzerFactory(indexSettings, "default", new StandardAnalyzerProvider(indexSettings, null,
+                    "default", Settings.Builder.EMPTY_SETTINGS),
                 analyzers, tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
         }
         if (!analyzers.containsKey("default_search")) {
@@ -447,7 +450,8 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("no default analyzer configured");
         }
         if (analyzers.containsKey("default_index")) {
-            throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
+            throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use " +
+                "[index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
         }
         NamedAnalyzer defaultSearchAnalyzer = analyzers.getOrDefault("default_search", defaultAnalyzer);
         NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.getOrDefault("default_search_quote", defaultSearchAnalyzer);

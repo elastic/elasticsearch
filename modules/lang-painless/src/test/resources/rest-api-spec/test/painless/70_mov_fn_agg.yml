@@ -66,6 +66,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -97,6 +98,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -128,6 +130,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -159,6 +162,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -185,6 +189,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -211,6 +216,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -237,6 +243,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -263,6 +270,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -288,6 +296,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:

@@ -55,7 +55,8 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
 
         TokenizerFactory tokenizer = tokenizers.get(tokenizerName);
         if (tokenizer == null) {
-            throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find tokenizer under name [" + tokenizerName + "]");
+            throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find tokenizer under name " +
+                "[" + tokenizerName + "]");
         }
 
         List<String> charFilterNames = analyzerSettings.getAsList("char_filter");
@@ -63,7 +64,8 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         for (String charFilterName : charFilterNames) {
             CharFilterFactory charFilter = charFilters.get(charFilterName);
             if (charFilter == null) {
-                throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find char_filter under name [" + charFilterName + "]");
+                throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find char_filter under name " +
+                    "[" + charFilterName + "]");
             }
             charFiltersList.add(charFilter);
         }
@@ -79,7 +81,8 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
             if (tokenFilter == null) {
-                throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name [" + tokenFilterName + "]");
+                throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name " +
+                    "[" + tokenFilterName + "]");
             }
             tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(tokenizer, charFiltersList, tokenFilterList, tokenFilters::get);
             tokenFilterList.add(tokenFilter);

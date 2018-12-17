@@ -61,7 +61,8 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
             for (int j = 0; j < numDocs; j++) {
                 Map<String, Object> source = new HashMap<>();
                 source.put(fieldName, "test-user");
-                client().prepareIndex("test", mappingType, Integer.toString(currentID++)).setSource(source).execute(new ActionListener<IndexResponse>() {
+                client().prepareIndex("test", mappingType, Integer.toString(currentID++)).setSource(source).execute(
+                    new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
                         latch.countDown();

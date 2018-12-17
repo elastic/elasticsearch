@@ -80,8 +80,8 @@ public class ActionModuleTests extends ESTestCase {
             }
         }
         class FakeTransportAction extends TransportAction<FakeRequest, ActionResponse> {
-            protected FakeTransportAction(Settings settings, String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-                super(settings, actionName, actionFilters, taskManager);
+            protected FakeTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+                super(actionName, actionFilters, taskManager);
             }
 
             @Override

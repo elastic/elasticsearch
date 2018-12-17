@@ -260,7 +260,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         if ("_uid".equals(field)) {
             // on new indices, the _id acts as a _uid
             field = IdFieldMapper.NAME;
-            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
             }
             DEPRECATION_LOG.deprecated("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");

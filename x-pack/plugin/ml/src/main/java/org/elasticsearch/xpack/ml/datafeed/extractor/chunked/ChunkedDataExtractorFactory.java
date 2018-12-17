@@ -36,7 +36,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
                 job.getDataDescription().getTimeField(),
                 datafeedConfig.getIndices(),
                 datafeedConfig.getTypes(),
-                datafeedConfig.getQuery(),
+                datafeedConfig.getParsedQuery(),
                 datafeedConfig.getScrollSize(),
                 timeAligner.alignToCeil(start),
                 timeAligner.alignToFloor(end),

@@ -25,10 +25,13 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -49,12 +52,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
-    private String type;
+    private String type = MapperService.SINGLE_MAPPING_NAME;
     private String id;
     @Nullable
     private String routing;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
+    private long ifSeqNoMatch = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    private long ifPrimaryTermMatch = 0;
 
     public DeleteRequest() {
     }
@@ -73,35 +78,58 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * @param index The index to get the document from
      * @param type  The type of the document
      * @param id    The id of the document
+     *
+     * @deprecated Types are in the process of being removed. Use {@link #DeleteRequest(String, String)} instead.
      */
+    @Deprecated
     public DeleteRequest(String index, String type, String id) {
         this.index = index;
         this.type = type;
         this.id = id;
     }
 
+    /**
+     * Constructs a new delete request against the specified index and id.
+     *
+     * @param index The index to get the document from
+     * @param id    The id of the document
+     */
+    public DeleteRequest(String index, String id) {
+        this.index = index;
+        this.id = id;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (type == null) {
+        if (Strings.isEmpty(type)) {
             validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
+        if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
-        if (!versionType.validateVersionForWrites(version)) {
+        if (versionType.validateVersionForWrites(version) == false) {
             validationException = addValidationError("illegal version value [" + version + "] for version type ["
                 + versionType.name() + "]", validationException);
         }
         if (versionType == VersionType.FORCE) {
             validationException = addValidationError("version type [force] may no longer be used", validationException);
         }
+
+        if (ifSeqNoMatch != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
+        )) {
+            validationException = addValidationError("compare and write operations can not use versioning", validationException);
+        }
         return validationException;
     }
 
     /**
      * The type of the document to delete.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     @Override
     public String type() {
         return type;
@@ -109,7 +137,10 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     /**
      * Sets the type of the document to delete.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     @Override
     public DeleteRequest type(String type) {
         this.type = type;
@@ -172,6 +203,32 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         return this;
     }
 
+    public long ifSeqNoMatch() {
+        return ifSeqNoMatch;
+    }
+
+    public long ifPrimaryTermMatch() {
+        return ifPrimaryTermMatch;
+    }
+
+    public DeleteRequest setIfMatch(long seqNo, long term) {
+        if (term == 0 && seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("seqNo is set, but primary term is [0]");
+        }
+        if (term != 0 && seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("seqNo is unassigned, but primary term is [" + term + "]");
+        }
+        if (seqNo < 0 && seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+        }
+        if (term < 0) {
+            throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
+        }
+        ifSeqNoMatch = seqNo;
+        ifPrimaryTermMatch = term;
+        return this;
+    }
+
     @Override
     public VersionType versionType() {
         return this.versionType;
@@ -188,11 +245,18 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            ifSeqNoMatch = in.readZLong();
+            ifPrimaryTermMatch = in.readVLong();
+        } else {
+            ifSeqNoMatch = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            ifPrimaryTermMatch = 0;
+        }
     }
 
     @Override
@@ -201,11 +265,20 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
         out.writeLong(version);
         out.writeByte(versionType.getValue());
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeZLong(ifSeqNoMatch);
+            out.writeVLong(ifPrimaryTermMatch);
+        } else if (ifSeqNoMatch != SequenceNumbers.UNASSIGNED_SEQ_NO || ifPrimaryTermMatch != 0) {
+            assert false : "setIfMatch [" + ifSeqNoMatch + "], currentDocTem [" + ifPrimaryTermMatch + "]";
+            throw new IllegalStateException(
+                "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. " +
+                    "Stream version [" + out.getVersion() + "]");
+        }
     }
 
     @Override

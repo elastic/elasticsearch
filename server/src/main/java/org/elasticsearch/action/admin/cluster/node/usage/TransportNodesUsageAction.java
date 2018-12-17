@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
@@ -41,9 +40,9 @@ public class TransportNodesUsageAction
     private UsageService usageService;
 
     @Inject
-    public TransportNodesUsageAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-            TransportService transportService, ActionFilters actionFilters, UsageService usageService) {
-        super(settings, NodesUsageAction.NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportNodesUsageAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                     ActionFilters actionFilters, UsageService usageService) {
+        super(NodesUsageAction.NAME, threadPool, clusterService, transportService, actionFilters,
             NodesUsageRequest::new, NodeUsageRequest::new, ThreadPool.Names.MANAGEMENT, NodeUsage.class);
         this.usageService = usageService;
     }

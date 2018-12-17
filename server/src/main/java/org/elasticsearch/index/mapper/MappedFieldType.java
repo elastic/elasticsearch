@@ -34,6 +34,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -375,6 +376,14 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     /**
+     * Create an {@link IntervalsSource} to be used for proximity queries
+     */
+    public IntervalsSource intervals(String query, int max_gaps, boolean ordered, NamedAnalyzer analyzer) throws IOException {
+        throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    /**
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range
      */
@@ -409,7 +418,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     protected final void failIfNotIndexed() {
-        if (indexOptions() == IndexOptions.NONE && pointDimensionCount() == 0) {
+        if (indexOptions() == IndexOptions.NONE && pointDataDimensionCount() == 0) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }
@@ -465,4 +474,5 @@ public abstract class MappedFieldType extends FieldType {
         }
         return ((TermQuery) termQuery).getTerm();
     }
+
 }

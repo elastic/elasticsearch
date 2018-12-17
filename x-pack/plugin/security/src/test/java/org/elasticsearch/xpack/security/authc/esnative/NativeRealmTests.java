@@ -32,8 +32,8 @@ public class NativeRealmTests extends ESTestCase {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
         int expectedInvalidation = 0;
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        RealmConfig config = new RealmConfig("native", Settings.EMPTY, settings, TestEnvironment.newEnvironment(settings),
-                new ThreadContext(settings));
+        RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("native", "native");
+        RealmConfig config = new RealmConfig(realmId, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
         final NativeRealm nativeRealm = new NativeRealm(config, mock(NativeUsersStore.class), threadPool) {
             @Override
             void clearCache() {

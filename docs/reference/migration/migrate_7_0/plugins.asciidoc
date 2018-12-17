@@ -23,6 +23,13 @@ must now be specified in the client settings instead.
 See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Storage Client Settings].
 
 [float]
+==== S3 Repository Plugin
+
+* The plugin now uses the path style access pattern for all requests.
+In previous versions it was automatically determining whether to use virtual hosted style or path style
+access.
+
+[float]
 ==== Analysis Plugin changes
 
 * The misspelled helper method `requriesAnalysisSettings(AnalyzerProvider<T> provider)` has been
@@ -36,3 +43,30 @@ Elasticsearch and requires no plugin. The location of the hosts file has moved
 from `$ES_PATH_CONF/file-discovery/unicast_hosts.txt` to
 `$ES_PATH_CONF/unicast_hosts.txt`. See <<file-based-hosts-provider, the
 file-based hosts provider documentation>> for further information.
+
+[float]
+==== Security Extensions
+
+As a consequence of the <<include-realm-type-in-setting, change to Realm settings>>,
+the `getRealmSettings` method has been removed from the `SecurityExtension` class,
+and the `settings` method on `RealmConfig` now returns the node's (global) settings.
+Custom security extensions should register their settings by implementing the standard
+`Plugin.getSettings` method, and can retrieve them from `RealmConfig.settings()` or
+using one of the `RealmConfig.getSetting` methods.
+Each realm setting should be defined as an `AffixSetting` as shown in the example below:
+[source,java]
+--------------------------------------------------
+Setting.AffixSetting<String> MY_SETTING = Setting.affixKeySetting(
+  "xpack.security.authc.realms." + MY_REALM_TYPE + ".", "my_setting",
+  key -> Setting.simpleString(key, properties)
+);
+--------------------------------------------------
+
+The `RealmSettings.simpleString` method can be used as a convenience for the above.
+
+[float]
+==== Tribe node removed
+
+Tribe node functionality has been removed in favor of
+<<modules-cross-cluster-search,Cross Cluster Search>>.
+

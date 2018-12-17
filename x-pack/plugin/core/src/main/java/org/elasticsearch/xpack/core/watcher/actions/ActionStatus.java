@@ -244,7 +244,7 @@ public class ActionStatus implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
-                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp))
+                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.formatJoda(timestamp))
                     .field(Field.ACK_STATUS_STATE.getPreferredName(), state.name().toLowerCase(Locale.ROOT))
                     .endObject();
         }
@@ -259,7 +259,7 @@ public class ActionStatus implements ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
+                    timestamp = dateTimeFormatter.parseJoda(parser.text());
                 } else if (Field.ACK_STATUS_STATE.match(currentFieldName, parser.getDeprecationHandler())) {
                     state = State.valueOf(parser.text().toUpperCase(Locale.ROOT));
                 } else {
@@ -342,7 +342,7 @@ public class ActionStatus implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp));
+            builder.field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.formatJoda(timestamp));
             builder.field(Field.EXECUTION_SUCCESSFUL.getPreferredName(), successful);
             if (reason != null) {
                 builder.field(Field.REASON.getPreferredName(), reason);
@@ -361,7 +361,7 @@ public class ActionStatus implements ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
+                    timestamp = dateTimeFormatter.parseJoda(parser.text());
                 } else if (Field.EXECUTION_SUCCESSFUL.match(currentFieldName, parser.getDeprecationHandler())) {
                     successful = parser.booleanValue();
                 } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -442,7 +442,7 @@ public class ActionStatus implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
-                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp))
+                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.formatJoda(timestamp))
                     .field(Field.REASON.getPreferredName(), reason)
                     .endObject();
         }
@@ -457,7 +457,7 @@ public class ActionStatus implements ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
+                    timestamp = dateTimeFormatter.parseJoda(parser.text());
                 } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
                     reason = parser.text();
                 } else {

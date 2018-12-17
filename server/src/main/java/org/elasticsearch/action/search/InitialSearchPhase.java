@@ -44,7 +44,7 @@ import java.util.stream.Stream;
  * and collect the results. If a shard request returns a failure this class handles the advance to the next replica of the shard until
  * the shards replica iterator is exhausted. Each shard is referenced by position in the {@link GroupShardsIterator} which is later
  * referred to as the {@code shardIndex}.
- * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection
+ * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
  */
 abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends SearchPhase {
@@ -80,7 +80,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
         // we process hence we add one for the non active partition here.
         this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
-        this.maxConcurrentRequestsPerNode = Math.min(maxConcurrentRequestsPerNode, shardsIts.size());
+        this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;
         // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
         this.executor = executor;
@@ -161,7 +161,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-
     private void maybeFork(final Thread thread, final Runnable runnable) {
         if (thread == Thread.currentThread()) {
             fork(runnable);
@@ -178,7 +177,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 runnable.run();
             }
 
@@ -234,14 +233,12 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     }
 
     private void executeNext(PendingExecutions pendingExecutions, Thread originalThread) {
-        if (pendingExecutions != null) {
-            assert throttleConcurrentRequests;
+        if (throttleConcurrentRequests) {
             maybeFork(originalThread, pendingExecutions::finishAndRunNext);
         } else {
-            assert throttleConcurrentRequests == false;
+            assert pendingExecutions == null;
         }
     }
-
 
     private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final ShardRouting shard) {
         /*
@@ -286,7 +283,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     try {
                         /*
                          * It is possible to run into connection exceptions here because we are getting the connection early and might
-                         * run in tonodes that are not connected. In this case, on shard failure will move us to the next shard copy.
+                         * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
                          */
                         fork(() -> onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, e));
                     } finally {
@@ -294,11 +291,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     }
                 }
             };
-            if (pendingExecutions == null) {
-                r.run();
-            } else {
-                assert throttleConcurrentRequests;
+            if (throttleConcurrentRequests) {
                 pendingExecutions.tryRun(r);
+            } else {
+                r.run();
             }
         }
     }
@@ -330,7 +326,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                 + expectedTotalOps + "]");
         }
     }
-
 
     /**
      * Executed once all shard results have been received and processed
@@ -371,7 +366,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     abstract static class SearchPhaseResults<Result extends SearchPhaseResult> {
         private final int numShards;
 
-        protected SearchPhaseResults(int numShards) {
+        SearchPhaseResults(int numShards) {
             this.numShards = numShards;
         }
         /**

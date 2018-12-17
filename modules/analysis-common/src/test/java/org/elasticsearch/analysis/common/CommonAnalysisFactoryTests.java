@@ -48,7 +48,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("edgengram", EdgeNGramTokenizerFactory.class);
         tokenizers.put("classic", ClassicTokenizerFactory.class);
         tokenizers.put("letter", LetterTokenizerFactory.class);
-        tokenizers.put("lowercase", LowerCaseTokenizerFactory.class);
+        // tokenizers.put("lowercase", XLowerCaseTokenizerFactory.class);
         tokenizers.put("pathhierarchy", PathHierarchyTokenizerFactory.class);
         tokenizers.put("pattern", PatternTokenizerFactory.class);
         tokenizers.put("uax29urlemail", UAX29URLEmailTokenizerFactory.class);
@@ -223,7 +223,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     protected Map<String, Class<?>> getPreConfiguredTokenizers() {
         Map<String, Class<?>> tokenizers = new TreeMap<>(super.getPreConfiguredTokenizers());
         tokenizers.put("keyword", null);
-        tokenizers.put("lowercase", null);
+        tokenizers.put("lowercase", Void.class);
         tokenizers.put("classic", null);
         tokenizers.put("uax_url_email", org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class);
         tokenizers.put("path_hierarchy", null);

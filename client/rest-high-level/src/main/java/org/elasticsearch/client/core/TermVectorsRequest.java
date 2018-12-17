@@ -20,6 +20,7 @@
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.client.Validatable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,8 +32,10 @@ import java.util.Map;
 public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     private final String index;
-    private final String type;
+    @Nullable private final String type;
     private String id = null;
+    private XContentBuilder docBuilder = null;
+
     private String routing = null;
     private String preference = null;
     private boolean realtime = true;
@@ -44,28 +47,85 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     private boolean requestTermStatistics = false;
     private Map<String, String> perFieldAnalyzer = null;
     private Map<String, Integer> filterSettings = null;
-    private XContentBuilder docBuilder = null;
-
 
     /**
      * Constructs TermVectorRequest for the given document
+     *
+     * @param index - index of the document
+     * @param docId - id of the document
+     */
+    public TermVectorsRequest(String index, String docId) {
+        this.index = index;
+        this.type = null;
+        this.id = docId;
+    }
+
+    /**
+     * Constructs TermVectorRequest for the given document
+     *
      * @param index - index of the document
      * @param type - type of the document
      * @param docId - id of the document
+     *
+     * @deprecated Types are in the process of being removed, use
+     * {@link #TermVectorsRequest(String, String)} instead.
      */
+    @Deprecated
     public TermVectorsRequest(String index, String type, String docId) {
-        this(index, type);
+        this.index = index;
+        this.type = type;
         this.id = docId;
+    }
+
+    /**
+     * Constructs TermVectorRequest for an artificial document
+     *
+     * @param index - index of the document
+     * @param docBuilder - an artificial document
+     */
+    public TermVectorsRequest(String index, XContentBuilder docBuilder) {
+        this.index = index;
+        this.type = null;
+        this.docBuilder = docBuilder;
     }
 
     /**
      * Constructs TermVectorRequest for an artificial document
      * @param index - index of the document
      * @param type - type of the document
+     * @param docBuilder - an artificial document
+     *
+     * @deprecated Types are in the process of being removed, use
+     * {@link TermVectorsRequest(String, XContentBuilder)} instead.
      */
-    public TermVectorsRequest(String index, String type) {
+    @Deprecated
+    public TermVectorsRequest(String index, String type, XContentBuilder docBuilder) {
         this.index = index;
         this.type = type;
+        this.docBuilder = docBuilder;
+    }
+
+
+    /**
+     * Constructs a new TermVectorRequest from a template
+     * using the provided document id
+     * @param template - a term vector request served as a template
+     * @param id - id of the requested document
+     */
+    static TermVectorsRequest createFromTemplate(TermVectorsRequest template, String id) {
+        TermVectorsRequest request = new TermVectorsRequest(template.getIndex(), template.getType(), id);
+        request.realtime = template.getRealtime();
+        request.requestPositions = template.requestPositions;
+        request.requestPayloads = template.requestPayloads;
+        request.requestOffsets = template.requestOffsets;
+        request.requestFieldStatistics = template.requestFieldStatistics;
+        request.requestTermStatistics = template.requestTermStatistics;
+        if (template.routing != null) request.setRouting(template.getRouting());
+        if (template.preference != null) request.setPreference(template.getPreference());
+        if (template.fields != null) request.setFields(template.getFields());
+        if (template.perFieldAnalyzer != null) request.setPerFieldAnalyzer(template.perFieldAnalyzer);
+        if (template.filterSettings != null) request.setFilterSettings(template.filterSettings);
+        return request;
     }
 
     /**
@@ -77,7 +137,10 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     /**
      * Returns the type of the request
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     public String getType() {
         return type;
     }
@@ -144,13 +207,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     }
 
     /**
-     * Sets an artifical document on what to request _termvectors
-     */
-    public void setDoc(XContentBuilder docBuilder) {
-        this.docBuilder = docBuilder;
-    }
-
-    /**
      * Sets conditions for terms filtering
      */
     public void setFilterSettings(Map<String, Integer> filterSettings) {
@@ -197,6 +253,11 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("_index", index);
+        if (type != null) {
+            builder.field("_type", type);
+        }
+        if (id != null) builder.field("_id", id);
         // set values only when different from defaults
         if (requestPositions == false) builder.field("positions", false);
         if (requestPayloads == false) builder.field("payloads", false);

@@ -21,12 +21,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -40,6 +42,7 @@ import java.util.stream.Collectors;
 public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         implements ToXContentObject, Diffable<LifecyclePolicy> {
     private static final Logger logger = LogManager.getLogger(LifecyclePolicy.class);
+    private static final int MAX_INDEX_NAME_BYTES = 255;
 
     public static final ParseField PHASES_FIELD = new ParseField("phases");
 
@@ -238,6 +241,30 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             }
         } else {
             throw new IllegalArgumentException("Phase [" + stepKey.getPhase() + "]  does not exist in policy [" + name + "]");
+        }
+    }
+
+    /**
+     * Validate the name for an policy against some static rules. Intended to match
+     * {@link org.elasticsearch.cluster.metadata.MetaDataCreateIndexService#validateIndexOrAliasName(String, BiFunction)}
+     * @param policy the policy name to validate
+     * @throws IllegalArgumentException if the name is invalid
+     */
+    public static void validatePolicyName(String policy) {
+        if (policy.contains(",")) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain ','");
+        }
+        if (policy.contains(" ")) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain spaces");
+        }
+        if (policy.charAt(0) == '_') {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not start with '_'");
+        }
+        int byteCount = 0;
+        byteCount = policy.getBytes(StandardCharsets.UTF_8).length;
+        if (byteCount > MAX_INDEX_NAME_BYTES) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: name is too long, (" + byteCount + " > " +
+                MAX_INDEX_NAME_BYTES + ")");
         }
     }
 

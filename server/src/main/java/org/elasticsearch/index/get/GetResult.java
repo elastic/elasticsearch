@@ -256,9 +256,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX, index);
-        if (params.paramAsBoolean("include_type_name", true)) {
-            builder.field(_TYPE, type);
-        }
+        builder.field(_TYPE, type);
         builder.field(_ID, id);
         if (isExists()) {
             if (version != -1) {

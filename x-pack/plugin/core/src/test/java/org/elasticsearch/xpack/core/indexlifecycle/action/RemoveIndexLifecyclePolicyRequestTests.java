@@ -20,7 +20,7 @@ public class RemoveIndexLifecyclePolicyRequestTests extends AbstractStreamableTe
         Request request = new Request(generateRandomStringArray(20, 20, false));
         if (randomBoolean()) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean());
+                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
             request.indicesOptions(indicesOptions);
         }
         if (randomBoolean()) {
@@ -45,7 +45,7 @@ public class RemoveIndexLifecyclePolicyRequestTests extends AbstractStreamableTe
             break;
         case 1:
             indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

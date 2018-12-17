@@ -31,6 +31,7 @@ import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -162,19 +163,19 @@ public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygonBuilder
     }
 
     @Override
-    public Shape build() {
+    public Shape buildS4J() {
 
         List<Shape> shapes = new ArrayList<>(this.polygons.size());
 
         if(wrapdateline) {
             for (PolygonBuilder polygon : this.polygons) {
                 for(Coordinate[][] part : polygon.coordinates()) {
-                    shapes.add(jtsGeometry(PolygonBuilder.polygon(FACTORY, part)));
+                    shapes.add(jtsGeometry(PolygonBuilder.polygonS4J(FACTORY, part)));
                 }
             }
         } else {
             for (PolygonBuilder polygon : this.polygons) {
-                shapes.add(jtsGeometry(polygon.toPolygon(FACTORY)));
+                shapes.add(jtsGeometry(polygon.toPolygonS4J(FACTORY)));
             }
         }
         if (shapes.size() == 1)
@@ -182,6 +183,33 @@ public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygonBuilder
         else
             return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
+    }
+
+    @Override
+    public Object buildLucene() {
+        List<org.apache.lucene.geo.Polygon> shapes = new ArrayList<>(this.polygons.size());
+        Object poly;
+        if (wrapdateline) {
+            for (PolygonBuilder polygon : this.polygons) {
+                poly = polygon.buildLucene();
+                if (poly instanceof org.apache.lucene.geo.Polygon[]) {
+                    shapes.addAll(Arrays.asList((org.apache.lucene.geo.Polygon[])poly));
+                } else {
+                    shapes.add((org.apache.lucene.geo.Polygon)poly);
+                }
+            }
+        } else {
+            for (int i = 0; i < this.polygons.size(); ++i) {
+                PolygonBuilder pb = this.polygons.get(i);
+                poly = pb.buildLucene();
+                if (poly instanceof org.apache.lucene.geo.Polygon[]) {
+                    shapes.addAll(Arrays.asList((org.apache.lucene.geo.Polygon[])poly));
+                } else {
+                    shapes.add((org.apache.lucene.geo.Polygon)poly);
+                }
+            }
+        }
+        return shapes.stream().toArray(org.apache.lucene.geo.Polygon[]::new);
     }
 
     @Override

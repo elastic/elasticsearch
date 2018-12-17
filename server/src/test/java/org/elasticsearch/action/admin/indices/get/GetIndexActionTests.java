@@ -65,7 +65,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);
         CapturingTransport capturingTransport = new CapturingTransport();
-        transportService = capturingTransport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+        transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, emptySet());
         transportService.start();
@@ -107,7 +107,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     class TestTransportGetIndexAction extends TransportGetIndexAction {
 
         TestTransportGetIndexAction() {
-            super(Settings.EMPTY, GetIndexActionTests.this.transportService, GetIndexActionTests.this.clusterService,
+            super(GetIndexActionTests.this.transportService, GetIndexActionTests.this.clusterService,
                 GetIndexActionTests.this.threadPool, settingsFilter, new ActionFilters(emptySet()),
                 new GetIndexActionTests.Resolver(), indicesService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         }

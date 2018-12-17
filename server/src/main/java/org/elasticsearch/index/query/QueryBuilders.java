@@ -27,6 +27,8 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
 
@@ -401,7 +403,8 @@ public final class QueryBuilders {
      * @param filterFunctionBuilders the filters and functions to execute
      * @return the function score query
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder,
+                                                               FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
         return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
     }
 
@@ -433,6 +436,17 @@ public final class QueryBuilders {
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
         return (new FunctionScoreQueryBuilder(queryBuilder, function));
     }
+
+    /**
+     * A query that allows to define a custom scoring function through script.
+     *
+     * @param queryBuilder The query to custom score
+     * @param function     The script score function builder used to custom score
+     */
+    public static ScriptScoreQueryBuilder scriptScoreQuery(QueryBuilder queryBuilder, ScriptScoreFunctionBuilder function) {
+        return new ScriptScoreQueryBuilder(queryBuilder, function);
+    }
+
 
     /**
      * A more like this query that finds documents that are "like" the provided texts or documents

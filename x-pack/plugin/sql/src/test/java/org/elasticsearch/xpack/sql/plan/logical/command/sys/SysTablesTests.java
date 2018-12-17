@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
+import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
@@ -29,7 +32,6 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
@@ -229,18 +231,19 @@ public class SysTablesTests extends ESTestCase {
     }
 
     private SqlTypedParamValue param(Object value) {
-        return new SqlTypedParamValue(DataTypes.fromJava(value), value);
+        return new SqlTypedParamValue(DataTypes.fromJava(value).esType, value);
     }
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"));
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
+                                         new Verifier(new Metrics()));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
 
-        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null);
+        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 

@@ -104,12 +104,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
 
     @Inject
-    public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportOpenJobAction(TransportService transportService, ThreadPool threadPool,
                                   XPackLicenseState licenseState, ClusterService clusterService,
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                   JobResultsProvider jobResultsProvider) {
-        super(settings, OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+        super(OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 OpenJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
@@ -674,6 +674,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     public static class OpenJobPersistentTasksExecutor extends PersistentTasksExecutor<OpenJobAction.JobParams> {
+
+        private static final Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutor.class);
 
         private final AutodetectProcessManager autodetectProcessManager;
 

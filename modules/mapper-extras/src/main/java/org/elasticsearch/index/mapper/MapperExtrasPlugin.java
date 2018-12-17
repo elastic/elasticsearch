@@ -39,6 +39,8 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
         mappers.put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
         mappers.put(FeatureFieldMapper.CONTENT_TYPE, new FeatureFieldMapper.TypeParser());
         mappers.put(FeatureVectorFieldMapper.CONTENT_TYPE, new FeatureVectorFieldMapper.TypeParser());
+        mappers.put(DenseVectorFieldMapper.CONTENT_TYPE, new DenseVectorFieldMapper.TypeParser());
+        mappers.put(SparseVectorFieldMapper.CONTENT_TYPE, new SparseVectorFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
     }
 

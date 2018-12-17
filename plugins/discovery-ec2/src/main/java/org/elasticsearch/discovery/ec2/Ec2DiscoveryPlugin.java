@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import com.amazonaws.util.EC2MetadataUtils;
 import com.amazonaws.util.json.Jackson;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -129,7 +130,8 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         final Settings.Builder builder = Settings.builder();
 
         // Adds a node attribute for the ec2 availability zone
-        final String azMetadataUrl = AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone";
+        final String azMetadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService()
+            + "/latest/meta-data/placement/availability-zone";
         builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl));
         return builder.build();
     }

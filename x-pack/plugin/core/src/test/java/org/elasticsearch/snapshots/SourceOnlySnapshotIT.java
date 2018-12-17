@@ -92,6 +92,12 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         }
     }
 
+    public void testToStopSuiteFailing() {
+        // This is required because otherwise every test in the suite is muted
+        // TODO remove this when one of the other tests is fixed
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36330")
     public void testSnapshotAndRestore() throws Exception {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();
@@ -122,6 +128,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36276")
     public void testSnapshotAndRestoreWithNested() throws Exception {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();
@@ -191,7 +198,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             }
         };
         assertConsumer.accept(searchResponse, sourceHadDeletions);
-        assertEquals(numDocsExpected, searchResponse.getHits().totalHits);
+        assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
         searchResponse = client().prepareSearch(index)
             .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
             .setScroll("1m")

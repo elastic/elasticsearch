@@ -67,7 +67,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(templateRequest(searchSource(), "events")))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.GT, 0L))
                         .transform(searchTransform(templateRequest(searchSource(), "events")))
                         .addAction("_a1", indexAction("actions1", "doc"))
                         .addAction("_a2", indexAction("actions2", "doc"))
@@ -127,7 +127,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(templateRequest(searchSource(), "events")))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.GT, 0L))
                         .transform(searchTransform(templateRequest(searchSource(), "events")))
                         .addAction("_a1", indexAction("actions1", "doc"))
                         .addAction("_a2", indexAction("actions2", "doc"))
@@ -195,7 +195,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(templateRequest(searchSource(), "events")))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.GT, 0L))
                         .transform(searchTransform(templateRequest(searchSource(), "events")))
                         .addAction("_id", indexAction("actions", "action")))
                 .get();
@@ -209,7 +209,8 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(ackResponse.getStatus().actionStatus("_id").ackStatus().state(), is(ActionStatus.AckStatus.State.ACKED));
 
         refresh("actions");
-        long countAfterAck = client().prepareSearch("actions").setTypes("action").setQuery(matchAllQuery()).get().getHits().getTotalHits();
+        long countAfterAck = client().prepareSearch("actions").setTypes("action").setQuery(matchAllQuery()).get()
+            .getHits().getTotalHits().value;
         assertThat(countAfterAck, greaterThanOrEqualTo(1L));
 
         restartWatcherRandomly();

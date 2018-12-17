@@ -33,7 +33,7 @@ PUT _template/template_1
         },
         "created_at": {
           "type": "date",
-          "format": "EEE MMM dd HH:mm:ss Z YYYY"
+          "format": "EEE MMM dd HH:mm:ss Z yyyy"
         }
       }
     }

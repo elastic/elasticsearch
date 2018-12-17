@@ -35,7 +35,12 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
@@ -47,16 +52,15 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
 
     public static class Response extends BaseTasksResponse implements StatusToXContentObject, Writeable {
 
-        private boolean isUpdated;
+        private final boolean isUpdated;
 
         public Response() {
             super(null, null);
             this.isUpdated = true;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             isUpdated = in.readBoolean();
         }
 

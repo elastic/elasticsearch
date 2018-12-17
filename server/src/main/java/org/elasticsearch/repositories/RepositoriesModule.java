@@ -58,8 +58,24 @@ public class RepositoriesModule extends AbstractModule {
             }
         }
 
+        Map<String, Repository.Factory> internalFactories = new HashMap<>();
+        for (RepositoryPlugin repoPlugin : repoPlugins) {
+            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getInternalRepositories(env, namedXContentRegistry);
+            for (Map.Entry<String, Repository.Factory> entry : newRepoTypes.entrySet()) {
+                if (internalFactories.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Internal repository type [" + entry.getKey() + "] is already registered");
+                }
+                if (factories.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Internal repository type [" + entry.getKey() + "] is already registered as a " +
+                        "non-internal repository");
+                }
+            }
+        }
+
         Map<String, Repository.Factory> repositoryTypes = Collections.unmodifiableMap(factories);
-        repositoriesService = new RepositoriesService(env.settings(), clusterService, transportService, repositoryTypes, threadPool);
+        Map<String, Repository.Factory> internalRepositoryTypes = Collections.unmodifiableMap(internalFactories);
+        repositoriesService = new RepositoriesService(env.settings(), clusterService, transportService, repositoryTypes,
+            internalRepositoryTypes, threadPool);
     }
 
     @Override

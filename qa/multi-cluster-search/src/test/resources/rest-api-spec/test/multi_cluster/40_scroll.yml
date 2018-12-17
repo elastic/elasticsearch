@@ -3,6 +3,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
         size: 4
         scroll: 1m
@@ -24,6 +25,7 @@
 
   - do:
       scroll:
+        rest_total_hits_as_int: true
         body: { "scroll_id": "$scroll_id", "scroll": "1m"}
 
   - is_false: _clusters
@@ -33,6 +35,7 @@
   - match: {hits.hits.1._source.filter_field: 1 }
   - do:
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 1m
 

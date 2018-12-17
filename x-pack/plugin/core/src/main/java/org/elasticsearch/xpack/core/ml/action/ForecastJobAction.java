@@ -35,7 +35,12 @@ public class ForecastJobAction extends Action<ForecastJobAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {
@@ -167,27 +172,14 @@ public class ForecastJobAction extends Action<ForecastJobAction.Response> {
         private boolean acknowledged;
         private String forecastId;
 
-        public Response() {
-            super(null, null);
-        }
-
         public Response(boolean acknowledged, String forecastId) {
             super(null, null);
             this.acknowledged = acknowledged;
             this.forecastId = forecastId;
         }
 
-        public boolean isAcknowledged() {
-            return acknowledged;
-        }
-
-        public String getForecastId() {
-            return forecastId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             acknowledged = in.readBoolean();
             forecastId = in.readString();
         }
@@ -197,6 +189,14 @@ public class ForecastJobAction extends Action<ForecastJobAction.Response> {
             super.writeTo(out);
             out.writeBoolean(acknowledged);
             out.writeString(forecastId);
+        }
+
+        public boolean isAcknowledged() {
+            return acknowledged;
+        }
+
+        public String getForecastId() {
+            return forecastId;
         }
 
         @Override

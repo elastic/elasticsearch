@@ -165,7 +165,7 @@ PUT _cluster/settings
 }
 ----------------------------
 // CONSOLE
-// TEST[catch:/cannot set discovery.zen.minimum_master_nodes to more than the current master nodes/]
+// TEST[skip:Test use Zen2 now so we can't test Zen1 behaviour here]
 
 TIP: An advantage of splitting the master and data roles between dedicated
 nodes is that you can have just three master-eligible nodes and set

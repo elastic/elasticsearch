@@ -99,7 +99,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                executeHttpRequest("/_xpack/security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache",
+                executeHttpRequest("/_security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache",
                         Collections.<String, String>emptyMap());
             }
         },
@@ -122,7 +122,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                String path = "/_xpack/security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache";
+                String path = "/_security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache";
                 Map<String, String> params = Collections.singletonMap("usernames", String.join(",", evicted_usernames));
                 executeHttpRequest(path, params);
             }

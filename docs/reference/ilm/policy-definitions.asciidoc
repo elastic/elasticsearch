@@ -74,6 +74,19 @@ relative to when data was written last to a rolled over index.
 The previous phase's actions must complete before {ILM} will check `min_age` and
 transition into the next phase.
 
+=== Phase Execution
+
+beta[]
+
+The current phase definition, of an index's policy being executed, is stored
+in the index's metadata. The phase and its actions are compiled into a series
+of discrete steps that are executed sequentially. Since some {ILM} actions are
+more complex and involve multiple operations against an index, each of these
+operations are done in isolation in a unit called a "step". The
+<<ilm-explain-lifecycle,Explain Lifecycle API>> exposes this information to us
+to see which step our index is either to execute next, or is currently
+executing.
+
 === Actions
 
 beta[]

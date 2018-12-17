@@ -9,7 +9,7 @@ API enables you to deactivate a currently active watch.
 [float]
 ==== Request
 
-`PUT _xpack/watcher/watch/<watch_id>/_deactivate`
+`PUT _watcher/watch/<watch_id>/_deactivate`
 
 [float]
 ==== Path Parameters
@@ -30,7 +30,7 @@ call the <<watcher-api-get-watch, Get Watch API>>:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/watcher/watch/my_watch
+GET _watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:my_active_watch]
@@ -61,7 +61,7 @@ You can deactivate the watch by executing the following API call:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/my_watch/_deactivate
+PUT _watcher/watch/my_watch/_deactivate
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:my_active_watch]

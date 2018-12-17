@@ -225,7 +225,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final Throwable cause = exception.getCause() instanceof EngineException ? exception.getCause().getCause() : exception.getCause();
         assertThat(cause, instanceOf(TranslogCorruptedException.class));
 
-        closeShards(corruptedShard);
+        closeShard(corruptedShard, false); // translog is corrupted already - do not check consistency
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         final MockTerminal t = new MockTerminal();
@@ -401,7 +401,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // create _state of IndexMetaData
         try(NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment)) {
             final Path[] paths = nodeEnvironment.indexPaths(indexMetaData.getIndex());
-            IndexMetaData.FORMAT.write(indexMetaData, paths);
+            IndexMetaData.FORMAT.writeAndCleanup(indexMetaData, paths);
             logger.info("--> index metadata persisted to {} ", Arrays.toString(paths));
         }
     }

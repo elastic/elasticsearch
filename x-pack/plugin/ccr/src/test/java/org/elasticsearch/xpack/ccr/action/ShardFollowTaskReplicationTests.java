@@ -103,7 +103,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 followerGroup.assertAllEqual(indexedDocIds.size() - deleteDocIds.size());
             });
             shardFollowTask.markAsCompleted();
-            assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
+            assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup, true);
         }
     }
 
@@ -123,6 +123,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     followerSeqNoStats.getMaxSeqNo());
             int batches = between(0, 10);
             int docCount = 0;
+            boolean hasPromotion = false;
             for (int i = 0; i < batches; i++) {
                 docCount += leaderGroup.indexDocs(between(1, 5));
                 if (leaderGroup.getReplicas().isEmpty() == false && randomInt(100) < 5) {
@@ -133,6 +134,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 } else if (leaderGroup.getReplicas().isEmpty() == false && rarely()) {
                     IndexShard newPrimary = randomFrom(leaderGroup.getReplicas());
                     leaderGroup.promoteReplicaToPrimary(newPrimary).get();
+                    hasPromotion = true;
                 } else if (randomInt(100) < 5) {
                     leaderGroup.addReplica();
                     leaderGroup.startReplicas(1);
@@ -144,7 +146,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             int expectedDoc = docCount;
             assertBusy(() -> followerGroup.assertAllEqual(expectedDoc));
             shardFollowTask.markAsCompleted();
-            assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
+            assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup, hasPromotion == false);
         }
     }
 
@@ -286,7 +288,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             try {
                 assertBusy(() -> {
                     assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leadingPrimary.getGlobalCheckpoint()));
-                    assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
+                    assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup, true);
                 });
             } finally {
                 shardFollowTask.markAsCompleted();
@@ -478,7 +480,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         };
     }
 
-    private void assertConsistentHistoryBetweenLeaderAndFollower(ReplicationGroup leader, ReplicationGroup follower) throws Exception {
+    private void assertConsistentHistoryBetweenLeaderAndFollower(ReplicationGroup leader, ReplicationGroup follower,
+                                                                 boolean assertMaxSeqNoOfUpdatesOrDeletes) throws Exception {
         final List<Tuple<String, Long>> docAndSeqNosOnLeader = getDocIdAndSeqNos(leader.getPrimary()).stream()
             .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
         final Set<Tuple<Long, Translog.Operation.Type>> operationsOnLeader = new HashSet<>();
@@ -489,7 +492,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
         }
         for (IndexShard followingShard : follower) {
-            assertThat(followingShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
+            if (assertMaxSeqNoOfUpdatesOrDeletes) {
+                assertThat(followingShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
+            }
             List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
                 .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
             assertThat(docAndSeqNosOnFollower, equalTo(docAndSeqNosOnLeader));

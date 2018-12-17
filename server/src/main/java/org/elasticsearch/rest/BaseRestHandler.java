@@ -19,11 +19,9 @@
 
 package org.elasticsearch.rest;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
@@ -59,8 +57,11 @@ public abstract class BaseRestHandler implements RestHandler {
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
 
     private final LongAdder usageCount = new LongAdder();
+    /**
+     * @deprecated declare your own logger.
+     */
     @Deprecated
-    protected static Logger logger = LogManager.getLogger(BaseRestHandler.class);
+    protected Logger logger = LogManager.getLogger(getClass());
 
     protected BaseRestHandler(Settings settings) {
         // TODO drop settings from ctor

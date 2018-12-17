@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -36,8 +35,11 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     protected final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
+    /**
+     * @deprecated declare your own logger.
+     */
     @Deprecated
-    protected static Logger logger = LogManager.getLogger(TransportAction.class);
+    protected Logger logger = LogManager.getLogger(getClass());
 
     protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
         this.actionName = actionName;

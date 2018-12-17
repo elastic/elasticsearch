@@ -60,8 +60,8 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
 
     private final NonIsoDateTimeExtractor extractor;
 
-    public NonIsoDateTimeProcessor(NonIsoDateTimeExtractor extractor, TimeZone timeZone) {
-        super(timeZone);
+    public NonIsoDateTimeProcessor(NonIsoDateTimeExtractor extractor, ZoneId zoneId) {
+        super(zoneId);
         this.extractor = extractor;
     }
 
@@ -92,7 +92,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(extractor, timeZone());
+        return Objects.hash(extractor, zoneId());
     }
 
     @Override
@@ -102,7 +102,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
         }
         NonIsoDateTimeProcessor other = (NonIsoDateTimeProcessor) obj;
         return Objects.equals(extractor, other.extractor)
-                && Objects.equals(timeZone(), other.timeZone());
+                && Objects.equals(zoneId(), other.zoneId());
     }
 
     @Override

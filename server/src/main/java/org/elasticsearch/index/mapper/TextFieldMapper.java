@@ -32,6 +32,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -41,6 +42,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
@@ -361,7 +365,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         boolean accept(int length) {
-            return length >= minChars - 1 && length <= maxChars;
+            return length <= maxChars;
         }
 
         void doXContent(XContentBuilder builder) throws IOException {
@@ -377,7 +381,13 @@ public class TextFieldMapper extends FieldMapper {
             if (strValue.length() >= minChars) {
                 return super.termQuery(value, context);
             }
-            WildcardQuery query = new WildcardQuery(new Term(name(), value + "?"));
+            List<Automaton> automata = new ArrayList<>();
+            automata.add(Automata.makeString(strValue));
+            for (int i = strValue.length(); i < minChars; i++) {
+                automata.add(Automata.makeAnyChar());
+            }
+            Automaton automaton = Operations.concatenate(automata);
+            AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
             query.setRewriteMethod(method);
             return query;
         }

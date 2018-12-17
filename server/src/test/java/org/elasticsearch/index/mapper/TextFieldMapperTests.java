@@ -31,6 +31,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -39,6 +40,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
@@ -850,7 +854,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
 
             q = fieldType.prefixQuery("g", CONSTANT_SCORE_REWRITE, queryShardContext);
-            assertEquals(new ConstantScoreQuery(new WildcardQuery(new Term("field._index_prefix", "g?"))), q);
+            Automaton automaton = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
+            assertEquals(new ConstantScoreQuery(new AutomatonQuery(new Term("field._index_prefix", "g*"), automaton)), q);
 
             ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                     .bytes(XContentFactory.jsonBuilder()
@@ -879,7 +884,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             Query q1 = fieldType.prefixQuery("g", CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q1, instanceOf(ConstantScoreQuery.class));
-            assertThat(((ConstantScoreQuery)q1).getQuery(), instanceOf(WildcardQuery.class));
+            assertThat(((ConstantScoreQuery)q1).getQuery(), instanceOf(AutomatonQuery.class));
             Query q2 = fieldType.prefixQuery("go", CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q2, instanceOf(ConstantScoreQuery.class));
             Query q5 = fieldType.prefixQuery("going", CONSTANT_SCORE_REWRITE, queryShardContext);

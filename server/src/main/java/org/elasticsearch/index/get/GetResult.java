@@ -457,7 +457,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
 
     @Override
     public int hashCode() {
-        return Objects.hash(version, exists, index, type, id, fields, sourceAsMap());
+        return Objects.hash(version, seqNo, primaryTerm, exists, index, type, id, fields, sourceAsMap());
     }
 
     @Override

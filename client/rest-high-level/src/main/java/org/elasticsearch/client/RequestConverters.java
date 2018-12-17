@@ -270,8 +270,8 @@ final class RequestConverters {
     static Request sourceExists(GetRequest getRequest) {
         String optionalType = getRequest.type();
         String endpoint;
-        if (optionalType == null || optionalType.equals(MapperService.SINGLE_MAPPING_NAME)) {
-          endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
+        if (optionalType.equals(MapperService.SINGLE_MAPPING_NAME)) {
+            endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
         } else {
             endpoint = endpoint(getRequest.index(), optionalType, getRequest.id(), "_source");
         }

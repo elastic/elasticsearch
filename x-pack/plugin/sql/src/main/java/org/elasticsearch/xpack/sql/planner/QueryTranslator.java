@@ -259,7 +259,7 @@ final class QueryTranslator {
                     // dates are handled differently because of date histograms
                     if (exp instanceof DateTimeHistogramFunction) {
                         DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;
-                        key = new GroupByDateHistogram(aggId, nameOf(exp), dthf.interval(), dthf.timeZone());
+                        key = new GroupByDateHistogram(aggId, nameOf(exp), dthf.interval(), dthf.zoneId());
                     }
                     // all other scalar functions become a script
                     else if (exp instanceof ScalarFunction) {
@@ -277,9 +277,9 @@ final class QueryTranslator {
                                 long intervalAsMillis = Intervals.inMillis(h.interval());
                                 // TODO: set timezone
                                 if (field instanceof FieldAttribute || field instanceof DateTimeHistogramFunction) {
-                                    key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.timeZone());
+                                    key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.zoneId());
                                 } else if (field instanceof Function) {
-                                    key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), intervalAsMillis, h.timeZone());
+                                    key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), intervalAsMillis, h.zoneId());
                                 }
                             }
                             // numeric histogram

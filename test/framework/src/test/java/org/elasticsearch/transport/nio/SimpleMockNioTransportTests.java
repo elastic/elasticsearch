@@ -37,8 +37,8 @@ import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -78,7 +78,7 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         settings = Settings.builder().put(settings)
-            .put(TcpTransport.PORT.getKey(), "0")
+            .put(TransportSettings.PORT.getKey(), "0")
             .build();
         MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
@@ -108,7 +108,7 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
         int port = serviceA.boundAddress().publishAddress().getPort();
         Settings settings = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
-            .put("transport.tcp.port", port)
+            .put(TransportSettings.PORT.getKey(), port)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {

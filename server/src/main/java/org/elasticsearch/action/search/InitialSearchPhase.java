@@ -44,7 +44,7 @@ import java.util.stream.Stream;
  * and collect the results. If a shard request returns a failure this class handles the advance to the next replica of the shard until
  * the shards replica iterator is exhausted. Each shard is referenced by position in the {@link GroupShardsIterator} which is later
  * referred to as the {@code shardIndex}.
- * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection
+ * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
  */
 abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends SearchPhase {
@@ -327,7 +327,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-
     /**
      * Executed once all shard results have been received and processed
      * @see #onShardFailure(int, SearchShardTarget, Exception)
@@ -367,7 +366,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     abstract static class SearchPhaseResults<Result extends SearchPhaseResult> {
         private final int numShards;
 
-        protected SearchPhaseResults(int numShards) {
+        SearchPhaseResults(int numShards) {
             this.numShards = numShards;
         }
         /**

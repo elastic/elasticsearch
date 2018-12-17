@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
@@ -45,6 +46,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
@@ -101,6 +104,7 @@ public class SnapshotsServiceTests extends ESTestCase {
      * and one replica, adds the snapshot in progress for the primary shard's node, then removes
      * the primary shard allocation from the state and ensures that the snapshot completes.
      */
+    @Repeat(iterations = 100)
     public void testSnapshotWithOutOfSyncAllocationTable() throws Exception {
         // Set up fake repository
         String repoName = "repo";
@@ -189,6 +193,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             );
         ClusterNode primaryNode = primaryNodeId.equals(dataNode1.node.getId()) ? dataNode1 : dataNode2;
 
+        ClusterStateUpdateTask removeSnapshotTask;
         final boolean disconnectNode = randomBoolean();
         if (disconnectNode) {
             clusterState.disconnectNode(primaryNodeId);
@@ -247,15 +252,55 @@ public class SnapshotsServiceTests extends ESTestCase {
             // The failing shard must result in a task for removing the SnapshotInProgress from the cluster state
             // that we capture and run.
             assertTrue(primaryNode.deterministicTaskQueue.hasRunnableTasks());
-            ClusterStateUpdateTask removeSnapshotTask =
-                expectOneUpdateTask(primaryNode.clusterService, primaryNode.deterministicTaskQueue::runAllTasks);
-            assertNoSnapshotsInProgress(clusterState.updateAndGet(removeSnapshotTask));
+            removeSnapshotTask = expectOneUpdateTask(primaryNode.clusterService, primaryNode.deterministicTaskQueue::runAllTasks);
         } else {
-            clusterState.applyLatestChange(primaryNode.node.getId(), primaryNode.snapshotShardsService);
+            clusterState.applyLatestChange(primaryNodeId, primaryNode.snapshotShardsService);
             assertTrue(primaryNode.deterministicTaskQueue.hasRunnableTasks());
-            // TODO: Set up index services and assert everything works out
-            //primaryNode.deterministicTaskQueue.runAllTasks();
+            IndexService indexService = mock(IndexService.class);
+            ClusterState currentState = clusterState.currentState(primaryNodeId);
+            IndexShard indexShard = mock(IndexShard.class);
+            when(indexShard.acquireLastIndexCommit(anyBoolean())).thenReturn(
+                new Engine.IndexCommitRef(null,
+                    () -> {
+                    })
+            );
+            when(indexShard.routingEntry()).thenReturn(currentState.routingTable().index(index).shard(0).primaryShard());
+            doAnswer(invocation -> indexShard).when(indexService).getShardOrNull(anyInt());
+            when(primaryNode.clusterService.state()).thenReturn(clusterState.currentState(masterNode.node.getId()));
+            when(
+                primaryNode.indicesService.indexServiceSafe(
+                    currentState.metaData().index(index).getIndex()
+                )
+            ).thenReturn(indexService);
+            SetOnce<ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>> removeSnapshotTaskHolder = new SetOnce<>();
+            SetOnce<UpdateIndexShardSnapshotStatusRequest> statusUpdateRequest = new SetOnce<>();
+            doAnswer(invocation -> {
+                Object[] arguments = invocation.getArguments();
+                removeSnapshotTaskHolder.set((ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>) arguments[3]);
+                statusUpdateRequest.set((UpdateIndexShardSnapshotStatusRequest) arguments[1]);
+                return null;
+            }).when(primaryNode.clusterService).submitStateUpdateTask(anyString(), any(), any(), any(), any());
+            primaryNode.deterministicTaskQueue.runAllTasks();
+            // Run the cluster state update that was caused by the failing shard
+            SnapshotsInProgress snapshotsInProgress = clusterState.updateState(
+                currentClusterState -> {
+                    try {
+                        return removeSnapshotTaskHolder.get().execute(
+                            currentClusterState, Collections.singletonList(statusUpdateRequest.get())).resultingState;
+                    } catch (Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                }
+            ).custom(SnapshotsInProgress.TYPE);
+            // The Snapshot should not yet have been removed from the state.
+            assertThat(snapshotsInProgress.entries(), hasSize(1));
+
+            // The failing shard must result in a task for removing the SnapshotInProgress from the cluster state
+            // that we capture and run.
+            assertTrue(primaryNode.deterministicTaskQueue.hasRunnableTasks());
+            removeSnapshotTask = expectOneUpdateTask(primaryNode.clusterService, primaryNode.deterministicTaskQueue::runAllTasks);
         }
+        assertNoSnapshotsInProgress(clusterState.updateAndGet(removeSnapshotTask));
     }
 
     private static void assertNoSnapshotsInProgress(ClusterState clusterState) {
@@ -279,7 +324,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         }).when(clusterService).submitStateUpdateTask(anyString(), any());
         action.run();
         ClusterStateUpdateTask updateTask = taskHolder.get();
-        assertNotNull(updateTask);
+        assertNotNull("Expected a new cluster state update task to be submitted", updateTask);
         return updateTask;
     }
 
@@ -420,6 +465,8 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         private final SnapshotShardsService snapshotShardsService;
 
+        private final IndicesService indicesService;
+
         private final DiscoveryNode node;
 
         ClusterNode(DiscoveryNode node, DeterministicTaskQueue deterministicTaskQueue) {
@@ -442,9 +489,10 @@ public class SnapshotsServiceTests extends ESTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
             snapshotsService = new SnapshotsService(Settings.EMPTY, clusterService, indexNameExpressionResolver,
                 repositoriesService, deterministicTaskQueue.getThreadPool());
+            indicesService = mock(IndicesService.class);
             snapshotShardsService = new SnapshotShardsService(
                 Settings.EMPTY, clusterService, snapshotsService, deterministicTaskQueue.getThreadPool(),
-                transportService, mock(IndicesService.class), new ActionFilters(emptySet()), indexNameExpressionResolver);
+                transportService, indicesService, new ActionFilters(emptySet()), indexNameExpressionResolver);
         }
 
         public void start() {

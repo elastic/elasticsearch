@@ -97,7 +97,7 @@ A chunking configuration object has the following properties:
 The {dfeed} can optionally search over indices that have already been read in
 an effort to find if any data has since been added to the index. If missing data
 is found, it is a good indication that the `query_delay` option is set too low and
-the data is being indexed after the {dfeed} has passed that moment in time.
+the data is being indexed after the {dfeed} has passed that moment in time. See <<ml-delayed-data-detection>>.
 
 This check only runs on real-time {dfeeds}
 

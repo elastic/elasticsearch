@@ -120,7 +120,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
         public boolean match(Task task) {
             for(int i = 0; i < expandedJobsIds.size(); i++)
             {
-                if(OpenJobAction.JobTaskMatcher.match(task, expandedJobsIds[i]) == true)
+                if(OpenJobAction.JobTaskMatcher.match(task, expandedJobsIds.get(i)) == true)
                     return true;
             }
             return false;

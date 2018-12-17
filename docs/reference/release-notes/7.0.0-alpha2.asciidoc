@@ -12,3 +12,7 @@ Search::
   Elasticsearch, are lower than previously as one constant factor was removed
   from the numerator of the scoring formula. Ordering of results is preserved
   unless scores are computed from multiple fields using different similarities.
+  In a mixed cluster with some nodes on 7.0 and some on 6.x, scoring will
+  depend on where the shards are located: the older formula will be used for
+  data located from 6.x nodes, while the updated one will be used for data
+  located on 7.0 nodes.

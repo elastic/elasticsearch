@@ -15,6 +15,10 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+
 /**
  * Node-specific deprecation checks
  */
@@ -81,16 +85,14 @@ public class NodeDeprecationChecks {
     }
 
     static DeprecationIssue discoveryConfigurationCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        if (nodeInfos.size() == 1
-            && nodeInfos.stream().anyMatch(nodeInfo -> "single-node".equals(nodeInfo.getSettings().get("discovery.type")))) {
-            // We are in single-node discovery mode, and therefore not in production mode, so this check doesn't need to apply.
-            return null;
-        }
 
-        // This only checks for `ping.unicast.hosts` and `hosts_provider` because `cluster.initial_master_nodes` does not exist in 6.x
         List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo -> nodeInfo.getSettings().hasValue("discovery.zen.ping.unicast.hosts") == false)
-            .filter(nodeInfo -> nodeInfo.getSettings().hasValue("discovery.zen.hosts_provider") == false)
+            // These checks only apply in Zen2, which is the new default in 7.0 and can't be used in 6.x, so only apply the checks if this
+            // node does not have a discovery type explicitly set
+            .filter(nodeInfo -> nodeInfo.getSettings().hasValue(DISCOVERY_TYPE_SETTING.getKey()) == false)
+            // This only checks for `ping.unicast.hosts` and `hosts_provider` because `cluster.initial_master_nodes` does not exist in 6.x
+            .filter(nodeInfo -> nodeInfo.getSettings().hasValue(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()) == false)
+            .filter(nodeInfo -> nodeInfo.getSettings().hasValue(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()) == false)
             .map(nodeInfo -> nodeInfo.getNode().getName())
             .collect(Collectors.toList());
         if (nodesFound.size() > 0) {

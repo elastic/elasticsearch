@@ -25,6 +25,10 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.NODE_SETTINGS_CHECKS;
 
 public class NodeDeprecationChecksTests extends ESTestCase {
@@ -45,9 +49,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     private void assertSettingsAndIssue(String key, String value, DeprecationIssue expected) {
         Settings settings = Settings.builder()
-            .put("cluster.name", "elasticsearch")
-            .put("node.name", "node_check")
-            .put("discovery.type", "single-node") // Needed due to NodeDeprecationChecks#discoveryConfigurationCheck
+            .put(CLUSTER_NAME_SETTING.getKey(), "elasticsearch")
+            .put(NODE_NAME_SETTING.getKey(), "node_check")
+            .put(DISCOVERY_TYPE_SETTING.getKey(), "single-node") // Needed due to NodeDeprecationChecks#discoveryConfigurationCheck
             .put(key, value)
             .build();
         List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
@@ -103,13 +107,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             null, null, null, null, new FsInfo(0L, null, paths), null, null, null,
             null, null, null, null));
         Settings baseSettings = Settings.builder()
-            .put("cluster.name", "elasticsearch")
-            .put("node.name", "node_check")
+            .put(CLUSTER_NAME_SETTING.getKey(), "elasticsearch")
+            .put(NODE_NAME_SETTING.getKey(), "node_check")
             .build();
 
         {
             Settings hostsProviderSettings = Settings.builder().put(baseSettings)
-                .put("discovery.zen.hosts_provider", "file")
+                .put(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
                 .build();
             List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
                 discoveryNode, hostsProviderSettings, osInfo, null, null,

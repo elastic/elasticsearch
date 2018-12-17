@@ -133,7 +133,8 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> start another node");
         final String node_2 = internalCluster().startNode();
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
+                .setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
@@ -141,7 +142,8 @@ public class RelocationIT extends ESIntegTestCase {
                 .add(new MoveAllocationCommand("test", 0, node_1, node_2))
                 .execute().actionGet();
 
-        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
+                .setWaitForNoRelocatingShards(true).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count again...");
@@ -155,7 +157,8 @@ public class RelocationIT extends ESIntegTestCase {
         int numberOfReplicas = randomBoolean() ? 0 : 1;
         int numberOfNodes = numberOfReplicas == 0 ? 2 : 3;
 
-        logger.info("testRelocationWhileIndexingRandom(numRelocations={}, numberOfReplicas={}, numberOfNodes={})", numberOfRelocations, numberOfReplicas, numberOfNodes);
+        logger.info("testRelocationWhileIndexingRandom(numRelocations={}, numberOfReplicas={}, numberOfNodes={})",
+                numberOfRelocations, numberOfReplicas, numberOfNodes);
 
         String[] nodes = new String[numberOfNodes];
         logger.info("--> starting [node1] ...");
@@ -172,8 +175,10 @@ public class RelocationIT extends ESIntegTestCase {
             logger.info("--> starting [node{}] ...", i);
             nodes[i - 1] = internalCluster().startNode();
             if (i != numberOfNodes) {
-                ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
-                        .setWaitForNodes(Integer.toString(i)).setWaitForGreenStatus().execute().actionGet();
+                ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth()
+                        .setWaitForEvents(Priority.LANGUID)
+                        .setWaitForNodes(Integer.toString(i))
+                        .setWaitForGreenStatus().execute().actionGet();
                 assertThat(healthResponse.isTimedOut(), equalTo(false));
             }
         }
@@ -202,7 +207,10 @@ public class RelocationIT extends ESIntegTestCase {
                     logger.debug("--> flushing");
                     client().admin().indices().prepareFlush().get();
                 }
-                ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+                ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
+                        .setWaitForEvents(Priority.LANGUID)
+                        .setWaitForNoRelocatingShards(true)
+                        .setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
                 assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
                 indexer.pauseIndexing();
                 logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
@@ -218,7 +226,8 @@ public class RelocationIT extends ESIntegTestCase {
             boolean ranOnce = false;
             for (int i = 0; i < 10; i++) {
                     logger.info("--> START search test round {}", i + 1);
-                    SearchHits hits = client().prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexer.totalIndexedDocs()).storedFields().execute().actionGet().getHits();
+                    SearchHits hits = client().prepareSearch("test").setQuery(matchAllQuery())
+                            .setSize((int) indexer.totalIndexedDocs()).storedFields().execute().actionGet().getHits();
                     ranOnce = true;
                     if (hits.getTotalHits().value != indexer.totalIndexedDocs()) {
                         int[] hitIds = new int[(int) indexer.totalIndexedDocs()];
@@ -252,7 +261,8 @@ public class RelocationIT extends ESIntegTestCase {
         int numberOfReplicas = randomBoolean() ? 0 : 1;
         int numberOfNodes = numberOfReplicas == 0 ? 2 : 3;
 
-        logger.info("testRelocationWhileIndexingRandom(numRelocations={}, numberOfReplicas={}, numberOfNodes={})", numberOfRelocations, numberOfReplicas, numberOfNodes);
+        logger.info("testRelocationWhileIndexingRandom(numRelocations={}, numberOfReplicas={}, numberOfNodes={})",
+                numberOfRelocations, numberOfReplicas, numberOfNodes);
 
         String[] nodes = new String[numberOfNodes];
         logger.info("--> starting [node_0] ...");
@@ -281,13 +291,15 @@ public class RelocationIT extends ESIntegTestCase {
         final Semaphore postRecoveryShards = new Semaphore(0);
         final IndexEventListener listener = new IndexEventListener() {
             @Override
-            public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {
+            public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, 
+                    IndexShardState currentState, @Nullable String reason) {
                 if (currentState == IndexShardState.POST_RECOVERY) {
                     postRecoveryShards.release();
                 }
             }
         };
-        for (MockIndexEventListener.TestEventListener eventListener : internalCluster().getInstances(MockIndexEventListener.TestEventListener.class)) {
+        for (MockIndexEventListener.TestEventListener eventListener : internalCluster()
+                .getInstances(MockIndexEventListener.TestEventListener.class)) {
             eventListener.setNewDelegate(listener);
         }
 
@@ -327,7 +339,10 @@ public class RelocationIT extends ESIntegTestCase {
             indexRandom(true, true, builders2);
 
             // verify cluster was finished.
-            assertFalse(client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).setTimeout("30s").get().isTimedOut());
+            assertFalse(client().admin().cluster().prepareHealth()
+                    .setWaitForNoRelocatingShards(true)
+                    .setWaitForEvents(Priority.LANGUID)
+                    .setTimeout("30s").get().isTimedOut());
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
 
             logger.debug("--> verifying all searches return the same number of docs");
@@ -374,17 +389,20 @@ public class RelocationIT extends ESIntegTestCase {
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, p_node);
         for (DiscoveryNode node : clusterService.state().nodes()) {
             if (!node.equals(clusterService.localNode())) {
-                mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, node.getName()), new RecoveryCorruption(corruptionCount));
+                mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, node.getName()), 
+                        new RecoveryCorruption(corruptionCount));
             }
         }
 
-        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
 
         corruptionCount.await();
 
         logger.info("--> stopping replica assignment");
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
+                .setTransientSettings(Settings.builder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");
         assertBusy(() -> {
@@ -408,7 +426,8 @@ public class RelocationIT extends ESIntegTestCase {
                             Files.walkFileTree(shardLoc, new SimpleFileVisitor<Path>() {
                                 @Override
                                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                                    assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
+                                    assertThat("found a temporary recovery file: " + file, file.getFileName().toString(),
+                                            not(startsWith("recovery.")));
                                     return FileVisitResult.CONTINUE;
                                 }
                             });
@@ -496,13 +515,15 @@ public class RelocationIT extends ESIntegTestCase {
         }
 
         @Override
-        public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
+        public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+                TransportRequestOptions options) throws IOException {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files
                     logger.debug("corrupting [{}] to {}. file name: [{}]", action, connection.getNode(), chunkRequest.name());
-                    assert chunkRequest.content().toBytesRef().bytes == chunkRequest.content().toBytesRef().bytes : "no internal reference!!";
+                    assert chunkRequest.content().toBytesRef().bytes == 
+                            chunkRequest.content().toBytesRef().bytes : "no internal reference!!";
                     byte[] array = chunkRequest.content().toBytesRef().bytes;
                     array[0] = (byte) ~array[0]; // flip one byte in the content
                     corruptionCount.countDown();

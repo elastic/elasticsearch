@@ -31,7 +31,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader");
 
-        final PutFollowAction.Request followRequest = getPutFollowRequest();
+        final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
         client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
@@ -61,7 +61,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
         }
 
-        client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest()).get();
+        client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest("follower")).get();
         assertBusy(() -> {
             assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value,
                 equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
@@ -73,9 +73,9 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         final String leaderIndexSettings = getIndexSettings(2, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false"));
         assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
-        ResumeFollowAction.Request followRequest = getResumeFollowRequest();
+        ResumeFollowAction.Request followRequest = getResumeFollowRequest("follower");
         followRequest.setFollowerIndex("follower-index");
-        PutFollowAction.Request putFollowRequest = getPutFollowRequest();
+        PutFollowAction.Request putFollowRequest = getPutFollowRequest("leader", "follower");
         putFollowRequest.setLeaderIndex("leader-index");
         putFollowRequest.setFollowRequest(followRequest);
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
@@ -84,8 +84,9 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         assertThat(client().admin().indices().prepareExists("follower-index").get().isExists(), equalTo(false));
     }
 
-    private String getIndexSettings(final int numberOfShards, final int numberOfReplicas,
-                                    final Map<String, String> additionalIndexSettings) throws IOException {
+    public static String getIndexSettings(final int numberOfShards,
+                                          final int numberOfReplicas,
+                                          final Map<String, String> additionalIndexSettings) throws IOException {
         final String settings;
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

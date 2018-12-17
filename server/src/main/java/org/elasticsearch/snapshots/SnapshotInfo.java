@@ -563,14 +563,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     /**
-     * This method creates a SnapshotInfo from external x-content.  It does not
-     * handle x-content written with the internal version.
-     */
-    public static SnapshotInfo fromXContent(final XContentParser parser) throws IOException {
-        return SNAPSHOT_INFO_PARSER.parse(parser, null).build();
-    }
-
-    /**
      * This method creates a SnapshotInfo from internal x-content.  It does not
      * handle x-content written with the external version as external x-content
      * is only for display purposes and does not need to be parsed.

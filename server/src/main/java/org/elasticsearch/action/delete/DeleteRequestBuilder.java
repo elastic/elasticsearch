@@ -80,4 +80,14 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
         request.versionType(versionType);
         return this;
     }
+
+    /**
+     * only performs this delete request if the document was last modification was assigned the given
+     * sequence number and primary term
+     */
+    public DeleteRequestBuilder setIfMatch(long seqNo, long term) {
+        request.setIfMatch(seqNo, term);
+        return this;
+    }
+
 }

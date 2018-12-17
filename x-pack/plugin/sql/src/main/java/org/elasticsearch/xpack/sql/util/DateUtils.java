@@ -16,15 +16,13 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.TimeZone;
 
 public class DateUtils {
 
     // TODO: do we have a java.time based parser we can use instead?
     private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateOptionalTimeParser().withZoneUTC();
 
-    public static TimeZone UTC_TZ = TimeZone.getTimeZone("UTC");
-    public static ZoneId UTC_ZI = ZoneId.of("Z");
+    public static ZoneId UTC = ZoneId.of("Z");
 
     private DateUtils() {}
 
@@ -33,7 +31,7 @@ public class DateUtils {
      * Creates a date from the millis since epoch (thus the time-zone is UTC).
      */
     public static ZonedDateTime of(long millis) {
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC_ZI);
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
     }
 
     /**

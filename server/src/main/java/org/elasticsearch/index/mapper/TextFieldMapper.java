@@ -39,6 +39,7 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.intervals.IntervalsSource;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
@@ -360,7 +361,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         boolean accept(int length) {
-            return length >= minChars && length <= maxChars;
+            return length >= minChars - 1 && length <= maxChars;
         }
 
         void doXContent(XContentBuilder builder) throws IOException {
@@ -368,6 +369,17 @@ public class TextFieldMapper extends FieldMapper {
             builder.field("min_chars", minChars);
             builder.field("max_chars", maxChars);
             builder.endObject();
+        }
+
+        public Query termQuery(Object value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            assert value instanceof String;
+            String strValue = (String) value;
+            if (strValue.length() >= minChars) {
+                return super.termQuery(value, context);
+            }
+            WildcardQuery query = new WildcardQuery(new Term(name(), value + "?"));
+            query.setRewriteMethod(method);
+            return query;
         }
 
         @Override
@@ -402,7 +414,6 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public int hashCode() {
-
             return Objects.hash(super.hashCode(), minChars, maxChars);
         }
     }
@@ -564,7 +575,7 @@ public class TextFieldMapper extends FieldMapper {
             if (prefixFieldType == null || prefixFieldType.accept(value.length()) == false) {
                 return super.prefixQuery(value, method, context);
             }
-            Query tq = prefixFieldType.termQuery(value, context);
+            Query tq = prefixFieldType.termQuery(value, method, context);
             if (method == null || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
                 || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
                 return new ConstantScoreQuery(tq);

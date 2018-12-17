@@ -37,6 +37,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -828,7 +829,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .field("type", "text")
                 .field("analyzer", "standard")
                 .startObject("index_prefixes")
-                .field("min_chars", 1)
+                .field("min_chars", 2)
                 .field("max_chars", 10)
                 .endObject()
                 .endObject().endObject()
@@ -837,16 +838,19 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
             assertEquals(mapping, mapper.mappingSource().toString());
 
-            assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=1:10"));
+            assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=2:10"));
 
             FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
             MappedFieldType fieldType = fieldMapper.fieldType;
 
             Query q = fieldType.prefixQuery("goin", CONSTANT_SCORE_REWRITE, queryShardContext);
-
             assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field._index_prefix", "goin"))), q);
+
             q = fieldType.prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, queryShardContext);
             assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
+
+            q = fieldType.prefixQuery("g", CONSTANT_SCORE_REWRITE, queryShardContext);
+            assertEquals(new ConstantScoreQuery(new WildcardQuery(new Term("field._index_prefix", "g?"))), q);
 
             ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                     .bytes(XContentFactory.jsonBuilder()
@@ -874,7 +878,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             MappedFieldType fieldType = fieldMapper.fieldType;
 
             Query q1 = fieldType.prefixQuery("g", CONSTANT_SCORE_REWRITE, queryShardContext);
-            assertThat(q1, instanceOf(PrefixQuery.class));
+            assertThat(q1, instanceOf(ConstantScoreQuery.class));
+            assertThat(((ConstantScoreQuery)q1).getQuery(), instanceOf(WildcardQuery.class));
             Query q2 = fieldType.prefixQuery("go", CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q2, instanceOf(ConstantScoreQuery.class));
             Query q5 = fieldType.prefixQuery("going", CONSTANT_SCORE_REWRITE, queryShardContext);

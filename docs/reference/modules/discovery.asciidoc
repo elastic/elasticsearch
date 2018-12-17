@@ -261,10 +261,10 @@ cluster.initial_master_nodes:
   - master-c
 --------------------------------------------------
 
-Alternatively the IP addresses or hostnames
-(<<node.name,if node name defaults to the host name>>) can be used. If there
-is more than one Elasticsearch node with the same IP address or hostname then
-the transport ports must also be given
+Alternatively the IP addresses or hostnames (<<node.name,if node name defaults
+to the host name>>) can be used. If there is more than one Elasticsearch node
+with the same IP address or hostname then the transport ports must also be
+given to specify exactly which node is meant:
 
 [source,yaml]
 --------------------------------------------------

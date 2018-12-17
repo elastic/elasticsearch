@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.dataframe.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -26,7 +27,10 @@ public class RestStopDataFrameJobAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String id = restRequest.param(DataFrameField.ID.getPreferredName());
-        StopDataFrameJobAction.Request request = new StopDataFrameJobAction.Request(id);
+        TimeValue timeout = restRequest.paramAsTime(DataFrameField.TIMEOUT.getPreferredName(), StopDataFrameJobAction.DEFAULT_TIMEOUT);
+        boolean waitForCompletion = restRequest.paramAsBoolean(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), false);
+
+        StopDataFrameJobAction.Request request = new StopDataFrameJobAction.Request(id, waitForCompletion, timeout);
 
         return channel -> client.execute(StopDataFrameJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

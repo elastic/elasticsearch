@@ -630,10 +630,9 @@ public class RequestConvertersTests extends ESTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
 
-        UpdateRequest updateRequest = new UpdateRequest(index, type, id);
+        UpdateRequest updateRequest = new UpdateRequest(index, id);
         updateRequest.detectNoop(randomBoolean());
 
         if (randomBoolean()) {
@@ -687,7 +686,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         Request request = RequestConverters.update(updateRequest);
-        assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.getEndpoint());
+        assertEquals("/" + index + "/_update/" + id, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
 
@@ -716,6 +715,23 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             assertNull(parsedUpdateRequest.upsertRequest());
         }
+    }
+
+    public void testUpdateWithType() throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+
+        UpdateRequest updateRequest = new UpdateRequest(index, type, id);
+
+        XContentType xContentType = XContentType.JSON;
+        BytesReference source = RandomObjects.randomSource(random(), xContentType);
+        updateRequest.doc(new IndexRequest().source(source, xContentType));
+
+        Request request = RequestConverters.update(updateRequest);
+        assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertToXContentBody(updateRequest, request.getEntity());
     }
 
     public void testUpdateWithDifferentContentTypes() {

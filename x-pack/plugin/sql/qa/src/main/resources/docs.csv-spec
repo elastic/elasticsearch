@@ -182,121 +182,125 @@ showFunctions
 // tag::showFunctions
 SHOW FUNCTIONS;
 
-      name      |     type      
-----------------+---------------
-AVG             |AGGREGATE      
-COUNT           |AGGREGATE      
-MAX             |AGGREGATE      
-MIN             |AGGREGATE      
-SUM             |AGGREGATE      
-KURTOSIS        |AGGREGATE      
-PERCENTILE      |AGGREGATE      
-PERCENTILE_RANK |AGGREGATE      
-SKEWNESS        |AGGREGATE      
-STDDEV_POP      |AGGREGATE      
-SUM_OF_SQUARES  |AGGREGATE      
-VAR_POP         |AGGREGATE      
-COALESCE        |CONDITIONAL
-GREATEST        |CONDITIONAL
-IFNULL          |CONDITIONAL
-ISNULL          |CONDITIONAL
-LEAST           |CONDITIONAL
-NULLIF          |CONDITIONAL
-NVL             |CONDITIONAL
-DAY             |SCALAR
-DAYNAME         |SCALAR
-DAYOFMONTH      |SCALAR         
-DAYOFWEEK       |SCALAR         
-DAYOFYEAR       |SCALAR         
-DAY_NAME        |SCALAR         
-DAY_OF_MONTH    |SCALAR         
-DAY_OF_WEEK     |SCALAR         
-DAY_OF_YEAR     |SCALAR         
-DOM             |SCALAR         
-DOW             |SCALAR         
-DOY             |SCALAR         
-HOUR            |SCALAR         
-HOUR_OF_DAY     |SCALAR         
-IDOW            |SCALAR
-ISODAYOFWEEK    |SCALAR
-ISODOW          |SCALAR
-ISOWEEK         |SCALAR
-ISOWEEKOFYEAR   |SCALAR
-ISO_DAY_OF_WEEK |SCALAR
-ISO_WEEK_OF_YEAR|SCALAR
-IW              |SCALAR
-IWOY            |SCALAR
-MINUTE          |SCALAR         
-MINUTE_OF_DAY   |SCALAR         
-MINUTE_OF_HOUR  |SCALAR         
-MONTH           |SCALAR         
-MONTHNAME       |SCALAR         
-MONTH_NAME      |SCALAR         
-MONTH_OF_YEAR   |SCALAR         
-QUARTER         |SCALAR         
-SECOND          |SCALAR         
-SECOND_OF_MINUTE|SCALAR         
-WEEK            |SCALAR         
-WEEK_OF_YEAR    |SCALAR         
-YEAR            |SCALAR         
-ABS             |SCALAR         
-ACOS            |SCALAR         
-ASIN            |SCALAR         
-ATAN            |SCALAR         
-ATAN2           |SCALAR         
-CBRT            |SCALAR         
-CEIL            |SCALAR         
-CEILING         |SCALAR         
-COS             |SCALAR         
-COSH            |SCALAR         
-COT             |SCALAR         
-DEGREES         |SCALAR         
-E               |SCALAR         
-EXP             |SCALAR         
-EXPM1           |SCALAR         
-FLOOR           |SCALAR         
-LOG             |SCALAR         
-LOG10           |SCALAR         
-MOD             |SCALAR         
-PI              |SCALAR         
-POWER           |SCALAR         
-RADIANS         |SCALAR         
-RAND            |SCALAR         
-RANDOM          |SCALAR         
-ROUND           |SCALAR         
-SIGN            |SCALAR         
-SIGNUM          |SCALAR         
-SIN             |SCALAR         
-SINH            |SCALAR         
-SQRT            |SCALAR         
-TAN             |SCALAR         
-TRUNCATE        |SCALAR         
-ASCII           |SCALAR         
-BIT_LENGTH      |SCALAR         
-CHAR            |SCALAR         
-CHARACTER_LENGTH|SCALAR         
-CHAR_LENGTH     |SCALAR         
-CONCAT          |SCALAR         
-INSERT          |SCALAR         
-LCASE           |SCALAR         
-LEFT            |SCALAR         
-LENGTH          |SCALAR         
-LOCATE          |SCALAR         
-LTRIM           |SCALAR         
-OCTET_LENGTH    |SCALAR         
-POSITION        |SCALAR         
-REPEAT          |SCALAR         
-REPLACE         |SCALAR         
-RIGHT           |SCALAR         
-RTRIM           |SCALAR         
-SPACE           |SCALAR         
-SUBSTRING       |SCALAR         
-UCASE           |SCALAR         
-CAST            |SCALAR
-CONVERT         |SCALAR
-DATABASE        |SCALAR
-USER            |SCALAR
-SCORE           |SCORE
+      name       |     type      
+-----------------+---------------
+AVG              |AGGREGATE      
+COUNT            |AGGREGATE      
+MAX              |AGGREGATE      
+MIN              |AGGREGATE      
+SUM              |AGGREGATE      
+KURTOSIS         |AGGREGATE      
+PERCENTILE       |AGGREGATE      
+PERCENTILE_RANK  |AGGREGATE      
+SKEWNESS         |AGGREGATE      
+STDDEV_POP       |AGGREGATE      
+SUM_OF_SQUARES   |AGGREGATE      
+VAR_POP          |AGGREGATE      
+HISTOGRAM        |GROUPING
+COALESCE         |CONDITIONAL
+GREATEST         |CONDITIONAL
+IFNULL           |CONDITIONAL
+ISNULL           |CONDITIONAL
+LEAST            |CONDITIONAL
+NULLIF           |CONDITIONAL
+NVL              |CONDITIONAL
+CURRENT_TIMESTAMP|SCALAR
+DAY              |SCALAR
+DAYNAME          |SCALAR
+DAYOFMONTH       |SCALAR         
+DAYOFWEEK        |SCALAR         
+DAYOFYEAR        |SCALAR         
+DAY_NAME         |SCALAR         
+DAY_OF_MONTH     |SCALAR         
+DAY_OF_WEEK      |SCALAR         
+DAY_OF_YEAR      |SCALAR         
+DOM              |SCALAR         
+DOW              |SCALAR         
+DOY              |SCALAR         
+HOUR             |SCALAR         
+HOUR_OF_DAY      |SCALAR         
+IDOW             |SCALAR
+ISODAYOFWEEK     |SCALAR
+ISODOW           |SCALAR
+ISOWEEK          |SCALAR
+ISOWEEKOFYEAR    |SCALAR
+ISO_DAY_OF_WEEK  |SCALAR
+ISO_WEEK_OF_YEAR |SCALAR
+IW               |SCALAR
+IWOY             |SCALAR
+MINUTE           |SCALAR         
+MINUTE_OF_DAY    |SCALAR         
+MINUTE_OF_HOUR   |SCALAR         
+MONTH            |SCALAR         
+MONTHNAME        |SCALAR         
+MONTH_NAME       |SCALAR         
+MONTH_OF_YEAR    |SCALAR
+NOW              |SCALAR
+QUARTER          |SCALAR         
+SECOND           |SCALAR         
+SECOND_OF_MINUTE |SCALAR         
+WEEK             |SCALAR         
+WEEK_OF_YEAR     |SCALAR         
+YEAR             |SCALAR         
+ABS              |SCALAR         
+ACOS             |SCALAR         
+ASIN             |SCALAR         
+ATAN             |SCALAR         
+ATAN2            |SCALAR         
+CBRT             |SCALAR         
+CEIL             |SCALAR         
+CEILING          |SCALAR         
+COS              |SCALAR         
+COSH             |SCALAR         
+COT              |SCALAR         
+DEGREES          |SCALAR         
+E                |SCALAR         
+EXP              |SCALAR         
+EXPM1            |SCALAR         
+FLOOR            |SCALAR         
+LOG              |SCALAR         
+LOG10            |SCALAR         
+MOD              |SCALAR         
+PI               |SCALAR         
+POWER            |SCALAR         
+RADIANS          |SCALAR         
+RAND             |SCALAR         
+RANDOM           |SCALAR         
+ROUND            |SCALAR         
+SIGN             |SCALAR         
+SIGNUM           |SCALAR         
+SIN              |SCALAR         
+SINH             |SCALAR         
+SQRT             |SCALAR         
+TAN              |SCALAR         
+TRUNCATE         |SCALAR         
+ASCII            |SCALAR         
+BIT_LENGTH       |SCALAR         
+CHAR             |SCALAR         
+CHARACTER_LENGTH |SCALAR         
+CHAR_LENGTH      |SCALAR         
+CONCAT           |SCALAR         
+INSERT           |SCALAR         
+LCASE            |SCALAR         
+LEFT             |SCALAR         
+LENGTH           |SCALAR         
+LOCATE           |SCALAR         
+LTRIM            |SCALAR         
+OCTET_LENGTH     |SCALAR         
+POSITION         |SCALAR         
+REPEAT           |SCALAR         
+REPLACE          |SCALAR         
+RIGHT            |SCALAR         
+RTRIM            |SCALAR         
+SPACE            |SCALAR         
+SUBSTRING        |SCALAR         
+UCASE            |SCALAR         
+CAST             |SCALAR
+CONVERT          |SCALAR
+DATABASE         |SCALAR
+USER             |SCALAR
+SCORE            |SCORE
+
 // end::showFunctions
 ;
 
@@ -669,7 +673,7 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, COUNT(*) AS c
 
       min:i    |      max:i    |      avg:d    |     count:l     
 ---------------+---------------+---------------+---------------
-25324          |74999          |48248          |100  
+25324          |74999          |48248.55       |100  
 
 // end::groupByImplicitMultipleAggs
 ;
@@ -694,6 +698,131 @@ SELECT MIN(salary) AS min, MAX(salary) AS max FROM emp HAVING min > 25000;
 
 // end::groupByHavingImplicitNoMatch
 //;
+
+///////////////////////////////
+//
+// Grouping
+//
+///////////////////////////////
+
+histogramNumeric
+// tag::histogramNumeric
+SELECT HISTOGRAM(salary, 5000) AS h FROM emp GROUP BY h;
+
+       h       
+---------------
+25000          
+30000          
+35000          
+40000          
+45000          
+50000          
+55000          
+60000          
+65000          
+70000
+
+// end::histogramNumeric  
+;
+
+histogramDate
+schema::h:ts|c:l
+// tag::histogramDate
+SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) AS c FROM emp GROUP BY h;
+
+
+         h          |       c       
+--------------------+---------------
+null                |10
+1951-04-11T00:00:00Z|1
+1952-04-05T00:00:00Z|10
+1953-03-31T00:00:00Z|10
+1954-03-26T00:00:00Z|7
+1955-03-21T00:00:00Z|4
+1956-03-15T00:00:00Z|4
+1957-03-10T00:00:00Z|6
+1958-03-05T00:00:00Z|6
+1959-02-28T00:00:00Z|9
+1960-02-23T00:00:00Z|7
+1961-02-17T00:00:00Z|8
+1962-02-12T00:00:00Z|6
+1963-02-07T00:00:00Z|7
+1964-02-02T00:00:00Z|5    
+
+// end::histogramDate
+;
+
+///////////////////////////////
+//
+// Date/Time
+//
+///////////////////////////////
+
+
+dtIntervalPlusInterval
+// tag::dtIntervalPlusInterval
+SELECT INTERVAL 1 DAY + INTERVAL 53 MINUTES AS result;
+
+    result     
+---------------
++1 00:53:00.0                       
+
+// end::dtIntervalPlusInterval
+;
+
+
+dtDatePlusInterval
+// tag::dtDatePlusInterval
+SELECT CAST('1969-05-13T12:34:56' AS DATE) + INTERVAL 49 YEARS AS result;
+
+       result       
+--------------------
+2018-05-13T12:34:56Z
+// end::dtDatePlusInterval
+;
+
+dtMinusInterval
+// tag::dtMinusInterval
+SELECT - INTERVAL '49-1' YEAR TO MONTH result;
+
+    result     
+---------------
+-49-1         
+
+// end::dtMinusInterval
+;
+
+dtIntervalMinusInterval
+// tag::dtIntervalMinusInterval
+SELECT INTERVAL '1' DAY - INTERVAL '2' HOURS AS result;
+
+    result     
+---------------
++0 22:00:00.0  
+// end::dtIntervalMinusInterval
+;
+
+
+dtDateMinusInterval
+// tag::dtDateMinusInterval
+SELECT CAST('2018-05-13T12:34:56' AS DATE) - INTERVAL '2-8' YEAR TO MONTH AS result; 
+
+       result       
+--------------------
+2015-09-13T12:34:56Z
+// end::dtDateMinusInterval
+;
+
+dtIntervalMul
+// tag::dtIntervalMul
+SELECT -2 * INTERVAL '3' YEARS AS result;
+
+    result     
+---------------
+-6-0    
+// end::dtIntervalMul
+;
+
 
 ///////////////////////////////
 //
@@ -724,9 +853,9 @@ SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY SCORE() DESC;
 
     SCORE()    |    author     |       name        |  page_count   |    release_date    
 ---------------+---------------+-------------------+---------------+--------------------
-2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
+2.2886353      |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
 1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
-1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
+1.6086556      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
 1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00Z
 
 // end::orderByScore
@@ -738,9 +867,9 @@ SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY page_count DES
 
     SCORE()    |    author     |       name        |  page_count   |    release_date    
 ---------------+---------------+-------------------+---------------+--------------------
-2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
+2.2886353      |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
 1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00Z
-1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
+1.6086556      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
 1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
 
 // end::orderByScoreWithMatch
@@ -753,9 +882,9 @@ SELECT SCORE() AS score, name, release_date FROM library WHERE QUERY('dune') ORD
      score     |       name        |    release_date    
 ---------------+-------------------+--------------------
 1.4005898      |God Emperor of Dune|1981-05-28T00:00:00Z
-1.6086555      |Children of Dune   |1976-04-21T00:00:00Z
+1.6086556      |Children of Dune   |1976-04-21T00:00:00Z
 1.8893257      |Dune Messiah       |1969-10-15T00:00:00Z
-2.288635       |Dune               |1965-06-01T00:00:00Z
+2.2886353      |Dune               |1965-06-01T00:00:00Z
 // end::scoreWithMatch
 ;
 
@@ -789,7 +918,7 @@ SELECT AVG(salary) AS avg FROM emp;
 
       avg:d      
 ---------------
-48248          
+48248.55          
 // end::aggAvg
 ;
 
@@ -1899,4 +2028,60 @@ SELECT WEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS week, ISOWEEK(CAST('19
 ---------------+---------------
 2              |1
 // end::weekOfYear
+;
+
+
+currentNow
+// tag::filterNow
+SELECT first_name FROM emp WHERE hire_date > NOW() - INTERVAL 100 YEARS ORDER BY first_name ASC LIMIT 5;
+
+  first_name   
+---------------
+Alejandro      
+Amabile        
+Anneke         
+Anoosh         
+Arumugam       
+// end::filterNow
+;
+
+currentTimestamp-Ignore
+// tag::curTs
+SELECT CURRENT_TIMESTAMP AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.448Z
+// end::curTs
+;
+
+currentTimestampFunction-Ignore
+// tag::curTsFunction
+SELECT CURRENT_TIMESTAMP() AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.448Z
+// end::curTsFunction
+;
+
+currentTimestampFunctionPrecision-Ignore
+// tag::curTsFunctionPrecision
+SELECT CURRENT_TIMESTAMP(1) AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.4Z
+// end::curTsFunctionPrecision
+;
+
+
+nowFunction-Ignore
+// tag::nowFunction
+SELECT NOW() AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.448Z
+// end::nowIgnore
 ;

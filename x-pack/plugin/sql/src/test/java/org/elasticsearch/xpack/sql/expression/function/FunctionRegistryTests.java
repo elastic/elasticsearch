@@ -59,7 +59,7 @@ public class FunctionRegistryTests extends ESTestCase {
             return new DummyFunction(l);
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertFalse(def.datetime());
+        assertFalse(def.extractViable());
         assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
 
         // Distinct isn't supported
@@ -88,7 +88,7 @@ public class FunctionRegistryTests extends ESTestCase {
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
-        assertFalse(def.datetime());
+        assertFalse(def.extractViable());
 
         // No children aren't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
@@ -113,7 +113,7 @@ public class FunctionRegistryTests extends ESTestCase {
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(providedConfiguration, def).location());
-        assertTrue(def.datetime());
+        assertTrue(def.extractViable());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
@@ -140,7 +140,7 @@ public class FunctionRegistryTests extends ESTestCase {
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
-        assertFalse(def.datetime());
+        assertFalse(def.extractViable());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->

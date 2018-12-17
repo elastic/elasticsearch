@@ -8,7 +8,8 @@
 The first time a cluster is started, `cluster.initial_master_nodes` must be set
 to perform cluster bootstrapping. It should contain the names of the
 master-eligible nodes in the initial cluster and be defined on every
-master-eligible node in the cluster. The
+master-eligible node in the cluster. See <<discovery-settings,the discovery
+settings summary>> for an example, and the
 <<modules-discovery-bootstrap-cluster,cluster bootstrapping reference
 documentation>> describes this setting in more detail.
 

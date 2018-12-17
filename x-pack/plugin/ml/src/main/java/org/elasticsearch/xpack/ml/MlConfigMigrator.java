@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -96,14 +98,14 @@ public class MlConfigMigrator {
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     private final AtomicBoolean migrationInProgress;
-    private final AtomicBoolean firstTime;
+    private final AtomicBoolean tookConfigSnapshot;
 
     public MlConfigMigrator(Settings settings, Client client, ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.migrationInProgress = new AtomicBoolean(false);
-        this.firstTime = new AtomicBoolean(true);
+        this.tookConfigSnapshot = new AtomicBoolean(false);
     }
 
     /**
@@ -135,12 +137,7 @@ public class MlConfigMigrator {
             return;
         }
 
-        Collection<DatafeedConfig> stoppedDatafeeds = stoppedDatafeedConfigs(clusterState);
-        Map<String, Job> eligibleJobs = nonDeletingJobs(closedJobConfigs(clusterState)).stream()
-                .map(MlConfigMigrator::updateJobForMigration)
-                .collect(Collectors.toMap(Job::getId, Function.identity(), (a, b) -> a));
-
-        JobsAndDatafeeds jobsAndDatafeedsToMigrate = limitWrites(stoppedDatafeeds, eligibleJobs);
+        logger.debug("migrating ml configurations");
 
         ActionListener<Boolean> unMarkMigrationInProgress = ActionListener.wrap(
                 response -> {
@@ -153,37 +150,36 @@ public class MlConfigMigrator {
                 }
         );
 
-        if (firstTime.get()) {
-            snapshotMlMeta(MlMetadata.getMlMetadata(clusterState), ActionListener.wrap(
-                    response -> {
-                        firstTime.set(false);
-                        migrate(jobsAndDatafeedsToMigrate, unMarkMigrationInProgress);
-                    },
-                    unMarkMigrationInProgress::onFailure
-            ));
-            return;
-        }
+        snapshotMlMeta(MlMetadata.getMlMetadata(clusterState), ActionListener.wrap(
+            response -> {
+                // We have successfully snapshotted the ML configs so we don't need to try again
+                tookConfigSnapshot.set(true);
 
-        migrate(jobsAndDatafeedsToMigrate, unMarkMigrationInProgress);
+                List<JobsAndDatafeeds> batches = splitInBatches(clusterState);
+                if (batches.isEmpty()) {
+                    unMarkMigrationInProgress.onResponse(Boolean.FALSE);
+                    return;
+                }
+                migrateBatches(batches, unMarkMigrationInProgress);
+            },
+            unMarkMigrationInProgress::onFailure
+        ));
     }
 
-    private void migrate(JobsAndDatafeeds jobsAndDatafeedsToMigrate, ActionListener<Boolean> listener) {
-        if (jobsAndDatafeedsToMigrate.totalCount() == 0) {
-            listener.onResponse(Boolean.FALSE);
-            return;
-        }
-
-        logger.debug("migrating ml configurations");
-
-        writeConfigToIndex(jobsAndDatafeedsToMigrate.datafeedConfigs, jobsAndDatafeedsToMigrate.jobs, ActionListener.wrap(
+    private void migrateBatches(List<JobsAndDatafeeds> batches, ActionListener<Boolean> listener) {
+        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(EsExecutors.newDirectExecutorService(), true);
+        for (JobsAndDatafeeds batch : batches) {
+            chainTaskExecutor.add(chainedListener -> writeConfigToIndex(batch.datafeedConfigs, batch.jobs, ActionListener.wrap(
                 failedDocumentIds -> {
-                    List<String> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, jobsAndDatafeedsToMigrate.jobs);
+                    List<String> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, batch.jobs);
                     List<String> successfulDatafeedWrites =
-                            filterFailedDatafeedConfigWrites(failedDocumentIds, jobsAndDatafeedsToMigrate.datafeedConfigs);
-                    removeFromClusterState(successfulJobWrites, successfulDatafeedWrites, listener);
+                        filterFailedDatafeedConfigWrites(failedDocumentIds, batch.datafeedConfigs);
+                    removeFromClusterState(successfulJobWrites, successfulDatafeedWrites, chainedListener);
                 },
-                listener::onFailure
-        ));
+                chainedListener::onFailure
+            )));
+        }
+        chainTaskExecutor.execute(ActionListener.wrap(aVoid -> listener.onResponse(true), listener::onFailure));
     }
 
     // Exposed for testing
@@ -208,9 +204,9 @@ public class MlConfigMigrator {
     }
 
     private void removeFromClusterState(List<String> jobsToRemoveIds, List<String> datafeedsToRemoveIds,
-                                        ActionListener<Boolean> listener) {
+                                        ActionListener<Void> listener) {
         if (jobsToRemoveIds.isEmpty() && datafeedsToRemoveIds.isEmpty()) {
-            listener.onResponse(Boolean.FALSE);
+            listener.onResponse(null);
             return;
         }
 
@@ -244,7 +240,7 @@ public class MlConfigMigrator {
                         logger.info("ml datafeed configurations migrated: {}", removedConfigs.get().removedDatafeedIds);
                     }
                 }
-                listener.onResponse(Boolean.TRUE);
+                listener.onResponse(null);
             }
         });
     }
@@ -326,12 +322,17 @@ public class MlConfigMigrator {
     // public for testing
     public void snapshotMlMeta(MlMetadata mlMetadata, ActionListener<Boolean> listener) {
 
-        if (mlMetadata.getJobs().isEmpty() && mlMetadata.getDatafeeds().isEmpty()) {
-            listener.onResponse(Boolean.TRUE);
+        if (tookConfigSnapshot.get()) {
+            listener.onResponse(true);
             return;
         }
 
-        logger.debug("taking a snapshot of mlmetadata");
+        if (mlMetadata.getJobs().isEmpty() && mlMetadata.getDatafeeds().isEmpty()) {
+            listener.onResponse(true);
+            return;
+        }
+
+        logger.debug("taking a snapshot of ml_metadata");
         String documentId = "ml-config";
         IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.jobStateIndexName(),
                 ElasticsearchMappings.DOC_TYPE, documentId)
@@ -345,7 +346,7 @@ public class MlConfigMigrator {
 
             indexRequest.setSource(builder);
         } catch (IOException e) {
-            logger.error("failed to serialise mlmetadata", e);
+            logger.error("failed to serialise ml_metadata", e);
             listener.onFailure(e);
             return;
         }
@@ -435,6 +436,22 @@ public class MlConfigMigrator {
         public int totalCount() {
             return jobs.size() + datafeedConfigs.size();
         }
+    }
+
+    public static List<JobsAndDatafeeds> splitInBatches(ClusterState clusterState) {
+        Collection<DatafeedConfig> stoppedDatafeeds = stoppedDatafeedConfigs(clusterState);
+        Map<String, Job> eligibleJobs = nonDeletingJobs(closedJobConfigs(clusterState)).stream()
+            .map(MlConfigMigrator::updateJobForMigration)
+            .collect(Collectors.toMap(Job::getId, Function.identity(), (a, b) -> a));
+
+        List<JobsAndDatafeeds> batches = new ArrayList<>();
+        while (stoppedDatafeeds.isEmpty() == false || eligibleJobs.isEmpty() == false) {
+            JobsAndDatafeeds batch = limitWrites(stoppedDatafeeds, eligibleJobs);
+            batches.add(batch);
+            stoppedDatafeeds.removeAll(batch.datafeedConfigs);
+            batch.jobs.forEach(job -> eligibleJobs.remove(job.getId()));
+        }
+        return batches;
     }
 
     /**

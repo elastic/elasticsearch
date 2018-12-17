@@ -8,7 +8,7 @@ This API starts an indefinite basic license.
 [float]
 ==== Request
 
-`POST _xpack/license/start_basic`
+`POST /_license/start_basic`
 
 [float]
 ==== Description
@@ -38,7 +38,7 @@ The following example starts a basic license if you do not currently have a lice
 
 [source,js]
 ------------------------------------------------------------
-POST _xpack/license/start_basic
+POST /_license/start_basic
 ------------------------------------------------------------
 // CONSOLE
 // TEST[skip:license testing issues]
@@ -59,7 +59,7 @@ parameter:
 
 [source,js]
 ------------------------------------------------------------
-POST _xpack/license/start_basic?acknowledge=true
+POST /_license/start_basic?acknowledge=true
 ------------------------------------------------------------
 // CONSOLE
 // TEST[skip:license testing issues]

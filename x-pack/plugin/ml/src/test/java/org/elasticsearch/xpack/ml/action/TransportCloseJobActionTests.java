@@ -14,7 +14,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -27,9 +29,6 @@ import org.elasticsearch.xpack.core.ml.action.CloseJobAction.Request;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
@@ -263,9 +262,8 @@ public class TransportCloseJobActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
 
-        TransportCloseJobAction transportAction = new TransportCloseJobAction(Settings.EMPTY,
-                mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class),
-                clusterService, mock(Client.class), mock(Auditor.class), mock(PersistentTasksService.class));
+        TransportCloseJobAction transportAction = new TransportCloseJobAction(mock(TransportService.class), mock(ThreadPool.class),
+            mock(ActionFilters.class), clusterService, mock(Client.class), mock(Auditor.class), mock(PersistentTasksService.class));
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         CloseJobAction.Request request = new Request("foo");

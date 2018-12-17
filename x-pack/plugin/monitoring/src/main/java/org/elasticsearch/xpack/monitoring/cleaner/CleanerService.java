@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.monitoring.cleaner;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -26,6 +28,7 @@ import java.util.concurrent.ScheduledFuture;
  * {@code CleanerService} takes care of deleting old monitoring indices.
  */
 public class CleanerService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(CleanerService.class);
 
     private final XPackLicenseState licenseState;
     private final ThreadPool threadPool;

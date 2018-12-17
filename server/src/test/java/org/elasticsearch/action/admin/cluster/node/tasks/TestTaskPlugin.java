@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -40,19 +41,28 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,13 +72,15 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 
 /**
  * A plugin that adds a cancellable blocking test task of integration testing of the task manager.
  */
-public class TestTaskPlugin extends Plugin implements ActionPlugin {
+public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -79,6 +91,16 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
     @Override
     public Collection<String> getTaskHeaders() {
         return Collections.singleton("Custom-Task-Header");
+    }
+
+    /**
+     * Intercept transport requests to verify that all of the ones that should
+     * have the origin set <strong>do</strong> have the origin set and the ones
+     * that should not have the origin set <strong>do not</strong> have it set.
+     */
+    @Override
+    public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
+       return Collections.singletonList(new OriginAssertingInterceptor(threadContext));
     }
 
     static class TestTask extends CancellableTask {
@@ -265,10 +287,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
     public static class TransportTestTaskAction extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
         @Inject
-        public TransportTestTaskAction(Settings settings, ThreadPool threadPool,
-                                       ClusterService clusterService, TransportService transportService) {
-            super(settings, TestTaskAction.NAME, threadPool, clusterService, transportService,
-                  new ActionFilters(new HashSet<>()),
+        public TransportTestTaskAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+            super(TestTaskAction.NAME, threadPool, clusterService, transportService, new ActionFilters(new HashSet<>()),
                 NodesRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
 
@@ -376,6 +396,13 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
 
     public static class UnblockTestTasksRequest extends BaseTasksRequest<UnblockTestTasksRequest> {
+
+        UnblockTestTasksRequest() {}
+
+        UnblockTestTasksRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public boolean match(Task task) {
             return task instanceof TestTask && super.match(task);
@@ -386,19 +413,14 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
         private List<UnblockTestTaskResponse> tasks;
 
-        public UnblockTestTasksResponse() {
-            super(null, null);
-        }
-
         public UnblockTestTasksResponse(List<UnblockTestTaskResponse> tasks, List<TaskOperationFailure> taskFailures, List<? extends
             FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
             this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public UnblockTestTasksResponse(StreamInput in) throws IOException {
+            super(in);
             int taskCount = in.readVInt();
             List<UnblockTestTaskResponse> builder = new ArrayList<>();
             for (int i = 0; i < taskCount; i++) {
@@ -424,9 +446,9 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         UnblockTestTasksResponse, UnblockTestTaskResponse> {
 
         @Inject
-        public TransportUnblockTestTasksAction(Settings settings, ClusterService clusterService, TransportService transportService) {
-            super(settings, UnblockTestTasksAction.NAME, clusterService, transportService, new ActionFilters(new HashSet<>()),
-                  UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+        public TransportUnblockTestTasksAction(ClusterService clusterService, TransportService transportService) {
+            super(UnblockTestTasksAction.NAME, clusterService, transportService, new ActionFilters(new HashSet<>()),
+                  UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, UnblockTestTaskResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 
         @Override
@@ -434,11 +456,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
                                                        List<TaskOperationFailure> taskOperationFailures, List<FailedNodeException>
                                                                    failedNodeExceptions) {
             return new UnblockTestTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
-        }
-
-        @Override
-        protected UnblockTestTaskResponse readTaskResponse(StreamInput in) throws IOException {
-            return new UnblockTestTaskResponse(in);
         }
 
         @Override
@@ -460,7 +477,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public UnblockTestTasksResponse newResponse() {
-            return new UnblockTestTasksResponse();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        }
+
+        @Override
+        public Writeable.Reader<UnblockTestTasksResponse> getResponseReader() {
+            return UnblockTestTasksResponse::new;
         }
     }
 
@@ -472,4 +494,70 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         }
     }
 
+    private static class OriginAssertingInterceptor implements TransportInterceptor {
+        private final ThreadContext threadContext;
+
+        private OriginAssertingInterceptor(ThreadContext threadContext) {
+            this.threadContext = threadContext;
+        }
+
+        @Override
+        public AsyncSender interceptSender(AsyncSender sender) {
+            return new AsyncSender() {
+                @Override
+                public <T extends TransportResponse> void sendRequest(
+                        Transport.Connection connection, String action, TransportRequest request,
+                        TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                    if (action.startsWith("indices:data/write/bulk[s]")) {
+                        /*
+                         * We can't reason about these requests because
+                         * *sometimes* they should have the origin, if they are
+                         * running on the node that stores the task. But
+                         * sometimes they won't be and in that case they don't
+                         * need the origin. Either way, the interesting work is
+                         * done by checking that the main bulk request
+                         * (without the [s] part) has the origin.
+                         */
+                        sender.sendRequest(connection, action, request, options, handler);
+                        return;
+                    }
+                    String expectedOrigin = shouldHaveOrigin(action, request) ? TASKS_ORIGIN : null;
+                    String actualOrigin = threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME);
+                    if (Objects.equals(expectedOrigin, actualOrigin)) {
+                        sender.sendRequest(connection, action, request, options, handler);
+                        return;
+                    }
+                    handler.handleException(new TransportException("should have origin of ["
+                            + expectedOrigin + "] but was [" + actualOrigin + "] action was ["
+                            + action + "][" + request + "]"));
+                }
+            };
+        }
+
+        private boolean shouldHaveOrigin(String action, TransportRequest request) {
+            if (false == action.startsWith("indices:")) {
+                /*
+                 * The Tasks API never uses origin with non-indices actions.
+                 */
+                return false;
+            }
+            if (       action.startsWith("indices:admin/refresh")
+                    || action.startsWith("indices:data/read/search")) {
+                /*
+                 * The test refreshes and searches to count the number of tasks
+                 * in the index and the Tasks API never does either.
+                 */
+                return false;
+            }
+            if (false == (request instanceof IndicesRequest)) {
+                return false;
+            }
+            IndicesRequest ir = (IndicesRequest) request;
+            /*
+             * When the API Tasks API makes an indices request it only every
+             * targets the .tasks index. Other requests come from the tests.
+             */
+            return Arrays.equals(new String[] {".tasks"}, ir.indices());
+        }
+    }
 }

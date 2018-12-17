@@ -67,7 +67,7 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
                 ensureExpectedToken(Token.START_OBJECT, token, parser::getTokenLocation);
                 SimulateDocumentResult result = null;
                 while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                    ensureExpectedToken(token, Token.FIELD_NAME, parser::getTokenLocation);
+                    ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
                     String fieldName = parser.currentName();
                     token = parser.nextToken();
                     if (token == Token.START_ARRAY) {

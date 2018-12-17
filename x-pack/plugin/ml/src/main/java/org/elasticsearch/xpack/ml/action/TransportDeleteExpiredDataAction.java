@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,9 +38,9 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
     private final ClusterService clusterService;
 
     @Inject
-    public TransportDeleteExpiredDataAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportDeleteExpiredDataAction(ThreadPool threadPool, TransportService transportService,
                                             ActionFilters actionFilters, Client client, ClusterService clusterService) {
-        super(settings, DeleteExpiredDataAction.NAME, transportService, actionFilters, DeleteExpiredDataAction.Request::new);
+        super(DeleteExpiredDataAction.NAME, transportService, actionFilters, DeleteExpiredDataAction.Request::new);
         this.threadPool = threadPool;
         this.client = ClientHelper.clientWithOrigin(client, ClientHelper.ML_ORIGIN);
         this.clusterService = clusterService;

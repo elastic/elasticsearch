@@ -52,6 +52,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -103,12 +104,12 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         {
             final Version versionCreated = VersionUtils.randomVersionBetween(
                     random(),
-                    Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1));
+                    Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.V_7_0_0));
             final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
             assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(5));
         }
         {
-            final Version versionCreated = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0_alpha1, Version.CURRENT);
+            final Version versionCreated = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
             final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
             assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(1));
         }
@@ -445,7 +446,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertEquals(2048, MetaDataCreateIndexService.calculateNumRoutingShards(1024, Version.CURRENT));
         assertEquals(4096, MetaDataCreateIndexService.calculateNumRoutingShards(2048, Version.CURRENT));
 
-        Version latestV6 = VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1);
+        Version latestV6 = VersionUtils.getPreviousVersion(Version.V_7_0_0);
         int numShards = randomIntBetween(1, 1000);
         assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards, latestV6));
         assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards,
@@ -471,7 +472,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         }
     }
 
-    public void testShardLimitDeprecationWarning() {
+    public void testShardLimit() {
         int nodesInCluster = randomIntBetween(2,100);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
         Settings clusterSettings = Settings.builder()
@@ -487,13 +488,13 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-        MetaDataCreateIndexService.checkShardLimit(indexSettings, state, deprecationLogger);
+        Optional<String> errorMessage = MetaDataCreateIndexService.checkShardLimit(indexSettings, state);
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        assertWarnings("In a future major version, this request will fail because this action would add [" +
-            totalShards + "] total shards, but this cluster currently has [" + currentShards + "]/[" + maxShards + "] maximum shards open."+
-            " Before upgrading, reduce the number of shards in your cluster or adjust the cluster setting [cluster.max_shards_per_node].");
+        assertTrue(errorMessage.isPresent());
+        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" + currentShards
+            + "]/[" + maxShards + "] maximum shards open", errorMessage.get());
     }
 
 }

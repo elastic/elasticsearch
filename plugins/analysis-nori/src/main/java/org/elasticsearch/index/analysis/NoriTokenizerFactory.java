@@ -29,10 +29,13 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
+import java.util.List;
 import java.util.Locale;
 
 public class NoriTokenizerFactory extends AbstractTokenizerFactory {
-    private static final String USER_DICT_OPTION = "user_dictionary";
+    private static final String USER_DICT_PATH_OPTION = "user_dictionary";
+    private static final String USER_DICT_RULES_OPTION = "user_dictionary_rules";
 
     private final UserDictionary userDictionary;
     private final KoreanTokenizer.DecompoundMode decompoundMode;
@@ -44,12 +47,20 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     public static UserDictionary getUserDictionary(Environment env, Settings settings) {
-        try (Reader reader = Analysis.getReaderFromFile(env, settings, USER_DICT_OPTION)) {
-            if (reader == null) {
-                return null;
-            } else {
-                return UserDictionary.open(reader);
-            }
+        if (settings.get(USER_DICT_PATH_OPTION) != null && settings.get(USER_DICT_RULES_OPTION) != null) {
+            throw new IllegalArgumentException("It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" +
+                " with [" + USER_DICT_RULES_OPTION + "]");
+        }
+        List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION);
+        StringBuilder sb = new StringBuilder();
+        if (ruleList == null || ruleList.isEmpty()) {
+            return null;
+        }
+        for (String line : ruleList) {
+            sb.append(line).append(System.lineSeparator());
+        }
+        try (Reader rulesReader = new StringReader(sb.toString())) {
+            return UserDictionary.open(rulesReader);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load nori user dictionary", e);
         }

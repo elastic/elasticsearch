@@ -3,19 +3,22 @@ plugins {
 }
 
 testClusters {
-    myTestCluster
+    myTestCluster {
+        distribution = 'ZIP'
+        version = System.getProperty("test.version_under_test")
+    }
 }
 
 task user1 {
     useCluster testClusters.myTestCluster
     doFirst {
-        println "$path"
+        println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
     }
 }
 
 task user2 {
     useCluster testClusters.myTestCluster
     doFirst {
-        println "$path"
+        println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
     }
 }

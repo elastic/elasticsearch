@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.sql.expression.predicate.logical;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
+import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
-public class And extends BinaryLogic implements Negateable {
+public class And extends BinaryLogic implements Negatable<BinaryLogic> {
 
     public And(Location location, Expression left, Expression right) {
         super(location, left, right, BinaryLogicOperation.AND);

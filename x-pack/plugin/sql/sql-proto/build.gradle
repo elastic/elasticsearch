@@ -14,7 +14,7 @@ dependencies {
     compile (project(':libs:x-content')) {
         transitive = false
     }
-    compile 'joda-time:joda-time:2.10'
+    compile "joda-time:joda-time:${versions.joda}"
     runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
 
     testCompile "org.elasticsearch.test:framework:${version}"

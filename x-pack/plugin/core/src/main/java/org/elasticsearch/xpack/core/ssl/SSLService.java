@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
-import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.HostnameVerifier;
@@ -186,9 +185,9 @@ public class SSLService {
      * not expose any of the parameters that you give it.
      *
      * @param sslContext SSL Context used to handle SSL / TCP requests
-     * @param protocols Supported protocols
-     * @param ciphers Supported ciphers
-     * @param verifier Hostname verifier
+     * @param protocols  Supported protocols
+     * @param ciphers    Supported ciphers
+     * @param verifier   Hostname verifier
      * @return Never {@code null}.
      */
     SSLIOSessionStrategy sslIOSessionStrategy(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
@@ -211,10 +210,11 @@ public class SSLService {
      * Creates an {@link SSLEngine} based on the provided configuration. This SSLEngine can be used for a connection that requires
      * hostname verification assuming the provided
      * host and port are correct. The SSLEngine created by this method is most useful for clients with hostname verification enabled
+     *
      * @param configuration the ssl configuration
-     * @param host the host of the remote endpoint. If using hostname verification, this should match what is in the remote endpoint's
-     *             certificate
-     * @param port the port of the remote endpoint
+     * @param host          the host of the remote endpoint. If using hostname verification, this should match what is in the remote
+     *                      endpoint's certificate
+     * @param port          the port of the remote endpoint
      * @return {@link SSLEngine}
      * @see #getSSLConfiguration(String)
      */
@@ -243,6 +243,7 @@ public class SSLService {
 
     /**
      * Returns whether the provided settings results in a valid configuration that can be used for server connections
+     *
      * @param sslConfiguration the configuration to check
      */
     public boolean isConfigurationValidForServerUsage(SSLConfiguration sslConfiguration) {
@@ -261,19 +262,20 @@ public class SSLService {
     /**
      * Returns the {@link SSLContext} for the global configuration. Mainly used for testing
      */
-    SSLContext sslContext() {
+    public SSLContext sslContext() {
         return sslContextHolder(globalSSLConfiguration).sslContext();
     }
 
     /**
-     * Returns the {@link SSLContext} for the configuration
+     * Returns the {@link SSLContext} for the configuration. Mainly used for testing
      */
-    SSLContext sslContext(SSLConfiguration configuration) {
+    public SSLContext sslContext(SSLConfiguration configuration) {
         return sslContextHolder(configuration).sslContext();
     }
 
     /**
      * Returns the existing {@link SSLContextHolder} for the configuration
+     *
      * @throws IllegalArgumentException if not found
      */
     SSLContextHolder sslContextHolder(SSLConfiguration sslConfiguration) {
@@ -287,6 +289,7 @@ public class SSLService {
 
     /**
      * Returns the existing {@link SSLConfiguration} for the given settings
+     *
      * @param settings the settings for the ssl configuration
      * @return the ssl configuration for the provided settings. If the settings are empty, the global configuration is returned
      */
@@ -314,6 +317,7 @@ public class SSLService {
     /**
      * Returns the intersection of the supported ciphers with the requested ciphers. This method will also optionally log if unsupported
      * ciphers were requested.
+     *
      * @throws IllegalArgumentException if no supported ciphers are in the requested ciphers
      */
     String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
@@ -351,6 +355,7 @@ public class SSLService {
 
     /**
      * Creates an {@link SSLContext} based on the provided configuration
+     *
      * @param sslConfiguration the configuration to use for context creation
      * @return the created SSLContext
      */
@@ -365,9 +370,10 @@ public class SSLService {
 
     /**
      * Creates an {@link SSLContext} based on the provided configuration and trust/key managers
+     *
      * @param sslConfiguration the configuration to use for context creation
-     * @param keyManager the key manager to use
-     * @param trustManager the trust manager to use
+     * @param keyManager       the key manager to use
+     * @param trustManager     the trust manager to use
      * @return the created SSLContext
      */
     private SSLContextHolder createSslContext(X509ExtendedKeyManager keyManager, X509ExtendedTrustManager trustManager,
@@ -375,7 +381,7 @@ public class SSLService {
         // Initialize sslContext
         try {
             SSLContext sslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
-            sslContext.init(new X509ExtendedKeyManager[] { keyManager }, new X509ExtendedTrustManager[] { trustManager }, null);
+            sslContext.init(new X509ExtendedKeyManager[]{keyManager}, new X509ExtendedTrustManager[]{trustManager}, null);
 
             // check the supported ciphers and log them here to prevent spamming logs on every call
             supportedCiphers(sslContext.getSupportedSSLParameters().getCipherSuites(), sslConfiguration.cipherSuites(), true);
@@ -439,6 +445,7 @@ public class SSLService {
      * certificates that are provided by the JRE.
      * Due to the nature of KeyStores, this may include certificates that are available, but never used
      * such as a CA certificate that is no longer in use, or a server certificate for an unrelated host.
+     *
      * @see TrustConfig#certificates(Environment)
      */
     public Set<CertificateInfo> getLoadedCertificates() throws GeneralSecurityException, IOException {
@@ -499,14 +506,14 @@ public class SSLService {
 
         @Override
         public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
-            SSLSocket sslSocket = createWithPermissions(() ->  delegate.createSocket(host, port, localHost, localPort));
+            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(host, port, localHost, localPort));
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(InetAddress host, int port) throws IOException {
-            SSLSocket sslSocket = createWithPermissions(() ->  delegate.createSocket(host, port));
+            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(host, port));
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
@@ -609,14 +616,16 @@ public class SSLService {
      * @return A map of Settings prefix to Settings object
      */
     private static Map<String, Settings> getRealmsSSLSettings(Settings settings) {
-        Map<String, Settings> sslSettings = new HashMap<>();
-        final String prefix = SecurityField.setting("authc.realms.");
-        Settings realmsSettings = settings.getByPrefix(prefix);
-        for (String name : realmsSettings.names()) {
-            Settings realmSSLSettings = realmsSettings.getAsSettings(name).getByPrefix("ssl.");
-            // Put this even if empty, so that the name will be mapped to the global SSL configuration
-            sslSettings.put(prefix + name + ".ssl", realmSSLSettings);
-        }
+        final Map<String, Settings> sslSettings = new HashMap<>();
+        final String prefix = "xpack.security.authc.realms.";
+        final Map<String, Settings> settingsByRealmType = settings.getGroups(prefix);
+        settingsByRealmType.forEach((realmType, typeSettings) ->
+            typeSettings.getAsGroups().forEach((realmName, realmSettings) -> {
+                Settings realmSSLSettings = realmSettings.getByPrefix("ssl.");
+                // Put this even if empty, so that the name will be mapped to the global SSL configuration
+                sslSettings.put(prefix + realmType + "." + realmName + ".ssl", realmSSLSettings);
+            })
+        );
         return sslSettings;
     }
 

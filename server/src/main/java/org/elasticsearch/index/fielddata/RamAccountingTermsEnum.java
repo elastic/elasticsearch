@@ -27,7 +27,7 @@ import org.elasticsearch.index.fielddata.plain.AbstractIndexFieldData;
 import java.io.IOException;
 
 /**
- * {@link TermsEnum} that takes a MemoryCircuitBreaker, increasing the breaker
+ * {@link TermsEnum} that takes a CircuitBreaker, increasing the breaker
  * every time {@code .next(...)} is called. Proxies all methods to the original
  * TermsEnum otherwise.
  */

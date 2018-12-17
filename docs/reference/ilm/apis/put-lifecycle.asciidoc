@@ -1,25 +1,26 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-put-lifecycle]]
-=== Put Lifecycle Policy API
+=== Create Lifecycle Policy API
 ++++
-<titleabbrev>Put Policy</titleabbrev>
+<titleabbrev>Create Policy</titleabbrev>
 ++++
 
-Creates or updates an ILM Policy
+beta[]
+
+Creates or updates lifecycle policy.
 
 ==== Request
 
-`PUT _ilm/policy/<policy>`
+`PUT _ilm/policy/<policy_id>`
 
 ==== Description
 
-This API creates a new Lifecycle Policy, or updates an existing one with the same
-identifier. Each call will replace the existing policy and increment the `version`
-associated with the policy.
+Creates a lifecycle policy. If the specified policy exists, the policy is
+replaced and the policy version is incremented.
 
-NOTE: The `version` is only for informational purposes. Only the latest version
-of the policy is stored.
+NOTE: Only the latest version of the policy is stored, you cannot revert to
+previous versions.
 
 ==== Path Parameters
 
@@ -28,17 +29,11 @@ of the policy is stored.
 
 ==== Request Parameters
 
-`timeout`::
-  (time units) Specifies the period of time to wait for the completion of the 
-  PUT operation. When this period of time elapses, the API fails and returns
-  an error. The default value is `30s`. For more information about time units, 
-  see <<time-units>>.
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
-`master_timeout`::
-  (time units) Specifies the period of time to wait for the connection with master.
-  When this period of time elapses, the API fails and returns an error.
-  The default value is `30s`. For more information about time units, see <<time-units>>.
+==== Authorization
 
+include::ilm-cluster-mgt-privilege.asciidoc[]
 
 ==== Examples
 
@@ -71,7 +66,7 @@ PUT _ilm/policy/my_policy
 // CONSOLE
 // TEST
 
-If the request does not encounter errors, you receive the following result:
+If the request succeeds, you receive the following result:
 [source,js]
 ----
 {

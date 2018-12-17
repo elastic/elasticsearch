@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -90,7 +91,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
     }
 
-    private String type;
+    private String type = MapperService.SINGLE_MAPPING_NAME;
     private String id;
     @Nullable
     private String routing;
@@ -121,6 +122,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     }
 
+    public UpdateRequest(String index, String id) {
+        super(index);
+        this.id = id;
+    }
+
+    /**
+     * @deprecated Types are in the process of being removed. Use {@link #UpdateRequest(String, String)} instead.
+     */
+    @Deprecated
     public UpdateRequest(String index, String type, String id) {
         super(index);
         this.type = type;
@@ -136,10 +146,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if(upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
             validationException = addValidationError("can't provide version in upsert request", validationException);
         }
-        if (type == null) {
+        if (Strings.isEmpty(type)) {
             validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
+        if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
 
@@ -149,11 +159,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         } else {
 
             if (version != Versions.MATCH_ANY && retryOnConflict > 0) {
-                validationException = addValidationError("can't provide both retry_on_conflict and a specific version", validationException);
+                validationException = addValidationError("can't provide both retry_on_conflict and a specific version",
+                    validationException);
             }
 
             if (!versionType.validateVersionForWrites(version)) {
-                validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+                validationException = addValidationError("illegal version value [" + version + "] for version type [" +
+                    versionType.name() + "]", validationException);
             }
         }
 
@@ -171,7 +183,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     /**
      * The type of the indexed document.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     @Override
     public String type() {
         return type;
@@ -179,7 +194,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     /**
      * Sets the type of the indexed document.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     public UpdateRequest type(String type) {
         this.type = type;
         return this;
@@ -618,8 +636,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
-     * is thrown.
+     * Sets the index request to be used if the document does not exists. Otherwise, a
+     * {@link org.elasticsearch.index.engine.DocumentMissingException} is thrown.
      */
     public UpdateRequest upsert(IndexRequest upsertRequest) {
         this.upsertRequest = upsertRequest;
@@ -748,7 +766,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         if (in.readBoolean()) {
@@ -760,7 +778,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc = new IndexRequest();
             doc.readFrom(in);
         }
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             String[] fields = in.readOptionalStringArray();
             if (fields != null) {
                 throw new IllegalArgumentException("[fields] is no longer supported");
@@ -785,7 +803,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
 
@@ -806,7 +824,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc.id(id);
             doc.writeTo(out);
         }
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalStringArray(null);
         }
         out.writeOptionalWriteable(fetchSourceContext);

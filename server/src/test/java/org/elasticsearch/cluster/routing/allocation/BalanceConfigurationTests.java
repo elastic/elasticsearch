@@ -42,14 +42,14 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
 
-import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 
 public class BalanceConfigurationTests extends ESAllocationTestCase {
 
@@ -73,7 +73,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), replicaBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceTreshold);
 
-        AllocationService strategy = createAllocationService(settings.build(), new NoopGatewayAllocator());
+        AllocationService strategy = createAllocationService(settings.build(), new TestGatewayAllocator());
 
         ClusterState clusterState = initCluster(strategy);
         assertIndexBalance(clusterState.getRoutingTable(), clusterState.getRoutingNodes(), numberOfNodes, numberOfIndices,
@@ -92,29 +92,28 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         /* Tests balance over replicas only */
         final float indexBalance = 0.0f;
         final float replicaBalance = 1.0f;
-        final float balanceTreshold = 1.0f;
+        final float balanceThreshold = 1.0f;
 
         Settings.Builder settings = Settings.builder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
             ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), indexBalance);
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), replicaBalance);
-        settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceTreshold);
+        settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceThreshold);
 
-        AllocationService strategy = createAllocationService(settings.build(), new NoopGatewayAllocator());
+        AllocationService strategy = createAllocationService(settings.build(), new TestGatewayAllocator());
 
         ClusterState clusterState = initCluster(strategy);
-        assertReplicaBalance(logger, clusterState.getRoutingNodes(), numberOfNodes, numberOfIndices,
-            numberOfReplicas, numberOfShards, balanceTreshold);
+        assertReplicaBalance(clusterState.getRoutingNodes(), numberOfNodes, numberOfIndices,
+            numberOfReplicas, numberOfShards, balanceThreshold);
 
         clusterState = addNode(clusterState, strategy);
-        assertReplicaBalance(logger, clusterState.getRoutingNodes(), numberOfNodes + 1,
-            numberOfIndices, numberOfReplicas, numberOfShards, balanceTreshold);
+        assertReplicaBalance(clusterState.getRoutingNodes(), numberOfNodes + 1,
+            numberOfIndices, numberOfReplicas, numberOfShards, balanceThreshold);
 
         clusterState = removeNodes(clusterState, strategy);
-        assertReplicaBalance(logger, clusterState.getRoutingNodes(),
-            (numberOfNodes + 1) - (numberOfNodes + 1) / 2, numberOfIndices, numberOfReplicas, numberOfShards, balanceTreshold);
-
+        assertReplicaBalance(clusterState.getRoutingNodes(),
+            numberOfNodes + 1 - (numberOfNodes + 1) / 2, numberOfIndices, numberOfReplicas, numberOfShards, balanceThreshold);
     }
 
     private ClusterState initCluster(AllocationService strategy) {
@@ -201,9 +200,25 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     }
 
 
-    private void assertReplicaBalance(Logger logger, RoutingNodes nodes, int numberOfNodes, int numberOfIndices, int numberOfReplicas,
-                                      int numberOfShards, float treshold) {
-        final int numShards = numberOfIndices * numberOfShards * (numberOfReplicas + 1);
+    private void assertReplicaBalance(RoutingNodes nodes, int numberOfNodes, int numberOfIndices, int numberOfReplicas,
+        int numberOfShards, float treshold) {
+        final int unassigned = nodes.unassigned().size();
+
+        if (unassigned > 0) {
+            // Ensure that if there any unassigned shards, all of their replicas are unassigned as well
+            // (i.e. unassigned count is always [replicas] + 1 for each shard unassigned shardId)
+            nodes.shardsWithState(UNASSIGNED).stream().collect(
+                Collectors.toMap(
+                    ShardRouting::shardId,
+                    s -> 1,
+                    (a, b) -> a + b
+            )).values().forEach(
+                count -> assertEquals(numberOfReplicas + 1, count.longValue())
+            );
+        }
+        assertEquals(numberOfNodes, nodes.size());
+
+        final int numShards = numberOfIndices * numberOfShards * (numberOfReplicas + 1) - unassigned;
         final float avgNumShards = (float) (numShards) / (float) (numberOfNodes);
         final int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - treshold)));
         final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + treshold)));
@@ -366,7 +381,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                 assertThat(shardRouting.state(), Matchers.equalTo(ShardRoutingState.INITIALIZING));
             }
         }
-        strategy = createAllocationService(settings.build(), new NoopGatewayAllocator());
+        strategy = createAllocationService(settings.build(), new TestGatewayAllocator());
 
         logger.info("use the new allocator and check if it moves shards");
         routingNodes = clusterState.getRoutingNodes();
@@ -402,19 +417,4 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
     }
 
-    private class NoopGatewayAllocator extends GatewayAllocator {
-        @Override
-        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
-            // noop
-        }
-
-        @Override
-        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
-            // noop
-        }
-        @Override
-        public void allocateUnassigned(RoutingAllocation allocation) {
-            // noop
-        }
-    }
 }

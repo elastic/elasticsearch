@@ -10,39 +10,28 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * Extract the second of the minute from a datetime.
  */
 public class SecondOfMinute extends DateTimeFunction {
-    public SecondOfMinute(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+    public SecondOfMinute(Location location, Expression field, ZoneId zoneId) {
+        super(location, field, zoneId, DateTimeExtractor.SECOND_OF_MINUTE);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return SecondOfMinute::new;
     }
 
     @Override
     protected SecondOfMinute replaceChild(Expression newChild) {
-        return new SecondOfMinute(location(), newChild, timeZone());
+        return new SecondOfMinute(location(), newChild, zoneId());
     }
 
     @Override
     public String dateTimeFormat() {
         return "s";
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.SECOND_OF_MINUTE;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.SECOND_OF_MINUTE;
     }
 }

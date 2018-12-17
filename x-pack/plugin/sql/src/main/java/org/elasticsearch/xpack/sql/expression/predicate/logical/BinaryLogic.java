@@ -36,6 +36,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
 
     @Override
     public boolean nullable() {
-        return left().nullable() && right().nullable();
+        // Cannot fold null due to 3vl, constant folding will do any possible folding.
+        return false;
     }
 }

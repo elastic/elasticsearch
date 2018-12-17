@@ -33,12 +33,14 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "query" : {"term" : { "entityID" : "entity_3789" } }, "highlight" : { "type" : "annotated", "require_field_match": false, "fields" : { "text" : {} } } }
 
   - match: {hits.hits.0.highlight.text.0: "The [quick brown fox](_hit_term=entity_3789&entity_3789) is brown."}
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "query" : {"term" : { "text" : "quick" } }, "highlight" : { "type" : "annotated", "require_field_match": false, "fields" : { "text" : {} } } }
 
   - match: {hits.hits.0.highlight.text.0: "The [quick](_hit_term=quick) brown fox is brown."}

@@ -13,7 +13,7 @@ ext.licenseFile = file("$buildDir/dummy/license")
 ext.noticeFile = file("$buildDir/dummy/notice")
 
 repositories {
-    mavenCentral()
+    jcenter()
     repositories {
         maven {
             url System.getProperty("local.repo.path")

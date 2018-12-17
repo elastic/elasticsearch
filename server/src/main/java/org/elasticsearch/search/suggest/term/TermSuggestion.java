@@ -62,7 +62,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     public TermSuggestion(StreamInput in) throws IOException {
         super(in);
 
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             sort = SortBy.readFromStream(in);
         }
     }
@@ -137,7 +137,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             sort.writeTo(out);
         }
     }

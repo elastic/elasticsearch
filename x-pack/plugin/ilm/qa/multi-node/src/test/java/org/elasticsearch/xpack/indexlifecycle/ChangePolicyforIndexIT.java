@@ -21,9 +21,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
-import org.elasticsearch.xpack.core.indexlifecycle.RolloverStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.indexlifecycle.WaitForRolloverReadyStep;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -91,7 +91,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         ensureGreen(indexName);
 
         // Check the index is on the attempt rollover step
-        assertBusy(() -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, RolloverStep.NAME)));
+        assertBusy(() -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME)));
 
         // Change the policy to policy_2
         Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
@@ -101,7 +101,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         assertOK(client().performRequest(changePolicyRequest));
 
         // Check the index is still on the attempt rollover step
-        assertBusy(() -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, RolloverStep.NAME)));
+        assertBusy(() -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME)));
 
         // Index a single document
         XContentBuilder document = jsonBuilder().startObject();

@@ -113,15 +113,14 @@ NOTE: You can configure only one Kerberos realm on {es} nodes.
 
 To configure a Kerberos realm, there are a few mandatory realm settings and
 other optional settings that you need to configure in the `elasticsearch.yml`
-configuration file. Add a realm of type `kerberos` under the 
-`xpack.security.authc.realms` namespace.
+configuration file. Add a realm configuration under the 
+`xpack.security.authc.realms.kerberos` namespace.
 
 The most common configuration for a Kerberos realm is as follows:
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authc.realms.kerb1:
-  type: kerberos
+xpack.security.authc.realms.kerberos.kerb1:
   order: 3
   keytab.path: es.keytab
   remove_realm_name: false
@@ -154,7 +153,7 @@ The following example uses the role mapping API to map `user@REALM` to the roles
 
 [source,js]
 --------------------------------------------------
-POST _xpack/security/role_mapping/kerbrolemapping
+POST /_security/role_mapping/kerbrolemapping
 {
   "roles" : [ "monitoring_user" ],
   "enabled": true,

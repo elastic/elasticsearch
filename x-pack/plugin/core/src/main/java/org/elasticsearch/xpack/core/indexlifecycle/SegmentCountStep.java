@@ -21,7 +21,7 @@ import java.util.Objects;
 import java.util.stream.StreamSupport;
 
 /**
- * This {@link Step} evaluates whether force_merge was successful
+ * This {@link Step} evaluates whether force_merge was successful by checking the segment count.
  */
 public class SegmentCountStep extends AsyncWaitStep {
     public static final String NAME = "segment-count";

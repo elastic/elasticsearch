@@ -19,11 +19,7 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AbstractAmazonS3;
-import com.amazonaws.services.s3.model.HeadBucketRequest;
-import com.amazonaws.services.s3.model.HeadBucketResult;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -44,11 +40,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class S3RepositoryTests extends ESTestCase {
 
     private static class DummyS3Client extends AbstractAmazonS3 {
-
-        @Override
-        public HeadBucketResult headBucket(final HeadBucketRequest request) throws SdkClientException, AmazonServiceException {
-            return new HeadBucketResult();
-        }
 
         @Override
         public void shutdown() {

@@ -39,6 +39,7 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.intervals.IntervalsSource;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +49,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -268,7 +270,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-            return new TokenStreamComponents(components.getTokenizer(), new FixedShingleFilter(components.getTokenStream(), 2));
+            return new TokenStreamComponents(components.getSource(), new FixedShingleFilter(components.getTokenStream(), 2));
         }
     }
 
@@ -293,7 +295,7 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
             TokenFilter filter = new EdgeNGramTokenFilter(components.getTokenStream(), minChars, maxChars, false);
-            return new TokenStreamComponents(components.getTokenizer(), filter);
+            return new TokenStreamComponents(components.getSource(), filter);
         }
     }
 
@@ -577,6 +579,15 @@ public class TextFieldMapper extends FieldMapper {
             } else {
                 return new NormsFieldExistsQuery(name());
             }
+        }
+
+        @Override
+        public IntervalsSource intervals(String text, int maxGaps, boolean ordered, NamedAnalyzer analyzer) throws IOException {
+            if (indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                throw new IllegalArgumentException("Cannot create intervals against field [" + name() + "] with no positions indexed");
+            }
+            IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? searchAnalyzer() : analyzer);
+            return builder.analyzeText(text, maxGaps, ordered);
         }
 
         @Override

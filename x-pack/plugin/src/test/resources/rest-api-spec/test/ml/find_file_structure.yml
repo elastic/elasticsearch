@@ -8,7 +8,7 @@ setup:
         # This is to stop the usual content type randomization, which
         # would obviously ruin the results for this particular test
         Content-Type: "application/json"
-      xpack.ml.find_file_structure:
+      ml.find_file_structure:
         lines_to_sample: 3
         timeout: 10s
         body:
@@ -65,7 +65,7 @@ setup:
         # This is to stop the usual content type randomization, which
         # would obviously ruin the results for this particular test
         Content-Type: "application/json"
-      xpack.ml.find_file_structure:
+      ml.find_file_structure:
         charset: UTF-8
         format: ndjson
         timestamp_field: time

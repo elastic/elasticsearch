@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 
 import java.time.Duration;
@@ -14,16 +15,21 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 class FlushListener {
 
     final ConcurrentMap<String, FlushAcknowledgementHolder> awaitingFlushed = new ConcurrentHashMap<>();
-    final AtomicBoolean cleared = new AtomicBoolean(false);
+    final RunOnce onClear = new RunOnce(() -> {
+        Iterator<ConcurrentMap.Entry<String, FlushAcknowledgementHolder>> latches = awaitingFlushed.entrySet().iterator();
+        while (latches.hasNext()) {
+            latches.next().getValue().latch.countDown();
+            latches.remove();
+        }
+    });
 
     @Nullable
     FlushAcknowledgement waitForFlush(String flushId, Duration timeout) throws InterruptedException {
-        if (cleared.get()) {
+        if (onClear.hasRun()) {
             return null;
         }
 
@@ -49,13 +55,7 @@ class FlushListener {
     }
 
     void clear() {
-        if (cleared.compareAndSet(false, true)) {
-            Iterator<ConcurrentMap.Entry<String, FlushAcknowledgementHolder>> latches = awaitingFlushed.entrySet().iterator();
-            while (latches.hasNext()) {
-                latches.next().getValue().latch.countDown();
-                latches.remove();
-            }
-        }
+        onClear.run();
     }
 
     private static class FlushAcknowledgementHolder {

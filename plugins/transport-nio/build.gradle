@@ -88,6 +88,8 @@ thirdPartyAudit.excludes = [
         'org.jboss.marshalling.Unmarshaller',
 
         // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
+        'org.slf4j.helpers.FormattingTuple',
+        'org.slf4j.helpers.MessageFormatter',
         'org.slf4j.Logger',
         'org.slf4j.LoggerFactory',
         'org.slf4j.spi.LocationAwareLogger',
@@ -112,7 +114,7 @@ thirdPartyAudit.excludes = [
         'net.jpountz.lz4.LZ4FastDecompressor',
         'net.jpountz.xxhash.StreamingXXHash32',
         'net.jpountz.xxhash.XXHashFactory',
-        'io.netty.internal.tcnative.CertificateRequestedCallback',
+        'io.netty.internal.tcnative.CertificateCallback',
         'io.netty.internal.tcnative.CertificateVerifier',
         'io.netty.internal.tcnative.SessionTicketKey',
         'io.netty.internal.tcnative.SniHostNameMatcher',

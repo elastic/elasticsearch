@@ -9,16 +9,17 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.junit.Before;
@@ -34,6 +35,8 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+
 public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
 
     // follow referrals defaults to false here which differs from the default value of the setting
@@ -43,13 +46,14 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
     // as we cannot control the URL of the referral which may contain a non-resolvable DNS name as
     // this name would be served by the samba4 instance
     public static final Boolean FOLLOW_REFERRALS = Booleans.parseBoolean(getFromEnv("TESTS_AD_FOLLOW_REFERRALS", "false"));
-    public static final String AD_LDAP_URL = getFromEnv("TESTS_AD_LDAP_URL", "ldaps://localhost:61636");
-    public static final String AD_LDAP_GC_URL = getFromEnv("TESTS_AD_LDAP_GC_URL", "ldaps://localhost:63269");
+    public static final String AD_LDAP_URL = getFromEnv("TESTS_AD_LDAP_URL", "ldaps://localhost:" + getFromProperty("636"));
+    public static final String AD_LDAP_GC_URL = getFromEnv("TESTS_AD_LDAP_GC_URL", "ldaps://localhost:" + getFromProperty("3269"));
     public static final String PASSWORD = getFromEnv("TESTS_AD_USER_PASSWORD", "Passw0rd");
-    public static final String AD_LDAP_PORT = getFromEnv("TESTS_AD_LDAP_PORT", "61389");
-    public static final String AD_LDAPS_PORT = getFromEnv("TESTS_AD_LDAPS_PORT", "61636");
-    public static final String AD_GC_LDAP_PORT = getFromEnv("TESTS_AD_GC_LDAP_PORT", "63268");
-    public static final String AD_GC_LDAPS_PORT = getFromEnv("TESTS_AD_GC_LDAPS_PORT", "63269");
+    public static final String AD_LDAP_PORT = getFromEnv("TESTS_AD_LDAP_PORT", getFromProperty("389"));
+
+    public static final String AD_LDAPS_PORT = getFromEnv("TESTS_AD_LDAPS_PORT",  getFromProperty("636"));
+    public static final String AD_GC_LDAP_PORT = getFromEnv("TESTS_AD_GC_LDAP_PORT", getFromProperty("3268"));
+    public static final String AD_GC_LDAPS_PORT = getFromEnv("TESTS_AD_GC_LDAPS_PORT", getFromProperty("3269"));
     public static final String AD_DOMAIN = "ad.test.elasticsearch.com";
 
     protected SSLService sslService;
@@ -98,25 +102,27 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
         sslService = new SSLService(globalSettings, environment);
     }
 
-    Settings buildAdSettings(String ldapUrl, String adDomainName, String userSearchDN, LdapSearchScope scope,
-                                           boolean hostnameVerification) {
+    Settings buildAdSettings(RealmConfig.RealmIdentifier realmId, String ldapUrl, String adDomainName, String userSearchDN,
+                             LdapSearchScope scope, boolean hostnameVerification) {
+        final String realmName = realmId.getName();
         Settings.Builder builder = Settings.builder()
-                .putList(SessionFactorySettings.URLS_SETTING, ldapUrl)
-                .put(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, adDomainName)
-                .put(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING, userSearchDN)
-                .put(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING, scope)
-                .put(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.getKey(), AD_LDAP_PORT)
-                .put(ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING.getKey(), AD_LDAPS_PORT)
-                .put(ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING.getKey(), AD_GC_LDAP_PORT)
-                .put(ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING.getKey(), AD_GC_LDAPS_PORT)
-                .put("follow_referrals", FOLLOW_REFERRALS);
+                .putList(getFullSettingKey(realmId, SessionFactorySettings.URLS_SETTING), ldapUrl)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING), userSearchDN)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING), scope)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING), AD_GC_LDAPS_PORT)
+                .put(getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS);
         if (randomBoolean()) {
-            builder.put("ssl.verification_mode", hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
+            builder.put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
+                    hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
         } else {
-            builder.put(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
+            builder.put(getFullSettingKey(realmId, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
         }
         if (useGlobalSSL == false) {
-            builder.putList("ssl.certificate_authorities", certificatePaths);
+            builder.putList(getFullSettingKey(realmId, SSLConfigurationSettings.CAPATH_SETTING_REALM), certificatePaths);
         }
         return builder.build();
     }
@@ -145,5 +151,12 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
     private static String getFromEnv(String envVar, String defaultValue) {
         final String value = System.getenv(envVar);
         return value == null ? defaultValue : value;
+    }
+
+    private static String getFromProperty(String port) {
+        String key = "test.fixtures.smb-fixture.tcp." + port;
+        final String value = System.getProperty(key);
+        assertNotNull("Expected the actual value for port " + port + " to be in system property " + key, value);
+        return value;
     }
 }

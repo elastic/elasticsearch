@@ -8,7 +8,7 @@ This API enables you to check the status of your basic license.
 [float]
 ==== Request
 
-`GET _xpack/license/basic_status`
+`GET /_license/basic_status`
 
 [float]
 ==== Description
@@ -32,7 +32,7 @@ The following example checks whether you are eligible to start a basic:
 
 [source,js]
 ------------------------------------------------------------
-GET _xpack/license/basic_status
+GET /_license/basic_status
 ------------------------------------------------------------
 // CONSOLE
 

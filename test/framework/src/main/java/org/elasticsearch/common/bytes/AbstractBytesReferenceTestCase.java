@@ -22,11 +22,13 @@ package org.elasticsearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,8 +38,8 @@ import java.util.Arrays;
 
 public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
-    protected static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
-    protected final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), false);
+    protected static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
+    protected final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), CircuitBreaker.REQUEST);
 
     public void testGet() throws IOException {
         int length = randomIntBetween(1, PAGE_SIZE * 3);
@@ -68,20 +70,21 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     }
 
     public void testSlice() throws IOException {
-        int length = randomInt(PAGE_SIZE * 3);
-        BytesReference pbr = newBytesReference(length);
-        int sliceOffset = randomIntBetween(0, length / 2);
-        int sliceLength = Math.max(0, length - sliceOffset - 1);
-        BytesReference slice = pbr.slice(sliceOffset, sliceLength);
-        assertEquals(sliceLength, slice.length());
-        for (int i = 0; i < sliceLength; i++) {
-            assertEquals(pbr.get(i+sliceOffset), slice.get(i));
-        }
-        BytesRef singlePageOrNull = getSinglePageOrNull(slice);
-        if (singlePageOrNull != null) {
-            // we can't assert the offset since if the length is smaller than the refercence
-            // the offset can be anywhere
-            assertEquals(sliceLength, singlePageOrNull.length);
+        for (int length : new int[] {0, 1, randomIntBetween(2, PAGE_SIZE), randomIntBetween(PAGE_SIZE + 1, 3 * PAGE_SIZE)}) {
+            BytesReference pbr = newBytesReference(length);
+            int sliceOffset = randomIntBetween(0, length / 2);
+            int sliceLength = Math.max(0, length - sliceOffset - 1);
+            BytesReference slice = pbr.slice(sliceOffset, sliceLength);
+            assertEquals(sliceLength, slice.length());
+            for (int i = 0; i < sliceLength; i++) {
+                assertEquals(pbr.get(i+sliceOffset), slice.get(i));
+            }
+            BytesRef singlePageOrNull = getSinglePageOrNull(slice);
+            if (singlePageOrNull != null) {
+                // we can't assert the offset since if the length is smaller than the refercence
+                // the offset can be anywhere
+                assertEquals(sliceLength, singlePageOrNull.length);
+            }
         }
     }
 

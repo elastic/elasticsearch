@@ -371,7 +371,7 @@ This command should give you a JSON result:
   "cluster_name" : "elasticsearch",
   "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
-    "number" : "{version}",
+    "number" : "{version_qualified}",
     "build_flavor" : "{build_flavor}",
     "build_type" : "zip",
     "build_hash" : "f27399d",

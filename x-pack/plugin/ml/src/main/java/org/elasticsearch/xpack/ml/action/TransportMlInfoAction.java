@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.tasks.Task;
@@ -30,10 +29,8 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
     private final ClusterService clusterService;
 
     @Inject
-    public TransportMlInfoAction(Settings settings, TransportService transportService,
-                                 ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, MlInfoAction.NAME, transportService, actionFilters,
-            (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new);
+    public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+        super(MlInfoAction.NAME, transportService, actionFilters, (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new);
         this.clusterService = clusterService;
     }
 

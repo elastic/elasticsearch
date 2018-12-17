@@ -20,6 +20,8 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -35,7 +37,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -70,7 +71,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
-final class TransportClientNodesService extends AbstractComponent implements Closeable {
+final class TransportClientNodesService implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(TransportClientNodesService.class);
 
     private final TimeValue nodesSamplerInterval;
 

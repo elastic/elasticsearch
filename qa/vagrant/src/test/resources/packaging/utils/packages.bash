@@ -76,7 +76,15 @@ install_package() {
     if is_rpm; then
         rpm $rpmCommand $PACKAGE_NAME-$version.rpm
     elif is_dpkg; then
-        dpkg $dpkgCommand -i $PACKAGE_NAME-$version.deb
+        run dpkg $dpkgCommand -i $PACKAGE_NAME-$version.deb
+        [[ "$status" -eq 0 ]] || {
+            echo "dpkg failed:"
+            echo "$output"
+            run lsof /var/lib/dpkg/lock
+            echo "lsof /var/lib/dpkg/lock:"
+            echo "$output"
+            false
+        }
     else
         skip "Only rpm or deb supported"
     fi

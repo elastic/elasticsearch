@@ -12,41 +12,41 @@ import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.joda.time.DateTime;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Objects;
-import java.util.TimeZone;
 
 abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     
-    private final TimeZone timeZone;
+    private final ZoneId zoneId;
     private final String name;
 
-    BaseDateTimeFunction(Location location, Expression field, TimeZone timeZone) {
+    BaseDateTimeFunction(Location location, Expression field, ZoneId zoneId) {
         super(location, field);
-        this.timeZone = timeZone;
+        this.zoneId = zoneId;
 
         StringBuilder sb = new StringBuilder(super.name());
         // add timezone as last argument
-        sb.insert(sb.length() - 1, " [" + timeZone.getID() + "]");
+        sb.insert(sb.length() - 1, " [" + zoneId.getId() + "]");
 
         this.name = sb.toString();
     }
 
     @Override
     protected final NodeInfo<BaseDateTimeFunction> info() {
-        return NodeInfo.create(this, ctorForInfo(), field(), timeZone());
+        return NodeInfo.create(this, ctorForInfo(), field(), zoneId());
     }
 
-    protected abstract NodeInfo.NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo();
+    protected abstract NodeInfo.NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo();
 
     @Override
     protected TypeResolution resolveType() {
         return Expressions.typeMustBeDate(field(), functionName(), ParamOrdinal.DEFAULT);
     }
 
-    public TimeZone timeZone() {
-        return timeZone;
+    public ZoneId zoneId() {
+        return zoneId;
     }
     
     @Override
@@ -61,15 +61,15 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     public Object fold() {
-        DateTime folded = (DateTime) field().fold();
+        ZonedDateTime folded = (ZonedDateTime) field().fold();
         if (folded == null) {
             return null;
         }
 
-        return doFold(folded.getMillis(), timeZone().getID());
+        return doFold(folded.withZoneSameInstant(zoneId));
     }
 
-    protected abstract Object doFold(long millis, String tzId);
+    protected abstract Object doFold(ZonedDateTime dateTime);
     
 
     @Override
@@ -79,11 +79,11 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
         }
         BaseDateTimeFunction other = (BaseDateTimeFunction) obj;
         return Objects.equals(other.field(), field())
-            && Objects.equals(other.timeZone(), timeZone());
+                && Objects.equals(other.zoneId(), zoneId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), timeZone());
+        return Objects.hash(field(), zoneId());
     }
 }

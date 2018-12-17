@@ -102,7 +102,7 @@ Mayuko     | 12
 selectWithScalarOnNested
 SELECT first_name f, last_name l, YEAR(dep.from_date) start FROM test_emp WHERE dep.dep_name = 'Production' AND languages > 1 ORDER BY start LIMIT 5;
 
-f:s                  | l:s                  | start:i
+f:s                  | l:s           | start:i
 
 Sreekrishna          |Servieres      |1985           
 Zhongwei             |Rosen          |1986           
@@ -137,7 +137,7 @@ d003           |Azuma
 d002           |Baek
 d003           |Baek
 d004           |Bamford
-; 
+;
 
 selectNestedFieldLast
 SELECT first_name, dep.dep_id FROM test_emp ORDER BY first_name LIMIT 5;
@@ -221,4 +221,79 @@ Amabile        |d005           |Development    |1992-11-18T00:00:00.000Z|9999-01
 Anneke         |d005           |Development    |1990-08-05T00:00:00.000Z|9999-01-01T00:00:00.000Z|Preusig
 Anoosh         |d005           |Development    |1991-08-30T00:00:00.000Z|9999-01-01T00:00:00.000Z|Peyn
 Arumugam       |d008           |Research       |1987-04-18T00:00:00.000Z|1997-11-08T00:00:00.000Z|Ossenbruggen
+;
+
+//
+// Nested documents tests more targetted for JdbcCsvNestedDocsIT class (with specific fetch_size value)
+//
+
+// employee 10098 has 4 departments
+
+selectNestedFieldWithFourInnerHitsAndLimitOne
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 LIMIT 1;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+;
+
+selectNestedFieldWithFourInnerHitsAndLimitTwo
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 LIMIT 2;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+d009           |Customer Service|Sreekrishna    |10098
+;
+
+selectNestedFieldWithFourInnerHitsAndLimitThree
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 LIMIT 3;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+d009           |Customer Service|Sreekrishna    |10098
+d008           |Research        |Sreekrishna    |10098
+;
+
+selectNestedFieldWithFourInnerHitsAndLimitFour
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 LIMIT 4;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+d009           |Customer Service|Sreekrishna    |10098
+d008           |Research        |Sreekrishna    |10098
+d007           |Sales           |Sreekrishna    |10098
+;
+
+selectNestedFieldWithFourInnerHitsAndLimitFive
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 LIMIT 5;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+d009           |Customer Service|Sreekrishna    |10098
+d008           |Research        |Sreekrishna    |10098
+d007           |Sales           |Sreekrishna    |10098
+;
+
+selectNestedFieldFromTwoDocumentsWithFourInnerHitsAndLimitFive
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 OR emp_no=10099 LIMIT 5;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+d009           |Customer Service|Sreekrishna    |10098
+d008           |Research        |Sreekrishna    |10098
+d007           |Sales           |Sreekrishna    |10098
+d007           |Sales           |Valter         |10099
+;
+
+selectNestedFieldFromDocumentWithOneInnerHitAndLimitOne
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10099 LIMIT 1;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d007           |Sales           |Valter         |10099
 ;

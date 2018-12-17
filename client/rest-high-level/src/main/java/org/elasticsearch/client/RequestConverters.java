@@ -50,6 +50,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.MultiTermVectorsRequest;
+import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
@@ -68,6 +70,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -78,7 +81,6 @@ import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.client.core.TermVectorsRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -264,7 +266,7 @@ final class RequestConverters {
 
         return request;
     }
-    
+
     static Request sourceExists(GetRequest getRequest) {
         Request request = new Request(HttpHead.METHOD_NAME, endpoint(getRequest.index(), getRequest.type(), getRequest.id(), "_source"));
 
@@ -275,7 +277,7 @@ final class RequestConverters {
         parameters.withRealtime(getRequest.realtime());
         // Version params are not currently supported by the source exists API so are not passed
         return request;
-    }    
+    }
 
     static Request multiGet(MultiGetRequest multiGetRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_mget");
@@ -315,7 +317,9 @@ final class RequestConverters {
     }
 
     static Request update(UpdateRequest updateRequest) throws IOException {
-        String endpoint = endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
+        String endpoint = updateRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
+            ? endpoint(updateRequest.index(), "_update", updateRequest.id())
+            : endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         Params parameters = new Params(request);
@@ -353,8 +357,15 @@ final class RequestConverters {
         return request;
     }
 
-    static Request search(SearchRequest searchRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), "_search"));
+    /**
+     * Convert a {@linkplain SearchRequest} into a {@linkplain Request}.
+     * @param searchRequest the request to convert
+     * @param searchEndpoint the name of the search endpoint. {@literal _search}
+     *    for standard searches and {@literal _rollup_search} for rollup
+     *    searches.
+     */
+    static Request search(SearchRequest searchRequest, String searchEndpoint) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), searchEndpoint));
 
         Params params = new Params(request);
         addSearchRequestParams(params, searchRequest);
@@ -454,8 +465,10 @@ final class RequestConverters {
     }
 
     static Request explain(ExplainRequest explainRequest) throws IOException {
-        Request request = new Request(HttpGet.METHOD_NAME,
-            endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain"));
+        String endpoint = explainRequest.isTypeless()
+            ? endpoint(explainRequest.index(), "_explain", explainRequest.id())
+            : endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain");
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         Params params = new Params(request);
         params.withStoredFields(explainRequest.storedFields());
@@ -486,9 +499,18 @@ final class RequestConverters {
     }
 
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
+        return prepareReindexRequest(reindexRequest, true);
+    }
+
+    static Request submitReindex(ReindexRequest reindexRequest) throws IOException {
+        return prepareReindexRequest(reindexRequest, false);
+    }
+
+    private static Request prepareReindexRequest(ReindexRequest reindexRequest, boolean waitForCompletion) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params(request)
+            .withWaitForCompletion(waitForCompletion)
             .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
@@ -605,8 +627,18 @@ final class RequestConverters {
     }
 
     static Request termVectors(TermVectorsRequest tvrequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPart(
-            tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId()).addPathPartAsIs("_termvectors").build();
+        String endpoint;
+        if (tvrequest.getType() != null) {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId())
+                .addPathPartAsIs("_termvectors")
+                .build();
+        } else {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex())
+                .addPathPartAsIs("_termvectors")
+                .addPathPart(tvrequest.getId())
+                .build();
+        }
+
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new Params(request);
         params.withRouting(tvrequest.getRouting());
@@ -614,6 +646,13 @@ final class RequestConverters {
         params.withFields(tvrequest.getFields());
         params.withRealtime(tvrequest.getRealtime());
         request.setEntity(createEntity(tvrequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request mtermVectors(MultiTermVectorsRequest mtvrequest) throws IOException {
+        String endpoint = "_mtermvectors";
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(mtvrequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -635,7 +674,12 @@ final class RequestConverters {
     }
 
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
-        BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
+        return createEntity(toXContent, xContentType, ToXContent.EMPTY_PARAMS);
+    }
+
+    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
+        throws IOException {
+        BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
@@ -837,22 +881,24 @@ final class RequestConverters {
         }
 
         Params withIndicesOptions(IndicesOptions indicesOptions) {
-            withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
-            putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
-            String expandWildcards;
-            if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
-                expandWildcards = "none";
-            } else {
-                StringJoiner joiner = new StringJoiner(",");
-                if (indicesOptions.expandWildcardsOpen()) {
-                    joiner.add("open");
+            if (indicesOptions != null) {
+                withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
+                putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
+                String expandWildcards;
+                if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
+                    expandWildcards = "none";
+                } else {
+                    StringJoiner joiner = new StringJoiner(",");
+                    if (indicesOptions.expandWildcardsOpen()) {
+                        joiner.add("open");
+                    }
+                    if (indicesOptions.expandWildcardsClosed()) {
+                        joiner.add("closed");
+                    }
+                    expandWildcards = joiner.toString();
                 }
-                if (indicesOptions.expandWildcardsClosed()) {
-                    joiner.add("closed");
-                }
-                expandWildcards = joiner.toString();
+                putParam("expand_wildcards", expandWildcards);
             }
-            putParam("expand_wildcards", expandWildcards);
             return this;
         }
 
@@ -897,11 +943,8 @@ final class RequestConverters {
             return this;
         }
 
-        Params withWaitForCompletion(boolean waitForCompletion) {
-            if (waitForCompletion) {
-                return putParam("wait_for_completion", Boolean.TRUE.toString());
-            }
-            return this;
+        Params withWaitForCompletion(Boolean waitForCompletion) {
+            return putParam("wait_for_completion", waitForCompletion.toString());
         }
 
         Params withNodes(String[] nodes) {

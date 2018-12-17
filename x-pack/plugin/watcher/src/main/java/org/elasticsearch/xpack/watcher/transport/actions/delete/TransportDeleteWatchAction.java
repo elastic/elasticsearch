@@ -14,12 +14,11 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.util.function.Supplier;
@@ -36,9 +35,8 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
     private final Client client;
 
     @Inject
-    public TransportDeleteWatchAction(Settings settings, TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(settings, DeleteWatchAction.NAME, transportService, actionFilters,
-            (Supplier<DeleteWatchRequest>) DeleteWatchRequest::new);
+    public TransportDeleteWatchAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(DeleteWatchAction.NAME, transportService, actionFilters, (Supplier<DeleteWatchRequest>) DeleteWatchRequest::new);
         this.client = client;
     }
 

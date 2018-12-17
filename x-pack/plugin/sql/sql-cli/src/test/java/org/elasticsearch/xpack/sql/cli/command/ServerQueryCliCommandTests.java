@@ -11,11 +11,12 @@ import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 
-import java.sql.JDBCType;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -108,14 +109,14 @@ public class ServerQueryCliCommandTests extends ESTestCase {
         List<List<Object>> rows;
         List<ColumnInfo> columns;
         if (includeColumns) {
-            columns = Collections.singletonList(new ColumnInfo("", "field", "string", JDBCType.VARCHAR, 0));
+            columns = singletonList(new ColumnInfo("", "field", "string", Types.VARCHAR, 0));
         } else {
             columns = null;
         }
         if (val != null) {
-            rows = Collections.singletonList(Collections.singletonList(val));
+            rows = singletonList(Collections.singletonList(val));
         } else {
-            rows = Collections.singletonList(Collections.emptyList());
+            rows = singletonList(Collections.emptyList());
         }
         return new SqlQueryResponse(cursor, columns, rows);
     }

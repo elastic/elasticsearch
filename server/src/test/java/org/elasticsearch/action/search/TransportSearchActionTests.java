@@ -80,7 +80,7 @@ public class TransportSearchActionTests extends ESTestCase {
         GroupShardsIterator<ShardIterator> localShardsIterator = new GroupShardsIterator<>(localShardIterators);
 
         OriginalIndices localIndices = new OriginalIndices(new String[]{"local_alias", "local_index_2"},
-                IndicesOptions.strictExpandOpenAndForbidClosed());
+                SearchRequest.DEFAULT_INDICES_OPTIONS);
 
         OriginalIndices remoteIndices = new OriginalIndices(new String[]{"remote_alias", "remote_index_2"},
                 IndicesOptions.strictExpandOpen());
@@ -185,9 +185,9 @@ public class TransportSearchActionTests extends ESTestCase {
 
             Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
             remoteIndicesByCluster.put("test_cluster_1",
-                new OriginalIndices(new String[]{"fo*", "ba*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
+                new OriginalIndices(new String[]{"fo*", "ba*"}, SearchRequest.DEFAULT_INDICES_OPTIONS));
             remoteIndicesByCluster.put("test_cluster_2",
-                new OriginalIndices(new String[]{"x*"}, IndicesOptions.strictExpandOpenAndForbidClosed()));
+                new OriginalIndices(new String[]{"x*"}, SearchRequest.DEFAULT_INDICES_OPTIONS));
             Map<String, AliasFilter> remoteAliases = new HashMap<>();
             TransportSearchAction.processRemoteShards(searchShardsResponseMap, remoteIndicesByCluster, iteratorList,
                 remoteAliases);
@@ -274,6 +274,6 @@ public class TransportSearchActionTests extends ESTestCase {
             localIndices[i] = randomAlphaOfLengthBetween(3, 10);
         }
         return new OriginalIndices(localIndices, IndicesOptions.fromOptions(randomBoolean(),
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
     }
 }

@@ -33,7 +33,6 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.lang.invoke.MethodType;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.security.AccessControlContext;
 import java.security.AccessController;
@@ -330,42 +329,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 adapter.returnValue();
                 adapter.endMethod();
             }
-        }
-    }
-
-    Constructor<?> compile(Compiler compiler, String scriptName, String source, Map<String, String> params) {
-        final CompilerSettings compilerSettings = buildCompilerSettings(params);
-
-        // Check we ourselves are not being called by unprivileged code.
-        SpecialPermission.check();
-
-        // Create our loader (which loads compiled code with no permissions).
-        final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
-            @Override
-            public Loader run() {
-                return compiler.createLoader(getClass().getClassLoader());
-            }
-        });
-
-        try {
-            // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<Constructor<?>>() {
-                @Override
-                public Constructor<?> run() {
-                    String name = scriptName == null ? source : scriptName;
-                    Constructor<?> constructor = compiler.compile(loader, new MainMethodReserved(), name, source, compilerSettings);
-
-                    try {
-                        return constructor;
-                    } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
-                        throw new IllegalStateException(
-                            "An internal error occurred attempting to define the script [" + name + "].", exception);
-                    }
-                }
-            }, COMPILATION_CONTEXT);
-        // Note that it is safe to catch any of the following errors since Painless is stateless.
-        } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
-            throw convertToScriptException(source, e);
         }
     }
 

@@ -64,10 +64,24 @@ SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND (gender = 'M' AND NO
 
 // TODO: (NOT) RLIKE in particular and more NOT queries in general
 
-whereIsNotNullAndComparison
-SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL AND emp_no < 10005 ORDER BY emp_no;
 whereIsNull
 SELECT last_name l FROM "test_emp" WHERE emp_no IS NULL;
+whereIsNullAndNegation
+SELECT last_name l FROM "test_emp" WHERE NOT emp_no IS NULL;
+whereIsNotNull
+SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL;
+whereIsNotNullAndNegation
+SELECT last_name l FROM "test_emp" WHERE NOT emp_no IS NOT NULL;
+
+whereIsNullAndComparison
+SELECT last_name l FROM "test_emp" WHERE emp_no IS NULL AND emp_no < 10005 ORDER BY emp_no;
+whereIsNullWithComparisonAndNegation
+SELECT last_name l FROM "test_emp" WHERE (NOT emp_no IS NULL) AND emp_no < 10005 ORDER BY emp_no;
+whereIsNotNullAndComparison
+SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL AND emp_no < 10005 ORDER BY emp_no;
+whereIsNotNullWithComparisonAndNegation
+SELECT last_name l FROM "test_emp" WHERE (NOT emp_no IS NOT NULL) AND emp_no < 10005 ORDER BY emp_no;
+
 whereIsNotNullAndIsNull
 // tag::whereIsNotNullAndIsNull
 SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL AND gender IS NULL;

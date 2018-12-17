@@ -20,12 +20,12 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.client.graph.GraphExploreRequest;
+import org.elasticsearch.client.graph.Hop;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.client.graph.GraphExploreRequest;
-import org.elasticsearch.client.graph.Hop;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -58,7 +58,7 @@ public class GrapRequestConvertersTests extends ESTestCase {
         }
         Request request = GraphRequestConverters.explore(graphExploreRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/index1,index2/type1,type2/_xpack/graph/_explore", request.getEndpoint());
+        assertEquals("/index1,index2/type1,type2/_graph/explore", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         RequestConvertersTests.assertToXContentBody(graphExploreRequest, request.getEntity());

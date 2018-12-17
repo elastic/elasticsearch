@@ -44,11 +44,10 @@ public class TransportExplainLifecycleAction
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public TransportExplainLifecycleAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                           ThreadPool threadPool, ActionFilters actionFilters,
-                                           IndexNameExpressionResolver indexNameExpressionResolver,
+    public TransportExplainLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                            NamedXContentRegistry xContentRegistry) {
-        super(settings, ExplainLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(ExplainLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 ExplainLifecycleRequest::new, indexNameExpressionResolver);
         this.xContentRegistry = xContentRegistry;
     }

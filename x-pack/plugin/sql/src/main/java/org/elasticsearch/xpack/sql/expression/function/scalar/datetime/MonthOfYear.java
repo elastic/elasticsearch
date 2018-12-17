@@ -10,39 +10,28 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * Extract the month of the year from a datetime.
  */
 public class MonthOfYear extends DateTimeFunction {
-    public MonthOfYear(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+    public MonthOfYear(Location location, Expression field, ZoneId zoneId) {
+        super(location, field, zoneId, DateTimeExtractor.MONTH_OF_YEAR);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return MonthOfYear::new;
     }
 
     @Override
     protected MonthOfYear replaceChild(Expression newChild) {
-        return new MonthOfYear(location(), newChild, timeZone());
+        return new MonthOfYear(location(), newChild, zoneId());
     }
 
     @Override
     public String dateTimeFormat() {
         return "M";
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.MONTH_OF_YEAR;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.MONTH_OF_YEAR;
     }
 }

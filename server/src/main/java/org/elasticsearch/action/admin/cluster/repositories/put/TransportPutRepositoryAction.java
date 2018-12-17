@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -43,10 +42,10 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
     private final RepositoriesService repositoriesService;
 
     @Inject
-    public TransportPutRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportPutRepositoryAction(TransportService transportService, ClusterService clusterService,
                                         RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
               indexNameExpressionResolver, PutRepositoryRequest::new);
         this.repositoriesService = repositoriesService;
     }

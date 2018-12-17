@@ -20,6 +20,8 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -57,6 +59,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class MockRepository extends FsRepository {
+    private static final Logger logger = LogManager.getLogger(MockRepository.class);
 
     public static class Plugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
 

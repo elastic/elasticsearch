@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.grok.Grok;
 import org.junit.After;
 import org.junit.Before;
 
@@ -53,6 +54,39 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
                 ElasticsearchTimeoutException e = expectThrows(ElasticsearchTimeoutException.class,
                     () -> timeoutChecker.check("should timeout"));
                 assertEquals("Aborting timeout exceeded test during [should timeout] as it has taken longer than the timeout of [" +
+                    timeout + "]", e.getMessage());
+            });
+        }
+    }
+
+    public void testWatchdog() {
+
+        assertFalse(Thread.interrupted());
+
+        TimeValue timeout = TimeValue.timeValueMillis(100);
+        try (TimeoutChecker timeoutChecker = new TimeoutChecker("watchdog test", timeout, scheduler)) {
+
+            TimeoutChecker.watchdog.register();
+            try {
+                expectThrows(InterruptedException.class, () -> Thread.sleep(10000));
+            } finally {
+                TimeoutChecker.watchdog.unregister();
+            }
+        }
+    }
+
+    public void testGrokCaptures() throws Exception {
+
+        assertFalse(Thread.interrupted());
+        Grok grok = new Grok(Grok.getBuiltinPatterns(), "{%DATA:data}{%GREEDYDATA:greedydata}", TimeoutChecker.watchdog);
+
+        TimeValue timeout = TimeValue.timeValueMillis(1);
+        try (TimeoutChecker timeoutChecker = new TimeoutChecker("grok captures test", timeout, scheduler)) {
+
+            assertBusy(() -> {
+                ElasticsearchTimeoutException e = expectThrows(ElasticsearchTimeoutException.class,
+                    () -> timeoutChecker.grokCaptures(grok, randomAlphaOfLength(1000000), "should timeout"));
+                assertEquals("Aborting grok captures test during [should timeout] as it has taken longer than the timeout of [" +
                     timeout + "]", e.getMessage());
             });
         }

@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -63,10 +62,9 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     private final JobManager jobManager;
 
     @Inject
-    public TransportGetOverallBucketsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, ClusterService clusterService,
-                                            JobManager jobManager, Client client) {
-        super(settings, GetOverallBucketsAction.NAME, transportService, actionFilters,
+    public TransportGetOverallBucketsAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
+                                            ClusterService clusterService, JobManager jobManager, Client client) {
+        super(GetOverallBucketsAction.NAME, transportService, actionFilters,
             (Supplier<GetOverallBucketsAction.Request>) GetOverallBucketsAction.Request::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -140,7 +138,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
         searchRequest.source().aggregation(AggregationBuilders.max(LATEST_TIME).field(Result.TIMESTAMP.getPreferredName()));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
-                    long totalHits = searchResponse.getHits().getTotalHits();
+                    long totalHits = searchResponse.getHits().getTotalHits().value;
                     if (totalHits > 0) {
                         Aggregations aggregations = searchResponse.getAggregations();
                         Min min = aggregations.get(EARLIEST_TIME);
@@ -259,6 +257,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                 .start(startTime)
                 .end(endTime)
                 .build();
+        searchSourceBuilder.trackTotalHits(true);
 
         SearchRequest searchRequest = new SearchRequest(indices);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));

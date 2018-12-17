@@ -102,7 +102,9 @@ public class MultiTermVectorsRequest extends ActionRequest
                                 throw new IllegalArgumentException("docs array element should include an object");
                             }
                             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(template);
-                            termVectorsRequest.type(MapperService.SINGLE_MAPPING_NAME);
+                            if (termVectorsRequest.type() == null) {
+                                termVectorsRequest.type(MapperService.SINGLE_MAPPING_NAME);
+                            }
                             TermVectorsRequest.parseRequest(termVectorsRequest, parser);
                             add(termVectorsRequest);
                         }

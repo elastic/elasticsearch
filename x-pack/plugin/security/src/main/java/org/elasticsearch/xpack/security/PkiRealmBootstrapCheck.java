@@ -36,7 +36,7 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
      */
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
-        final Settings settings = context.settings;
+        final Settings settings = context.settings();
         final Map<RealmConfig.RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
         final boolean pkiRealmEnabled = realms.entrySet().stream()
                 .filter(e -> PkiRealmSettings.TYPE.equals(e.getKey().getType()))

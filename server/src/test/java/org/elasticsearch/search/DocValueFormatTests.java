@@ -26,8 +26,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
@@ -60,13 +60,14 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals(DocValueFormat.Decimal.class, vf.getClass());
         assertEquals("###.##", ((DocValueFormat.Decimal) vf).pattern);
 
-        DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(Joda.forPattern("epoch_second"), DateTimeZone.forOffsetHours(1));
+        DocValueFormat.DateTime dateFormat =
+            new DocValueFormat.DateTime(DateFormatter.forPattern("epoch_second"), DateTimeZone.forOffsetHours(1));
         out = new BytesStreamOutput();
         out.writeNamedWriteable(dateFormat);
         in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
         vf = in.readNamedWriteable(DocValueFormat.class);
         assertEquals(DocValueFormat.DateTime.class, vf.getClass());
-        assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.format());
+        assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
         assertEquals(DateTimeZone.forOffsetHours(1), ((DocValueFormat.DateTime) vf).timeZone);
 
         out = new BytesStreamOutput();

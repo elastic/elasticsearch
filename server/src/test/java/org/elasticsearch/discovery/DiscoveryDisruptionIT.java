@@ -20,14 +20,15 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -73,10 +74,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        ZenPing zenPing = ((TestZenDiscovery) internalCluster().getInstance(Discovery.class)).getZenPing();
-        if (zenPing instanceof UnicastZenPing) {
-            ((UnicastZenPing) zenPing).clearTemporalResponses();
-        }
+        clearTemporalResponses();
 
         // Simulate a network issue between the unicast target node and the rest of the cluster
         NetworkDisruption networkDisconnect = new NetworkDisruption(new TwoPartitions(unicastTargetSide, restOfClusterSide),
@@ -111,10 +109,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
         // includes all the other nodes that have pinged it and the issue doesn't manifest
-        ZenPing zenPing = ((TestZenDiscovery) internalCluster().getInstance(Discovery.class)).getZenPing();
-        if (zenPing instanceof UnicastZenPing) {
-            ((UnicastZenPing) zenPing).clearTemporalResponses();
-        }
+        clearTemporalResponses();
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
         NetworkDisruption networkDisconnect = new NetworkDisruption(new TwoPartitions(masterNode, isolatedNode),
@@ -138,8 +133,11 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * Test cluster join with issues in cluster state publishing *
      */
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
-        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        String nonMasterNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
+        // TODO: enable this for Zen2 once lag-detection is implemented
+        String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
+        String nonMasterNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
@@ -159,15 +157,18 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         TransportService localTransportService =
                 internalCluster().getInstance(TransportService.class, discoveryNodes.getLocalNode().getName());
         if (randomBoolean()) {
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME,
+                PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME);
         } else {
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.COMMIT_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.COMMIT_ACTION_NAME,
+                PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
         }
 
         logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);
         final CountDownLatch countDownLatch = new CountDownLatch(2);
         nonMasterTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
-            if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME)) {
+            if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME) ||
+                action.equals(JoinHelper.JOIN_ACTION_NAME)) {
                 countDownLatch.countDown();
             }
             connection.sendRequest(requestId, action, request, options);
@@ -219,9 +220,13 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3);
         final String preferredMasterName = internalCluster().getMasterName();
         final DiscoveryNode preferredMaster = internalCluster().clusterService(preferredMasterName).localNode();
-        for (String node : nodes) {
-            DiscoveryNode discoveryNode = internalCluster().clusterService(node).localNode();
-            assertThat(discoveryNode.getId(), greaterThanOrEqualTo(preferredMaster.getId()));
+        final Discovery discovery = internalCluster().getInstance(Discovery.class);
+        // only Zen1 guarantees that node with lowest id is elected
+        if (discovery instanceof ZenDiscovery) {
+            for (String node : nodes) {
+                DiscoveryNode discoveryNode = internalCluster().clusterService(node).localNode();
+                assertThat(discoveryNode.getId(), greaterThanOrEqualTo(preferredMaster.getId()));
+            }
         }
 
         logger.info("--> preferred master is {}", preferredMaster);

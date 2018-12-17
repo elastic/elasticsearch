@@ -80,29 +80,29 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
                 client, () -> client.search(searchRequest).actionGet(timeout));
 
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits());
+            logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value);
             for (SearchHit hit : response.getHits()) {
                 logger.debug("[{}] hit [{}]", ctx.id(), hit.getSourceAsMap());
             }
         }
 
         final Payload payload;
+        final Params params;
+        if (request.isRestTotalHitsAsint()) {
+            params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
+        } else {
+            params = EMPTY_PARAMS;
+        }
         if (input.getExtractKeys() != null) {
-            Params params;
-            if (request.isRestTotalHitsAsint()) {
-                params = new MapParams(Collections.singletonMap("rest_total_hits_a_int", "true"));
-            } else {
-                params = EMPTY_PARAMS;
-            }
             BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, params, false);
             // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = XContentHelper
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes)) {
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes, XContentType.JSON)) {
                 Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
                 payload = new Payload.Simple(filteredKeys);
             }
         } else {
-            payload = new Payload.XContent(response);
+            payload = new Payload.XContent(response, params);
         }
 
         return new SearchInput.Result(request, payload);

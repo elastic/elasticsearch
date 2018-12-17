@@ -19,9 +19,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -65,7 +65,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         authcService = mock(AuthenticationService.class);
         authzService = mock(AuthorizationService.class);
         channel = mock(TransportChannel.class);
-        when(channel.getProfileName()).thenReturn(TcpTransport.DEFAULT_PROFILE);
+        when(channel.getProfileName()).thenReturn(TransportSettings.DEFAULT_PROFILE);
         when(channel.getVersion()).thenReturn(Version.CURRENT);
         failDestructiveOperations = randomBoolean();
         Settings settings = Settings.builder()
@@ -151,10 +151,10 @@ public class ServerTransportFilterTests extends ESTestCase {
         final Role empty = Role.EMPTY;
         doAnswer((i) -> {
             ActionListener callback =
-                    (ActionListener) i.getArguments()[1];
+                    (ActionListener) i.getArguments()[2];
             callback.onResponse(empty);
             return Void.TYPE;
-        }).when(authzService).roles(any(User.class), any(ActionListener.class));
+        }).when(authzService).roles(any(User.class), any(Authentication.class), any(ActionListener.class));
         when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(XPackUser.INSTANCE);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -188,10 +188,10 @@ public class ServerTransportFilterTests extends ESTestCase {
         Authentication authentication = new Authentication(new User("test", "superuser"), new RealmRef("test", "test", "node1"), null);
         doAnswer((i) -> {
             ActionListener callback =
-                    (ActionListener) i.getArguments()[1];
+                    (ActionListener) i.getArguments()[2];
             callback.onResponse(authentication.getUser().equals(i.getArguments()[0]) ? ReservedRolesStore.SUPERUSER_ROLE : null);
             return Void.TYPE;
-        }).when(authzService).roles(any(User.class), any(ActionListener.class));
+        }).when(authzService).roles(any(User.class), any(Authentication.class), any(ActionListener.class));
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[3];
@@ -207,12 +207,12 @@ public class ServerTransportFilterTests extends ESTestCase {
 
         filter.inbound(internalAction, request, channel, new PlainActionFuture<>());
         verify(authcService).authenticate(eq(internalAction), eq(request), eq((User)null), any(ActionListener.class));
-        verify(authzService).roles(eq(authentication.getUser()), any(ActionListener.class));
+        verify(authzService).roles(eq(authentication.getUser()), any(Authentication.class), any(ActionListener.class));
         verify(authzService).authorize(authentication, internalAction, request, ReservedRolesStore.SUPERUSER_ROLE, null);
 
         filter.inbound(nodeOrShardAction, request, channel, new PlainActionFuture<>());
         verify(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq((User)null), any(ActionListener.class));
-        verify(authzService, times(2)).roles(eq(authentication.getUser()), any(ActionListener.class));
+        verify(authzService, times(2)).roles(eq(authentication.getUser()), any(Authentication.class), any(ActionListener.class));
         verify(authzService).authorize(authentication, nodeOrShardAction, request, ReservedRolesStore.SUPERUSER_ROLE, null);
         verifyNoMoreInteractions(authcService, authzService);
     }

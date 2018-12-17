@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -52,7 +53,8 @@ public class LeafQueryTests extends ESTestCase {
     public void testAddNestedField() {
         Query query = new DummyLeafQuery(LocationTests.randomLocation());
         // Leaf queries don't contain nested fields.
-        assertSame(query, query.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), randomBoolean()));
+        assertSame(query, query.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), DocValueFieldsContext.USE_DEFAULT_FORMAT,
+                randomBoolean()));
     }
 
     public void testEnrichNestedSort() {

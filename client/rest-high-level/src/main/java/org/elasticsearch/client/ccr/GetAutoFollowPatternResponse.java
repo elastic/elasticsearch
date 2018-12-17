@@ -19,41 +19,59 @@
 
 package org.elasticsearch.client.ccr;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 
-import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public final class GetAutoFollowPatternResponse {
 
-    public static GetAutoFollowPatternResponse fromXContent(final XContentParser parser) throws IOException {
-        final Map<String, Pattern> patterns = new HashMap<>();
-        for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
-            if (token == Token.FIELD_NAME) {
-                final String name = parser.currentName();
-                final Pattern pattern = Pattern.PARSER.parse(parser, null);
-                patterns.put(name, pattern);
-            }
-        }
-        return new GetAutoFollowPatternResponse(patterns);
+    static final ParseField PATTERNS_FIELD = new ParseField("patterns");
+    static final ParseField NAME_FIELD = new ParseField("name");
+    static final ParseField PATTERN_FIELD = new ParseField("pattern");
+
+    private static final ConstructingObjectParser<Map.Entry<String, Pattern>, Void> ENTRY_PARSER = new ConstructingObjectParser<>(
+        "get_auto_follow_pattern_response", args -> new AbstractMap.SimpleEntry<>((String) args[0], (Pattern) args[1]));
+
+    static {
+        ENTRY_PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+        ENTRY_PARSER.declareObject(ConstructingObjectParser.constructorArg(), Pattern.PARSER, PATTERN_FIELD);
     }
 
-    private final Map<String, Pattern> patterns;
+    private static final ConstructingObjectParser<GetAutoFollowPatternResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_auto_follow_pattern_response", args -> {
+            @SuppressWarnings("unchecked")
+            List<Map.Entry<String, Pattern>> entries = (List<Map.Entry<String, Pattern>>) args[0];
+            return new GetAutoFollowPatternResponse(new TreeMap<>(entries.stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
+    });
 
-    GetAutoFollowPatternResponse(Map<String, Pattern> patterns) {
-        this.patterns = Collections.unmodifiableMap(patterns);
+    static {
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ENTRY_PARSER, PATTERNS_FIELD);
     }
 
-    public Map<String, Pattern> getPatterns() {
+    public static GetAutoFollowPatternResponse fromXContent(final XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    private final NavigableMap<String, Pattern> patterns;
+
+    GetAutoFollowPatternResponse(NavigableMap<String, Pattern> patterns) {
+        this.patterns = Collections.unmodifiableNavigableMap(patterns);
+    }
+
+    public NavigableMap<String, Pattern> getPatterns() {
         return patterns;
     }
 

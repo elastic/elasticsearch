@@ -23,7 +23,7 @@ import java.io.IOException;
 public class PutInternalCcrRepositoryAction extends Action<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> {
 
     public static final PutInternalCcrRepositoryAction INSTANCE = new PutInternalCcrRepositoryAction();
-    public static final String NAME = "cluster:admin/ccr/internal_repository/put";
+    public static final String NAME = "internal:admin/ccr/internal_repository/put";
 
     private PutInternalCcrRepositoryAction() {
         super(NAME);

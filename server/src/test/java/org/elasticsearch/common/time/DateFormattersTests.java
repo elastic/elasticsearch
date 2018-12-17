@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.common.joda.JodaDateFormatter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -30,6 +31,7 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -121,16 +123,16 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testEpochMilliParsersWithDifferentFormatters() {
-        DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time||epoch_millis");
+        DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
         TemporalAccessor accessor = formatter.parse("123");
         assertThat(DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli(), is(123L));
         assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
     }
 
     public void testLocales() {
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").getLocale(), is(Locale.ROOT));
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").locale(), is(Locale.ROOT));
         Locale locale = randomLocale(random());
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").withLocale(locale).getLocale(), is(locale));
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").withLocale(locale).locale(), is(locale));
         if (locale.equals(Locale.ROOT)) {
             DateFormatter millisFormatter = DateFormatters.forPattern("epoch_millis");
             assertThat(millisFormatter.withLocale(locale), is(millisFormatter));
@@ -147,9 +149,9 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testTimeZones() {
         // zone is null by default due to different behaviours between java8 and above
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").getZone(), is(nullValue()));
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").zone(), is(nullValue()));
         ZoneId zoneId = randomZone();
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").withZone(zoneId).getZone(), is(zoneId));
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").withZone(zoneId).zone(), is(zoneId));
         if (zoneId.equals(ZoneOffset.UTC)) {
             DateFormatter millisFormatter = DateFormatters.forPattern("epoch_millis");
             assertThat(millisFormatter.withZone(zoneId), is(millisFormatter));
@@ -191,5 +193,17 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(epochMillisFormatter.hashCode(), is(DateFormatters.forPattern("epoch_millis").hashCode()));
         assertThat(epochMillisFormatter, sameInstance(DateFormatters.forPattern("epoch_millis")));
         assertThat(epochMillisFormatter, equalTo(DateFormatters.forPattern("epoch_millis")));
+    }
+
+    public void testForceJava8() {
+        assertThat(DateFormatter.forPattern("8yyyy-MM-dd"), instanceOf(JavaDateFormatter.class));
+        // named formats too
+        assertThat(DateFormatter.forPattern("8date_optional_time"), instanceOf(JavaDateFormatter.class));
+        // named formats too
+        DateFormatter formatter = DateFormatter.forPattern("8date_optional_time||ww-MM-dd");
+        assertThat(formatter, instanceOf(DateFormatters.MergedDateFormatter.class));
+        DateFormatters.MergedDateFormatter mergedFormatter = (DateFormatters.MergedDateFormatter) formatter;
+        assertThat(mergedFormatter.formatters.get(0), instanceOf(JavaDateFormatter.class));
+        assertThat(mergedFormatter.formatters.get(1), instanceOf(JodaDateFormatter.class));
     }
 }

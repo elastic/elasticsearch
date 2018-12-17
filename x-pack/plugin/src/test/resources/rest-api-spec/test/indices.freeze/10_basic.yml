@@ -22,6 +22,7 @@
 
 - do:
     search:
+      rest_total_hits_as_int: true
       index: test
       ignore_throttled: false
       body:
@@ -38,6 +39,7 @@
 
 - do:
     search:
+      rest_total_hits_as_int: true
       index: _all
       body:
         query:
@@ -59,6 +61,7 @@
 
 - do:
     search:
+      rest_total_hits_as_int: true
       index: _all
       ignore_throttled: false
       body:
@@ -70,6 +73,7 @@
 
 - do:
     search:
+      rest_total_hits_as_int: true
       index: _all
       body:
         query:
@@ -108,6 +112,7 @@
 
 - do:
     search:
+      rest_total_hits_as_int: true
       index: _all
       body:
         query:
@@ -118,6 +123,7 @@
 
 - do:
     search:
+      rest_total_hits_as_int: true
       index: _all
       ignore_throttled: false
       body:

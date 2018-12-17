@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -69,7 +67,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                                    PersistentTasksService persistentTasksService) {
         // We fork in innerTaskOperation(...), so we can use ThreadPool.Names.SAME here:
         super(CloseJobAction.NAME, clusterService, transportService, actionFilters,
-            CloseJobAction.Request::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
+            CloseJobAction.Request::new, CloseJobAction.Response::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
         this.client = client;
         this.clusterService = clusterService;
@@ -296,11 +294,6 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         }
 
         return new CloseJobAction.Response(tasks.stream().allMatch(CloseJobAction.Response::isClosed));
-    }
-
-    @Override
-    protected CloseJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new CloseJobAction.Response(in);
     }
 
     private void forceCloseJob(ClusterState currentState, CloseJobAction.Request request, List<String> jobIdsToForceClose,

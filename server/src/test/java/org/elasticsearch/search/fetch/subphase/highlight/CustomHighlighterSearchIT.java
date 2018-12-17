@@ -60,7 +60,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom"))
-                .execute().actionGet();
+                .get();
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
     }
 
@@ -74,7 +74,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .highlighter(new HighlightBuilder().field(highlightConfig))
-                .execute().actionGet();
+                .get();
 
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
         assertHighlight(searchResponse, 0, "name", 1, equalTo("field:myFieldOption:someValue"));
@@ -86,7 +86,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())
                 .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom").options(options))
-                .execute().actionGet();
+                .get();
 
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
         assertHighlight(searchResponse, 0, "name", 1, equalTo("field:myGlobalOption:someValue"));

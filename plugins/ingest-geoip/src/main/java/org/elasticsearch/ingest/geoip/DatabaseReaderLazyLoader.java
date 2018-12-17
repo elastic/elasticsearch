@@ -54,12 +54,25 @@ class DatabaseReaderLazyLoader implements Closeable {
 
     final String getDatabaseType() throws IOException {
         final long fileSize = Files.size(databasePath);
+        if (fileSize <= 512) {
+            throw new IllegalStateException("unexpected file length [" + fileSize + "] for [" + databasePath + "]");
+        }
         final int[] DATABASE_TYPE_MARKER = {'d', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e'};
         try (InputStream in = Files.newInputStream(databasePath)) {
             // read last 512 bytes
-            in.skip(fileSize - 512);
-            byte[] tail = new byte[512];
-            in.read(tail);
+            final long skipped = in.skip(fileSize - 512);
+            if (skipped != fileSize - 512) {
+                throw new IllegalStateException("failed to skip [" + (fileSize - 512) + "] bytes while reading [" + databasePath + "]");
+            }
+            final byte[] tail = new byte[512];
+            int read = 0;
+            do {
+                final int actualBytesRead = in.read(tail, read, 512 - read);
+                if (actualBytesRead == -1) {
+                    throw new IllegalStateException("unexpected end of stream [" + databasePath + "] after reading [" + read + "] bytes");
+                }
+                read += actualBytesRead;
+            } while (read != 512);
 
             // find the database_type header
             int metadataOffset = -1;

@@ -151,7 +151,6 @@ public class MlConfigMigrator {
 
         if (configIndexCreated.get() == false &&
                 clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
-            logger.info("creating the .ml-config index");
             createConfigIndex(ActionListener.wrap(
                     response -> {
                         configIndexCreated.set(true);
@@ -379,7 +378,7 @@ public class MlConfigMigrator {
     }
 
     private void createConfigIndex(ActionListener<Boolean> listener) {
-        logger.info("creating the ml config index");
+        logger.info("creating the .ml-config index");
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(AnomalyDetectorsIndex.configIndexName());
         try
         {

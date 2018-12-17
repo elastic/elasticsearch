@@ -28,6 +28,8 @@ import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
+import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.GetUsersResponse;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -42,6 +44,7 @@ import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.CharArrays;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
@@ -74,6 +77,22 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         highLevelClient().getLowLevelClient().performRequest(deleteUserRequest);
     }
 
+    public void testGetUser() throws Exception {
+        final SecurityClient securityClient = highLevelClient().security();
+        // create user
+        final PutUserRequest putUserRequest = randomPutUserRequest(randomBoolean());
+        final PutUserResponse putUserResponse = execute(putUserRequest, securityClient::putUser, securityClient::putUserAsync);
+        // assert user created
+        assertThat(putUserResponse.isCreated(), is(true));
+        // get user
+        final GetUsersRequest getUsersRequest = new GetUsersRequest(putUserRequest.getUser().getUsername());
+        final GetUsersResponse getUsersResponse = execute(getUsersRequest, securityClient::getUsers, securityClient::getUsersAsync);
+        // assert user was correctly retrieved
+        ArrayList<User> users = new ArrayList<>();
+        users.addAll(getUsersResponse.getUsers());
+        assertThat(users.get(0), is(putUserRequest.getUser()));
+    }
+
     public void testAuthenticate() throws Exception {
         final SecurityClient securityClient = highLevelClient().security();
         // test fixture: put enabled user
@@ -88,6 +107,15 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
 
         assertThat(authenticateResponse.getUser(), is(putUserRequest.getUser()));
         assertThat(authenticateResponse.enabled(), is(true));
+
+        // get user
+        final GetUsersRequest getUsersRequest =
+            new GetUsersRequest(putUserRequest.getUser().getUsername());
+        final GetUsersResponse getUsersResponse =
+            execute(getUsersRequest, securityClient::getUsers, securityClient::getUsersAsync);
+        ArrayList<User> users = new ArrayList<>();
+        users.addAll(getUsersResponse.getUsers());
+        assertThat(users.get(0), is(putUserRequest.getUser()));
 
         // delete user
         final DeleteUserRequest deleteUserRequest =

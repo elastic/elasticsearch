@@ -26,7 +26,6 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.EnumSet;

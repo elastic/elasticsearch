@@ -62,11 +62,12 @@ import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.and;
@@ -77,7 +78,6 @@ import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toQuery;
  * Folds the PhysicalPlan into a {@link Query}.
  */
 class QueryFolder extends RuleExecutor<PhysicalPlan> {
-    private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
 
     PhysicalPlan fold(PhysicalPlan plan) {
         return execute(plan);
@@ -283,7 +283,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction) {
                                         Processor action = null;
-                                        TimeZone tz = DataType.DATE == exp.dataType() ? UTC : null;
+                                        ZoneId zi = DataType.DATE == exp.dataType() ? DateUtils.UTC : null;
                                         /*
                                          * special handling of dates since aggs return the typed Date object which needs
                                          * extraction instead of handling this in the scroller, the folder handles this
@@ -291,9 +291,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                          */
                                         if (exp instanceof DateTimeHistogramFunction) {
                                             action = ((UnaryPipe) p).action();
-                                            tz = ((DateTimeFunction) exp).timeZone();
+                                            zi = ((DateTimeFunction) exp).zoneId();
                                         }
-                                        return new AggPathInput(exp.location(), exp, new GroupByRef(matchingGroup.id(), null, tz), action);
+                                        return new AggPathInput(exp.location(), exp, new GroupByRef(matchingGroup.id(), null, zi), action);
                                     }
                                 }
                                 // or found an aggregate expression (which has to work on an attribute used for grouping)
@@ -334,8 +334,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 // check if the field is a date - if so mark it as such to interpret the long as a date
                                 // UTC is used since that's what the server uses and there's no conversion applied
                                 // (like for date histograms)
-                                TimeZone dt = DataType.DATE == child.dataType() ? UTC : null;
-                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, dt));
+                                ZoneId zi = DataType.DATE == child.dataType() ? DateUtils.UTC : null;
+                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi));
                             }
                             // handle histogram
                             else if (child instanceof GroupingFunction) {
@@ -358,8 +358,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             matchingGroup = groupingContext.groupFor(ne);
                             Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                            TimeZone dt = DataType.DATE == ne.dataType() ? UTC : null;
-                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, dt));
+                            ZoneId zi = DataType.DATE == ne.dataType() ? DateUtils.UTC : null;
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi));
                         }
                     }
                 }

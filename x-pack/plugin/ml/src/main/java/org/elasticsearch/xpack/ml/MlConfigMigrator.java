@@ -104,12 +104,15 @@ public class MlConfigMigrator {
 
     private final AtomicBoolean migrationInProgress;
     private final AtomicBoolean tookConfigSnapshot;
+    private final AtomicBoolean configIndexCreated;
+
     public MlConfigMigrator(Settings settings, Client client, ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.migrationInProgress = new AtomicBoolean(false);
         this.tookConfigSnapshot = new AtomicBoolean(false);
+        this.configIndexCreated = new AtomicBoolean(false);
     }
 
     /**
@@ -146,9 +149,16 @@ public class MlConfigMigrator {
                 }
         );
 
-        if (clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
-            logger.debug("creating the .ml-config index");
-            createConfigIndex(unMarkMigrationInProgress);
+        if (configIndexCreated.get() == false &&
+                clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+            logger.info("creating the .ml-config index");
+            createConfigIndex(ActionListener.wrap(
+                    response -> {
+                        configIndexCreated.set(true);
+                        unMarkMigrationInProgress.onResponse(Boolean.FALSE);
+                    },
+                    unMarkMigrationInProgress::onFailure
+            ));
             return;
         }
 

@@ -9,21 +9,28 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
+import java.util.Comparator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.ccr.LocalIndexFollowingIT.getIndexSettings;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 /*
  * Test scope is important to ensure that other tests added to this suite do not interfere with the expectation in
  * testStatsWhenNoPersistentTasksMetaDataExists that the cluster state does not contain any persistent tasks metadata.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class FollowStatsIT extends CcrSingleNodeTestCase {
 
     /**
@@ -63,6 +70,42 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
                 });
         latch.await();
         assertTrue(onResponse.get());
+    }
+
+    public void testFollowStatsApiFollowerIndexFiltering() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(1, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader1");
+        assertAcked(client().admin().indices().prepareCreate("leader2").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader2");
+
+        PutFollowAction.Request followRequest = getPutFollowRequest("leader1", "follower1");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        followRequest = getPutFollowRequest("leader2", "follower2");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+        statsRequest.setIndices(new String[] {"follower1"});
+        FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        statsRequest = new FollowStatsAction.StatsRequest();
+        statsRequest.setIndices(new String[] {"follower2"});
+        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower2"));
+
+        response = client().execute(FollowStatsAction.INSTANCE,  new FollowStatsAction.StatsRequest()).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(2));
+        response.getStatsResponses().sort(Comparator.comparing(o -> o.status().followerIndex()));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+        assertThat(response.getStatsResponses().get(1).status().followerIndex(), equalTo("follower2"));
+
+        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
+        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower2")).actionGet());
     }
 
 }

@@ -723,16 +723,6 @@ and then started again then it will automatically recover, such as during a
 action with the APIs described here in these cases, because the set of master
 nodes is not changing permanently.
 
-It is also possible to perform a migration of a cluster onto entirely new nodes
-without taking the cluster offline, via a _rolling migration_. A rolling
-migration is similar to a rolling restart, in that it is performed one node at a
-time, and also requires no special handling for the master-eligible nodes as
-long as there are at least two of them available at all times.
-
-TODO the above is only true if the maintenance happens slowly enough, otherwise
-the configuration might not catch up. Need to add this to the rolling restart
-docs.
-
 [float]
 ==== Auto-reconfiguration
 

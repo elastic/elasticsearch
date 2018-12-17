@@ -32,71 +32,68 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Set;
 
-public class NetworkMessage {
+public abstract class NetworkMessage implements Writeable {
 
-    private static abstract class Message implements Writeable {
+    protected final ThreadPool threadPool;
+    protected final Version version;
+    protected final long requestId;
+    protected final Writeable message;
+    protected final boolean compress;
+    protected byte status;
 
-        protected final ThreadPool threadPool;
-        protected final Version version;
-        protected final long requestId;
-        protected final Writeable message;
-        protected final boolean compress;
-        protected byte status;
+    NetworkMessage(ThreadPool threadPool, Version version, byte status, long requestId, Writeable message, boolean compress) {
+        this.threadPool = threadPool;
+        this.version = version;
+        this.requestId = requestId;
+        this.message = message;
+        this.status = status;
+        this.compress = compress && canCompress(message);
+    }
 
-        Message(ThreadPool threadPool, Version version, byte status, long requestId, Writeable message, boolean compress) {
-            this.threadPool = threadPool;
-            this.version = version;
-            this.requestId = requestId;
-            this.message = message;
-            this.status = status;
-            this.compress = compress && canCompress(message);
+    BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
+        if (compress) {
+            status = TransportStatus.setCompress(status);
         }
+        bytesStream.setVersion(version);
+        bytesStream.skip(TcpHeader.HEADER_SIZE);
 
-        BytesReference initStream(BytesStreamOutput bytesStream) throws IOException {
-            if (compress) {
-                status = TransportStatus.setCompress(status);
-            }
-            bytesStream.setVersion(version);
-            bytesStream.skip(TcpHeader.HEADER_SIZE);
+        final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, compress);
+        stream.setVersion(version);
+        threadPool.getThreadContext().writeTo(stream);
+        writeTo(stream);
+        BytesReference reference = writeMessage(stream);
+        bytesStream.seek(0);
+        TcpHeader.writeHeader(bytesStream, requestId, status, version, reference.length() - 6);
+        return reference;
+    }
 
-            final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, compress);
-            stream.setVersion(version);
-            threadPool.getThreadContext().writeTo(stream);
-            writeTo(stream);
-            BytesReference reference = writeMessage(stream);
-            bytesStream.seek(0);
-            TcpHeader.writeHeader(bytesStream, requestId, status, version, reference.length() - 6);
-            return reference;
+    private BytesReference writeMessage(CompressibleBytesOutputStream stream) throws IOException {
+        final BytesReference zeroCopyBuffer;
+        if (message instanceof BytesTransportRequest) {
+            BytesTransportRequest bRequest = (BytesTransportRequest) message;
+            bRequest.writeThin(stream);
+            zeroCopyBuffer = bRequest.bytes;
+        } else if (message instanceof RemoteTransportException) {
+            stream.writeException((RemoteTransportException) message);
+            zeroCopyBuffer = BytesArray.EMPTY;
+        } else {
+            message.writeTo(stream);
+            zeroCopyBuffer = BytesArray.EMPTY;
         }
-
-        private BytesReference writeMessage(CompressibleBytesOutputStream stream) throws IOException {
-            final BytesReference zeroCopyBuffer;
-            if (message instanceof BytesTransportRequest) {
-                BytesTransportRequest bRequest = (BytesTransportRequest) message;
-                bRequest.writeThin(stream);
-                zeroCopyBuffer = bRequest.bytes;
-            } else if (message instanceof RemoteTransportException) {
-                stream.writeException((RemoteTransportException) message);
-                zeroCopyBuffer = BytesArray.EMPTY;
-            } else {
-                message.writeTo(stream);
-                zeroCopyBuffer = BytesArray.EMPTY;
-            }
-            // we have to call materializeBytes() here before accessing the bytes. A CompressibleBytesOutputStream
-            // might be implementing compression. And materializeBytes() ensures that some marker bytes (EOS marker)
-            // are written. Otherwise we barf on the decompressing end when we read past EOF on purpose in the
-            // #validateRequest method. this might be a problem in deflate after all but it's important to write
-            // the marker bytes.
-            final BytesReference message = stream.materializeBytes();
-            if (zeroCopyBuffer.length() == 0) {
-                return message;
-            } else {
-                return new CompositeBytesReference(message, zeroCopyBuffer);
-            }
+        // we have to call materializeBytes() here before accessing the bytes. A CompressibleBytesOutputStream
+        // might be implementing compression. And materializeBytes() ensures that some marker bytes (EOS marker)
+        // are written. Otherwise we barf on the decompressing end when we read past EOF on purpose in the
+        // #validateRequest method. this might be a problem in deflate after all but it's important to write
+        // the marker bytes.
+        final BytesReference message = stream.materializeBytes();
+        if (zeroCopyBuffer.length() == 0) {
+            return message;
+        } else {
+            return new CompositeBytesReference(message, zeroCopyBuffer);
         }
     }
 
-    static class Request extends Message {
+    static class Request extends NetworkMessage {
 
         private final String[] features;
         private final String action;
@@ -117,7 +114,7 @@ public class NetworkMessage {
         }
     }
 
-    static class Response extends Message {
+    static class Response extends NetworkMessage {
 
         private final Set<String> features;
 

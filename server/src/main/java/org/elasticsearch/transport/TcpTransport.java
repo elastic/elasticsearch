@@ -100,6 +100,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -746,6 +747,58 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } finally {
             if (!addedReleaseListener) {
                 IOUtils.close(stream);
+            }
+        }
+    }
+
+    private class SendContext extends NotifyOnceListener<Void> implements Supplier<BytesReference> {
+
+        private final TcpChannel channel;
+        private final NetworkMessage message;
+        private final ActionListener<Void> listener;
+        private ReleasableBytesStreamOutput bytesStreamOutput;
+        private long messageSize = -1;
+
+        private SendContext(TcpChannel channel, NetworkMessage message, ActionListener<Void> listener) {
+            this.channel = channel;
+            this.message = message;
+            this.listener = listener;
+        }
+
+        public BytesReference get() {
+            bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
+            try {
+                BytesReference bytesReference = message.serialize(bytesStreamOutput);
+                messageSize = bytesReference.length();
+                return bytesReference;
+            } catch (IOException e) {
+                onFailure(e);
+                return null;
+            }
+        }
+
+        @Override
+        protected void innerOnResponse(Void v) {
+            assert messageSize != -1 : "If onResponse is being called, the message should have been serialized";
+            transmittedBytesMetric.inc(messageSize);
+            listener.onResponse(v);
+            closeAndCallback(null);
+        }
+
+        @Override
+        protected void innerOnFailure(Exception e) {
+            logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+            closeAndCallback(e);
+        }
+
+        private void closeAndCallback(final Exception e) {
+            try {
+                IOUtils.close(bytesStreamOutput, () -> {});
+            } catch (final IOException inner) {
+                if (e != null) {
+                    inner.addSuppressed(e);
+                }
+                throw new UncheckedIOException(inner);
             }
         }
     }

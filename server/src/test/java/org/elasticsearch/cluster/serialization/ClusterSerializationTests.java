@@ -118,14 +118,15 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 ));
         if (includeRestore) {
             builder.putCustom(RestoreInProgress.TYPE,
-                new RestoreInProgress(
+                new RestoreInProgress.Builder().add(
                     new RestoreInProgress.Entry(
-                        new Snapshot("repo2", new SnapshotId("snap2", UUIDs.randomBase64UUID())),
+                        UUIDs.randomBase64UUID(), new Snapshot("repo2", new SnapshotId("snap2", UUIDs.randomBase64UUID())),
                         RestoreInProgress.State.STARTED,
                         Collections.singletonList("index_name"),
                         ImmutableOpenMap.of()
                     )
-                ));
+                ).build()
+            );
         }
 
         ClusterState clusterState = builder.incrementVersion().build();
@@ -137,6 +138,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         outStream.setVersion(version);
         diffs.writeTo(outStream);
         StreamInput inStream = outStream.bytes().streamInput();
+        inStream.setVersion(version);
         inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
         Diff<ClusterState> serializedDiffs = ClusterState.readDiffFrom(inStream, clusterState.nodes().getLocalNode());
         ClusterState stateAfterDiffs = serializedDiffs.apply(ClusterState.EMPTY_STATE);

@@ -46,8 +46,7 @@ import java.util.Set;
 public class FsDirectoryService extends DirectoryService {
     /*
      * We are mmapping norms, docvalues as well as term dictionaries, all other files are served through NIOFS
-     * this provides good random access performance while not creating unnecessary mmaps for files like stored
-     * fields etc.
+     * this provides good random access performance and does not lead to page cache thrashing.
      */
     private static final Set<String> PRIMARY_EXTENSIONS = Collections.unmodifiableSet(Sets.newHashSet("nvd", "dvd", "tim"));
 

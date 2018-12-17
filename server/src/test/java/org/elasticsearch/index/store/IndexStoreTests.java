@@ -66,7 +66,7 @@ public class IndexStoreTests extends ESTestCase {
         try (Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             switch (type) {
                 case HYBRIDFS:
-                    assertTrue(type + " " + directory.toString(), directory instanceof FileSwitchDirectory);
+                    assertHybridDirectory(directory);
                     break;
                 case NIOFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
@@ -79,7 +79,7 @@ public class IndexStoreTests extends ESTestCase {
                     break;
                 case FS:
                     if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-                        assertTrue(directory.toString(), directory instanceof FileSwitchDirectory);
+                        assertHybridDirectory(directory);
                     } else if (Constants.WINDOWS) {
                         assertTrue(directory.toString(), directory instanceof SimpleFSDirectory);
                     } else {
@@ -92,4 +92,9 @@ public class IndexStoreTests extends ESTestCase {
         }
     }
 
+    private void assertHybridDirectory(Directory directory) {
+        assertTrue(directory.toString(), directory instanceof FileSwitchDirectory);
+        Directory primaryDirectory = ((FileSwitchDirectory) directory).getPrimaryDir();
+        assertTrue("primary directory " +  primaryDirectory.toString(), primaryDirectory instanceof MMapDirectory);
+    }
 }

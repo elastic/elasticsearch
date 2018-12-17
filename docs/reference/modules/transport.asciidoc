@@ -38,11 +38,11 @@ addressable from the outside. Defaults to the actual port assigned via
 |`transport.host` |Used to set the `transport.bind_host` and the `transport.publish_host` Defaults to `transport.host` or `network.host`.
 
 
-|`transport.tcp.connect_timeout` |The socket connect timeout setting (in
+|`transport.connect_timeout` |The socket connect timeout setting (in
 time setting format). Defaults to `30s`.
 
-|`transport.tcp.compress` |Set to `true` to enable compression (`DEFLATE`)
-between all nodes. Defaults to `false`.
+|`transport.compress` |Set to `true` to enable compression (`DEFLATE`) between
+all nodes. Defaults to `false`.
 
 |`transport.ping_schedule` | Schedule a regular application-level ping message
 to ensure that transport connections between nodes are kept alive. Defaults to
@@ -82,11 +82,11 @@ example above:
 * `port`: The port to bind to
 * `bind_host`: The host to bind
 * `publish_host`: The host which is published in informational APIs
-* `tcp_no_delay`: Configures the `TCP_NO_DELAY` option for this socket
-* `tcp_keep_alive`: Configures the `SO_KEEPALIVE` option for this socket
-* `reuse_address`: Configures the `SO_REUSEADDR` option for this socket
-* `tcp_send_buffer_size`: Configures the send buffer size of the socket
-* `tcp_receive_buffer_size`: Configures the receive buffer size of the socket
+* `tcp.no_delay`: Configures the `TCP_NO_DELAY` option for this socket
+* `tcp.keep_alive`: Configures the `SO_KEEPALIVE` option for this socket
+* `tcp.reuse_address`: Configures the `SO_REUSEADDR` option for this socket
+* `tcp.send_buffer_size`: Configures the send buffer size of the socket
+* `tcp.receive_buffer_size`: Configures the receive buffer size of the socket
 
 [float]
 ==== Long-lived idle connections

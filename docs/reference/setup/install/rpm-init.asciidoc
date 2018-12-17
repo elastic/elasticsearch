@@ -1,4 +1,4 @@
-==== Running Elasticsearch with SysV `init`
+==== Running Elasticsearch with `SysV init`
 
 Use the `chkconfig` command to configure Elasticsearch to start automatically
 when the system boots up:

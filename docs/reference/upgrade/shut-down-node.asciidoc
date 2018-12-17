@@ -5,7 +5,7 @@
 sudo systemctl stop elasticsearch.service
 --------------------------------------------------
 
-* If you are running Elasticsearch with SysV `init`:
+* If you are running Elasticsearch with `SysV init`:
 +
 [source,sh]
 --------------------------------------------------

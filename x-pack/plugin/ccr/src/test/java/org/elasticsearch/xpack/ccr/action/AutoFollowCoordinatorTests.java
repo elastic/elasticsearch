@@ -19,11 +19,13 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -530,8 +532,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testStats() {
         AutoFollowCoordinator autoFollowCoordinator = new AutoFollowCoordinator(
+            Settings.EMPTY,
             null,
-            mock(ClusterService.class),
+            mockClusterService(),
             new CcrLicenseChecker(() -> true, () -> false),
             () -> 1L);
 
@@ -586,7 +589,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testUpdateAutoFollowers() {
-        ClusterService clusterService = mock(ClusterService.class);
+        ClusterService clusterService = mockClusterService();
         // Return a cluster state with no patterns so that the auto followers never really execute:
         ClusterState followerState = ClusterState.builder(new ClusterName("remote"))
             .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
@@ -594,6 +597,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
         when(clusterService.state()).thenReturn(followerState);
         AutoFollowCoordinator autoFollowCoordinator = new AutoFollowCoordinator(
+            Settings.EMPTY,
             null,
             clusterService,
             new CcrLicenseChecker(() -> true, () -> false),
@@ -648,8 +652,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testUpdateAutoFollowersNoPatterns() {
         AutoFollowCoordinator autoFollowCoordinator = new AutoFollowCoordinator(
+            Settings.EMPTY,
             null,
-            mock(ClusterService.class),
+            mockClusterService(),
             new CcrLicenseChecker(() -> true, () -> false),
             () -> 1L);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
@@ -662,8 +667,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testUpdateAutoFollowersNoAutoFollowMetadata() {
         AutoFollowCoordinator autoFollowCoordinator = new AutoFollowCoordinator(
+            Settings.EMPTY,
             null,
-            mock(ClusterService.class),
+            mockClusterService(),
             new CcrLicenseChecker(() -> true, () -> false),
             () -> 1L);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote")).build();
@@ -838,6 +844,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 return lastState;
             }
         };
+    }
+
+    private ClusterService mockClusterService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings =
+            new ClusterSettings(Settings.EMPTY, Collections.singleton(CcrSettings.CCR_AUTO_FOLLOW_COORDINATOR_WAIT_FOR_TIMEOUT));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return clusterService;
     }
 
 }

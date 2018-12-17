@@ -27,12 +27,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
@@ -72,6 +74,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     private final CcrLicenseChecker ccrLicenseChecker;
     private final LongSupplier relativeMillisTimeProvider;
 
+    private volatile TimeValue waitForTimeOut;
     private volatile Map<String, AutoFollower> autoFollowers = Collections.emptyMap();
 
     // The following fields are read and updated under a lock:
@@ -81,6 +84,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     private final LinkedHashMap<String, ElasticsearchException> recentAutoFollowErrors;
 
     public AutoFollowCoordinator(
+            Settings settings,
             Client client,
             ClusterService clusterService,
             CcrLicenseChecker ccrLicenseChecker,
@@ -97,6 +101,15 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 return size() > MAX_AUTO_FOLLOW_ERRORS;
             }
         };
+
+        Consumer<TimeValue> updater = newWaitForTimeOut -> {
+            if (newWaitForTimeOut.equals(waitForTimeOut) == false) {
+                LOGGER.info("changing wait_for_timeout from [{}] to [{}]", waitForTimeOut, newWaitForTimeOut);
+                waitForTimeOut = newWaitForTimeOut;
+            }
+        };
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_AUTO_FOLLOW_COORDINATOR_WAIT_FOR_TIMEOUT, updater);
+        waitForTimeOut = CcrSettings.CCR_AUTO_FOLLOW_COORDINATOR_WAIT_FOR_TIMEOUT.get(settings);
     }
 
     public synchronized AutoFollowStats getStats() {
@@ -180,6 +193,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     request.metaData(true);
                     request.routingTable(true);
                     request.waitForMetaDataVersion(metadataVersion);
+                    request.waitForTimeout(waitForTimeOut);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                     ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,

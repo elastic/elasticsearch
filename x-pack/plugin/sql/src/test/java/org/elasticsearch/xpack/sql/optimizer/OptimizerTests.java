@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoWeekOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
@@ -87,11 +88,11 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.TimeZone;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -99,6 +100,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerTests extends ESTestCase {
@@ -320,14 +322,13 @@ public class OptimizerTests extends ESTestCase {
 
     public void testConstantFoldingLikes() {
         assertEquals(Literal.TRUE,
-                new ConstantFolding().rule(new Like(EMPTY, Literal.of(EMPTY, "test_emp"), new LikePattern(EMPTY, "test%", (char) 0)))
+                new ConstantFolding().rule(new Like(EMPTY, Literal.of(EMPTY, "test_emp"), new LikePattern("test%", (char) 0)))
                         .canonical());
         assertEquals(Literal.TRUE,
-                new ConstantFolding().rule(new RLike(EMPTY, Literal.of(EMPTY, "test_emp"), Literal.of(EMPTY, "test.emp"))).canonical());
+                new ConstantFolding().rule(new RLike(EMPTY, Literal.of(EMPTY, "test_emp"), "test.emp")).canonical());
     }
 
     public void testConstantFoldingDatetime() {
-        final TimeZone UTC = TimeZone.getTimeZone("UTC");
         Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATE);
         assertEquals(2018, foldFunction(new Year(EMPTY, cast, UTC)));
         assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
@@ -407,7 +408,7 @@ public class OptimizerTests extends ESTestCase {
     public void testGenericNullableExpression() {
         FoldNull rule = new FoldNull();
         // date-time
-        assertNullLiteral(rule.rule(new DayName(EMPTY, Literal.NULL, randomTimeZone())));
+        assertNullLiteral(rule.rule(new DayName(EMPTY, Literal.NULL, randomZone())));
         // math function
         assertNullLiteral(rule.rule(new Cos(EMPTY, Literal.NULL)));
         // string function
@@ -418,7 +419,7 @@ public class OptimizerTests extends ESTestCase {
         // comparison
         assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), Literal.NULL)));
         // regex
-        assertNullLiteral(rule.rule(new RLike(EMPTY, getFieldAttribute(), Literal.NULL)));
+        assertNullLiteral(rule.rule(new RLike(EMPTY, Literal.NULL, "123")));
     }
 
     public void testSimplifyCoalesceNulls() {
@@ -519,6 +520,13 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(2, e.children().size());
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
+    }
+    
+    public void testConcatFoldingIsNotNull() {
+        FoldNull foldNull = new FoldNull();
+        assertEquals(1, foldNull.rule(new Concat(EMPTY, Literal.NULL, ONE)).fold());
+        assertEquals(1, foldNull.rule(new Concat(EMPTY, ONE, Literal.NULL)).fold());
+        assertEquals(StringUtils.EMPTY, foldNull.rule(new Concat(EMPTY, Literal.NULL, Literal.NULL)).fold());
     }
 
     //

@@ -379,17 +379,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Adds stored fields to load and return (note, it must be stored) as part of the search request.
      * To disable the stored fields entirely (source and metadata fields) use {@code storedField("_none_")}.
-     * @deprecated Use {@link SearchRequestBuilder#storedFields(String...)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder fields(String... fields) {
-        sourceBuilder().storedFields(Arrays.asList(fields));
-        return this;
-    }
-
-    /**
-     * Adds stored fields to load and return (note, it must be stored) as part of the search request.
-     * To disable the stored fields entirely (source and metadata fields) use {@code storedField("_none_")}.
      */
     public SearchRequestBuilder storedFields(String... fields) {
         sourceBuilder().storedFields(Arrays.asList(fields));

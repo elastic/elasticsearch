@@ -26,12 +26,12 @@ import java.util.Set;
 class CcrRepositoryManager extends AbstractLifecycleComponent {
 
     private final Client client;
-    private final UpdateListener updateListener;
+    private final RemoteSettingsUpdateListener updateListener;
 
     CcrRepositoryManager(Settings settings, ClusterService clusterService, Client client) {
         super(settings);
         this.client = client;
-        updateListener = new UpdateListener(settings);
+        updateListener = new RemoteSettingsUpdateListener(settings);
         updateListener.listenForUpdates(clusterService.getClusterSettings());
     }
 
@@ -62,9 +62,9 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
         assert f.isDone() : "Should be completed as it is executed synchronously";
     }
 
-    private class UpdateListener extends RemoteClusterAware {
+    private class RemoteSettingsUpdateListener extends RemoteClusterAware {
 
-        UpdateListener(Settings settings) {
+        private RemoteSettingsUpdateListener(Settings settings) {
             super(settings);
         }
 
@@ -73,7 +73,6 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
             for (String clusterAlias : clusterAliases) {
                 putRepository(CcrRepository.NAME_PREFIX + clusterAlias);
             }
-
         }
 
         @Override

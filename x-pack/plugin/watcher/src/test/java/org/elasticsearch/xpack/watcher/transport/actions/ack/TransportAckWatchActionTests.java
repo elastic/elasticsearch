@@ -64,7 +64,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
             Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, client);
     }
 
-    public void prtestWatchNotFound() {
+    public void testWatchNotFound() {
         String watchId = "my_watch_id";
         doAnswer(invocation -> {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[1];

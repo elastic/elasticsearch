@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -28,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MlConfigMigrator;
+import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -40,9 +41,10 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
+    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     @Inject
-    public TransportDeleteDatafeedAction(TransportService transportService, ClusterService clusterService,
+    public TransportDeleteDatafeedAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver,
                                          Client client, PersistentTasksService persistentTasksService,
@@ -53,6 +55,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.persistentTasksService = persistentTasksService;
         this.clusterService = clusterService;
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
     }
 
     @Override
@@ -69,7 +72,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     protected void masterOperation(DeleteDatafeedAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
 
-        if (MlConfigMigrator.datafeedIsEligibleForMigration(request.getDatafeedId(), state)) {
+        if (migrationEligibilityCheck.datafeedIsEligibleForMigration(request.getDatafeedId(), state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("delete datafeed", request.getDatafeedId()));
             return;
         }

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -63,7 +64,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerS
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MlConfigMigrator;
+import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
@@ -96,6 +97,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final MlMemoryTracker memoryTracker;
+    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     /**
      * A map of task listeners by job_id.
@@ -106,7 +108,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private final Map<String, List<ActionListener<AcknowledgedResponse>>> listenersByJobId;
 
     @Inject
-    public TransportDeleteJobAction(TransportService transportService, ClusterService clusterService,
+    public TransportDeleteJobAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
                                     Client client, Auditor auditor, JobResultsProvider jobResultsProvider,
@@ -121,6 +123,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.memoryTracker = memoryTracker;
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.listenersByJobId = new HashMap<>();
     }
 
@@ -148,7 +151,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     protected void masterOperation(Task task, DeleteJobAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
 
-        if (MlConfigMigrator.jobIsEligibleForMigration(request.getJobId(), state)) {
+        if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("delete job", request.getJobId()));
             return;
         }

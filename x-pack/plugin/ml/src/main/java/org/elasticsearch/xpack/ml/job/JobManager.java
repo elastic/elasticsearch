@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MlConfigMigrator;
+import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -92,6 +92,7 @@ public class JobManager {
     private final ThreadPool threadPool;
     private final UpdateJobProcessNotifier updateJobProcessNotifier;
     private final JobConfigProvider jobConfigProvider;
+    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
 
@@ -109,6 +110,7 @@ public class JobManager {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.updateJobProcessNotifier = updateJobProcessNotifier;
         this.jobConfigProvider = new JobConfigProvider(client);
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
 
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
@@ -338,7 +340,7 @@ public class JobManager {
         };
 
         ClusterState clusterState = clusterService.state();
-        if (MlConfigMigrator.jobIsEligibleForMigration(request.getJobId(), clusterState)) {
+        if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), clusterState)) {
             actionListener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("update job", request.getJobId()));
             return;
         }

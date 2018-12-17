@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,6 +42,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -80,18 +82,19 @@ public class MlConfigMigrator {
     private static final Logger logger = LogManager.getLogger(MlConfigMigrator.class);
 
     public static final String MIGRATED_FROM_VERSION = "migrated from version";
-    public static final Version MIN_NODE_VERSION = Version.V_6_6_0;
 
     static final int MAX_BULK_WRITE_SIZE = 100;
 
     private final Client client;
     private final ClusterService clusterService;
+    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     private final AtomicBoolean migrationInProgress;
 
-    public MlConfigMigrator(Client client, ClusterService clusterService) {
-        this.client = client;
-        this.clusterService = clusterService;
+    public MlConfigMigrator(Settings settings, Client client, ClusterService clusterService) {
+        this.client = Objects.requireNonNull(client);
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.migrationInProgress = new AtomicBoolean(false);
     }
 
@@ -114,9 +117,8 @@ public class MlConfigMigrator {
      */
     public void migrateConfigsWithoutTasks(ClusterState clusterState, ActionListener<Boolean> listener) {
 
-        Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
-        if (minNodeVersion.before(MIN_NODE_VERSION)) {
-            listener.onResponse(Boolean.FALSE);
+        if (migrationEligibilityCheck.canStartMigration(clusterState) == false) {
+            listener.onResponse(false);
             return;
         }
 
@@ -453,61 +455,5 @@ public class MlConfigMigrator {
                 .map(DatafeedConfig::getId)
                 .filter(id -> failedDocumentIds.contains(DatafeedConfig.documentId(id)) == false)
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * Is the job a eligible for migration? Returns:
-     *     False if the min node version of the cluster is before {@link #MIN_NODE_VERSION}
-     *     False if the job is not in the cluster state
-     *     False if the {@link Job#isDeleting()}
-     *     False if the job has a persistent task
-     *     True otherwise i.e. the job is present, not deleting
-     *     and does not have a persistent task.
-     *
-     * @param jobId         The job Id
-     * @param clusterState  clusterstate
-     * @return A boolean depending on the conditions listed above
-     */
-    public static boolean jobIsEligibleForMigration(String jobId, ClusterState clusterState) {
-        Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
-        if (minNodeVersion.before(MIN_NODE_VERSION)) {
-            return false;
-        }
-
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-        Job job = mlMetadata.getJobs().get(jobId);
-
-        if (job == null || job.isDeleting()) {
-            return false;
-        }
-
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlTasks.openJobIds(persistentTasks).contains(jobId) == false;
-    }
-
-    /**
-     * Is the datafeed a eligible for migration? Returns:
-     *     False if the min node version of the cluster is before {@link #MIN_NODE_VERSION}
-     *     False if the datafeed is not in the cluster state
-     *     False if the datafeed has a persistent task
-     *     True otherwise i.e. the datafeed is present and does not have a persistent task.
-     *
-     * @param datafeedId   The datafeed Id
-     * @param clusterState clusterstate
-     * @return A boolean depending on the conditions listed above
-     */
-    public static boolean datafeedIsEligibleForMigration(String datafeedId, ClusterState clusterState) {
-        Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
-        if (minNodeVersion.before(MIN_NODE_VERSION)) {
-            return false;
-        }
-
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-        if (mlMetadata.getDatafeeds().containsKey(datafeedId) == false) {
-            return false;
-        }
-
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlTasks.startedDatafeedIds(persistentTasks).contains(datafeedId) == false;
     }
 }

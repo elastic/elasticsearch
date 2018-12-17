@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
@@ -59,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
@@ -94,10 +96,13 @@ public class JobManagerTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .build();
         environment = TestEnvironment.newEnvironment(settings);
         analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
         clusterService = mock(ClusterService.class);
+        givenClusterSettings(settings);
 
         jobResultsProvider = mock(JobResultsProvider.class);
         auditor = mock(Auditor.class);
@@ -550,9 +555,6 @@ public class JobManagerTests extends ESTestCase {
     }
 
     private JobManager createJobManager(Client client) {
-        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
-                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
                 auditor, threadPool, client, updateJobProcessNotifier);
     }
@@ -568,5 +570,12 @@ public class JobManagerTests extends ESTestCase {
             content.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             return BytesReference.bytes(xContentBuilder);
         }
+    }
+
+    private void givenClusterSettings(Settings settings) {
+        ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(Arrays.asList(
+            MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
+            MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION)));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
     }
 }

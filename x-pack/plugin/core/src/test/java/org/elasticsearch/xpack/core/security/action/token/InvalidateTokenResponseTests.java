@@ -7,8 +7,12 @@ package org.elasticsearch.xpack.core.security.action.token;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
@@ -16,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationRes
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -100,5 +105,37 @@ public class InvalidateTokenResponseTests extends ESTestCase {
                 assertThat(input.readBoolean(), equalTo(true));
             }
         }
+    }
+
+    public void testToXContent() throws IOException {
+        List invalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
+        List previouslyInvalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
+        TokensInvalidationResult result = new TokensInvalidationResult(invalidatedTokens, previouslyInvalidatedTokens,
+            Arrays.asList(new ElasticsearchException("foo", new IllegalArgumentException("this is an error message")),
+                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))),
+            randomIntBetween(0, 5));
+        InvalidateTokenResponse response = new InvalidateTokenResponse(result);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertThat(Strings.toString(builder),
+            equalTo("{\"created\":false," +
+                "\"invalidated_tokens\":" + invalidatedTokens.size() + "," +
+                "\"previously_invalidated_tokens\":" + previouslyInvalidatedTokens.size() + "," +
+                "\"error_count\":2," +
+                "\"error_details\":[" +
+                "{\"type\":\"exception\"," +
+                "\"reason\":\"foo\"," +
+                "\"caused_by\":{" +
+                "\"type\":\"illegal_argument_exception\"," +
+                "\"reason\":\"this is an error message\"}" +
+                "}," +
+                "{\"type\":\"exception\"," +
+                "\"reason\":\"bar\"," +
+                "\"caused_by\":" +
+                "{\"type\":\"illegal_argument_exception\"," +
+                "\"reason\":\"this is an error message2\"}" +
+                "}" +
+                "]" +
+                "}"));
     }
 }

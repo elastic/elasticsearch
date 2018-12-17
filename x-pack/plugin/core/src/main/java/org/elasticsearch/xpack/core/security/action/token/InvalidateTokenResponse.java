@@ -68,7 +68,8 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        return result.toXContent(builder, params);
+        result.toXContent(builder, params);
+        return builder;
     }
 
     @Override

@@ -25,7 +25,7 @@ import java.util.Objects;
  * <ul>
  * <li>how many of the tokens were actually invalidated</li>
  * <li>how many tokens are not invalidated in this request because they were already invalidated</li>
- * <li>how many tokens were not invalidated because of an error and what the error was</li>
+ * <li>how many errors were encountered while invalidating tokens and the error details</li>
  * </ul>
  */
 public class TokensInvalidationResult implements ToXContentObject, Writeable {
@@ -88,6 +88,8 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
+            //Remove created after PR is backported to 6.x
+            .field("created", isCreated())
             .field("invalidated_tokens", invalidatedTokens.size())
             .field("previously_invalidated_tokens", previouslyInvalidatedTokens.size())
             .field("error_count", errors.size());
@@ -113,5 +115,11 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
             out.writeException(e);
         }
         out.writeVInt(attemptCount);
+    }
+
+    private boolean isCreated() {
+        return this.getInvalidatedTokens().size() > 0
+            && this.getPreviouslyInvalidatedTokens().isEmpty()
+            && this.getErrors().isEmpty();
     }
 }

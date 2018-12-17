@@ -72,7 +72,7 @@ setup:
   - match: {hits.total: 1}
   - match: {hits.max_score: 2}
   - match: {hits.hits.0._score: 2}
-    -
+    
   - do:
       search:
         rest_total_hits_as_int: true

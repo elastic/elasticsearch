@@ -32,45 +32,46 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Set;
 
-public class MessageSerializer {
+public class NetworkMessage {
 
     private static abstract class Message implements Writeable {
-
-        private final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
 
         protected final ThreadPool threadPool;
         protected final Version version;
         protected final long requestId;
         protected final Writeable message;
-        protected final boolean compressMessage;
-        protected byte status = 0;
+        protected final boolean compress;
+        protected byte status;
 
-        protected Message(ThreadPool threadPool, Version version, long requestId, Writeable message, boolean compressMessage) {
+        Message(ThreadPool threadPool, Version version, byte status, long requestId, Writeable message, boolean compress) {
             this.threadPool = threadPool;
             this.version = version;
             this.requestId = requestId;
             this.message = message;
-            this.compressMessage = compressMessage;
+            this.status = status;
+            this.compress = compress && canCompress(message);
         }
 
-        CompressibleBytesOutputStream initStream() throws IOException {
-            final boolean compress = compressMessage && canCompress(message);
+        BytesReference initStream(BytesStreamOutput bytesStream) throws IOException {
             if (compress) {
                 status = TransportStatus.setCompress(status);
             }
+            bytesStream.setVersion(version);
+            bytesStream.skip(TcpHeader.HEADER_SIZE);
 
-            ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-            final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compress);
-
+            final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, compress);
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
-
-            return stream;
+            writeTo(stream);
+            BytesReference reference = writeMessage(stream);
+            bytesStream.seek(0);
+            TcpHeader.writeHeader(bytesStream, requestId, status, version, reference.length() - 6);
+            return reference;
         }
 
-        BytesReference finish(CompressibleBytesOutputStream stream) throws IOException {
+        private BytesReference writeMessage(CompressibleBytesOutputStream stream) throws IOException {
             final BytesReference zeroCopyBuffer;
-            if (message instanceof BytesTransportRequest) { // what a shitty optimization - we should use a direct send method instead
+            if (message instanceof BytesTransportRequest) {
                 BytesTransportRequest bRequest = (BytesTransportRequest) message;
                 bRequest.writeThin(stream);
                 zeroCopyBuffer = bRequest.bytes;
@@ -86,19 +87,11 @@ public class MessageSerializer {
             // are written. Otherwise we barf on the decompressing end when we read past EOF on purpose in the
             // #validateRequest method. this might be a problem in deflate after all but it's important to write
             // the marker bytes.
-            final BytesReference messageBody = stream.materializeBytes();
-            final BytesReference header = buildHeader(requestId, status, stream.getVersion(), messageBody.length() + zeroCopyBuffer.length());
-            return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
-        }
-
-        private BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
-            try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
-                headerOutput.setVersion(protocolVersion);
-                TcpHeader.writeHeader(headerOutput, requestId, status, protocolVersion, length);
-                final BytesReference bytes = headerOutput.bytes();
-                assert bytes.length() == TcpHeader.HEADER_SIZE : "header size mismatch expected: " + TcpHeader.HEADER_SIZE + " but was: "
-                    + bytes.length();
-                return bytes;
+            final BytesReference message = stream.materializeBytes();
+            if (zeroCopyBuffer.length() == 0) {
+                return message;
+            } else {
+                return new CompositeBytesReference(message, zeroCopyBuffer);
             }
         }
     }
@@ -108,23 +101,19 @@ public class MessageSerializer {
         private final String[] features;
         private final String action;
 
-
-        Request(ThreadPool threadPool, String[] features, Writeable message, Version version, String action, long requestId,
-                boolean compressMessage) {
-            super(threadPool, version, requestId, message, compressMessage);
+        Request(ThreadPool threadPool, String[] features, byte status, Writeable message, Version version, String action, long requestId,
+                boolean compress) {
+            super(threadPool, version, status, requestId, message, compress);
             this.features = features;
             this.action = action;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            CompressibleBytesOutputStream stream = initStream();
             if (version.onOrAfter(Version.V_6_3_0)) {
-                stream.writeStringArray(features);
+                out.writeStringArray(features);
             }
-            stream.writeString(action);
-
-            BytesReference postamble = finish(stream);
+            out.writeString(action);
         }
     }
 
@@ -132,17 +121,15 @@ public class MessageSerializer {
 
         private final Set<String> features;
 
-        Response(ThreadPool threadPool, Set<String> features, Writeable message, Version version, String action, long requestId,
-                 boolean compressMessage) {
-            super(threadPool, version, requestId, message, compressMessage);
+        Response(ThreadPool threadPool, Set<String> features, byte status, Writeable message, Version version, long requestId,
+                 boolean compress) {
+            super(threadPool, version, status, requestId, message, compress);
             this.features = features;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            CompressibleBytesOutputStream stream = initStream();
-            stream.setFeatures(features);
-            BytesReference postamble = finish(stream);
+            out.setFeatures(features);
         }
     }
 

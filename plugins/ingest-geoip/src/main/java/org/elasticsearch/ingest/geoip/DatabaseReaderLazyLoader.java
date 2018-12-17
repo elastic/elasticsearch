@@ -116,7 +116,7 @@ class DatabaseReaderLazyLoader implements Closeable {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {
                     databaseReader.set(loader.get());
-                    LOGGER.debug("Loaded [{}] geo-IP database", databasePath);
+                    LOGGER.debug("loaded [{}] geo-IP database", databasePath);
                 }
             }
         }

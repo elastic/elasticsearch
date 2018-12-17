@@ -94,7 +94,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * using the same cache key. Otherwise we'd have to disable caching
      * entirely for these readers.
      */
-    public DocIdAndVersion lookupVersion(BytesRef id, LeafReaderContext context)
+    public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context)
         throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
@@ -108,7 +108,28 @@ final class PerThreadIDVersionAndSeqNoLookup {
             if (versions.advanceExact(docID) == false) {
                 throw new IllegalArgumentException("Document [" + docID + "] misses the [" + VersionFieldMapper.NAME + "] field");
             }
-            return new DocIdAndVersion(docID, versions.longValue(), context.reader(), context.docBase);
+            final long seqNo;
+            final long term;
+            if (loadSeqNo) {
+                NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                // remove the null check in 7.0 once we can't read indices with no seq#
+                if (seqNos != null && seqNos.advanceExact(docID)) {
+                    seqNo = seqNos.longValue();
+                } else {
+                    seqNo =  SequenceNumbers.UNASSIGNED_SEQ_NO;
+                }
+                NumericDocValues terms = context.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                if (terms != null && terms.advanceExact(docID)) {
+                    term = terms.longValue();
+                } else {
+                    term = 0;
+                }
+
+            } else {
+                seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                term = 0;
+            }
+            return new DocIdAndVersion(docID, versions.longValue(), seqNo, term, context.reader(), context.docBase);
         } else {
             return null;
         }
@@ -150,6 +171,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
                 final NumericDocValues seqNoDV = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
                 for (; docID != DocIdSetIterator.NO_MORE_DOCS; docID = docsEnum.nextDoc()) {
                     final long seqNo;
+                    // remove the null check in 7.0 once we can't read indices with no seq#
                     if (seqNoDV != null && seqNoDV.advanceExact(docID)) {
                         seqNo = seqNoDV.longValue();
                     } else {

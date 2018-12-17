@@ -75,7 +75,7 @@ public class NullIf extends ConditionalFunction {
         params.script(left.params());
         params.script(right.params());
 
-        return new ScriptTemplate(template, params.build(), dataType);
+        return new ScriptTemplate(formatTemplate(template), params.build(), dataType);
     }
 
     @Override

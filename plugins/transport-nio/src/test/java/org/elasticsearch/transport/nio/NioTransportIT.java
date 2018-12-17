@@ -37,8 +37,8 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -80,7 +80,7 @@ public class NioTransportIT extends NioIntegTestCase {
             fail("Expected exception, but didn't happen");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("MY MESSAGE"));
-            assertThat(channelProfileName, is(TcpTransport.DEFAULT_PROFILE));
+            assertThat(channelProfileName, is(TransportSettings.DEFAULT_PROFILE));
         }
     }
 
@@ -112,7 +112,7 @@ public class NioTransportIT extends NioIntegTestCase {
                                        InetSocketAddress remoteAddress, byte status) throws IOException {
             String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,
                     remoteAddress, status);
-            channelProfileName = TcpTransport.DEFAULT_PROFILE;
+            channelProfileName = TransportSettings.DEFAULT_PROFILE;
             return action;
         }
 

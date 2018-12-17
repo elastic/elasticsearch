@@ -39,7 +39,6 @@ import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.WeekFields;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -1273,10 +1272,6 @@ public class DateFormatters {
     /////////////////////////////////////////
 
     public static DateFormatter forPattern(String input) {
-        return forPattern(input, Locale.ROOT);
-    }
-
-    private static DateFormatter forPattern(String input, Locale locale) {
         if (Strings.hasLength(input)) {
             input = input.trim();
         }
@@ -1443,25 +1438,9 @@ public class DateFormatters {
             return STRICT_YEAR_MONTH;
         } else if ("strictYearMonthDay".equals(input) || "strict_year_month_day".equals(input)) {
             return STRICT_YEAR_MONTH_DAY;
-        } else if (Strings.hasLength(input) && input.contains("||")) {
-            String[] formats = Strings.delimitedListToStringArray(input, "||");
-            if (formats.length == 1) {
-                return forPattern(formats[0], locale);
-            } else {
-                try {
-                    List<DateFormatter> formatters = new ArrayList<>(formats.length);
-                    for (int i = 0; i < formats.length; i++) {
-                        formatters.add(forPattern(formats[i], locale));
-                    }
-
-                    return new MergedDateFormatter(input, formatters);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
-                }
-            }
         } else {
             try {
-                return new JavaDateFormatter(input, new DateTimeFormatterBuilder().appendPattern(input).toFormatter(locale));
+                return new JavaDateFormatter(input, new DateTimeFormatterBuilder().appendPattern(input).toFormatter(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
             }
@@ -1471,7 +1450,8 @@ public class DateFormatters {
     static class MergedDateFormatter implements DateFormatter {
 
         private final String pattern;
-        private final List<DateFormatter> formatters;
+        // package private for tests
+        final List<DateFormatter> formatters;
         private final List<DateMathParser> dateMathParsers;
 
         MergedDateFormatter(String pattern, List<DateFormatter> formatters) {

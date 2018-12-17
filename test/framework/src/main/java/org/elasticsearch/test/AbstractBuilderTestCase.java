@@ -234,6 +234,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             prefix + "tree" + postfix,
             prefix + "tree_levels" + postfix,
             prefix + "precision" + postfix,
+            prefix + "strategy" + postfix,
             prefix + "distance_error_pct" + postfix
         };
         assertWarnings(deprecationWarnings);

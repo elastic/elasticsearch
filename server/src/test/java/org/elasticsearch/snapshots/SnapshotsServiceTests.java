@@ -231,6 +231,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             // Apply latest cluster state c
             clusterState.applyLatestChange(masterNode.node.getId(), masterNode.snapshotsService);
 
+            assertNoWaitingTasks(dataNode1, dataNode2, masterNode);
             assertFalse(dataNode1.deterministicTaskQueue.hasRunnableTasks());
             assertFalse(dataNode2.deterministicTaskQueue.hasRunnableTasks());
             assertFalse(masterNode.deterministicTaskQueue.hasRunnableTasks());
@@ -254,7 +255,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             // that we capture and run.
         } else {
             clusterState.applyLatestChange(primaryNodeId, primaryNode.snapshotShardsService);
-            assertTrue(primaryNode.deterministicTaskQueue.hasRunnableTasks());
+            assertHasTasks(primaryNode);
             IndexService indexService = mock(IndexService.class);
             ClusterState currentState = clusterState.currentState(primaryNodeId);
             IndexShard indexShard = mock(IndexShard.class);
@@ -297,9 +298,19 @@ public class SnapshotsServiceTests extends ESTestCase {
             // The failing shard must result in a task for removing the SnapshotInProgress from the cluster state
             // that we capture and run.
         }
-        assertTrue(primaryNode.deterministicTaskQueue.hasRunnableTasks());
+        assertHasTasks(primaryNode);
         removeSnapshotTask = expectOneUpdateTask(primaryNode.clusterService, primaryNode.deterministicTaskQueue::runAllTasks);
         assertNoSnapshotsInProgress(clusterState.updateAndGet(removeSnapshotTask));
+    }
+
+    private static void assertNoWaitingTasks(ClusterNode ... nodes) {
+        for(ClusterNode node: nodes) {
+            assertFalse(node.deterministicTaskQueue.hasRunnableTasks());
+        }
+    }
+
+    private static void assertHasTasks(ClusterNode node) {
+        assertTrue(node.deterministicTaskQueue.hasRunnableTasks());
     }
 
     private static void assertNoSnapshotsInProgress(ClusterState clusterState) {

@@ -153,6 +153,25 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/36549")
+    public void testTypeGlobalAndPerRequest() throws IOException {
+        BulkRequest request = new BulkRequest(null, "global_type");
+        request.add(new IndexRequest("index1", "local_type", "1")
+            .source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("index2").id("2") // will take global type
+            .source(XContentType.JSON, "field", "bulk2"));
+
+        bulk(request);
+
+        Iterable<SearchHit> hits = searchAll("index1", "index2");
+        assertThat(hits, containsInAnyOrder(
+            both(hasId("1"))
+                .and(hasType("local_type")),
+            both(hasId("2"))
+                .and(hasType("global_type"))));
+    }
+
+    @SuppressWarnings("unchecked")
     public void testGlobalRouting() throws IOException {
         createIndexWithMultipleShards("index");
         BulkRequest request = new BulkRequest(null, null);

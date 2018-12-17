@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.sql.jdbc.EsDataSource;
 import org.junit.After;
@@ -84,8 +83,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     }
 
     public static void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
-        Request request = new Request("PUT", "/" + index + "/doc/" + documentId);
-        request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+        Request request = new Request("PUT", "/" + index + "/_doc/" + documentId);
         request.addParameter("refresh", "true");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);

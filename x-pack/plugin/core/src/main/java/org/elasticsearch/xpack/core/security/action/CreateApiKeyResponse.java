@@ -50,9 +50,9 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         this.name = name;
         this.id = id;
         this.key = key;
-        // as we do not yet support the nano-second precision, removing
-        // the precision by converting to milli-seconds precision 'Instant'
-        // so we can do comparison checks later.
+        // As we do not yet support the nanosecond precision when we serialize to JSON,
+        // here creating the 'Instant' by removing the milliseconds precision.
+        // This Instant can then be used for date comparison.
         this.expiration = (expiration != null) ? Instant.ofEpochMilli(expiration.toEpochMilli()): null;
     }
 

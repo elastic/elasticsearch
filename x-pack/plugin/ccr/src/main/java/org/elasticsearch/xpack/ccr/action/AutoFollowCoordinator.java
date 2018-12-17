@@ -52,8 +52,11 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster;
 
 /**
  * A component that runs only on the elected master node and follows leader indices automatically
@@ -67,6 +70,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     private final Client client;
     private final ClusterService clusterService;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final LongSupplier relativeMillisTimeProvider;
 
     private volatile Map<String, AutoFollower> autoFollowers = Collections.emptyMap();
 
@@ -79,10 +83,13 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     public AutoFollowCoordinator(
             Client client,
             ClusterService clusterService,
-            CcrLicenseChecker ccrLicenseChecker) {
+            CcrLicenseChecker ccrLicenseChecker,
+            LongSupplier relativeMillisTimeProvider) {
+
         this.client = client;
         this.clusterService = clusterService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
+        this.relativeMillisTimeProvider = relativeMillisTimeProvider;
         clusterService.addListener(this);
         this.recentAutoFollowErrors = new LinkedHashMap<String, ElasticsearchException>() {
             @Override
@@ -93,11 +100,26 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     }
 
     public synchronized AutoFollowStats getStats() {
+        final Map<String, AutoFollower> autoFollowers = this.autoFollowers;
+        final TreeMap<String, AutoFollowedCluster> timesSinceLastAutoFollowPerRemoteCluster = new TreeMap<>();
+        for (Map.Entry<String, AutoFollower> entry : autoFollowers.entrySet()) {
+            long lastAutoFollowTimeInMillis = entry.getValue().lastAutoFollowTimeInMillis;
+            long lastSeenMetadataVersion = entry.getValue().metadataVersion;
+            if (lastAutoFollowTimeInMillis != -1) {
+                long timeSinceLastCheckInMillis = relativeMillisTimeProvider.getAsLong() - lastAutoFollowTimeInMillis;
+                timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(),
+                    new AutoFollowedCluster(timeSinceLastCheckInMillis, lastSeenMetadataVersion));
+            } else {
+                timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(), new AutoFollowedCluster(-1L, lastSeenMetadataVersion));
+            }
+        }
+
         return new AutoFollowStats(
             numberOfFailedIndicesAutoFollowed,
             numberOfFailedRemoteClusterStateRequests,
             numberOfSuccessfulIndicesAutoFollowed,
-            new TreeMap<>(recentAutoFollowErrors)
+            new TreeMap<>(recentAutoFollowErrors),
+            timesSinceLastAutoFollowPerRemoteCluster
         );
     }
 
@@ -146,7 +168,8 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
         Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
         for (String remoteCluster : newRemoteClusters) {
-            AutoFollower autoFollower = new AutoFollower(remoteCluster, this::updateStats, clusterService::state) {
+            AutoFollower autoFollower =
+                new AutoFollower(remoteCluster, this::updateStats, clusterService::state, relativeMillisTimeProvider) {
 
                 @Override
                 void getRemoteClusterState(final String remoteCluster,
@@ -239,20 +262,25 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         private final String remoteCluster;
         private final Consumer<List<AutoFollowResult>> statsUpdater;
         private final Supplier<ClusterState> followerClusterStateSupplier;
+        private final LongSupplier relativeTimeProvider;
 
+        private volatile long lastAutoFollowTimeInMillis = -1;
         private volatile long metadataVersion = 0;
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
 
         AutoFollower(final String remoteCluster,
                      final Consumer<List<AutoFollowResult>> statsUpdater,
-                     final Supplier<ClusterState> followerClusterStateSupplier) {
+                     final Supplier<ClusterState> followerClusterStateSupplier,
+                     LongSupplier relativeTimeProvider) {
             this.remoteCluster = remoteCluster;
             this.statsUpdater = statsUpdater;
             this.followerClusterStateSupplier = followerClusterStateSupplier;
+            this.relativeTimeProvider = relativeTimeProvider;
         }
 
         void start() {
+            lastAutoFollowTimeInMillis = relativeTimeProvider.getAsLong();
             final ClusterState clusterState = followerClusterStateSupplier.get();
             final AutoFollowMetadata autoFollowMetadata = clusterState.metaData().custom(AutoFollowMetadata.TYPE);
             if (autoFollowMetadata == null) {

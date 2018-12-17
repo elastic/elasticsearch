@@ -57,10 +57,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         if (event.localNodeMaster() == false) {
             return;
         }
-
-        if (event.metaDataChanged() == false) {
-            return;
-        }
+        
         PersistentTasksCustomMetaData previous = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData current = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 

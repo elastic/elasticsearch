@@ -106,7 +106,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "Security realm settings structure changed",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
                 "#include-realm-type-in-setting",
-            "nodes and realms which must be updated: [[node: node_check, realms: [" + realm + "]]]");
+            "nodes have authentication realm configuration which must be updated at time of upgrade to 7.0: [node_check]");
         assertSettingsAndIssue(authRealmType, randomAlphaOfLength(5), expected);
     }
 

@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -83,27 +81,17 @@ public class NodeDeprecationChecks {
     }
 
     static DeprecationIssue authRealmsTypeCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodeRealmCombinations = nodeInfos.stream()
-            .collect(Collectors.toMap(
-                nodeInfo -> nodeInfo.getNode().getName(),
-                nodeInfo -> {
-                    Map<String, Settings> authRealms = nodeInfo.getSettings().getGroups("xpack.security.authc.realms");
-                    return authRealms.entrySet().stream()
-                        .filter(entry -> entry.getValue().hasValue("type"))
-                        .map(Map.Entry::getKey)
-                        .collect(Collectors.toList());
-                }))
-            .entrySet().stream()
-            .filter(entry -> entry.getValue().isEmpty() == false)
-            .map(entry -> "[node: " + entry.getKey() + ", realms: " + entry.getValue() + "]")
+        List<String> nodesFound = nodeInfos.stream()
+            .filter(nodeInfo -> nodeInfo.getSettings().getGroups("xpack.security.authc.realms").size() > 0)
+            .map(nodeInfo -> nodeInfo.getNode().getName())
             .collect(Collectors.toList());
 
-        if (nodeRealmCombinations.size() > 0) {
+        if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Security realm settings structure changed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
                     "#include-realm-type-in-setting",
-                "nodes and realms which must be updated: " + nodeRealmCombinations);
+                "nodes have authentication realm configuration which must be updated at time of upgrade to 7.0: " + nodesFound);
         }
         return null;
     }

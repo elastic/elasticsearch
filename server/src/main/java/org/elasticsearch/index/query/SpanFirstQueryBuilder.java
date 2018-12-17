@@ -120,7 +120,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
                         throw new ParsingException(parser.getTokenLocation(), "span_first [match] must be of type span query");
                     }
                     match = (SpanQueryBuilder) query;
-                    checkNoBoost(NAME, currentFieldName, parser, match);
+                    checkNoBoost(match);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_first] query does not support [" + currentFieldName + "]");
                 }

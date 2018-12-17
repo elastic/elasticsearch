@@ -34,6 +34,8 @@ import org.elasticsearch.client.watcher.ActionStatus;
 import org.elasticsearch.client.watcher.ActionStatus.AckStatus;
 import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.DeactivateWatchResponse;
+import org.elasticsearch.client.watcher.ExecuteWatchRequest;
+import org.elasticsearch.client.watcher.ExecuteWatchResponse;
 import org.elasticsearch.client.watcher.GetWatchRequest;
 import org.elasticsearch.client.watcher.GetWatchResponse;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
@@ -43,6 +45,7 @@ import org.elasticsearch.client.watcher.WatcherStatsRequest;
 import org.elasticsearch.client.watcher.WatcherStatsResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.client.watcher.DeleteWatchRequest;
 import org.elasticsearch.client.watcher.DeleteWatchResponse;
@@ -51,6 +54,7 @@ import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -200,6 +204,52 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
+            // tag::x-pack-execute-watch-by-id
+            ExecuteWatchRequest request = ExecuteWatchRequest.byId("my_watch_id");
+            request.setAlternativeInput("{ \"foo\" : \"bar\" }");                                         // <1>
+            request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);             // <2>
+            request.setRecordExecution(true);                                                               // <3>
+            request.setIgnoreCondition(true);                                                               // <4>
+            request.setTriggerData("{\"triggered_time\":\"now\"}");                                         // <5>
+            request.setDebug(true);                                                                         // <6>
+            ExecuteWatchResponse response = client.watcher().executeWatch(request, RequestOptions.DEFAULT);
+            // end::x-pack-execute-watch-by-id
+
+            // tag::x-pack-execute-watch-by-id-response
+            String id = response.getRecordId();                                         // <1>
+            Map<String, Object> watch = response.getRecordAsMap();                      // <2>
+            String watch_id = ObjectPath.eval("watch_record.watch_id", watch);          // <3>
+            // end::x-pack-execute-watch-by-id-response
+        }
+
+        {
+            ExecuteWatchRequest request = ExecuteWatchRequest.byId("my_watch_id");
+            // tag::x-pack-execute-watch-by-id-execute-listener
+            ActionListener<ExecuteWatchResponse> listener = new ActionListener<ExecuteWatchResponse>() {
+                @Override
+                public void onResponse(ExecuteWatchResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-execute-watch-by-id-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-execute-watch-by-id-execute-async
+            client.watcher().executeWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-execute-watch-by-id-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
             //tag::get-watch-request
             GetWatchRequest request = new GetWatchRequest("my_watch_id");
             //end::get-watch-request
@@ -280,6 +330,65 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-delete-watch-execute-async
             client.watcher().deleteWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-delete-watch-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testExecuteInlineWatch() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::x-pack-execute-watch-inline
+            String watchJson = "{ \n" +
+                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
+                "  \"input\": { \"none\": {} },\n" +
+                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
+                "}";
+            ExecuteWatchRequest request = ExecuteWatchRequest.inline(watchJson);
+            request.setAlternativeInput("{ \"foo\" : \"bar\" }");                                         // <1>
+            request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);             // <2>
+            request.setIgnoreCondition(true);                                                               // <3>
+            request.setTriggerData("{\"triggered_time\":\"now\"}");                                         // <4>
+            request.setDebug(true);                                                                         // <5>
+            ExecuteWatchResponse response = client.watcher().executeWatch(request, RequestOptions.DEFAULT);
+            // end::x-pack-execute-watch-inline
+
+            // tag::x-pack-execute-watch-inline-response
+            String id = response.getRecordId();                                         // <1>
+            Map<String, Object> watch = response.getRecordAsMap();                      // <2>
+            String watch_id = ObjectPath.eval("watch_record.watch_id", watch);          // <3>
+            // end::x-pack-execute-watch-inline-response
+        }
+
+        {
+            String watchJson = "{ \n" +
+                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
+                "  \"input\": { \"none\": {} },\n" +
+                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
+                "}";
+            ExecuteWatchRequest request = ExecuteWatchRequest.inline(watchJson);
+            // tag::x-pack-execute-watch-inline-execute-listener
+            ActionListener<ExecuteWatchResponse> listener = new ActionListener<ExecuteWatchResponse>() {
+                @Override
+                public void onResponse(ExecuteWatchResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-execute-watch-inline-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-execute-watch-inline-execute-async
+            client.watcher().executeWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-execute-watch-inline-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

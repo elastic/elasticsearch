@@ -39,8 +39,11 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
     public RestGetPrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(GET, "/_xpack/security/privilege/", this);
+        controller.registerHandler(GET, "/_security/privilege/", this);
         controller.registerHandler(GET, "/_xpack/security/privilege/{application}", this);
+        controller.registerHandler(GET, "/_security/privilege/{application}", this);
         controller.registerHandler(GET, "/_xpack/security/privilege/{application}/{privilege}", this);
+        controller.registerHandler(GET, "/_security/privilege/{application}/{privilege}", this);
     }
 
     @Override

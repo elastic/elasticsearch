@@ -183,6 +183,22 @@ public class OptOutQueryCacheTests extends ESTestCase {
         verify(indicesQueryCache).doCache(same(weight), same(policy));
     }
 
+    public void testOptOutQueryCacheRemovesLicenseStateListenerOnClose() {
+        final Settings.Builder settings = Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0);
+        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
+        verify(licenseState).addListener(cache);
+        cache.close();
+        verify(licenseState).removeListener(cache);
+    }
+
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
         return new FieldPermissionsDefinition(granted, denied);
     }

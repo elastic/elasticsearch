@@ -37,8 +37,6 @@
 [[release-notes-6.4.3]]
 == {es} version 6.4.3
 
-coming[6.4.3]
-
 Also see <<breaking-changes-6.4>>.
 
 [float]

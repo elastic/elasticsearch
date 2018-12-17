@@ -36,6 +36,7 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
     public RestDeleteRoleAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(DELETE, "/_xpack/security/role/{name}", this);
+        controller.registerHandler(DELETE, "/_security/role/{name}", this);
 
         // @deprecated: Remove in 6.0
         controller.registerAsDeprecatedHandler(DELETE, "/_shield/role/{name}", this,

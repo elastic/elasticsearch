@@ -42,6 +42,9 @@ than or equal to 25:
 <4> The comparison value. Supports date math like the 
     <<compare-condition-date-math, compare condition>>.
 
+NOTE: When using fieldnames that contain a dot this condition will not
+work, use a <<condition-script,script condition>> instead.
+
 ==== Array-Compare Condition Attributes
 
 [options="header"]

@@ -182,112 +182,125 @@ showFunctions
 // tag::showFunctions
 SHOW FUNCTIONS;
 
-      name      |     type      
-----------------+---------------
-AVG             |AGGREGATE      
-COUNT           |AGGREGATE      
-MAX             |AGGREGATE      
-MIN             |AGGREGATE      
-SUM             |AGGREGATE      
-KURTOSIS        |AGGREGATE      
-PERCENTILE      |AGGREGATE      
-PERCENTILE_RANK |AGGREGATE      
-SKEWNESS        |AGGREGATE      
-STDDEV_POP      |AGGREGATE      
-SUM_OF_SQUARES  |AGGREGATE      
-VAR_POP         |AGGREGATE      
-COALESCE        |CONDITIONAL
-GREATEST        |CONDITIONAL
-IFNULL          |CONDITIONAL
-ISNULL          |CONDITIONAL
-LEAST           |CONDITIONAL
-NULLIF          |CONDITIONAL
-NVL             |CONDITIONAL
-DAY             |SCALAR
-DAYNAME         |SCALAR
-DAYOFMONTH      |SCALAR         
-DAYOFWEEK       |SCALAR         
-DAYOFYEAR       |SCALAR         
-DAY_NAME        |SCALAR         
-DAY_OF_MONTH    |SCALAR         
-DAY_OF_WEEK     |SCALAR         
-DAY_OF_YEAR     |SCALAR         
-DOM             |SCALAR         
-DOW             |SCALAR         
-DOY             |SCALAR         
-HOUR            |SCALAR         
-HOUR_OF_DAY     |SCALAR         
-MINUTE          |SCALAR         
-MINUTE_OF_DAY   |SCALAR         
-MINUTE_OF_HOUR  |SCALAR         
-MONTH           |SCALAR         
-MONTHNAME       |SCALAR         
-MONTH_NAME      |SCALAR         
-MONTH_OF_YEAR   |SCALAR         
-QUARTER         |SCALAR         
-SECOND          |SCALAR         
-SECOND_OF_MINUTE|SCALAR         
-WEEK            |SCALAR         
-WEEK_OF_YEAR    |SCALAR         
-YEAR            |SCALAR         
-ABS             |SCALAR         
-ACOS            |SCALAR         
-ASIN            |SCALAR         
-ATAN            |SCALAR         
-ATAN2           |SCALAR         
-CBRT            |SCALAR         
-CEIL            |SCALAR         
-CEILING         |SCALAR         
-COS             |SCALAR         
-COSH            |SCALAR         
-COT             |SCALAR         
-DEGREES         |SCALAR         
-E               |SCALAR         
-EXP             |SCALAR         
-EXPM1           |SCALAR         
-FLOOR           |SCALAR         
-LOG             |SCALAR         
-LOG10           |SCALAR         
-MOD             |SCALAR         
-PI              |SCALAR         
-POWER           |SCALAR         
-RADIANS         |SCALAR         
-RAND            |SCALAR         
-RANDOM          |SCALAR         
-ROUND           |SCALAR         
-SIGN            |SCALAR         
-SIGNUM          |SCALAR         
-SIN             |SCALAR         
-SINH            |SCALAR         
-SQRT            |SCALAR         
-TAN             |SCALAR         
-TRUNCATE        |SCALAR         
-ASCII           |SCALAR         
-BIT_LENGTH      |SCALAR         
-CHAR            |SCALAR         
-CHARACTER_LENGTH|SCALAR         
-CHAR_LENGTH     |SCALAR         
-CONCAT          |SCALAR         
-INSERT          |SCALAR         
-LCASE           |SCALAR         
-LEFT            |SCALAR         
-LENGTH          |SCALAR         
-LOCATE          |SCALAR         
-LTRIM           |SCALAR         
-OCTET_LENGTH    |SCALAR         
-POSITION        |SCALAR         
-REPEAT          |SCALAR         
-REPLACE         |SCALAR         
-RIGHT           |SCALAR         
-RTRIM           |SCALAR         
-SPACE           |SCALAR         
-SUBSTRING       |SCALAR         
-UCASE           |SCALAR         
-CAST            |SCALAR
-CONVERT         |SCALAR
-DATABASE        |SCALAR
-USER            |SCALAR
-SCORE           |SCORE
+      name       |     type      
+-----------------+---------------
+AVG              |AGGREGATE      
+COUNT            |AGGREGATE      
+MAX              |AGGREGATE      
+MIN              |AGGREGATE      
+SUM              |AGGREGATE      
+KURTOSIS         |AGGREGATE      
+PERCENTILE       |AGGREGATE      
+PERCENTILE_RANK  |AGGREGATE      
+SKEWNESS         |AGGREGATE      
+STDDEV_POP       |AGGREGATE      
+SUM_OF_SQUARES   |AGGREGATE      
+VAR_POP          |AGGREGATE      
+HISTOGRAM        |GROUPING
+COALESCE         |CONDITIONAL
+GREATEST         |CONDITIONAL
+IFNULL           |CONDITIONAL
+ISNULL           |CONDITIONAL
+LEAST            |CONDITIONAL
+NULLIF           |CONDITIONAL
+NVL              |CONDITIONAL
+CURRENT_TIMESTAMP|SCALAR
+DAY              |SCALAR
+DAYNAME          |SCALAR
+DAYOFMONTH       |SCALAR         
+DAYOFWEEK        |SCALAR         
+DAYOFYEAR        |SCALAR         
+DAY_NAME         |SCALAR         
+DAY_OF_MONTH     |SCALAR         
+DAY_OF_WEEK      |SCALAR         
+DAY_OF_YEAR      |SCALAR         
+DOM              |SCALAR         
+DOW              |SCALAR         
+DOY              |SCALAR         
+HOUR             |SCALAR         
+HOUR_OF_DAY      |SCALAR         
+IDOW             |SCALAR
+ISODAYOFWEEK     |SCALAR
+ISODOW           |SCALAR
+ISOWEEK          |SCALAR
+ISOWEEKOFYEAR    |SCALAR
+ISO_DAY_OF_WEEK  |SCALAR
+ISO_WEEK_OF_YEAR |SCALAR
+IW               |SCALAR
+IWOY             |SCALAR
+MINUTE           |SCALAR         
+MINUTE_OF_DAY    |SCALAR         
+MINUTE_OF_HOUR   |SCALAR         
+MONTH            |SCALAR         
+MONTHNAME        |SCALAR         
+MONTH_NAME       |SCALAR         
+MONTH_OF_YEAR    |SCALAR
+NOW              |SCALAR
+QUARTER          |SCALAR         
+SECOND           |SCALAR         
+SECOND_OF_MINUTE |SCALAR         
+WEEK             |SCALAR         
+WEEK_OF_YEAR     |SCALAR         
+YEAR             |SCALAR         
+ABS              |SCALAR         
+ACOS             |SCALAR         
+ASIN             |SCALAR         
+ATAN             |SCALAR         
+ATAN2            |SCALAR         
+CBRT             |SCALAR         
+CEIL             |SCALAR         
+CEILING          |SCALAR         
+COS              |SCALAR         
+COSH             |SCALAR         
+COT              |SCALAR         
+DEGREES          |SCALAR         
+E                |SCALAR         
+EXP              |SCALAR         
+EXPM1            |SCALAR         
+FLOOR            |SCALAR         
+LOG              |SCALAR         
+LOG10            |SCALAR         
+MOD              |SCALAR         
+PI               |SCALAR         
+POWER            |SCALAR         
+RADIANS          |SCALAR         
+RAND             |SCALAR         
+RANDOM           |SCALAR         
+ROUND            |SCALAR         
+SIGN             |SCALAR         
+SIGNUM           |SCALAR         
+SIN              |SCALAR         
+SINH             |SCALAR         
+SQRT             |SCALAR         
+TAN              |SCALAR         
+TRUNCATE         |SCALAR         
+ASCII            |SCALAR         
+BIT_LENGTH       |SCALAR         
+CHAR             |SCALAR         
+CHARACTER_LENGTH |SCALAR         
+CHAR_LENGTH      |SCALAR         
+CONCAT           |SCALAR         
+INSERT           |SCALAR         
+LCASE            |SCALAR         
+LEFT             |SCALAR         
+LENGTH           |SCALAR         
+LOCATE           |SCALAR         
+LTRIM            |SCALAR         
+OCTET_LENGTH     |SCALAR         
+POSITION         |SCALAR         
+REPEAT           |SCALAR         
+REPLACE          |SCALAR         
+RIGHT            |SCALAR         
+RTRIM            |SCALAR         
+SPACE            |SCALAR         
+SUBSTRING        |SCALAR         
+UCASE            |SCALAR         
+CAST             |SCALAR
+CONVERT          |SCALAR
+DATABASE         |SCALAR
+USER             |SCALAR
+SCORE            |SCORE
+
 // end::showFunctions
 ;
 
@@ -345,6 +358,8 @@ DAY_OF_MONTH   |SCALAR
 DAY_OF_WEEK    |SCALAR
 DAY_OF_YEAR    |SCALAR
 HOUR_OF_DAY    |SCALAR         
+ISODAYOFWEEK   |SCALAR
+ISO_DAY_OF_WEEK|SCALAR
 MINUTE_OF_DAY  |SCALAR         
 
 // end::showFunctionsWithPattern
@@ -658,7 +673,7 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, COUNT(*) AS c
 
       min:i    |      max:i    |      avg:d    |     count:l     
 ---------------+---------------+---------------+---------------
-25324          |74999          |48248          |100  
+25324          |74999          |48248.55       |100  
 
 // end::groupByImplicitMultipleAggs
 ;
@@ -683,6 +698,131 @@ SELECT MIN(salary) AS min, MAX(salary) AS max FROM emp HAVING min > 25000;
 
 // end::groupByHavingImplicitNoMatch
 //;
+
+///////////////////////////////
+//
+// Grouping
+//
+///////////////////////////////
+
+histogramNumeric
+// tag::histogramNumeric
+SELECT HISTOGRAM(salary, 5000) AS h FROM emp GROUP BY h;
+
+       h       
+---------------
+25000          
+30000          
+35000          
+40000          
+45000          
+50000          
+55000          
+60000          
+65000          
+70000
+
+// end::histogramNumeric  
+;
+
+histogramDate
+schema::h:ts|c:l
+// tag::histogramDate
+SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) AS c FROM emp GROUP BY h;
+
+
+         h          |       c       
+--------------------+---------------
+null                |10
+1951-04-11T00:00:00Z|1
+1952-04-05T00:00:00Z|10
+1953-03-31T00:00:00Z|10
+1954-03-26T00:00:00Z|7
+1955-03-21T00:00:00Z|4
+1956-03-15T00:00:00Z|4
+1957-03-10T00:00:00Z|6
+1958-03-05T00:00:00Z|6
+1959-02-28T00:00:00Z|9
+1960-02-23T00:00:00Z|7
+1961-02-17T00:00:00Z|8
+1962-02-12T00:00:00Z|6
+1963-02-07T00:00:00Z|7
+1964-02-02T00:00:00Z|5    
+
+// end::histogramDate
+;
+
+///////////////////////////////
+//
+// Date/Time
+//
+///////////////////////////////
+
+
+dtIntervalPlusInterval
+// tag::dtIntervalPlusInterval
+SELECT INTERVAL 1 DAY + INTERVAL 53 MINUTES AS result;
+
+    result     
+---------------
++1 00:53:00.0                       
+
+// end::dtIntervalPlusInterval
+;
+
+
+dtDatePlusInterval
+// tag::dtDatePlusInterval
+SELECT CAST('1969-05-13T12:34:56' AS DATE) + INTERVAL 49 YEARS AS result;
+
+       result       
+--------------------
+2018-05-13T12:34:56Z
+// end::dtDatePlusInterval
+;
+
+dtMinusInterval
+// tag::dtMinusInterval
+SELECT - INTERVAL '49-1' YEAR TO MONTH result;
+
+    result     
+---------------
+-49-1         
+
+// end::dtMinusInterval
+;
+
+dtIntervalMinusInterval
+// tag::dtIntervalMinusInterval
+SELECT INTERVAL '1' DAY - INTERVAL '2' HOURS AS result;
+
+    result     
+---------------
++0 22:00:00.0  
+// end::dtIntervalMinusInterval
+;
+
+
+dtDateMinusInterval
+// tag::dtDateMinusInterval
+SELECT CAST('2018-05-13T12:34:56' AS DATE) - INTERVAL '2-8' YEAR TO MONTH AS result; 
+
+       result       
+--------------------
+2015-09-13T12:34:56Z
+// end::dtDateMinusInterval
+;
+
+dtIntervalMul
+// tag::dtIntervalMul
+SELECT -2 * INTERVAL '3' YEARS AS result;
+
+    result     
+---------------
+-6-0    
+// end::dtIntervalMul
+;
+
 
 ///////////////////////////////
 //
@@ -778,7 +918,7 @@ SELECT AVG(salary) AS avg FROM emp;
 
       avg:d      
 ---------------
-48248          
+48248.55          
 // end::aggAvg
 ;
 
@@ -1518,6 +1658,11 @@ SELECT TRUNCATE(-345.153, 1) AS trimmed;
 // end::mathTruncateWithPositiveParameter
 ;
 
+///////////////////////////////
+//
+// Null handling
+//
+///////////////////////////////
 
 coalesceReturnNonNull
 // tag::coalesceReturnNonNull
@@ -1686,6 +1831,12 @@ true
 // end::nullEqualsCompareTwoNulls
 ;
 
+///////////////////////////////
+//
+// System functions
+//
+///////////////////////////////
+
 // ignored because tests run with a docs-not-worthy cluster name
 // at the time of this test being ignored, the cluster name was x-pack_plugin_sql_qa_single-node_integTestCluster
 database-Ignore
@@ -1708,4 +1859,229 @@ SELECT USER();
 ---------------
 elastic
 // end::user
+;
+
+///////////////////////////////
+//
+// Date-Time functions
+//
+///////////////////////////////
+
+constantYear
+// tag::year
+SELECT YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS year;
+
+     year
+---------------
+2018
+// end::year
+;
+
+constantMonthOfYear
+// tag::monthOfYear
+SELECT MONTH_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
+
+     month
+---------------
+2
+// end::monthOfYear
+;
+
+constantIsoWeekOfYear
+// tag::isoWeekOfYear
+SELECT ISO_WEEK_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS week;
+
+     week
+---------------
+8
+// end::isoWeekOfYear
+;
+
+// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
+constantDayName-Ignore
+// tag::dayName
+SELECT DAY_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+Monday
+// end::dayName
+;
+
+
+// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
+constantMonthName-Ignore
+// tag::monthName
+SELECT MONTH_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
+
+     month
+---------------
+February
+// end::monthName
+;
+
+constantDayOfYear
+// tag::dayOfYear
+SELECT DAY_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+50
+// end::dayOfYear
+;
+
+extractDayOfYear
+// tag::extractDayOfYear
+SELECT EXTRACT(DAY_OF_YEAR FROM CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+50
+// end::extractDayOfYear
+;
+
+constantDayOfMonth
+// tag::dayOfMonth
+SELECT DAY_OF_MONTH(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+19
+// end::dayOfMonth
+;
+
+constantDayOfWeek
+// tag::dayOfWeek
+SELECT DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+2
+// end::dayOfWeek
+;
+
+constantIsoDayOfWeek
+// tag::isoDayOfWeek
+SELECT ISO_DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+1
+// end::isoDayOfWeek
+;
+
+constantHourOfDay
+// tag::hourOfDay
+SELECT HOUR_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS hour;
+
+     hour
+---------------
+10
+// end::hourOfDay
+;
+
+constantMinuteOfDay
+// tag::minuteOfDay
+SELECT MINUTE_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
+
+    minute
+---------------
+623
+// end::minuteOfDay
+;
+
+constantMinuteOfHour
+// tag::minuteOfHour
+SELECT MINUTE_OF_HOUR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
+
+    minute
+---------------
+23
+// end::minuteOfHour
+;
+
+constantSecondOfMinute
+// tag::secondOfMinute
+SELECT SECOND_OF_MINUTE(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS second;
+
+    second
+---------------
+27
+// end::secondOfMinute
+;
+
+constantQuarter
+// tag::quarter
+SELECT QUARTER(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS quarter;
+
+    quarter
+---------------
+1
+// end::quarter
+;
+
+constantWeekOfYear
+// tag::weekOfYear
+SELECT WEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS week, ISOWEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS isoweek;
+
+      week     |   isoweek
+---------------+---------------
+2              |1
+// end::weekOfYear
+;
+
+
+currentNow
+// tag::filterNow
+SELECT first_name FROM emp WHERE hire_date > NOW() - INTERVAL 100 YEARS ORDER BY first_name ASC LIMIT 5;
+
+  first_name   
+---------------
+Alejandro      
+Amabile        
+Anneke         
+Anoosh         
+Arumugam       
+// end::filterNow
+;
+
+currentTimestamp-Ignore
+// tag::curTs
+SELECT CURRENT_TIMESTAMP AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.448Z
+// end::curTs
+;
+
+currentTimestampFunction-Ignore
+// tag::curTsFunction
+SELECT CURRENT_TIMESTAMP() AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.448Z
+// end::curTsFunction
+;
+
+currentTimestampFunctionPrecision-Ignore
+// tag::curTsFunctionPrecision
+SELECT CURRENT_TIMESTAMP(1) AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.4Z
+// end::curTsFunctionPrecision
+;
+
+
+nowFunction-Ignore
+// tag::nowFunction
+SELECT NOW() AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.448Z
+// end::nowIgnore
 ;

@@ -90,7 +90,7 @@ sudo zypper install elasticsearch <3>
 
 endif::[]
 
-ifeval::["{release-state}"=="released"]
+ifeval::["{release-state}"!="unreleased"]
 
 [NOTE]
 ==================================================

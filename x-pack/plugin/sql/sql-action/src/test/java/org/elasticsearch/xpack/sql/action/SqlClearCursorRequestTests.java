@@ -9,22 +9,27 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
+
 public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlClearCursorRequest> {
-    public Mode testMode;
+    
+    public RequestInfo requestInfo;
 
     @Before
     public void setup() {
-        testMode = randomFrom(Mode.values());
+        requestInfo = new RequestInfo(randomFrom(Mode.values()),
+                randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20)));
     }
 
     @Override
     protected SqlClearCursorRequest createTestInstance() {
-        return new SqlClearCursorRequest(testMode, randomAlphaOfLength(100));
+        return new SqlClearCursorRequest(requestInfo, randomAlphaOfLength(100));
     }
 
     @Override
@@ -34,20 +39,23 @@ public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlC
 
     @Override
     protected SqlClearCursorRequest doParseInstance(XContentParser parser) {
-        return SqlClearCursorRequest.fromXContent(parser, testMode);
+        return SqlClearCursorRequest.fromXContent(parser);
+    }
+    
+    private RequestInfo randomRequestInfo() {
+        return new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), requestInfo.clientId()));
     }
 
     @Override
     protected SqlClearCursorRequest mutateInstance(SqlClearCursorRequest instance) throws IOException {
         @SuppressWarnings("unchecked")
         Consumer<SqlClearCursorRequest> mutator = randomFrom(
-                request -> request.mode(randomValueOtherThan(request.mode(), () -> randomFrom(Mode.values()))),
+                request -> request.requestInfo(randomValueOtherThan(request.requestInfo(), this::randomRequestInfo)),
                 request -> request.setCursor(randomValueOtherThan(request.getCursor(), SqlQueryResponseTests::randomStringCursor))
         );
-        SqlClearCursorRequest newRequest = new SqlClearCursorRequest(instance.mode(), instance.getCursor());
+        SqlClearCursorRequest newRequest = new SqlClearCursorRequest(instance.requestInfo(), instance.getCursor());
         mutator.accept(newRequest);
         return newRequest;
-
     }
 }
 

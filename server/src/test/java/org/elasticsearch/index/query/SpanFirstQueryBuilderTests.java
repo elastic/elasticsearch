@@ -31,7 +31,6 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQueryBuilder> {
@@ -100,7 +99,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
     }
 
 
-    public void testFromJsonWithNonDefaultBoostInMatchQuery() {
+    public void testFromJsonWithNonDefaultBoostInMatchQuery() throws IOException {
         String json =
                 "{\n" +
                 "  \"span_first\" : {\n" +
@@ -117,8 +116,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
                 "  }\n" +
                 "}";
 
-        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(),
-            equalTo("span_first [match] as a nested span clause can't have non-default boost value [2.0]"));
+        parseQuery(json);
+        assertWarnings("setting boost on inner span queries is deprecated!");
     }
 }

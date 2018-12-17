@@ -28,6 +28,7 @@ if (project.rootProject.vagrantSupported) {
   integTest.finalizedBy idpFixtureProject.halt
 } else {
   integTest.enabled = false
+  testingConventions.enabled = false
 }
 
 integTestCluster {

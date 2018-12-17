@@ -125,9 +125,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             query.fuzzyRewrite(getRandomRewriteMethod());
         }
         if (randomBoolean()) {
-            query.useDisMax(randomBoolean());
-        }
-        if (randomBoolean()) {
             query.tieBreaker(randomFloat());
         }
         if (randomBoolean()) {
@@ -476,10 +473,34 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(expected, query);
     }
 
+    public void testDisMaxDeprecation() throws Exception {
+        String json =
+                "{\n" +
+                "  \"multi_match\" : {\n" +
+                "    \"query\" : \"foo:bar\",\n" +
+                "    \"use_dis_max\" : true\n" +
+                "  }\n" +
+                "}";
+
+        parseQuery(json);
+        assertWarnings("Deprecated field [use_dis_max] used, replaced by [use tie_breaker instead]");
+    }
+
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)
             .build();
         return IndexMetaData.builder(name).settings(build).build();
+    }
+
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36598")
+    @Override
+    public void testMustRewrite() throws IOException {
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36598")
+    @Override
+    public void testToQuery() throws IOException {
     }
 }

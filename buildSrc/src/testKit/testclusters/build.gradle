@@ -18,14 +18,14 @@ repositories {
 task user1 {
     useCluster testClusters.myTestCluster
     doLast {
-        println "user1 executing"
+        println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
     }
 }
 
 task user2 {
     useCluster testClusters.myTestCluster
     doLast {
-        println "user2 executing"
+        println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
     }
 }
 

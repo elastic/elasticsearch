@@ -215,7 +215,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
         assertEquals(json, 2.0, parsed.boost(), 0.0);
     }
 
-    public void testFromJsonWithNonDefaultBoostInIncludeQuery() {
+    public void testFromJsonWithNonDefaultBoostInIncludeQuery() throws IOException {
         String json =
                 "{\n" +
                 "  \"span_not\" : {\n" +
@@ -255,13 +255,12 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
                 "  }\n" +
                 "}";
 
-        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(),
-            equalTo("span_not [include] as a nested span clause can't have non-default boost value [2.0]"));
+        parseQuery(json);
+        assertWarnings("setting boost on inner span queries is deprecated!");
     }
 
 
-    public void testFromJsonWithNonDefaultBoostInExcludeQuery() {
+    public void testFromJsonWithNonDefaultBoostInExcludeQuery() throws IOException {
         String json =
                 "{\n" +
                 "  \"span_not\" : {\n" +
@@ -301,8 +300,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
                 "  }\n" +
                 "}";
 
-        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(),
-            equalTo("span_not [exclude] as a nested span clause can't have non-default boost value [2.0]"));
+        parseQuery(json);
+        assertWarnings("setting boost on inner span queries is deprecated!");
     }
 }

@@ -466,7 +466,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         if (docValueFields == null) {
             docValueFields = new ArrayList<>();
         }
-        docValueFields.add(new FieldAndFormat(field, null));
+        docValueFields.add(new FieldAndFormat(field, format));
         return this;
     }
 

@@ -30,6 +30,7 @@ public class RestFindFileStructureAction extends BaseRestHandler {
     public RestFindFileStructureAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "find_file_structure", this);
+        controller.registerHandler(RestRequest.Method.POST, MachineLearning.V7_BASE_PATH + "find_file_structure", this);
     }
 
     @Override

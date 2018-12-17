@@ -270,6 +270,15 @@ Setting a negative `boost` in a query is deprecated and will throw an error in t
 To deboost a specific query you can use a `boost` comprise between 0 and 1.
 
 [float]
+==== Limit the number of open scroll contexts
+
+The number of scroll contexts allowed per node will be limited to 500 by default in the next major
+version. Open scroll contexts are unlimited by default in this version, you can change the dynamic
+cluster setting `search.max_open_scroll_context` to force a limit. If the limit is unchanged, a
+deprecation warning will be printed if the number of open scroll context is greater than 500 (the
+default limit in the next major version).
+
+[float]
 ==== The filter context is deprecated
 
  The `filter` context is deprecated in Elasticsearch's query builders,

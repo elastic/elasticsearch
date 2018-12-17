@@ -21,13 +21,11 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanWithinQuery;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithinQueryBuilder> {
@@ -94,7 +92,7 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
         assertEquals(json, 2.0, parsed.boost(), 0.0);
     }
 
-    public void testFromJsonWithNonDefaultBoostInBigQuery() {
+    public void testFromJsonWithNonDefaultBoostInBigQuery() throws IOException {
         String json =
                 "{\n" +
                 "  \"span_within\" : {\n" +
@@ -132,12 +130,11 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
                 "  }\n" +
                 "}";
 
-        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(),
-            equalTo("span_within [big] as a nested span clause can't have non-default boost value [2.0]"));
+        parseQuery(json);
+        assertWarnings("setting boost on inner span queries is deprecated!");
     }
 
-    public void testFromJsonWithNonDefaultBoostInLittleQuery() {
+    public void testFromJsonWithNonDefaultBoostInLittleQuery() throws IOException {
         String json =
                 "{\n" +
                 "  \"span_within\" : {\n" +
@@ -175,8 +172,7 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
                 "  }\n" +
                 "}";
 
-        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(),
-            equalTo("span_within [little] as a nested span clause can't have non-default boost value [2.0]"));
+        parseQuery(json);
+        assertWarnings("setting boost on inner span queries is deprecated!");
     }
 }

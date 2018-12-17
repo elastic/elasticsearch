@@ -1,6 +1,6 @@
 {
   "index_patterns": [ ".monitoring-es-${monitoring.template.version}-*" ],
-  "version": 6050099,
+  "version": 6050399,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
@@ -1058,6 +1058,20 @@
                       "type": "text"
                     }
                   }
+                }
+              }
+            },
+            "auto_followed_clusters": {
+              "type": "nested",
+              "properties": {
+                "cluster_name": {
+                  "type": "keyword"
+                },
+                "time_since_last_check_millis": {
+                  "type": "long"
+                },
+                "last_seen_metadata_version": {
+                  "type": "long"
                 }
               }
             }

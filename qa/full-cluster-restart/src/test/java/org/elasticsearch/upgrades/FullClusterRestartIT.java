@@ -953,6 +953,56 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    public void testSoftDeletes() throws Exception {
+        if (isRunningAgainstOldCluster()) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 1);
+                if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+                    mappingsAndSettings.field("soft_deletes.enabled", true);
+                }
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            client().performRequest(createIndex);
+            int numDocs = between(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject());
+                Request request = new Request("POST", "/" + index + "/doc/" + i);
+                request.setJsonEntity(doc);
+                client().performRequest(request);
+                if (rarely()) {
+                    refresh();
+                }
+            }
+            client().performRequest(new Request("POST", "/" + index + "/_flush"));
+            int liveDocs = numDocs;
+            assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+            for (int i = 0; i < numDocs; i++) {
+                if (randomBoolean()) {
+                    String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v2").endObject());
+                    Request request = new Request("POST", "/" + index + "/doc/" + i);
+                    request.setJsonEntity(doc);
+                    client().performRequest(request);
+                } else if (randomBoolean()) {
+                    client().performRequest(new Request("DELETE", "/" + index + "/doc/" + i));
+                    liveDocs--;
+                }
+            }
+            refresh();
+            assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+            saveInfoDocument("doc_count", Integer.toString(liveDocs));
+        } else {
+            int liveDocs = Integer.parseInt(loadInfoDocument("doc_count"));
+            assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+        }
+    }
+
     private void checkSnapshot(String snapshotName, int count, Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);

@@ -44,6 +44,7 @@ public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
     public RestInvalidateTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
         super(settings, xPackLicenseState);
         controller.registerHandler(DELETE, "/_xpack/security/oauth2/token", this);
+        controller.registerHandler(DELETE, "/_security/oauth2/token", this);
     }
 
     @Override

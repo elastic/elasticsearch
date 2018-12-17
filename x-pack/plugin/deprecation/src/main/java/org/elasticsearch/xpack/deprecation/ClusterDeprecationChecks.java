@@ -18,12 +18,24 @@ public class ClusterDeprecationChecks {
         int maxShardsInCluster = shardsPerNode * nodeCount;
         int currentOpenShards = state.getMetaData().getTotalOpenIndexShards();
 
-        if (currentOpenShards >= maxShardsInCluster) {
+        if (nodeCount > 0 && currentOpenShards >= maxShardsInCluster) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Number of open shards exceeds cluster soft limit",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html",
                 "There are [" + currentOpenShards + "] open shards in this cluster, but the cluster is limited to [" +
                     shardsPerNode + "] per data node, for [" + maxShardsInCluster + "] maximum.");
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkClusterName(ClusterState state) {
+        String clusterName = state.getClusterName().value();
+        if (clusterName.contains(":")) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Cluster name cannot contain ':'",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#_literal_literal_is_no_longer_allowed_in_cluster_name",
+                "This cluster is named [" + clusterName + "], which contains the illegal character ':'.");
         }
         return null;
     }

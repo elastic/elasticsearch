@@ -240,14 +240,14 @@ public class UnresolvedFunction extends Function implements Unresolvable {
             }
             @Override
             public Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
-                if (def.datetime()) {
+                if (def.extractViable()) {
                     return def.builder().build(uf, false, cfg);
                 }
                 return uf.withMessage("Invalid datetime field [" + uf.name() + "]. Use any datetime function.");
             }
             @Override
             protected boolean isValidAlternative(FunctionDefinition def) {
-                return def.datetime();
+                return def.extractViable();
             }
             @Override
             protected String type() {

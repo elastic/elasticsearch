@@ -907,18 +907,17 @@ public class Lucene {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader leaf) {
-                    SegmentReader segmentReader = segmentReader(leaf);
-                    Bits hardLiveDocs = segmentReader.getHardLiveDocs();
+                    final SegmentReader segmentReader = segmentReader(leaf);
+                    final Bits hardLiveDocs = segmentReader.getHardLiveDocs();
                     if (hardLiveDocs == null) {
                         return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
                     }
-                    // TODO: Can we avoid calculate numDocs by using SegmentReader#getSegmentInfo with LUCENE-8458?
-                    int numDocs = 0;
-                    for (int i = 0; i < hardLiveDocs.length(); i++) {
-                        if (hardLiveDocs.get(i)) {
-                            numDocs++;
-                        }
-                    }
+                    // Once soft-deletes is enabled, we no longer hard-update or hard-delete documents directly.
+                    // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
+                    // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
+                    // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
+                    final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+                    assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
                     return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
                 }
             });
@@ -933,6 +932,17 @@ public class Lucene {
         public CacheHelper getReaderCacheHelper() {
             return null; // Modifying liveDocs
         }
+    }
+
+    private static int popCount(Bits bits) {
+        assert bits != null;
+        int onBits = 0;
+        for (int i = 0; i < bits.length(); i++) {
+            if (bits.get(i)) {
+                onBits++;
+            }
+        }
+        return onBits;
     }
 
     /**

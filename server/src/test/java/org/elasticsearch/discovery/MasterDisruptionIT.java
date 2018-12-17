@@ -61,6 +61,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -171,10 +172,9 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         majoritySide.remove(oldMasterNode);
 
         // Keeps track of the previous and current master when a master node transition took place on each node on the majority side:
-        final Map<String, List<Tuple<String, String>>> masters = Collections.synchronizedMap(new HashMap<String, List<Tuple<String,
-                        String>>>());
+        final Map<String, List<Tuple<String, String>>> masters = Collections.synchronizedMap(new HashMap<>());
         for (final String node : majoritySide) {
-            masters.put(node, new ArrayList<Tuple<String, String>>());
+            masters.put(node, new ArrayList<>());
             internalCluster().getInstance(ClusterService.class, node).addListener(event -> {
                 DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
                 DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
@@ -223,7 +223,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         internalCluster().getInstance(ClusterService.class, oldMasterNode).submitStateUpdateTask("sneaky-update", new
                 ClusterStateUpdateTask(Priority.IMMEDIATE) {
                     @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
+                    public ClusterState execute(ClusterState currentState) {
                         return ClusterState.builder(currentState).build();
                     }
 
@@ -250,16 +250,16 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         for (Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
             String nodeName = entry.getKey();
             List<Tuple<String, String>> recordedMasterTransition = entry.getValue();
-            assertThat("[" + nodeName + "] Each node should only record two master node transitions", recordedMasterTransition.size(),
-                    equalTo(2));
-            assertThat("[" + nodeName + "] First transition's previous master should be [null]", recordedMasterTransition.get(0).v1(),
-                    equalTo(oldMasterNode));
-            assertThat("[" + nodeName + "] First transition's current master should be [" + newMasterNode + "]", recordedMasterTransition
-                    .get(0).v2(), nullValue());
-            assertThat("[" + nodeName + "] Second transition's previous master should be [null]", recordedMasterTransition.get(1).v1(),
-                    nullValue());
+            assertThat("[" + nodeName + "] Each node should only record two master node transitions",
+                recordedMasterTransition, hasSize(2));
+            assertThat("[" + nodeName + "] First transition's previous master should be [" + oldMasterNode + "]",
+                recordedMasterTransition.get(0).v1(), equalTo(oldMasterNode));
+            assertThat("[" + nodeName + "] First transition's current master should be [null]",
+                recordedMasterTransition.get(0).v2(), nullValue());
+            assertThat("[" + nodeName + "] Second transition's previous master should be [null]",
+                recordedMasterTransition.get(1).v1(), nullValue());
             assertThat("[" + nodeName + "] Second transition's current master should be [" + newMasterNode + "]",
-                    recordedMasterTransition.get(1).v2(), equalTo(newMasterNode));
+                recordedMasterTransition.get(1).v2(), equalTo(newMasterNode));
         }
     }
 
@@ -506,7 +506,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     }
 
-    void assertDiscoveryCompleted(List<String> nodes) throws InterruptedException {
+    private void assertDiscoveryCompleted(List<String> nodes) throws InterruptedException {
         for (final String node : nodes) {
             assertTrue(
                     "node [" + node + "] is still joining master",
@@ -524,5 +524,4 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
             );
         }
     }
-
 }

@@ -65,7 +65,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 .builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.type", "single-node")
-                .put("transport.tcp.port", "0")
+                .put("transport.port", "0")
                 .build();
     }
 
@@ -130,7 +130,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                          * We align the port ranges of the two as then with zen discovery these two
                          * nodes would find each other.
                          */
-                        .put("transport.tcp.port", port + "-" + (port + 5 - 1))
+                        .put("transport.port", port + "-" + (port + 5 - 1))
                         .build();
             }
 

@@ -2609,7 +2609,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .put("transport.tcp.send_buffer_size", "43000b")
             .put("transport.tcp.receive_buffer_size", "42000b")
             .put("transport.publish_host", "the_publish_host")
-            .put("transport.tcp.port", "9700-9800")
+            .put("transport.port", "9700-9800")
             .put("transport.bind_host", "the_bind_host")
             .put(globalSettings2)
             .build();
@@ -2621,7 +2621,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .put("transport.tcp.send_buffer_size", "5b")
             .put("transport.tcp.receive_buffer_size", "6b")
             .put("transport.publish_host", "another_publish_host")
-            .put("transport.tcp.port", "9702-9802")
+            .put("transport.port", "9702-9802")
             .put("transport.bind_host", "another_bind_host")
             .put(globalSettings2)
             .build();

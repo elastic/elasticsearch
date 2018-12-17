@@ -777,8 +777,9 @@ healthy.
 There are situations in which Elasticsearch might tolerate the loss of multiple
 nodes, but this is not guaranteed under all sequences of failures. If this
 setting is set to `false` then departed nodes must be removed from the voting
-configuration manually, using the vote withdrawal API described below, to
-achieve the desired level of resilience.
+configuration manually, using the
+<<modules-discovery-adding-removing-nodes,voting exclusions API>>, to achieve
+the desired level of resilience.
 
 Note that Elasticsearch will not suffer from a "split-brain" inconsistency
 however it is configured. This setting only affects its availability in the

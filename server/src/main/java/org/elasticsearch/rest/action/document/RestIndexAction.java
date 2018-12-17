@@ -43,7 +43,7 @@ public class RestIndexAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestDeleteAction.class));
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
-        "document index requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
+        "document index requests is deprecated, use the /{index}/_doc/{id} or /{index}/_doc endpoints instead.";
 
     public RestIndexAction(Settings settings, RestController controller) {
         super(settings);
@@ -88,7 +88,7 @@ public class RestIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndexRequest indexRequest;
         final String type = request.param("type");
-        if (!type.equals(MapperService.SINGLE_MAPPING_NAME)) {
+        if (type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
             deprecationLogger.deprecatedAndMaybeLog("index_with_types", TYPES_DEPRECATION_MESSAGE);
             indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
         } else {

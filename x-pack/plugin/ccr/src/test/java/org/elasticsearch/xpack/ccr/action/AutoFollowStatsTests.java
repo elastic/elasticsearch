@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
+import org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster;
 
 import java.io.IOException;
 import java.util.Map;
@@ -34,7 +35,8 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomReadExceptions()
+            randomReadExceptions(),
+            randomTrackingClusters()
         );
     }
 
@@ -43,6 +45,15 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
         final NavigableMap<String, ElasticsearchException> readExceptions = new TreeMap<>();
         for (int i = 0; i < count; i++) {
             readExceptions.put("" + i, new ElasticsearchException(new IllegalStateException("index [" + i + "]")));
+        }
+        return readExceptions;
+    }
+
+    static NavigableMap<String, AutoFollowedCluster> randomTrackingClusters() {
+        final int count = randomIntBetween(0, 16);
+        final NavigableMap<String, AutoFollowedCluster> readExceptions = new TreeMap<>();
+        for (int i = 0; i < count; i++) {
+            readExceptions.put("" + i, new AutoFollowedCluster(randomLong(), randomNonNegativeLong()));
         }
         return readExceptions;
     }
@@ -56,6 +67,11 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
     protected void assertEqualInstances(AutoFollowStats expectedInstance, AutoFollowStats newInstance) {
         assertNotSame(expectedInstance, newInstance);
 
+        assertThat(newInstance.getNumberOfFailedRemoteClusterStateRequests(),
+            equalTo(expectedInstance.getNumberOfFailedRemoteClusterStateRequests()));
+        assertThat(newInstance.getNumberOfFailedFollowIndices(), equalTo(expectedInstance.getNumberOfFailedFollowIndices()));
+        assertThat(newInstance.getNumberOfSuccessfulFollowIndices(), equalTo(expectedInstance.getNumberOfSuccessfulFollowIndices()));
+
         assertThat(newInstance.getRecentAutoFollowErrors().size(), equalTo(expectedInstance.getRecentAutoFollowErrors().size()));
         assertThat(newInstance.getRecentAutoFollowErrors().keySet(), equalTo(expectedInstance.getRecentAutoFollowErrors().keySet()));
         for (final Map.Entry<String, ElasticsearchException> entry : newInstance.getRecentAutoFollowErrors().entrySet()) {
@@ -68,6 +84,8 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
                 anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class)));
             assertThat(entry.getValue().getCause().getMessage(), containsString(expected.getCause().getMessage()));
         }
+
+        assertThat(newInstance.getAutoFollowedClusters(), equalTo(expectedInstance.getAutoFollowedClusters()));
     }
 
     @Override

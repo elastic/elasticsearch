@@ -24,6 +24,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -311,12 +312,11 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThrows(client().prepareDelete("test", "type", "1").setIfMatch(1, 2).execute(), VersionConflictEngineException.class);
 
         client().admin().indices().prepareRefresh().execute().actionGet();
-        // TODO: Enable once get response returns seqNo
-//        for (int i = 0; i < 10; i++) {
-//            final GetResponse response = client().prepareGet("test", "type", "1").get();
-//            assertThat(response.getSeqNo(), equalTo(1L));
-//            assertThat(response.getPrimaryTerm(), equalTo(1L));
-//        }
+        for (int i = 0; i < 10; i++) {
+            final GetResponse response = client().prepareGet("test", "type", "1").get();
+            assertThat(response.getSeqNo(), equalTo(1L));
+            assertThat(response.getPrimaryTerm(), equalTo(1L));
+        }
 
         // search with versioning
         for (int i = 0; i < 10; i++) {

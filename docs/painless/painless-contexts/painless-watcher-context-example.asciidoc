@@ -1,0 +1,112 @@
+==== Complete Example
+
+While these examples are contrived, a more complete watch shown below contains
+both <<painless-watcher-condition-context, conditions>> and
+<<painless-watcher-transform-context, transforms>>, and is the basis of the
+above examples. It is shown for completeness.
+
+[source,Painless]
+----
+POST _watcher/watch/_execute
+{
+  "watch" : {
+    "metadata" : { "high_threshold": 50000, "low_threshold": 15000 },
+    "trigger" : { "schedule" : { "interval" : "24h" } },
+    "input" : {
+      "search" : {
+        "request" : {
+          "indices" : [ "seats" ],
+          "body" : {
+            "query" : {
+              "term": { "sold": "true"}
+            },
+            "aggs" : {
+              "theatres" : {
+                "terms" : { "field" : "play" },
+                "aggs" : {
+                  "money" : {
+                    "sum": { "field" : "cost" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "condition" : {
+      "script" :
+      """
+        return ctx.payload.aggregations.theatres.buckets.stream()
+          .filter(t -> t.money.value < ctx.metadata.low_threshold ||
+                       t.money.value > ctx.metadata.high_threshold)
+          .collect(Collectors.toList())
+          .size() > 0
+      """
+    },
+    "transform" : {
+      "script":
+      """
+        return [
+          'money_makers': ctx.payload.aggregations.theatres.buckets.stream()
+            .filter(t -> {
+                return t.money.value > ctx.metadata.high_threshold
+            })
+            .map(t -> {
+                return ['play': t.key, 'total_value': t.money.value ]
+            }).collect(Collectors.toList()),
+          'duds' : ctx.payload.aggregations.theatres.buckets.stream()
+            .filter(t -> {
+                return t.money.value < ctx.metadata.low_threshold
+            })
+            .map(t -> {
+                return ['play': t.key, 'total_value': t.money.value ]
+            }).collect(Collectors.toList())
+          ]
+      """
+    },
+    "actions" : {
+      "log_money_makers" : {
+        "condition": {
+          "script" : "return ctx.payload.money_makers.size() > 0"
+        },
+        "transform": {
+          "script" :
+          """
+          def formatter = NumberFormat.getCurrencyInstance();
+          return [
+            'msg': ctx.payload.money_makers.stream()
+              .map(t-> formatter.format(t.total_value) + ' for the play ' + t.play)
+              .collect(Collectors.toList())
+              .join(", ")
+          ]
+          """
+        },
+        "logging" : {
+          "text" : "The following plays contain the higest grossing total income: {{ctx.payload.msg}}"
+        }
+      },
+      "log_duds" : {
+        "condition": {
+          "script" : "return ctx.payload.duds.size() > 0"
+        },
+        "transform": {
+          "script" :
+          """
+          def formatter = NumberFormat.getCurrencyInstance();
+          return [
+            'msg': ctx.payload.duds.stream()
+              .map(t-> formatter.format(t.total_value) + ' for the play ' + t.play)
+              .collect(Collectors.toList())
+              .join(", ")
+          ]
+          """
+        },
+        "logging" : {
+          "text" : "The following plays need more advertising due to their low total income: {{ctx.payload.msg}}"
+        }
+      }
+    }
+  }
+}
+----

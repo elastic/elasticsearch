@@ -1,33 +1,14 @@
 [[painless-watcher-transform-context]]
 === Watcher transform context
 
+include::painless-watcher-context-variables.asciidoc[]
+
+==== Watch transform
+
 Use a Painless script to {xpack-ref}/transform-script.html[transform] watch
-data into a new payload for use in a response to a condition.
-
-*Variables*
-
-`params` (`Map`, read-only)::
-        User-defined parameters passed in as part of the query.
-
-`ctx['watch_id']` (`String`, read-only)::
-        The id of the watch.
-
-`ctx['execution_time']` (`DateTime`, read-only)::
-        The start time for the watch.
-
-`ctx['trigger']['scheduled_time']` (`DateTime`, read-only)::
-        The scheduled trigger time for the watch.
-
-`ctx['trigger']['triggered_time']` (`DateTime`, read-only)::
-        The actual trigger time for the watch.
-
-`ctx['metadata']` (`Map`, read-only)::
-        Any metadata associated with the watch.
-
-`ctx['payload']` (`Map`, read-only)::
-        The accessible watch data based upon the
-        {xpack-ref}/input.html[watch input].
-
+data into a new payload for further use in the watch. A transform can
+be used to transform the data for all actions of a watch or within an
+action to transform only the payload of said action.
 
 *Return*
 
@@ -37,3 +18,145 @@ data into a new payload for use in a response to a condition.
 *API*
 
 The standard <<painless-api-reference, Painless API>> is available.
+
+The first example is a transform for the watch itself. This transforms the
+output of the search into two collections of plays, one containing plays
+that have grossed, in total, over $50,000. The other contains plays that
+have grossed, in total, under $15,000.
+
+[source,Painless]
+----
+POST _watcher/watch/_execute
+{
+  "watch" : {
+    "trigger" : { "schedule" : { "interval" : "24h" } },
+    "input" : {
+      "search" : {
+        "request" : {
+          "indices" : [ "seats" ],
+          "body" : {
+            "query" : { "term": { "sold": "true"} },
+            "aggs" : {
+              "theatres" : {
+                "terms" : { "field" : "play" },
+                "aggs" : {
+                  "money" : {
+                    "sum": { "field" : "cost" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "transform" : {
+      "script":
+      """
+        return [
+          'money_makers': ctx.payload.aggregations.theatres.buckets.stream()  <1>
+            .filter(t -> {                                                    <2>
+                return t.money.value > 50000
+            })
+            .map(t -> {                                                       <3>
+                return ['play': t.key, 'total_value': t.money.value ]
+            }).collect(Collectors.toList()),                                  <4>
+          'duds' : ctx.payload.aggregations.theatres.buckets.stream()         <5>
+            .filter(t -> {
+                return t.money.value < 15000
+            })
+            .map(t -> {
+                return ['play': t.key, 'total_value': t.money.value ]
+            }).collect(Collectors.toList())
+          ]
+      """
+    },
+    "actions" : {
+      "my_log" : {
+        "logging" : {
+          "text" : "The output of the payload was transformed to {{ctx.payload}}"
+        }
+      }
+    }
+  }
+}
+----
+
+<1> The Java Stream API is used in the condition. This API allows manipulation of
+the elements of the list in a pipeline.
+<2> A Stream Filter is used to remove items that do not meet the criteria within the
+filter.
+<3> A Stream Map is used to transform the input elements of the stream into a new
+set of elements.
+<4> The collector reduces the stream back into a java.util.List
+<5> This is done again for the second set of values in the transform.
+
+==== Action transform
+
+The next example is a transform on an action. This transforms the output of a single
+action into a value that only this action will use.
+
+[source,Painless]
+----
+POST _watcher/watch/_execute
+{
+  "watch" : {
+    "trigger" : { "schedule" : { "interval" : "24h" } },
+    "input" : {
+      "search" : {
+        "request" : {
+          "indices" : [ "seats" ],
+          "body" : {
+            "query" : {
+              "term": { "sold": "true"}
+            },
+            "aggs" : {
+              "theatres" : {
+                "terms" : { "field" : "play" },
+                "aggs" : {
+                  "money" : {
+                    "sum": { "field" : "cost" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "actions" : {
+      "mod_log" : {
+        "transform": {                                                                <1>
+          "script" :
+          """
+          def formatter = NumberFormat.getCurrencyInstance();
+          return [
+            'msg': ctx.payload.aggregations.theatres.buckets.stream()
+              .map(t-> formatter.format(t.money.value) + ' for the play ' + t.key)
+              .collect(Collectors.toList())
+              .join(", ")
+          ]
+          """
+        },
+        "logging" : {
+          "text" : "The output of the payload was transformed to: {{ctx.payload.msg}}"
+        }
+      },
+      "unmod_log" : {                                                                 <2>
+        "logging" : {
+          "text" : "The output of the payload was not transformed and this value should not exist: {{ctx.payload.msg}}"
+        }
+      }
+    }
+  }
+}
+----
+
+This example uses the streaming API in a very similar manner. The differences below are
+subtle and worth calling out.
+
+<1> The location of the condition is no longer at the top level, but is within
+an individual action.
+<2> A second action that does not transform the payload is given for reference.
+
+include::painless-watcher-context-example.asciidoc[]

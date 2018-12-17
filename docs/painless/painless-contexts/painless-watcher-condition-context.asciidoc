@@ -1,32 +1,15 @@
 [[painless-watcher-condition-context]]
 === Watcher condition context
 
+include::painless-watcher-context-variables.asciidoc[]
+
+==== Watch condition
+
 Use a Painless script as a {xpack-ref}/condition-script.html[watcher condition]
-to test if a response is necessary.
-
-*Variables*
-
-`params` (`Map`, read-only)::
-        User-defined parameters passed in as part of the query.
-
-`ctx['watch_id']` (`String`, read-only)::
-        The id of the watch.
-
-`ctx['execution_time']` (`DateTime`, read-only)::
-        The start time for the watch.
-
-`ctx['trigger']['scheduled_time']` (`DateTime`, read-only)::
-        The scheduled trigger time for the watch.
-
-`ctx['trigger']['triggered_time']` (`DateTime`, read-only)::
-        The actual trigger time for the watch.
-
-`ctx['metadata']` (`Map`, read-only)::
-        Any metadata associated with the watch.
-
-`ctx['payload']` (`Map`, read-only)::
-        The accessible watch data based upon the
-        {xpack-ref}/input.html[watch input].
+to test if a watch or a particular action should be executed. The condition
+will return a `boolean` value to determine if the condition was met. A
+condition can be used to short circuit an entire watch or within an action
+to determine execution of said action.
 
 *Return*
 
@@ -36,14 +19,6 @@ to test if a response is necessary.
 *API*
 
 The standard <<painless-api-reference, Painless API>> is available.
-
-To run this example, first follow the steps in
-<<painless-context-examples, context examples>>.
-
-You can then use the example watch to retrieve and manipulate total spend
-calculations for each play present in the example data set.
-
-The watcher condition can be used in two places, and below are examples of each.
 
 The first example is a condition for the watch itself. This determines if any
 of the actions in the watch are executed. The example aggregates the total sold
@@ -106,6 +81,8 @@ filter.
 <4> The size of the list is is validated, and if it returns greater than zero entries,
 the condition passes and is executed.
 
+==== Action condition
+
 The next example is a condition on an action. This determines if a distinct action
 in the watch are executed. The example aggregates the total sold seats for each play
 in the data set. The action condition validates that there is at least one play that
@@ -141,8 +118,8 @@ POST _watcher/watch/_execute
     },
     "actions" : {
       "my_log" : {
-        "condition": {
-          "script" :                                                  <1>
+        "condition": {                                                <1>
+          "script" :
           """
             return ctx.payload.aggregations.theatres.buckets.stream()
             .filter(t -> t.money.value > 50000)                       <2>
@@ -164,114 +141,6 @@ differences below are subtle and are worth calling out.
 
 <1> The location of the condition is no longer at the top level, but is within
 an individual action.
-<2> The filter only checks there is any play has soledover $50,000.
+<2> The filter only checks there is any play has sold over $50,000.
 
-While these two examples are contrived, a more complete watch shown below contains
-both conditions and <<painless-watcher-transform-context, transforms>>, and is the
-basis of the above examples. It is shown for completeness. Please refer to the
-<<painless-watcher-transform-context, transform>> documentation for information
-on watcher transforms.
-
-[source,Painless]
-----
-POST _watcher/watch/_execute
-{
-  "watch" : {
-    "trigger" : { "schedule" : { "interval" : "24h" } },
-    "input" : {
-      "search" : {
-        "request" : {
-          "indices" : [ "seats" ],
-          "body" : {
-            "query" : {
-              "term": { "sold": "true"}
-            },
-            "aggs" : {
-              "theatres" : {
-                "terms" : { "field" : "play" },
-                "aggs" : {
-                  "money" : {
-                    "sum": { "field" : "cost" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "condition" : {
-      "script" :
-      """
-        return ctx.payload.aggregations.theatres.buckets.stream()
-          .filter(t -> t.money.value < 15000 || t.money.value > 50000)
-          .collect(Collectors.toList())
-          .size() > 0
-      """
-    },
-    "transform" : {
-      "script":
-      """
-        return [
-          'money_makers': ctx.payload.aggregations.theatres.buckets.stream()
-            .filter(t -> {
-                return t.money.value > 50000
-            })
-            .map(t -> {
-                return ['play': t.key, 'total_value': t.money.value ]
-            }).collect(Collectors.toList()),
-          'duds' : ctx.payload.aggregations.theatres.buckets.stream()
-            .filter(t -> {
-                return t.money.value < 15000
-            })
-            .map(t -> {
-                return ['play': t.key, 'total_value': t.money.value ]
-            }).collect(Collectors.toList())
-          ]
-      """
-    },
-    "actions" : {
-      "log_money_makers" : {
-        "condition": {
-          "script" : "return ctx.payload.money_makers.size() > 0"
-        },
-        "transform": {
-          "script" :
-          """
-          def formatter = NumberFormat.getCurrencyInstance();
-          return [
-            'msg': ctx.payload.money_makers.stream()
-              .map(t-> formatter.format(t.total_value) + ' for the play ' + t.play)
-              .collect(Collectors.toList())
-              .join(", ")
-          ]
-          """
-        },
-        "logging" : {
-          "text" : "The following plays contain the higest grossing total income: {{ctx.payload.msg}}"
-        }
-      },
-      "log_duds" : {
-        "condition": {
-          "script" : "return ctx.payload.duds.size() > 0"
-        },
-        "transform": {
-          "script" :
-          """
-          def formatter = NumberFormat.getCurrencyInstance();
-          return [
-            'msg': ctx.payload.duds.stream()
-              .map(t-> formatter.format(t.total_value) + ' for the play ' + t.play)
-              .collect(Collectors.toList())
-              .join(", ")
-          ]
-          """
-        },
-        "logging" : {
-          "text" : "The following plays need more advertising due to their low total income: {{ctx.payload.msg}}"
-        }
-      }
-    }
-  }
-}
-----
+include::painless-watcher-context-example.asciidoc[]

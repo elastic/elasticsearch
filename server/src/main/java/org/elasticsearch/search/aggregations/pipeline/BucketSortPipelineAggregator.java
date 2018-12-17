@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -34,7 +33,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -95,22 +93,22 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
             return originalAgg.create(new ArrayList<>(buckets.subList(from, Math.min(from + currentSize, bucketsCount))));
         }
 
-        int queueSize = Math.min(from + currentSize, bucketsCount);
-        PriorityQueue<ComparableBucket> ordered = new TopNPriorityQueue(queueSize);
+        List<ComparableBucket> ordered = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             ComparableBucket comparableBucket = new ComparableBucket(originalAgg, bucket);
-            if (comparableBucket.skip() == false) {
-                ordered.insertWithOverflow(new ComparableBucket(originalAgg, bucket));
+            if (!comparableBucket.skip()) {
+                ordered.add(new ComparableBucket(originalAgg, bucket));
             }
         }
 
+        Collections.sort(ordered, Collections.reverseOrder());
+
         int resultSize = Math.max(ordered.size() - from, 0);
 
-        // Popping from the priority queue returns the least element. The elements we want to skip due to offset would pop last.
-        // Thus, we just have to pop as many elements as we expect in results and store them in reverse order.
-        LinkedList<InternalMultiBucketAggregation.InternalBucket> newBuckets = new LinkedList<>();
-        for (int i = 0; i < resultSize; ++i) {
-            newBuckets.addFirst(ordered.pop().internalBucket);
+        // We just have to get as many elements as we expect in results and store them in the same order.
+        List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
+        for (int i = from; i < from + resultSize; ++i) {
+            newBuckets.add(ordered.get(i).internalBucket);
         }
         return originalAgg.create(newBuckets);
     }
@@ -171,19 +169,6 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
                 }
             }
             return compareResult;
-        }
-    }
-
-
-    private static class TopNPriorityQueue extends PriorityQueue<ComparableBucket> {
-
-        private TopNPriorityQueue(int n) {
-            super(n);
-        }
-
-        @Override
-        protected boolean lessThan(ComparableBucket a, ComparableBucket b) {
-            return a.compareTo(b) < 0;
         }
     }
 }

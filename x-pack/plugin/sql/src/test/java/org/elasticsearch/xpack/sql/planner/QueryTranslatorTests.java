@@ -391,7 +391,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testGroupByAndHavingWithFunctionOnTopOfAggregation() {
-        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY 1 HAVING " + "abs(max(int)) > 10");
+        LogicalPlan p = plan("SELECT keyword, MAX(int) FROM test GROUP BY 1 HAVING ABS(MAX(int)) > 10");
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());

@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -94,7 +95,8 @@ public class RestGetSourceActionTests extends RestActionTestCase {
 
     public void testRestGetSourceAction() throws Exception {
         final BytesReference source = new BytesArray("{\"foo\": \"bar\"}");
-        final GetResponse response = new GetResponse(new GetResult("index1", "_doc", "1", -1, true, source, emptyMap()));
+        final GetResponse response =
+            new GetResponse(new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, true, source, emptyMap()));
 
         final RestResponse restResponse = listener.buildResponse(response);
 
@@ -104,7 +106,8 @@ public class RestGetSourceActionTests extends RestActionTestCase {
     }
 
     public void testRestGetSourceActionWithMissingDocument() {
-        final GetResponse response = new GetResponse(new GetResult("index1", "_doc", "1", -1, false, null, emptyMap()));
+        final GetResponse response =
+            new GetResponse(new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, false, null, emptyMap()));
 
         final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.buildResponse(response));
 
@@ -112,7 +115,8 @@ public class RestGetSourceActionTests extends RestActionTestCase {
     }
 
     public void testRestGetSourceActionWithMissingDocumentSource() {
-        final GetResponse response = new GetResponse(new GetResult("index1", "_doc", "1", -1, true, null, emptyMap()));
+        final GetResponse response =
+            new GetResponse(new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, true, null, emptyMap()));
 
         final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.buildResponse(response));
 

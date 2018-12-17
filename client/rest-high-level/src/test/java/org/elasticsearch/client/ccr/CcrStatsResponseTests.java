@@ -20,6 +20,7 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.ccr.AutoFollowStats.AutoFollowedCluster;
 import org.elasticsearch.client.ccr.IndicesFollowStats.ShardFollowStats;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -185,6 +186,19 @@ public class CcrStatsResponseTests extends ESTestCase {
                     builder.endObject();
                 }
                 builder.endArray();
+                builder.startArray(AutoFollowStats.AUTO_FOLLOWED_CLUSTERS.getPreferredName());
+                for (Map.Entry<String, AutoFollowedCluster> entry : autoFollowStats.getAutoFollowedClusters().entrySet()) {
+                    builder.startObject();
+                    {
+                        builder.field(AutoFollowStats.CLUSTER_NAME.getPreferredName(), entry.getKey());
+                        builder.field(AutoFollowStats.TIME_SINCE_LAST_CHECK_MILLIS.getPreferredName(),
+                            entry.getValue().getTimeSinceLastCheckMillis());
+                        builder.field(AutoFollowStats.LAST_SEEN_METADATA_VERSION.getPreferredName(),
+                            entry.getValue().getLastSeenMetadataVersion());
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
             }
             builder.endObject();
 
@@ -315,11 +329,16 @@ public class CcrStatsResponseTests extends ESTestCase {
         for (int i = 0; i < count; i++) {
             readExceptions.put("" + i, new ElasticsearchException(new IllegalStateException("index [" + i + "]")));
         }
+        final NavigableMap<String, AutoFollowedCluster> autoFollowClusters = new TreeMap<>();
+        for (int i = 0; i < count; i++) {
+            autoFollowClusters.put("" + i, new AutoFollowedCluster(randomLong(), randomNonNegativeLong()));
+        }
         return new AutoFollowStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            readExceptions
+            readExceptions,
+            autoFollowClusters
         );
     }
 

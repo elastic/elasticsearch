@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -177,7 +178,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
                 state = ClusterState.builder(state)
                     .nodes(DiscoveryNodes.builder(state.nodes())
                         .add(new DiscoveryNode("old_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                            new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_6_0_0)))
+                             new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_6_0_0)))
                     .build();
             }
             Index[] indices = new Index[]{state.metaData().index("index-1").getIndex(),
@@ -268,11 +269,10 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
 
         final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         final RestoreInProgress.Entry entry =
-            new RestoreInProgress.Entry(randomAlphaOfLength(10), snapshot, RestoreInProgress.State.INIT, Collections.singletonList(index),
-                shardsBuilder.build());
-        final RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
-        builder.add(entry);
-        return ClusterState.builder(newState).putCustom(RestoreInProgress.TYPE, builder.build()).build();
+            new RestoreInProgress.Entry("_uuid", snapshot, RestoreInProgress.State.INIT, ImmutableList.of(index), shardsBuilder.build());
+        return ClusterState.builder(newState)
+            .putCustom(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(entry).build())
+            .build();
     }
 
     private static ClusterState addSnapshotIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {

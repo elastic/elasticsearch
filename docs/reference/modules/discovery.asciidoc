@@ -369,17 +369,18 @@ configuration and adapt the fault tolerance level to the new set of nodes.
 
 If there are only two master-eligible nodes remaining then neither node can be
 safely removed since both are required to reliably make progress, so you must
-first inform Elasticsearch that one of the nodes should not be part of the voting
-configuration, and that the voting power should instead be given to other nodes,
-allowing the excluded node to be taken offline without preventing the other node
-from making progress. A node which is added to a voting configuration exclusion
-list still works normally, but Elasticsearch will try and remove it from the
-voting configuration so its vote is no longer required, and will never
-automatically move such a node back into the voting configuration after it has
-been removed. Once a node has been successfully reconfigured out of the voting
-configuration, it is safe to shut it down without affecting the cluster's
-master-level availability. A node can be added to the voting configuration
-exclusion list using the following API:
+first inform Elasticsearch that one of the nodes should not be part of the
+voting configuration, and that the voting power should instead be given to
+other nodes, allowing the excluded node to be taken offline without preventing
+the other node from making progress. A node which is added to a voting
+configuration exclusion list still works normally, but Elasticsearch will try
+and remove it from the voting configuration so its vote is no longer required.
+Importantly, Elasticsearch will never automatically move a node on the voting
+exclusions list back into the voting configuration. Once an excluded node has
+been successfully auto-reconfigured out of the voting configuration, it is safe
+to shut it down without affecting the cluster's master-level availability. A
+node can be added to the voting configuration exclusion list using the
+following API:
 
 [source,js]
 --------------------------------------------------

@@ -68,6 +68,33 @@ cct:s
 AlejandroMcAlpine
 ;
 
+selectConcatWithNullValues
+SELECT first_name, CONCAT(first_name,null),last_name, CONCAT(null,null), LENGTH(CONCAT(null,null)) FROM test_emp ORDER BY first_name DESC LIMIT 20;
+
+ first_name:s  |CONCAT(first_name,null):s|  last_name:s   |CONCAT(null,null):s|LENGTH(CONCAT(null,null)):i
+---------------+-------------------------+----------------+-------------------+-------------------------
+null           |                         |Demeyer         |                   |0
+null           |                         |Joslin          |                   |0
+null           |                         |Reistad         |                   |0
+null           |                         |Merlo           |                   |0
+null           |                         |Swan            |                   |0
+null           |                         |Chappelet       |                   |0
+null           |                         |Portugali       |                   |0
+null           |                         |Makrucki        |                   |0
+null           |                         |Lortz           |                   |0
+null           |                         |Brender         |                   |0
+Zvonko         |Zvonko                   |Nyanchama       |                   |0
+Zhongwei       |Zhongwei                 |Rosen           |                   |0
+Yongqiao       |Yongqiao                 |Berztiss        |                   |0
+Yishay         |Yishay                   |Tzvieli         |                   |0
+Yinghua        |Yinghua                  |Dredge          |                   |0
+Xinglin        |Xinglin                  |Eugenio         |                   |0
+Weiyi          |Weiyi                    |Meriste         |                   |0
+Vishv          |Vishv                    |Zockler         |                   |0
+Valter         |Valter                   |Sullins         |                   |0
+Valdiodio      |Valdiodio                |Niizuma         |                   |0
+;
+
 selectAsciiOfConcatWithGroupByOrderByCount
 SELECT ASCII(CONCAT("first_name","last_name")) ascii, COUNT(*) count FROM "test_emp" GROUP BY ASCII(CONCAT("first_name","last_name")) ORDER BY ASCII(CONCAT("first_name","last_name")) DESC LIMIT 10;
 

@@ -37,6 +37,21 @@ public class NodeDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue auditLogPrefixSettingsCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
+        List<String> nodesFound = nodeInfos.stream()
+            .filter(nodeInfo -> nodeInfo.getSettings().getByPrefix("xpack.security.audit.logfile.prefix").isEmpty() == false)
+            .map(nodeInfo -> nodeInfo.getNode().getName())
+            .collect(Collectors.toList());
+        if (nodesFound.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Audit log node info settings renamed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                    "#audit-logfile-local-node-info",
+                "nodes with audit log settings that have been renamed: " + nodesFound);
+        }
+        return null;
+    }
+
     static DeprecationIssue indexThreadPoolCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
         List<String> nodesFound = nodeInfos.stream()
             .filter(nodeInfo -> nodeInfo.getSettings().getByPrefix("thread_pool.index.").isEmpty() == false)

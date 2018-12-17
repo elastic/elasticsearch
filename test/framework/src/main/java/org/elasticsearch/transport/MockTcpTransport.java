@@ -115,8 +115,8 @@ public class MockTcpTransport extends TcpTransport {
     @Override
     protected MockChannel bind(final String name, InetSocketAddress address) throws IOException {
         MockServerSocket socket = new MockServerSocket();
-        socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
-        ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
+        socket.setReuseAddress(TransportSettings.TCP_REUSE_ADDRESS.get(settings));
+        ByteSizeValue tcpReceiveBufferSize = TransportSettings.TCP_RECEIVE_BUFFER_SIZE.get(settings);
         if (tcpReceiveBufferSize.getBytes() > 0) {
             socket.setReceiveBufferSize(tcpReceiveBufferSize.bytesAsInt());
         }
@@ -225,16 +225,16 @@ public class MockTcpTransport extends TcpTransport {
     }
 
     private void configureSocket(Socket socket) throws SocketException {
-        socket.setTcpNoDelay(TCP_NO_DELAY.get(settings));
-        ByteSizeValue tcpSendBufferSize = TCP_SEND_BUFFER_SIZE.get(settings);
+        socket.setTcpNoDelay(TransportSettings.TCP_NO_DELAY.get(settings));
+        ByteSizeValue tcpSendBufferSize = TransportSettings.TCP_SEND_BUFFER_SIZE.get(settings);
         if (tcpSendBufferSize.getBytes() > 0) {
             socket.setSendBufferSize(tcpSendBufferSize.bytesAsInt());
         }
-        ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
+        ByteSizeValue tcpReceiveBufferSize = TransportSettings.TCP_RECEIVE_BUFFER_SIZE.get(settings);
         if (tcpReceiveBufferSize.getBytes() > 0) {
             socket.setReceiveBufferSize(tcpReceiveBufferSize.bytesAsInt());
         }
-        socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
+        socket.setReuseAddress(TransportSettings.TCP_REUSE_ADDRESS.get(settings));
     }
 
     public final class MockChannel implements Closeable, TcpChannel, TcpServerChannel {

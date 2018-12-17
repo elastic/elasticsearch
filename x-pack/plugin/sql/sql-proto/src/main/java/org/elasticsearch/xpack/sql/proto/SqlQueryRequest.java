@@ -129,7 +129,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         return fetchSize == that.fetchSize &&
             Objects.equals(query, that.query) &&
             Objects.equals(params, that.params) &&
-                Objects.equals(zoneId, that.zoneId) &&
+            Objects.equals(zoneId, that.zoneId) &&
             Objects.equals(requestTimeout, that.requestTimeout) &&
             Objects.equals(pageTimeout, that.pageTimeout) &&
             Objects.equals(filter, that.filter) &&
@@ -178,5 +178,4 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         }
         return builder;
     }
-
 }

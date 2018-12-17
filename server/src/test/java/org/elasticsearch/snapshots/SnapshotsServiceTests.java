@@ -96,6 +96,11 @@ public class SnapshotsServiceTests extends ESTestCase {
         allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
     }
 
+    /**
+     * Starts 3 nodes (one master and 2 data nodes). Then creates a single index with a single shard
+     * and one replica, adds the snapshot in progress for the primary shard's node, then removes
+     * the primary shard allocation from the state and ensures that the snapshot completes.
+     */
     public void testSnapshotWithOutOfSyncAllocationTable() throws Exception {
         // Set up fake repository
         String repoName = "repo";

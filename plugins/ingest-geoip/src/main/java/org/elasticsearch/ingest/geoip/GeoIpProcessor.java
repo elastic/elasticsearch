@@ -162,11 +162,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return dbReader.get();
     }
 
-    Set<Property> getProperties() throws IOException {
+    Set<Property> getProperties() {
         return properties;
     }
 
-    private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) throws IOException {
+    private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
         CityResponse response = AccessController.doPrivileged((PrivilegedAction<CityResponse>) () ->
             cache.putIfAbsent(ipAddress, CityResponse.class, ip -> {
@@ -252,7 +252,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveCountryGeoData(InetAddress ipAddress) throws IOException {
+    private Map<String, Object> retrieveCountryGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
         CountryResponse response = AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () ->
             cache.putIfAbsent(ipAddress, CountryResponse.class, ip -> {
@@ -297,7 +297,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveAsnGeoData(InetAddress ipAddress) throws IOException {
+    private Map<String, Object> retrieveAsnGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
         AsnResponse response = AccessController.doPrivileged((PrivilegedAction<AsnResponse>) () ->
             cache.putIfAbsent(ipAddress, AsnResponse.class, ip -> {

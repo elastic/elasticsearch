@@ -77,7 +77,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private Boolean allowPartialSearchResults;
 
-
     private Scroll scroll;
 
     private int batchedReduceSize = DEFAULT_BATCHED_REDUCE_SIZE;
@@ -93,6 +92,25 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public SearchRequest() {
+    }
+
+    /**
+     * Constructs a new search request from the provided search request
+     */
+    public SearchRequest(SearchRequest searchRequest) {
+        this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
+        this.batchedReduceSize = searchRequest.batchedReduceSize;
+        this.indices = searchRequest.indices;
+        this.indicesOptions = searchRequest.indicesOptions;
+        this.maxConcurrentShardRequests = searchRequest.maxConcurrentShardRequests;
+        this.preference = searchRequest.preference;
+        this.preFilterShardSize = searchRequest.preFilterShardSize;
+        this.requestCache = searchRequest.requestCache;
+        this.routing = searchRequest.routing;
+        this.scroll = searchRequest.scroll;
+        this.searchType = searchRequest.searchType;
+        this.source = searchRequest.source;
+        this.types = searchRequest.types;
     }
 
     /**

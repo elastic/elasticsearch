@@ -137,7 +137,7 @@ public class CommandLineHttpClient {
         final String scheme = XPackSettings.HTTP_SSL_ENABLED.get(settings) ? "https" : "http";
         List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);
         if (httpPublishHost.isEmpty()) {
-            httpPublishHost = NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings);
+            httpPublishHost = NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings);
         }
 
         // we cannot do custom name resolution here...

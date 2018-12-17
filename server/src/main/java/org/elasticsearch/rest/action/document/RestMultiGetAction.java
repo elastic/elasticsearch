@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMultiGetAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestMultiGetAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
         " Specifying types in multi get requests is deprecated.";
 
     private final boolean allowExplicitIndex;

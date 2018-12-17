@@ -104,7 +104,7 @@ class DatabaseReaderLazyLoader implements Closeable {
             final int offsetByte = tail[metadataOffset] & 0xFF;
             final int type = offsetByte >>> 5;
             if (type != 2) {
-                throw new RuntimeException("type must be UTF8_STRING");
+                throw new IOException("type must be UTF-8 string");
             }
             int size = offsetByte & 0x1f;
             return new String(tail, metadataOffset + 1, size, StandardCharsets.UTF_8);

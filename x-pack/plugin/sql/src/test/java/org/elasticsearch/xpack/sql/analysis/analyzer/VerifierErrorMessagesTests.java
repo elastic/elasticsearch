@@ -227,7 +227,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByHavingNonGrouped() {
-        assertEquals("1:48: Cannot filter by non-grouped column [int], expected [text]",
+        assertEquals("1:48: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
                 error("SELECT AVG(int) FROM test GROUP BY text HAVING int > 10"));
     }
 

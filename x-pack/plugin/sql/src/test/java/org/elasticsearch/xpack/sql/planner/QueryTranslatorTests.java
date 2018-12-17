@@ -244,9 +244,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testTranslateIsNullExpression_HavingClause_Painless() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IS NULL");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
@@ -258,9 +257,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testTranslateIsNotNullExpression_HavingClause_Painless() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IS NOT NULL");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
@@ -327,9 +325,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testTranslateInExpression_HavingClause_Painless() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IN (10, 20, 30 - 10)");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
@@ -342,9 +339,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testTranslateInExpression_HavingClause_PainlessOneArg() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IN (10, 30 - 20)");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
@@ -358,9 +354,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testTranslateInExpression_HavingClause_PainlessAndNullHandling() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IN (10, null, 20, 30, null, 30 - 10)");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
@@ -377,15 +372,29 @@ public class QueryTranslatorTests extends ESTestCase {
 
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING " +
             operation.name() + "(max(int)) > 10");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils." +
             operation.name().toLowerCase(Locale.ROOT) + "(params.a0),params.v0))",
+            aggFilter.scriptTemplate().toString());
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
+    }
+
+    public void testGroupByAndHavingWithFunctionOnTopOfAggregation() {
+        LogicalPlan p = plan("SELECT keyword, MAX(int) FROM test GROUP BY 1 HAVING ABS(MAX(int)) > 10");
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.abs" +
+                "(params.a0),params.v0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));

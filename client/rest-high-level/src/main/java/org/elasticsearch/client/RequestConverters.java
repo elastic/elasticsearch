@@ -268,13 +268,14 @@ final class RequestConverters {
     }
 
     static Request sourceExists(GetRequest getRequest) {
-        String endpoint = new EndpointBuilder()
-                .addPathPart(getRequest.index())
-                .addPathPartAsIs("_source")
-                .addPathPart(getRequest.id())
-                .build();
+        String optionalType = getRequest.type();
+        String endpoint;
+        if (optionalType == null || optionalType.equals(MapperService.SINGLE_MAPPING_NAME)) {
+          endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
+        } else {
+            endpoint = endpoint(getRequest.index(), optionalType, getRequest.id(), "_source");
+        }
         Request request = new Request(HttpHead.METHOD_NAME, endpoint);
-
         Params parameters = new Params(request);
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());

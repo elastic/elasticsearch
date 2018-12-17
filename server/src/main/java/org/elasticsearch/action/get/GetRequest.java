@@ -108,6 +108,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
+        if (Strings.isEmpty(type)) {
+            validationException = addValidationError("type is missing", validationException);
+        }
         if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }

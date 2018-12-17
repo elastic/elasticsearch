@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -64,6 +65,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
@@ -106,10 +108,13 @@ public class JobManagerTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .build();
         environment = TestEnvironment.newEnvironment(settings);
         analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
         clusterService = mock(ClusterService.class);
+        givenClusterSettings(settings);
 
         jobResultsProvider = mock(JobResultsProvider.class);
         auditor = mock(Auditor.class);
@@ -541,10 +546,6 @@ public class JobManagerTests extends ESTestCase {
 
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
 
-        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
-                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-
         doAnswer(invocationOnMock -> {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
             listener.onFailure(ExceptionsHelper.missingJobException("non-job"));
@@ -578,11 +579,6 @@ public class JobManagerTests extends ESTestCase {
 
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
 
-        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
-                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-
-
         JobManager jobManager = new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
                 auditor, threadPool, mock(Client.class), updateJobProcessNotifier, jobConfigProvider);
 
@@ -601,10 +597,6 @@ public class JobManagerTests extends ESTestCase {
     public void testJobExists_GivenJobIsInIndex() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         when(clusterService.state()).thenReturn(clusterState);
-
-        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
-                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         doAnswer(invocationOnMock -> {
@@ -962,10 +954,6 @@ public class JobManagerTests extends ESTestCase {
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
-        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
-                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         doAnswer(invocationOnMock -> {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
@@ -1007,9 +995,6 @@ public class JobManagerTests extends ESTestCase {
     }
 
     private JobManager createJobManager(Client client) {
-        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
-                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
                 auditor, threadPool, client, updateJobProcessNotifier);
     }
@@ -1025,5 +1010,12 @@ public class JobManagerTests extends ESTestCase {
             content.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             return BytesReference.bytes(xContentBuilder);
         }
+    }
+
+    private void givenClusterSettings(Settings settings) {
+        ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(Arrays.asList(
+            MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
+            MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION)));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
     }
 }

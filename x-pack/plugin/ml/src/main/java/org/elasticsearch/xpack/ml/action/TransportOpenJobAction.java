@@ -70,7 +70,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MlConfigMigrator;
+import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.ClusterStateJobUpdate;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -113,6 +113,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
     private final MlMemoryTracker memoryTracker;
+    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     @Inject
     public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
@@ -130,6 +131,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         this.jobConfigProvider = jobConfigProvider;
         this.jobManager = jobManager;
         this.memoryTracker = memoryTracker;
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
     }
 
     /**
@@ -520,7 +522,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     @Override
     protected void masterOperation(OpenJobAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        if (MlConfigMigrator.jobIsEligibleForMigration(request.getJobParams().getJobId(), state)) {
+        if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobParams().getJobId(), state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("open job", request.getJobParams().getJobId()));
             return;
         }

@@ -68,7 +68,9 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.version(RestActions.parseVersion(request));
         deleteRequest.versionType(VersionType.fromString(request.param("version_type"), deleteRequest.versionType()));
         deleteRequest.setIfMatch(
-            request.paramAsLong("if_seq_no_match", SequenceNumbers.UNASSIGNED_SEQ_NO), request.paramAsLong("if_primary_term_match", 0));
+            request.paramAsLong("if_seq_no_match", deleteRequest.ifSeqNoMatch()),
+            request.paramAsLong("if_primary_term_match", deleteRequest.ifPrimaryTermMatch())
+        );
 
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

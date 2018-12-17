@@ -3,12 +3,10 @@
 [[migration-api-deprecation]]
 === Deprecation Info APIs
 
-NOTE: The Deprecation Info API is only guaranteed to be up to date with all
-breaking changes as of the last minor version release of each major version
-series.  For example, Elasticsearch version 5.6 (and all subsequent patch
-versions) is the last minor version release of the 5.x major version series.
-Make sure to upgrade to the latest minor version release for your current
-version and re-run these checks before upgrading to the next major version.
+IMPORTANT: Before performing a major version upgrade, make sure you have checked
+this API using the most recent minor version of the previous major version. In
+earlier minor versions, this API may be missing information required for the
+major version upgrade.
 
 The deprecation API is to be used to retrieve information about different
 cluster, node, and index level settings that use deprecated features that will

@@ -44,12 +44,6 @@ public final class XPackRestTestHelper {
     }
 
     /**
-     * Waits for the Machine Learning templates to be created
-     * and check the version is up to date
-     */
-
-
-    /**
      * For each template name wait for the template to be created and
      * for the template version to be equal to the master node version.
      *
@@ -96,5 +90,4 @@ public final class XPackRestTestHelper {
             });
         }
     }
-
 }

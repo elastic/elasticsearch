@@ -1,7 +1,6 @@
 setup:
   - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      features: node_selector
 
   - do:
       indices.create:
@@ -25,6 +24,8 @@ setup:
 "Basic explain":
 
   - do:
+      node_selector:
+          version: "7.0.0 - "
       explain:
           index:  test_1
           id:     id_1
@@ -42,6 +43,8 @@ setup:
 "Basic explain with alias":
 
   - do:
+      node_selector:
+          version: "7.0.0 - "
       explain:
           index:  alias_1
           id:     id_1
@@ -58,6 +61,8 @@ setup:
 ---
 "Explain body without query element":
   - do:
+      node_selector:
+          version: "7.0.0 - "
       catch: bad_request
       explain:
           index:  test_1

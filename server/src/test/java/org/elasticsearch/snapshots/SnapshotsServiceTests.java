@@ -109,6 +109,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         // Set up fake repository
         String repoName = "repo";
         String snapshotName = "snapshot";
+        final int shards = 1;
         final Repository repository = mock(Repository.class);
         when(repository.getRepositoryData()).thenReturn(RepositoryData.EMPTY);
         doAnswer(invocation -> {
@@ -137,7 +138,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             )
         ).put(IndexMetaData.builder(index)
             .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
+            .numberOfShards(shards)
             .numberOfReplicas(1)
         ).build();
 
@@ -247,12 +248,10 @@ public class SnapshotsServiceTests extends ESTestCase {
                 }
             ).custom(SnapshotsInProgress.TYPE);
             // The Snapshot should not yet have been removed from the state.
-            assertThat(snapshotsInProgress.entries(), hasSize(1));
+            assertThat(snapshotsInProgress.entries(), hasSize(shards));
 
             // The failing shard must result in a task for removing the SnapshotInProgress from the cluster state
             // that we capture and run.
-            assertTrue(primaryNode.deterministicTaskQueue.hasRunnableTasks());
-            removeSnapshotTask = expectOneUpdateTask(primaryNode.clusterService, primaryNode.deterministicTaskQueue::runAllTasks);
         } else {
             clusterState.applyLatestChange(primaryNodeId, primaryNode.snapshotShardsService);
             assertTrue(primaryNode.deterministicTaskQueue.hasRunnableTasks());
@@ -293,13 +292,13 @@ public class SnapshotsServiceTests extends ESTestCase {
                 }
             ).custom(SnapshotsInProgress.TYPE);
             // The Snapshot should not yet have been removed from the state.
-            assertThat(snapshotsInProgress.entries(), hasSize(1));
+            assertThat(snapshotsInProgress.entries(), hasSize(shards));
 
             // The failing shard must result in a task for removing the SnapshotInProgress from the cluster state
             // that we capture and run.
-            assertTrue(primaryNode.deterministicTaskQueue.hasRunnableTasks());
-            removeSnapshotTask = expectOneUpdateTask(primaryNode.clusterService, primaryNode.deterministicTaskQueue::runAllTasks);
         }
+        assertTrue(primaryNode.deterministicTaskQueue.hasRunnableTasks());
+        removeSnapshotTask = expectOneUpdateTask(primaryNode.clusterService, primaryNode.deterministicTaskQueue::runAllTasks);
         assertNoSnapshotsInProgress(clusterState.updateAndGet(removeSnapshotTask));
     }
 

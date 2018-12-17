@@ -56,6 +56,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             to-users:

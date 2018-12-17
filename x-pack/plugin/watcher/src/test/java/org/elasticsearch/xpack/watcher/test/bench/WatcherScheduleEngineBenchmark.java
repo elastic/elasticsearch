@@ -122,7 +122,7 @@ public class WatcherScheduleEngineBenchmark {
                                             .condition(new ScriptCondition(new Script(
                                                     ScriptType.INLINE,
                                                     Script.DEFAULT_SCRIPT_LANG,
-                                                    "ctx.payload.hits.total > 0",
+                                                    "ctx.payload.hits.total.value > 0",
                                                     emptyMap())))
                                             .addAction("logging", ActionBuilders.loggingAction("test").setLevel(LoggingLevel.TRACE))
                                             .buildAsBytes(XContentType.JSON), XContentType.JSON

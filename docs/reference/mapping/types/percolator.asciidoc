@@ -199,7 +199,10 @@ now returns matches from the new index:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.13076457,
     "hits": [
       {
@@ -394,7 +397,10 @@ This results in a response like this:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.13076457,
     "hits": [
       {
@@ -553,7 +559,10 @@ GET /my_queries1/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.18864399,
     "hits": [
       {

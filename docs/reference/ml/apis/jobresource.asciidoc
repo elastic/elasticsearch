@@ -364,7 +364,7 @@ If you omit the `categorization_analyzer`, the following default values are used
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/_validate
+POST _ml/anomaly_detectors/_validate
 {
   "analysis_config" : {
     "categorization_analyzer" : {

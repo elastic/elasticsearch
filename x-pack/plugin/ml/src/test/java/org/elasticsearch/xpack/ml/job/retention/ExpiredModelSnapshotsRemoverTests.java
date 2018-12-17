@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -232,7 +233,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             modelSnapshots.get(i).toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             hitsArray[i].sourceRef(BytesReference.bytes(jsonBuilder));
         }
-        SearchHits hits = new SearchHits(hitsArray, hitsArray.length, 1.0f);
+        SearchHits hits = new SearchHits(hitsArray, new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(hits);
         return searchResponse;

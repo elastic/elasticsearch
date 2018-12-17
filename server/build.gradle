@@ -156,6 +156,9 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
 forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'
+  exclude '**/*.dic'
+  exclude '**/*.binary'
+  exclude '**/*.st'
 }
 
 task generateModulesList {
@@ -322,4 +325,6 @@ if (isEclipse == false || project.path == ":server-tests") {
                  dependsOn: test.dependsOn) {
     include '**/*IT.class'
   }
+  check.dependsOn integTest
+  integTest.mustRunAfter test
 }

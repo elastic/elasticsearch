@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -80,6 +81,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
      * Index for which mock settings contain a default pipeline.
      */
     private static final String WITH_DEFAULT_PIPELINE = "index_with_default_pipeline";
+    private static final String WITH_DEFAULT_PIPELINE_ALIAS = "alias_for_index_with_default_pipeline";
 
     private static final Settings SETTINGS =
         Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true).build();
@@ -190,7 +192,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                     IndexMetaData.builder(WITH_DEFAULT_PIPELINE).settings(
                         settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
                             .build()
-                    ).numberOfShards(1).numberOfReplicas(1).build()))
+                    ).putAlias(AliasMetaData.builder(WITH_DEFAULT_PIPELINE_ALIAS).build()).numberOfShards(1).numberOfReplicas(1).build()))
             .build()).build();
         when(state.getMetaData()).thenReturn(metaData);
         when(state.metaData()).thenReturn(metaData);
@@ -399,34 +401,11 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     }
 
     public void testUseDefaultPipeline() throws Exception {
-        Exception exception = new Exception("fake exception");
-        IndexRequest indexRequest = new IndexRequest(WITH_DEFAULT_PIPELINE, "type", "id");
-        indexRequest.source(Collections.emptyMap());
-        AtomicBoolean responseCalled = new AtomicBoolean(false);
-        AtomicBoolean failureCalled = new AtomicBoolean(false);
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
-            response -> {
-                responseCalled.set(true);
-            },
-            e -> {
-                assertThat(e, sameInstance(exception));
-                failureCalled.set(true);
-            }));
+        validateDefaultPipeline(new IndexRequest(WITH_DEFAULT_PIPELINE, "type", "id"));
+    }
 
-        // check failure works, and passes through to the listener
-        assertFalse(action.isExecuted); // haven't executed yet
-        assertFalse(responseCalled.get());
-        assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
-        completionHandler.getValue().accept(exception);
-        assertTrue(failureCalled.get());
-
-        // now check success
-        indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(null);
-        assertTrue(action.isExecuted);
-        assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+    public void testUseDefaultPipelineWithAlias() throws Exception {
+        validateDefaultPipeline(new IndexRequest(WITH_DEFAULT_PIPELINE_ALIAS, "type", "id"));
     }
 
     public void testCreateIndexBeforeRunPipeline() throws Exception {
@@ -461,4 +440,33 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verifyZeroInteractions(transportService);
     }
 
+    private void validateDefaultPipeline(IndexRequest indexRequest) {
+        Exception exception = new Exception("fake exception");
+        indexRequest.source(Collections.emptyMap());
+        AtomicBoolean responseCalled = new AtomicBoolean(false);
+        AtomicBoolean failureCalled = new AtomicBoolean(false);
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
+            response -> {
+                responseCalled.set(true);
+            },
+            e -> {
+                assertThat(e, sameInstance(exception));
+                failureCalled.set(true);
+            }));
+
+        // check failure works, and passes through to the listener
+        assertFalse(action.isExecuted); // haven't executed yet
+        assertFalse(responseCalled.get());
+        assertFalse(failureCalled.get());
+        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
+        completionHandler.getValue().accept(exception);
+        assertTrue(failureCalled.get());
+
+        // now check success
+        indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
+        completionHandler.getValue().accept(null);
+        assertTrue(action.isExecuted);
+        assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
+        verifyZeroInteractions(transportService);
+    }
 }

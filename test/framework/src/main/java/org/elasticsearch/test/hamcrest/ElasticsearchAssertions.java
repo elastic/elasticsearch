@@ -21,6 +21,7 @@ package org.elasticsearch.test.hamcrest;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
@@ -237,8 +238,9 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
-        if (countResponse.getHits().getTotalHits() != expectedHitCount) {
-            fail("Count is " + countResponse.getHits().getTotalHits() + " but " + expectedHitCount
+        final TotalHits totalHits = countResponse.getHits().getTotalHits();
+        if (totalHits.relation != TotalHits.Relation.EQUAL_TO || totalHits.value != expectedHitCount) {
+            fail("Count is " + totalHits + " but " + expectedHitCount
                     + " was expected. " + formatShardStatus(countResponse));
         }
     }
@@ -272,7 +274,7 @@ public class ElasticsearchAssertions {
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
         assertThat(number, greaterThan(0));
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
-        assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo((long) number));
+        assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo((long) number));
         assertThat(searchResponse.getHits().getAt(number - 1), matcher);
     }
 

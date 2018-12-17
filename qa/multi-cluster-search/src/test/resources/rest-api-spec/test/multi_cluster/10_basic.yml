@@ -27,6 +27,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index,my_remote_cluster:test_index
         body:
           aggs:
@@ -44,6 +45,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index,my_remote_cluster:test_index
         body:
           query:
@@ -63,6 +65,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
         body:
           aggs:
@@ -79,6 +82,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index
         body:
           aggs:
@@ -112,6 +116,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_remote_cluster:test_index
 
   - match: { _shards.total: 3 }
@@ -137,6 +142,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: "*:test_index"
 
   - match: { _shards.total: 6 }
@@ -147,6 +153,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: my_remote_cluster:aliased_test_index
 
   - match: { _shards.total: 3 }
@@ -159,6 +166,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: my_remote_cluster:aliased_test_index,my_remote_cluster:field_caps_index_1
 
   - match: { _shards.total: 4 }
@@ -171,6 +179,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: "my_remote_cluster:single_doc_index"
 
   - match: { _shards.total: 1 }

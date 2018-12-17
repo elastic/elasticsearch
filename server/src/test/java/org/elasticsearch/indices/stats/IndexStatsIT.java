@@ -62,6 +62,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -293,8 +294,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
             .getMissCount(), equalTo(0L));
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(),
-                equalTo((long) numDocs));
+            assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get()
+                    .getHits().getTotalHits().value, equalTo((long) numDocs));
             assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().
                 getMemorySizeInBytes(), greaterThan(0L));
         }
@@ -320,8 +321,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         });
 
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(),
-                equalTo((long) numDocs));
+            assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get()
+                    .getHits().getTotalHits().value, equalTo((long) numDocs));
             assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMemorySizeInBytes(), greaterThan(0L));
         }
@@ -333,12 +334,12 @@ public class IndexStatsIT extends ESIntegTestCase {
         // test explicit request parameter
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setRequestCache(false).get()
-            .getHits().getTotalHits(), equalTo((long) numDocs));
+            .getHits().getTotalHits().value, equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
             .getMemorySizeInBytes(), equalTo(0L));
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setRequestCache(true).get()
-            .getHits().getTotalHits(), equalTo((long) numDocs));
+            .getHits().getTotalHits().value, equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
             .getMemorySizeInBytes(), greaterThan(0L));
 
@@ -349,12 +350,12 @@ public class IndexStatsIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)));
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get()
-            .getHits().getTotalHits(), equalTo((long) numDocs));
+            .getHits().getTotalHits().value, equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
             .getMemorySizeInBytes(), equalTo(0L));
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setRequestCache(true).get()
-            .getHits().getTotalHits(), equalTo((long) numDocs));
+            .getHits().getTotalHits().value, equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
             .getMemorySizeInBytes(), greaterThan(0L));
     }
@@ -1007,6 +1008,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
+    @TestLogging("_root:DEBUG")  // this fails at a very low rate on CI: https://github.com/elastic/elasticsearch/issues/32506
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder().put(indexSettings()).put("number_of_replicas", 0).build();
         assertAcked(prepareCreate("index").setSettings(settings).get());

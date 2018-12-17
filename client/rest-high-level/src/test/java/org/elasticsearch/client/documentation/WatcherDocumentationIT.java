@@ -339,7 +339,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            // tag::x-pack-execute-inline-watch
+            // tag::x-pack-execute-watch-inline
             String watchJson = "{ \n" +
                 "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
                 "  \"input\": { \"none\": {} },\n" +
@@ -352,13 +352,13 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setTriggerData("{\"triggered_time\":\"now\"}");                                         // <4>
             request.setDebug(true);                                                                         // <5>
             ExecuteWatchResponse response = client.watcher().executeWatch(request, RequestOptions.DEFAULT);
-            // end::x-pack-execute-inline-watch
+            // end::x-pack-execute-watch-inline
 
-            // tag::x-pack-execute-watch-by-id-response
+            // tag::x-pack-execute-watch-inline-response
             String id = response.getRecordId();                                         // <1>
             Map<String, Object> watch = response.getRecordAsMap();                      // <2>
             String watch_id = ObjectPath.eval("watch_record.watch_id", watch);          // <3>
-            // end::x-pack-execute-watch-by-id-response
+            // end::x-pack-execute-watch-inline-response
         }
 
         {
@@ -368,7 +368,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
                 "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
                 "}";
             ExecuteWatchRequest request = ExecuteWatchRequest.inline(watchJson);
-            // tag::x-pack-execute-inline-watch-execute-listener
+            // tag::x-pack-execute-watch-inline-execute-listener
             ActionListener<ExecuteWatchResponse> listener = new ActionListener<ExecuteWatchResponse>() {
                 @Override
                 public void onResponse(ExecuteWatchResponse response) {
@@ -380,15 +380,15 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::x-pack-execute-inline-watch-execute-listener
+            // end::x-pack-execute-watch-inline-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::x-pack-execute-inline-watch-execute-async
+            // tag::x-pack-execute-watch-inline-execute-async
             client.watcher().executeWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::x-pack-execute-inline-watch-execute-async
+            // end::x-pack-execute-watch-inline-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -407,7 +407,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             client.watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
 
             // TODO: use the high-level REST client here once it supports 'execute watch'.
-            Request executeWatchRequest = new Request("POST", "_xpack/watcher/watch/my_watch_id/_execute");
+            Request executeWatchRequest = new Request("POST", "_watcher/watch/my_watch_id/_execute");
             executeWatchRequest.setJsonEntity("{ \"record_execution\": true }");
             Response executeResponse = client().performRequest(executeWatchRequest);
             assertEquals(RestStatus.OK.getStatus(), executeResponse.getStatusLine().getStatusCode());

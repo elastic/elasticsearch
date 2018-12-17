@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,14 +33,20 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  */
 public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestDeletePrivilegesAction.class));
+
     public RestDeletePrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(DELETE, "/_xpack/security/privilege/{application}/{privilege}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            DELETE, "/_security/privilege/{application}/{privilege}", this,
+            DELETE, "/_xpack/security/privilege/{application}/{privilege}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_delete_privilege_action";
+        return "security_delete_privilege_action";
     }
 
     @Override

@@ -42,6 +42,7 @@ setup:
   - do:
       catch: /preFilterShardSize must be >= 1/
       search:
+        rest_total_hits_as_int: true
         index: test_1
         pre_filter_shard_size: 0
 
@@ -72,6 +73,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
 
   - match: { _shards.total: 3 }
@@ -83,6 +85,7 @@ setup:
   # this is the case where we have an empty body and don't skip anything since it's match_all
   - do:
       search:
+        rest_total_hits_as_int: true
         pre_filter_shard_size: 1
 
   - match: { _shards.total: 3 }
@@ -94,6 +97,7 @@ setup:
   # this is a case where we can actually skip due to rewrite
   - do:
       search:
+        rest_total_hits_as_int: true
         pre_filter_shard_size: 1
         body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
 
@@ -106,6 +110,7 @@ setup:
   # this case we skip all except of one since we need a real result
   - do:
       search:
+        rest_total_hits_as_int: true
         pre_filter_shard_size: 1
         body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2019-02-01", "lt": "2020-02-01"} } } }
 
@@ -118,6 +123,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         pre_filter_shard_size: 1
         body: {"size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } }, "aggs" : { "some_agg"  : { "global" : {} }}}
 
@@ -130,6 +136,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         pre_filter_shard_size: 1
         body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"}}}, "aggs" : { "idx_terms" : { "terms" : { "field" : "_index", "min_doc_count" : 0 } } } }
 
@@ -142,6 +149,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         pre_filter_shard_size: 1
         body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"}}}, "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } } }
 

@@ -11,6 +11,9 @@ SELECT COALESCE(null, ABS(MAX(emp_no)) + 1, 123) AS c FROM test_emp GROUP BY lan
 coalesceWhere
 SELECT COALESCE(null, ABS(emp_no) + 1, 123) AS c FROM test_emp WHERE COALESCE(null, ABS(emp_no) + 1, 123, 321) > 100 ORDER BY emp_no NULLS FIRST LIMIT 5;
 
+coalesceOrderBy
+SELECT COALESCE(null, ABS(emp_no) + 1, 123) AS c FROM test_emp ORDER BY c NULLS FIRST LIMIT 5;
+
 ifNullField
 SELECT IFNULL(null, ABS(emp_no) + 1) AS "ifnull" FROM test_emp ORDER BY emp_no LIMIT 5;
 
@@ -23,6 +26,9 @@ SELECT NULLIF(10002, ABS(emp_no) + 1) AS c, emp_no FROM test_emp WHERE NULLIF(10
 nullIfHaving
 SELECT NULLIF(10030, ABS(MAX(emp_no)) + 1) AS nif FROM test_emp GROUP BY languages HAVING nif IS NOT NULL ORDER BY languages;
 
+nullIfOrderBy
+SELECT NULLIF(10030, ABS(emp_no + 1)) AS nif FROM test_emp ORDER BY nif NULLS FIRST LIMIT 5;
+
 greatestField
 SELECT GREATEST(emp_no - 1 + 3, ABS(emp_no) + 1) AS "greatest" FROM test_emp ORDER BY emp_no LIMIT 5;
 
@@ -32,6 +38,9 @@ SELECT emp_no FROM test_emp WHERE GREATEST(10005, ABS(emp_no) + 1, null, emp_no 
 greatestHaving
 SELECT GREATEST(10096, ABS(MAX(emp_no)) + 1) AS gt FROM test_emp GROUP BY languages HAVING gt >= 10098 ORDER BY languages;
 
+greatestOrderBy
+SELECT GREATEST(10096, ABS(emp_no + 1)) AS gt FROM test_emp ORDER BY gt LIMIT 10;
+
 leastField
 SELECT LEAST(emp_no - 1 + 3, ABS(emp_no) + 1) AS "least" FROM test_emp ORDER BY emp_no LIMIT 5;
 
@@ -40,3 +49,6 @@ SELECT emp_no FROM test_emp WHERE LEAST(10005, ABS(emp_no) + 1, null, emp_no - 1
 
 leastHaving
 SELECT LEAST(10098, ABS(MAX(emp_no)) + 1) AS lt FROM test_emp GROUP BY languages HAVING lt >= 10095 ORDER BY languages;
+
+leastOrderBy
+SELECT LEAST(10096, ABS(emp_no + 1)) AS lt FROM test_emp ORDER BY lt LIMIT 10;

@@ -51,7 +51,7 @@ public class SlackService extends NotificationService<SlackAccount> {
 
     @Override
     protected SlackAccount createAccount(String name, Settings accountSettings) {
-        return new SlackAccount(name, accountSettings, accountSettings, httpClient, logger);
+        return new SlackAccount(name, accountSettings, httpClient, logger);
     }
 
     private static List<Setting<?>> getDynamicSettings() {

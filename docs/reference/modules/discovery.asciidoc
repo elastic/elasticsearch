@@ -342,9 +342,9 @@ bootstrapping>>:
 === Adding and removing nodes
 
 As nodes are added or removed Elasticsearch maintains an optimal level of fault
-tolerance by updating the cluster's _voting configuration_, which is the set of
-master-eligible nodes whose responses are counted when making decisions such as
-electing a new master or committing a new cluster state.
+tolerance by automatically updating the cluster's _voting configuration_, which
+is the set of master-eligible nodes whose responses are counted when making
+decisions such as electing a new master or committing a new cluster state.
 
 It is recommended to have a small and fixed number of master-eligible nodes in a
 cluster, and to scale the cluster up and down by adding and removing

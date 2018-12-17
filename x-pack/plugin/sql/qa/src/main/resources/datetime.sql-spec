@@ -119,7 +119,10 @@ SELECT DAY_OF_WEEK(birth_date) day, COUNT(*) c FROM test_emp WHERE DAY_OF_WEEK(b
 currentTimestampYear
 SELECT YEAR(CURRENT_TIMESTAMP()) AS result;
 
-currentTimestampMonth
+//
+// H2 uses the local timezone instead of the specified one
+//
+currentTimestampMonth-Ignore
 SELECT MONTH(CURRENT_TIMESTAMP()) AS result;
 
 currentTimestampHour-Ignore

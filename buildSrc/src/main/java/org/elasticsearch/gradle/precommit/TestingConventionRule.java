@@ -25,6 +25,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * Represent rules for tests enforced by the @{link {@link TestingConventionsTasks}}
+ *
+ * Rules are identified by name, tests must have this name as a suffix and implement one of the base classes
+ * and be part of all the specified tasks.
+ */
 public class TestingConventionRule implements Serializable {
 
     private final String name;

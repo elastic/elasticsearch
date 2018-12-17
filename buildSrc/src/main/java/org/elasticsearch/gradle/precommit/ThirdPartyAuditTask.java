@@ -221,7 +221,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
     }
 
     private void assertNoJarHell(Set<String> jdkJarHellClasses) {
-        jdkJarHellClasses.removeAll(excludes);
         if (jdkJarHellClasses.isEmpty() == false) {
             throw new IllegalStateException(
                 "Audit of third party dependencies failed:\n" +

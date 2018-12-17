@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -90,7 +91,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
     }
 
-    private String type;
+    private String type = MapperService.SINGLE_MAPPING_NAME;
     private String id;
     @Nullable
     private String routing;
@@ -121,6 +122,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     }
 
+    public UpdateRequest(String index, String id) {
+        super(index);
+        this.id = id;
+    }
+
+    /**
+     * @deprecated Types are in the process of being removed. Use {@link #UpdateRequest(String, String)} instead.
+     */
+    @Deprecated
     public UpdateRequest(String index, String type, String id) {
         super(index);
         this.type = type;
@@ -173,7 +183,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     /**
      * The type of the indexed document.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     @Override
     public String type() {
         return type;
@@ -181,7 +194,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     /**
      * Sets the type of the indexed document.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     public UpdateRequest type(String type) {
         this.type = type;
         return this;

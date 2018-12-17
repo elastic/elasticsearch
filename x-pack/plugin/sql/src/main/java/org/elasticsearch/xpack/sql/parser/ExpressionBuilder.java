@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
@@ -58,9 +59,11 @@ import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BuiltinDateTimeFunctionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ConstantDefaultContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ConvertTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DateEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
@@ -101,9 +104,11 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContex
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTypesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimeEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimestampEscapedLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -121,6 +126,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
 
@@ -455,6 +461,36 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Object visitBuiltinDateTimeFunction(BuiltinDateTimeFunctionContext ctx) {
+        // maps current_XXX to their respective functions
+        // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
+        Location source = source(ctx);
+        Literal p = null;
+
+        if (ctx.precision != null) {
+            try {
+                Location pSource = source(ctx.precision);
+                short safeShort = DataTypeConversion.safeToShort(StringUtils.parseLong(ctx.precision.getText()));
+                if (safeShort > 9 || safeShort < 0) {
+                    throw new ParsingException(pSource, "Precision needs to be between [0-9], received [{}]", safeShort);
+                }
+                p = Literal.of(pSource, Short.valueOf(safeShort));
+            } catch (SqlIllegalArgumentException siae) {
+                throw new ParsingException(source, siae.getMessage());
+            }
+        }
+        
+        String functionName = ctx.name.getText();
+        
+        switch (ctx.name.getType()) {
+            case SqlBaseLexer.CURRENT_TIMESTAMP:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
+        }
+
+        throw new ParsingException(source, "Unknown function [{}]", functionName);
+    }
+
+    @Override
     public Function visitFunctionExpression(FunctionExpressionContext ctx) {
         FunctionTemplateContext template = ctx.functionTemplate();
         String name = template.functionName().getText();
@@ -512,9 +548,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Literal visitIntervalLiteral(IntervalLiteralContext ctx) {
-
-        IntervalContext interval = ctx.interval();
+    public Literal visitInterval(IntervalContext interval) {
 
         TimeUnit leading = visitIntervalField(interval.leading);
         TimeUnit trailing = visitIntervalField(interval.trailing);
@@ -537,10 +571,31 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         DataType intervalType = Intervals.intervalType(source(interval), leading, trailing);
 
-        boolean negative = interval.sign != null && interval.sign.getType() == SqlBaseParser.MINUS;
+        // negation outside the interval - use xor
+        boolean negative = false;
+
+        ParserRuleContext parentCtx = interval.getParent();
+        if (parentCtx != null) {
+            if (parentCtx instanceof IntervalLiteralContext) {
+                parentCtx = parentCtx.getParent();
+                if (parentCtx instanceof ConstantDefaultContext) {
+                    parentCtx = parentCtx.getParent();
+                    if (parentCtx instanceof ValueExpressionDefaultContext) {
+                        parentCtx = parentCtx.getParent();
+                        if (parentCtx instanceof ArithmeticUnaryContext) {
+                            ArithmeticUnaryContext auc = (ArithmeticUnaryContext) parentCtx;
+                            negative = auc.MINUS() != null;
+                        }
+                    }
+                }
+            }
+        }
+
+
+        // negation inside the interval
+        negative ^= interval.sign != null && interval.sign.getType() == SqlBaseParser.MINUS;
 
         TemporalAmount value = null;
-        String valueAsText = null;
 
         if (interval.valueNumeric != null) {
             if (trailing != null) {
@@ -549,18 +604,14 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                         + "use the string notation instead", trailing);
             }
             value = of(interval.valueNumeric, leading);
-            valueAsText = interval.valueNumeric.getText();
         } else {
             value = of(interval.valuePattern, negative, intervalType);
-            valueAsText = interval.valuePattern.getText();
         }
-
-        String name = "INTERVAL " + valueAsText + " " + leading.name() + (trailing != null ? " TO " + trailing.name() : "");
 
         Interval<?> timeInterval = value instanceof Period ? new IntervalYearMonth((Period) value,
                 intervalType) : new IntervalDayTime((Duration) value, intervalType);
 
-        return new Literal(source(ctx), name, timeInterval, intervalType);
+        return new Literal(source(interval), text(interval), timeInterval, timeInterval.dataType());
     }
 
     private TemporalAmount of(NumberContext valueNumeric, TimeUnit unit) {

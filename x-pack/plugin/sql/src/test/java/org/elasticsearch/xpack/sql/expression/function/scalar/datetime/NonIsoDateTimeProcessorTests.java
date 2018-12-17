@@ -10,13 +10,13 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 
 import java.io.IOException;
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class NonIsoDateTimeProcessorTests extends AbstractWireSerializingTestCase<NonIsoDateTimeProcessor> {
     
-    private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
 
     public static NonIsoDateTimeProcessor randomNonISODateTimeProcessor() {
         return new NonIsoDateTimeProcessor(randomFrom(NonIsoDateTimeExtractor.values()), UTC);
@@ -52,7 +52,7 @@ public class NonIsoDateTimeProcessorTests extends AbstractWireSerializingTestCas
     }
 
     public void testNonISOWeekOfYearInNonUTCTimeZone() {
-        NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.WEEK_OF_YEAR, TimeZone.getTimeZone("GMT-10:00"));
+        NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.WEEK_OF_YEAR, ZoneId.of("GMT-10:00"));
         assertEquals(2, proc.process(dateTime(568372930000L)));
         assertEquals(5, proc.process(dateTime(981278530000L)));
         assertEquals(7, proc.process(dateTime(224241730000L)));
@@ -78,7 +78,7 @@ public class NonIsoDateTimeProcessorTests extends AbstractWireSerializingTestCas
     }
 
     public void testNonISODayOfWeekInNonUTCTimeZone() {
-        NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.DAY_OF_WEEK, TimeZone.getTimeZone("GMT-10:00"));
+        NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.DAY_OF_WEEK, ZoneId.of("GMT-10:00"));
         assertEquals(2, proc.process(dateTime(568372930000L)));
         assertEquals(7, proc.process(dateTime(981278530000L)));
         assertEquals(2, proc.process(dateTime(224241730000L)));

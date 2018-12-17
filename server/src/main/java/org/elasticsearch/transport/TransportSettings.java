@@ -71,6 +71,7 @@ public final class TransportSettings {
     // the scheduled internal ping interval setting, defaults to disabled (-1)
     public static final Setting<TimeValue> PING_SCHEDULE =
         timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), Setting.Property.NodeScope);
+    // TODO: Deprecate in 7.0
     public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
         timeSetting("transport.tcp.connect_timeout", NetworkService.TCP_CONNECT_TIMEOUT, Setting.Property.NodeScope);
     public static final Setting<TimeValue> CONNECT_TIMEOUT =

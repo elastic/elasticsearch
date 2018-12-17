@@ -201,7 +201,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @param seeds a cluster alias to discovery node mapping representing the remote clusters seeds nodes
      * @param connectionListener a listener invoked once every configured cluster has been connected to
      */
-    private synchronized void updateRemoteClusters(Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> seeds,
+    private synchronized void updateRemoteClusters(Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> seeds,
                                                    ActionListener<Void> connectionListener) {
         if (seeds.containsKey(LOCAL_CLUSTER_GROUP_KEY)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
@@ -212,8 +212,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         } else {
             CountDown countDown = new CountDown(seeds.size());
             remoteClusters.putAll(this.remoteClusters);
-            for (Map.Entry<String, Tuple<String, List<Supplier<DiscoveryNode>>>> entry : seeds.entrySet()) {
-                List<Supplier<DiscoveryNode>> seedList = entry.getValue().v2();
+            for (Map.Entry<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> entry : seeds.entrySet()) {
+                List<Tuple<String, Supplier<DiscoveryNode>>> seedList = entry.getValue().v2();
                 String proxyAddress = entry.getValue().v1();
 
                 RemoteClusterConnection remote = this.remoteClusters.get(entry.getKey());
@@ -408,9 +408,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             final List<String> addresses,
             final String proxyAddress,
             final ActionListener<Void> connectionListener) {
-        final List<Supplier<DiscoveryNode>> nodes = addresses.stream().<Supplier<DiscoveryNode>>map(address -> () ->
-                buildSeedNode(clusterAlias, address, Strings.hasLength(proxyAddress))
-        ).collect(Collectors.toList());
+        final List<Tuple<String, Supplier<DiscoveryNode>>> nodes =
+                addresses.stream().<Tuple<String, Supplier<DiscoveryNode>>>map(address -> Tuple.tuple(address, () ->
+                        buildSeedNode(clusterAlias, address, Strings.hasLength(proxyAddress)))
+                ).collect(Collectors.toList());
         updateRemoteClusters(Collections.singletonMap(clusterAlias, new Tuple<>(proxyAddress, nodes)), connectionListener);
     }
 
@@ -421,7 +422,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     void initializeRemoteClusters() {
         final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> seeds = RemoteClusterAware.buildRemoteClustersDynamicConfig(settings);
+        Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> seeds =
+                RemoteClusterAware.buildRemoteClustersDynamicConfig(settings);
         updateRemoteClusters(seeds, future);
         try {
             future.get(timeValue.millis(), TimeUnit.MILLISECONDS);

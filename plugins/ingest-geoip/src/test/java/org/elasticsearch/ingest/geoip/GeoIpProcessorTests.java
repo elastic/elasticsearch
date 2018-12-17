@@ -236,12 +236,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     private DatabaseReaderLazyLoader loader(final String path) {
         final InputStream is = GeoIpProcessor.class.getResourceAsStream(path);
-        return new DatabaseReaderLazyLoader(PathUtils.get(path), () -> new DatabaseReader.Builder(is).build()) {
-            @Override
-            InputStream databaseInputStream() throws IOException {
-                return GeoIpProcessor.class.getResourceAsStream(path);
-            }
-        };
+        return new DatabaseReaderLazyLoader(PathUtils.get(path), () -> new DatabaseReader.Builder(is).build());
     }
 
 }

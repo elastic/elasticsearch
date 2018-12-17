@@ -55,7 +55,7 @@ class DatabaseReaderLazyLoader implements Closeable {
     final String getDatabaseType() throws IOException {
         final long fileSize = Files.size(databasePath);
         final int[] DATABASE_TYPE_MARKER = {'d', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e'};
-        try (InputStream in = databaseInputStream()) {
+        try (InputStream in = Files.newInputStream(databasePath)) {
             // read last 512 bytes
             in.skip(fileSize - 512);
             byte[] tail = new byte[512];
@@ -89,11 +89,7 @@ class DatabaseReaderLazyLoader implements Closeable {
         }
     }
 
-    InputStream databaseInputStream() throws IOException {
-        return Files.newInputStream(databasePath);
-    }
-
-    synchronized DatabaseReader get() throws IOException {
+    DatabaseReader get() throws IOException {
         if (databaseReader.get() == null) {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {

@@ -833,7 +833,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .field("type", "text")
                 .field("analyzer", "standard")
                 .startObject("index_prefixes")
-                .field("min_chars", 3)
+                .field("min_chars", 2)
                 .field("max_chars", 10)
                 .endObject()
                 .endObject().endObject()
@@ -842,7 +842,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
             assertEquals(mapping, mapper.mappingSource().toString());
 
-            assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=3:10"));
+            assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=2:10"));
 
             FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
             MappedFieldType fieldType = fieldMapper.fieldType;
@@ -855,7 +855,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             q = fieldType.prefixQuery("g", CONSTANT_SCORE_REWRITE, queryShardContext);
             Automaton automaton
-                = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar(), Automata.makeAnyChar()));
+                = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
             assertEquals(new ConstantScoreQuery(new AutomatonQuery(new Term("field._index_prefix", "g*"), automaton)), q);
 
             ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference

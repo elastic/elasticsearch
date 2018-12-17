@@ -365,7 +365,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         boolean accept(int length) {
-            return length <= maxChars;
+            return length >= minChars - 1 && length <= maxChars;
         }
 
         void doXContent(XContentBuilder builder) throws IOException {

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -13,9 +14,16 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.MlConfigMigrator;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -23,6 +31,8 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -98,7 +108,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         assertNull(alreadyMigratedJob.getCustomSettings());
     }
 
-    public void testMigrateConfigs() throws InterruptedException {
+    public void testMigrateConfigs() throws InterruptedException, IOException {
 
         // and jobs and datafeeds clusterstate
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
@@ -124,11 +134,13 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
+        // the first time this is called mlmetadata will be snap-shotted
         blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
         assertTrue(responseHolder.get());
+        assertSnapshot(mlMetadata.build());
 
         // check the jobs have been migrated
         AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
@@ -171,9 +183,9 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         mlMetadata.putDatafeed(builder.build(), Collections.emptyMap());
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder()
-                .putCustom(MlMetadata.TYPE, mlMetadata.build()))
-            .build();
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<Boolean> responseHolder = new AtomicReference<>();
@@ -181,7 +193,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(settings, client(), clusterService);
         blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
-            responseHolder, exceptionHolder);
+                responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
         assertFalse(responseHolder.get());
@@ -190,7 +202,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client());
         blockingCall(actionListener -> jobConfigProvider.expandJobs("*", true, true, actionListener),
-            jobsHolder, exceptionHolder);
+                jobsHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertThat(jobsHolder.get().isEmpty(), is(true));
 
@@ -198,10 +210,24 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client(), xContentRegistry());
         AtomicReference<List<DatafeedConfig.Builder>> datafeedsHolder = new AtomicReference<>();
         blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedConfigs("*", true, actionListener),
-            datafeedsHolder, exceptionHolder);
+                datafeedsHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
         assertThat(datafeedsHolder.get().isEmpty(), is(true));
+    }
+
+    public void assertSnapshot(MlMetadata expectedMlMetadata) throws IOException {
+        GetResponse getResponse = client()
+                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE, "ml-config").get();
+
+        assertTrue(getResponse.isExists());
+
+        try (InputStream stream = getResponse.getSourceAsBytesRef().streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            MlMetadata recoveredMeta = MlMetadata.LENIENT_PARSER.apply(parser, null).build();
+            assertEquals(expectedMlMetadata, recoveredMeta);
+        }
     }
 }
 

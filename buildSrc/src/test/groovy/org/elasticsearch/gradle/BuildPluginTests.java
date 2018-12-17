@@ -25,15 +25,14 @@ import org.junit.Test;
 
 public class BuildPluginTests extends GradleUnitTestCase {
 
-    @Test
-    public void checkDockerVersionRecent() {
+    public void testPassingDockerVersions() {
         BuildPlugin.checkDockerVersionRecent("Docker version 18.06.1-ce, build e68fc7a215d7");
         BuildPlugin.checkDockerVersionRecent("Docker version 17.05.0, build e68fc7a");
         BuildPlugin.checkDockerVersionRecent("Docker version 17.05.1, build e68fc7a");
     }
 
     @Test(expected = GradleException.class)
-    public void checkDockerVersionRecentOl() {
+    public void testFailingDockerVersions() {
         BuildPlugin.checkDockerVersionRecent("Docker version 17.04.0, build e68fc7a");
     }
 

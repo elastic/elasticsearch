@@ -157,15 +157,19 @@ public class MlConfigMigrator {
             snapshotMlMeta(MlMetadata.getMlMetadata(clusterState), ActionListener.wrap(
                     response -> {
                         firstTime.set(false);
-                        unMarkMigrationInProgress.onResponse(Boolean.TRUE);
+                        migrate(jobsAndDatafeedsToMigrate, unMarkMigrationInProgress);
                     },
                     unMarkMigrationInProgress::onFailure
             ));
             return;
         }
 
+        migrate(jobsAndDatafeedsToMigrate, unMarkMigrationInProgress);
+    }
+
+    private void migrate(JobsAndDatafeeds jobsAndDatafeedsToMigrate, ActionListener<Boolean> listener) {
         if (jobsAndDatafeedsToMigrate.totalCount() == 0) {
-            unMarkMigrationInProgress.onResponse(Boolean.FALSE);
+            listener.onResponse(Boolean.FALSE);
             return;
         }
 
@@ -176,9 +180,9 @@ public class MlConfigMigrator {
                     List<String> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, jobsAndDatafeedsToMigrate.jobs);
                     List<String> successfulDatafeedWrites =
                             filterFailedDatafeedConfigWrites(failedDocumentIds, jobsAndDatafeedsToMigrate.datafeedConfigs);
-                    removeFromClusterState(successfulJobWrites, successfulDatafeedWrites, unMarkMigrationInProgress);
+                    removeFromClusterState(successfulJobWrites, successfulDatafeedWrites, listener);
                 },
-                unMarkMigrationInProgress::onFailure
+                listener::onFailure
         ));
     }
 

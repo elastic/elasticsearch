@@ -154,7 +154,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 MetaDataCreateIndexService.validateShrinkIndex(state, "source", Collections.emptySet(), "target", targetSettings)
 
             ).getMessage());
-        assertEquals("the number of source shards [8] must be a must be a multiple of [3]",
+        assertEquals("the number of source shards [8] must be a multiple of [3]",
             expectThrows(IllegalArgumentException.class, () ->
                     MetaDataCreateIndexService.validateShrinkIndex(createClusterState("source", 8, randomIntBetween(0, 10),
                         Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(), "target",
@@ -221,7 +221,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             ).getMessage());
 
 
-        assertEquals("the number of source shards [3] must be a must be a factor of [4]",
+        assertEquals("the number of source shards [3] must be a factor of [4]",
             expectThrows(IllegalArgumentException.class, () ->
                 MetaDataCreateIndexService.validateSplitIndex(createClusterState("source", 3, randomIntBetween(0, 10),
                     Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(), "target",

@@ -6,10 +6,9 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -59,6 +58,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -78,7 +78,6 @@ public class DatafeedJobTests extends ESTestCase {
     ActionFuture<PostDataAction.Response> postDataFuture;
     private ActionFuture<FlushJobAction.Response> flushJobFuture;
     private ActionFuture<IndexResponse> indexFuture;
-    private ActionFuture<UpdateResponse> updateFuture;
     private ArgumentCaptor<FlushJobAction.Request> flushJobRequests;
     private FlushJobAction.Response flushJobResponse;
     private String annotationDocId;
@@ -102,7 +101,6 @@ public class DatafeedJobTests extends ESTestCase {
         postDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
         indexFuture = mock(ActionFuture.class);
-        updateFuture = mock(ActionFuture.class);
         annotationDocId = "AnnotationDocId";
         flushJobResponse = new FlushJobAction.Response(true, new Date());
         delayedDataDetector = mock(DelayedDataDetector.class);
@@ -129,9 +127,6 @@ public class DatafeedJobTests extends ESTestCase {
 
         when(indexFuture.actionGet()).thenReturn(new IndexResponse(new ShardId("index", "uuid", 0), "doc", annotationDocId, 0, 0, 0, true));
         when(client.index(any())).thenReturn(indexFuture);
-
-        when(updateFuture.actionGet()).thenReturn(new UpdateResponse());
-        when(client.update(any())).thenReturn(updateFuture);
     }
 
     public void testLookBackRunWithEndTime() throws Exception {
@@ -286,7 +281,7 @@ public class DatafeedJobTests extends ESTestCase {
             request.source(xContentBuilder);
         }
         ArgumentCaptor<IndexRequest> indexRequestArgumentCaptor = ArgumentCaptor.forClass(IndexRequest.class);
-        verify(client, times(1)).index(indexRequestArgumentCaptor.capture());
+        verify(client, atMost(2)).index(indexRequestArgumentCaptor.capture());
         assertThat(request.index(), equalTo(indexRequestArgumentCaptor.getValue().index()));
         assertThat(request.source(), equalTo(indexRequestArgumentCaptor.getValue().source()));
 
@@ -303,21 +298,25 @@ public class DatafeedJobTests extends ESTestCase {
         msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
             15,
             XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(2000));
-        UpdateRequest updateRequest = new UpdateRequest(AnnotationIndex.WRITE_ALIAS_NAME, annotationDocId);
+        // What we expect the updated annotation to be indexed as
+        IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+        indexRequest.id(annotationDocId);
         Annotation updatedAnnotation = new Annotation(expectedAnnotation);
         updatedAnnotation.setAnnotation(msg);
         updatedAnnotation.setModifiedTime(new Date(currentTime));
         updatedAnnotation.setModifiedUsername(SystemUser.NAME);
         try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            updateRequest.doc(xContentBuilder);
+            indexRequest.source(xContentBuilder);
         }
 
-        ArgumentCaptor<UpdateRequest> updateRequestArgumentCaptor = ArgumentCaptor.forClass(UpdateRequest.class);
+        ArgumentCaptor<IndexRequest> updateRequestArgumentCaptor = ArgumentCaptor.forClass(IndexRequest.class);
 
-        verify(client, times(1)).update(updateRequestArgumentCaptor.capture());
-        assertThat(updateRequest.index(), equalTo(updateRequestArgumentCaptor.getValue().index()));
-        assertThat(updateRequest.doc().source().utf8ToString(),
-            equalTo(updateRequestArgumentCaptor.getValue().doc().source().utf8ToString()));
+        verify(client, atMost(2)).index(updateRequestArgumentCaptor.capture());
+        assertThat(indexRequest.index(), equalTo(updateRequestArgumentCaptor.getValue().index()));
+        assertThat(indexRequest.id(), equalTo(updateRequestArgumentCaptor.getValue().id()));
+        assertThat(indexRequest.source().utf8ToString(),
+            equalTo(updateRequestArgumentCaptor.getValue().source().utf8ToString()));
+        assertThat(updateRequestArgumentCaptor.getValue().opType(), equalTo(DocWriteRequest.OpType.INDEX));
     }
 
     public void testEmptyDataCountGivenlookback() throws Exception {

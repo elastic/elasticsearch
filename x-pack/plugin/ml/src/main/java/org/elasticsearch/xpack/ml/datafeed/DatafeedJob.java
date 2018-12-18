@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
@@ -251,12 +250,10 @@ class DatafeedJob {
         updatedAnnotation.setTimestamp(annotation.getTimestamp());
         updatedAnnotation.setEndTimestamp(annotation.getEndTimestamp());
         try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            UpdateRequest updateRequest = new UpdateRequest(AnnotationIndex.WRITE_ALIAS_NAME, lastDataCheckAnnotationId);
-            // If the document with the lastDataCheckAnnotationId does not exist, create it with the passed doc value
-            // This is for insurance against somehow the doc being deleted, moved, etc.
-            updateRequest.docAsUpsert(true);
-            updateRequest.doc(xContentBuilder);
-            client.update(updateRequest).actionGet();
+            IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+            indexRequest.id(lastDataCheckAnnotationId);
+            indexRequest.source(xContentBuilder);
+            client.index(indexRequest).actionGet();
             lastDataCheckAnnotation = updatedAnnotation;
         } catch (IOException ex) {
             String errorMessage = "[" + jobId + "] failed to update annotation for delayed data checker.";

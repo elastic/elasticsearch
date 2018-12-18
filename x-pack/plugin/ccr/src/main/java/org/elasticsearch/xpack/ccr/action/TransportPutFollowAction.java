@@ -107,12 +107,11 @@ public final class TransportPutFollowAction
             remoteCluster,
             leaderIndex,
             listener::onFailure,
-            (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
+            (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, request, listener));
     }
 
     private void createFollowerIndex(
         final IndexMetaData leaderIndexMetaData,
-        final String[] historyUUIDs,
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
 

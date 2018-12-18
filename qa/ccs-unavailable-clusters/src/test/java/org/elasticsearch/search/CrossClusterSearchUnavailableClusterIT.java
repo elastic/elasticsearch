@@ -135,7 +135,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
             for (int i = 0; i < 10; i++) {
                 restHighLevelClient.index(
-                        new IndexRequest("index", "doc", String.valueOf(i)).source("field", "value"), RequestOptions.DEFAULT);
+                        new IndexRequest("index").id(String.valueOf(i)).source("field", "value"), RequestOptions.DEFAULT);
             }
             Response refreshResponse = client().performRequest(new Request("POST", "/index/_refresh"));
             assertEquals(200, refreshResponse.getStatusLine().getStatusCode());

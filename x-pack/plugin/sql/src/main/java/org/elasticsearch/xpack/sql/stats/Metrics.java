@@ -15,6 +15,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.ODBC_CLIENT_IDS;
+import static org.elasticsearch.xpack.sql.stats.QueryMetric.ODBC;
+
 /**
  * Class encapsulating the metrics collected for ES SQL
  */
@@ -101,9 +104,18 @@ public class Metrics {
         
         // queries metrics
         for (Entry<QueryMetric, Map<OperationType, CounterMetric>> entry : opsByTypeMetrics.entrySet()) {
+            String metricName = entry.getKey().toString();
+            
             for (OperationType type : OperationType.values()) {
-                counters.inc(QPREFIX + entry.getKey().toString() + "." + type.toString(), entry.getValue().get(type).count());
-                counters.inc(QPREFIX + "_all." + type.toString(), entry.getValue().get(type).count());
+                long metricCounter = entry.getValue().get(type).count();
+                String operationTypeName = type.toString();
+                
+                counters.inc(QPREFIX + metricName + "." + operationTypeName, metricCounter);
+                counters.inc(QPREFIX + "_all." + operationTypeName, metricCounter);
+                // compute the ODBC total metric
+                if (ODBC_CLIENT_IDS.contains(metricName)) {
+                    counters.inc(QPREFIX + ODBC.toString() + "." + operationTypeName, metricCounter);
+                }
             }
         }
         

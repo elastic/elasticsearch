@@ -82,8 +82,8 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         createIndex(sourceIndex, settings);
         createIndex(destinationIndex, settings);
         BulkRequest bulkRequest = new BulkRequest()
-                .add(new IndexRequest(sourceIndex, "type", "1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
-                .add(new IndexRequest(sourceIndex, "type", "2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+                .add(new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+                .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         assertEquals(RestStatus.OK, highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT).status());
         
@@ -111,7 +111,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         }
         TaskInfo info = taskResponse.getTaskInfo();
         assertTrue(info.isCancellable());
-        assertEquals("reindex from [source1] to [dest]", info.getDescription());
+        assertEquals("reindex from [source1] to [dest][_doc]", info.getDescription());
         assertEquals("indices:data/write/reindex", info.getAction());                
     }    
     

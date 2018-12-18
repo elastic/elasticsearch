@@ -41,6 +41,7 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
     }
 
     public void testValidDayNamesInUTC() {
+        assumeJava9PlusAndCompatLocaleProviderSetting();
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.DAY_NAME, UTC);
         assertEquals("Thursday", proc.process(dateTime(0L)));
         assertEquals("Saturday", proc.process(dateTime(-64164233612338L)));

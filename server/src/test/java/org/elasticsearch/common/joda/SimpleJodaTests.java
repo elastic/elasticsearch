@@ -262,6 +262,52 @@ public class SimpleJodaTests extends ESTestCase {
         assertThat(formatter.parseJoda(epochFloatValue).getMillis(), is(dateTime.getMillis()));
     }
 
+    public void testThatNegativeEpochsCanBeParsed() {
+        // problem: negative epochs can be arbitrary in size...
+        boolean parseMilliSeconds = randomBoolean();
+        DateFormatter formatter = DateFormatter.forPattern(parseMilliSeconds ? "epoch_millis" : "epoch_second");
+        DateTime dateTime = formatter.parseJoda("-10000");
+
+        assertThat(dateTime.getYear(), is(1969));
+        assertThat(dateTime.getMonthOfYear(), is(12));
+        assertThat(dateTime.getDayOfMonth(), is(31));
+        if (parseMilliSeconds) {
+            assertThat(dateTime.getHourOfDay(), is(23)); // utc timezone, +2 offset due to CEST
+            assertThat(dateTime.getMinuteOfHour(), is(59));
+            assertThat(dateTime.getSecondOfMinute(), is(50));
+        } else {
+            assertThat(dateTime.getHourOfDay(), is(21)); // utc timezone, +2 offset due to CEST
+            assertThat(dateTime.getMinuteOfHour(), is(13));
+            assertThat(dateTime.getSecondOfMinute(), is(20));
+        }
+
+        // test floats get truncated
+        String epochFloatValue = String.format(Locale.US, "%d.%d", dateTime.getMillis() / (parseMilliSeconds ? 1L : 1000L),
+            randomNonNegativeLong());
+        assertThat(formatter.parseJoda(epochFloatValue).getMillis(), is(dateTime.getMillis()));
+
+        // every negative epoch must be parsed, no matter if exact the size or bigger
+        if (parseMilliSeconds) {
+            formatter.parseJoda("-100000000");
+            formatter.parseJoda("-999999999999");
+            formatter.parseJoda("-1234567890123");
+            formatter.parseJoda("-1234567890123456789");
+
+            formatter.parseJoda("-1234567890123.9999");
+            formatter.parseJoda("-1234567890123456789.9999");
+        } else {
+            formatter.parseJoda("-100000000");
+            formatter.parseJoda("-1234567890");
+            formatter.parseJoda("-1234567890123456");
+
+            formatter.parseJoda("-1234567890.9999");
+            formatter.parseJoda("-1234567890123456.9999");
+        }
+
+        assertWarnings("Use of negative values" +
+            " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+    }
+
     public void testForInvalidDatesInEpochSecond() {
         DateFormatter formatter = DateFormatter.forPattern("epoch_second");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->

@@ -14,6 +14,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -47,7 +48,8 @@ public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
             String refresh = request.param("refresh");
             CreateApiKeyRequestBuilder builder = new SecurityClient(client)
                     .prepareCreateApiKey(request.requiredContent(), request.getXContentType())
-                    .setRefreshPolicy((refresh != null) ? WriteRequest.RefreshPolicy.parse(request.param("refresh")) : null);
+                    .setRefreshPolicy((refresh != null) ? WriteRequest.RefreshPolicy.parse(request.param("refresh"))
+                            : CreateApiKeyRequest.DEFAULT_REFRESH_POLICY);
             return channel -> builder.execute(new RestToXContentListener<CreateApiKeyResponse>(channel));
         }
     }

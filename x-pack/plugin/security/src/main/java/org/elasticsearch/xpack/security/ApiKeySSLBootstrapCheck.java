@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -12,24 +13,25 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import java.util.Locale;
 
 /**
- * Bootstrap check to ensure that the user has enabled HTTPS when using the token service
+ * Bootstrap check to ensure that the user has enabled HTTPS when using the api key service
  */
-final class TokenSSLBootstrapCheck implements BootstrapCheck {
+public final class ApiKeySSLBootstrapCheck implements BootstrapCheck {
 
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
         final Boolean httpsEnabled = XPackSettings.HTTP_SSL_ENABLED.get(context.settings());
-        final Boolean tokenServiceEnabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(context.settings());
-        if (httpsEnabled == false &&  tokenServiceEnabled) {
+        final Boolean apiKeyServiceEnabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(context.settings());
+        if (httpsEnabled == false && apiKeyServiceEnabled) {
             final String message = String.format(
                     Locale.ROOT,
-                    "HTTPS is required in order to use the token service; "
-                            + "please enable HTTPS using the [%s] setting or disable the token service using the [%s] setting",
+                    "HTTPS is required in order to use the API key service; "
+                            + "please enable HTTPS using the [%s] setting or disable the API key service using the [%s] setting",
                     XPackSettings.HTTP_SSL_ENABLED.getKey(),
-                    XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey());
+                    XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey());
             return BootstrapCheckResult.failure(message);
         }
         return BootstrapCheckResult.success();
     }
+
 
 }

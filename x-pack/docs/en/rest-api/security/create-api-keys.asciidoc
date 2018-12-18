@@ -32,13 +32,14 @@ The following parameters can be specified in the body of a POST or PUT request:
 (string) Specifies the name for this API key.
 
 `role_descriptors`::
-(array-of-role-descriptor) Array of role descriptor for this API key. The role descriptor 
+(array-of-role-descriptor) Optional array of role descriptor for this API key. The role descriptor 
 must be a subset of permissions of the authenticated user. The structure of role 
 descriptor is same as the request for create role API. For more details on role 
 see <<security-api-roles, Role Management APIs>>.
+If the role descriptors are not provided then permissions of the authenticated user are applied.
 
 `expiration`::
-(string) optional expiration time for the API key. By default API keys never expire.
+(string) Optional expiration time for the API key. By default API keys never expire.
 
 ==== Examples
 
@@ -56,7 +57,7 @@ POST /_xpack/security/api_key
       "index": [
         {
           "names": ["index-a*"],
-          "privileges": ["p1"]
+          "privileges": ["read"]
         }
       ]
     },
@@ -65,7 +66,7 @@ POST /_xpack/security/api_key
       "index": [
         {
           "names": ["index-b*"],
-          "privileges": ["p1"]
+          "privileges": ["all"]
         }
       ]
     }

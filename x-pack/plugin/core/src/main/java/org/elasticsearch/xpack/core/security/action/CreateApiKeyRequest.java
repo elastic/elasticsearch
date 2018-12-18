@@ -28,11 +28,12 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * and optionally an expiration time and permission limitation can be provided.
  */
 public final class CreateApiKeyRequest extends ActionRequest {
+    public static final WriteRequest.RefreshPolicy DEFAULT_REFRESH_POLICY = WriteRequest.RefreshPolicy.WAIT_UNTIL;
 
     private String name;
     private TimeValue expiration;
     private List<RoleDescriptor> roleDescriptors = Collections.emptyList();
-    private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
+    private WriteRequest.RefreshPolicy refreshPolicy = DEFAULT_REFRESH_POLICY;
 
     public CreateApiKeyRequest() {}
 
@@ -93,9 +94,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
     }
 
     public void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
-        if (refreshPolicy != null) {
-            this.refreshPolicy = refreshPolicy;
-        }
+        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
     }
 
     @Override

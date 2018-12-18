@@ -131,7 +131,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     }
 
     /**
-     * The sequence number assigned to the last operation to have changed this document, if found.
+     * The sequence number assigned to the last operation that has changed this document, if found.
      */
     public long getSeqNo() {
         return seqNo;

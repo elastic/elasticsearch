@@ -188,18 +188,20 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             List<InternalFilters.InternalBucket> buckets = response.getBuckets();
             assertEquals(buckets.size(), filters.length+1);
 
+            int sum = 0;
             for (InternalFilters.InternalBucket bucket : buckets) {
                 if ("other".equals(bucket.getKey())) {
                     assertEquals(bucket.getDocCount(), expectedOtherCount);
                 } else {
                     int index = Integer.parseInt(bucket.getKey());
                     assertEquals(bucket.getDocCount(), (long) expectedBucketCount[filterTerms[index]]);
-                    if (expectedBucketCount[filterTerms[index]] > 0) {
-                        assertTrue(AggregationInspectionHelper.hasValue(response));
-                    } else {
-                        assertFalse(AggregationInspectionHelper.hasValue(response));
-                    }
+                    sum += expectedBucketCount[filterTerms[index]];
                 }
+            }
+            if (sum > 0) {
+                assertTrue(AggregationInspectionHelper.hasValue(response));
+            } else {
+                assertFalse(AggregationInspectionHelper.hasValue(response));
             }
 
         }

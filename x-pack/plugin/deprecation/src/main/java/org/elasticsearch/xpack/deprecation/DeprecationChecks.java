@@ -57,7 +57,9 @@ public class DeprecationChecks {
             IndexDeprecationChecks::percolatorUnmappedFieldsAsStringCheck,
             IndexDeprecationChecks::indexNameCheck,
 			IndexDeprecationChecks::nodeLeftDelayedTimeCheck,
-            IndexDeprecationChecks::shardOnStartupCheck
+            IndexDeprecationChecks::shardOnStartupCheck,
+            IndexDeprecationChecks::classicSimilarityMappingCheck,
+            IndexDeprecationChecks::classicSimilaritySettingsCheck
             ));
 
     /**

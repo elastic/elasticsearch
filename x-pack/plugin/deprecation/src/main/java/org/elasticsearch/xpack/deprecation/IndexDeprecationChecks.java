@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Index-specific deprecation checks
@@ -133,7 +134,38 @@ public class IndexDeprecationChecks {
         }
         return null;
     }
-	
+
+    static DeprecationIssue classicSimilarityMappingCheck(IndexMetaData indexMetaData) {
+        List<String> issues = new ArrayList<>();
+        fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> issues.addAll(
+            findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
+                property -> "classic".equals(property.get("similarity"))))));
+        if (issues.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Classic similarity has been removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                    "#_the_literal_classic_literal_similarity_has_been_removed",
+                "Fields which use classic similarity: " + issues.toString());
+        }
+        return null;
+    }
+
+    static DeprecationIssue classicSimilaritySettingsCheck(IndexMetaData indexMetaData) {
+        Map<String, Settings> similarities = indexMetaData.getSettings().getGroups("index.similarity");
+        List<String> classicSimilarities = similarities.entrySet().stream()
+            .filter(entry -> "classic".equals(entry.getValue().get("type")))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+        if (classicSimilarities.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Classic similarity has been removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                    "#_the_literal_classic_literal_similarity_has_been_removed",
+                "Custom similarities defined using classic similarity: " + classicSimilarities.toString());
+        }
+        return null;
+    }
+
 	 static DeprecationIssue nodeLeftDelayedTimeCheck(IndexMetaData indexMetaData) {
         String setting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey();
         String value = indexMetaData.getSettings().get(setting);
@@ -150,7 +182,7 @@ public class IndexDeprecationChecks {
         }
         return null;
     }
-	
+
 	static DeprecationIssue shardOnStartupCheck(IndexMetaData indexMetaData) {
         String setting = IndexSettings.INDEX_CHECK_ON_STARTUP.getKey();
         String value = indexMetaData.getSettings().get(setting);

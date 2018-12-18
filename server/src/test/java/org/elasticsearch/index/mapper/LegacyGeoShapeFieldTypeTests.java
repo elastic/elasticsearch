@@ -19,7 +19,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
 import org.junit.Before;
 

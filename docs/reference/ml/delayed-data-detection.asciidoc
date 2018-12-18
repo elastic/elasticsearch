@@ -2,42 +2,40 @@
 [[ml-delayed-data-detection]]
 === Working with delayed data
 
-In short, delayed data are any documents that have been indexed *AFTER* a Datafeed has gathered data
-from the index at that point in time.
+In short, delayed data are any documents that are indexed *after* a datafeed has already gathered data for the 
+point in time referenced in the data time-field value.
 
-When creating a {ref}/ml-datafeed-resource.html[Datafeed Configuration], one may supply the option
-`query_delay`. This allows the Datafeed to wait for some time past real-time to allow any "late" data to be fully index
-before trying to gather it. However, if the setting is set too low, the Datafeed may query for data before it has been
-indexed, and consequently missing that document. Conversely, if it is set too high, analysis drifts farther away from
-real-time. The balance that is struck depends upon each use case and the environmental factors of the cluster.
+When you create a datafeed, you can specify a {ref}/ml-datafeed-resource.html[`query_delay`] setting.
+This setting enables the datafeed to wait for some time past real-time, which means any "late" data in this period
+is fully index before the datafeed tries to gather it. However, if the setting is set too low, the datafeed may query
+for data before it has been indexed and consequently miss that document. Conversely, if it is set too high,
+analysis drifts farther away from real-time. The balance that is struck depends upon each use case and
+the environmental factors of the cluster.
 
 ==== Why worry about delayed data?
 
-This is a particular prescient question. Certain types of detectors are not really effected by randomly missing data
-due to ingest delays. Statistically, it all comes out ok in the end as the missing data is distributed randomly. An
-example would be a `mean` metric for a field in a large collection of data. In this case, checking for delayed data
-may not provide much benefit. However, Job's with a `low_count` function may provide false positives if data is
-consistently delayed. In this situation, it would be useful to see if data comes in after an anomaly is recorded
-so that one can determine a next course of action.
+This is a particular prescient question. If there are data missing randomly (perhaps due to ingest delays), the results of
+certain types of functions are not really affected. Statistically, it all comes out ok in the end as the missing data is
+distributed randomly. An example would be a `mean` metric for a field in a large collection of data.
+In this case, checking for delayed data may not provide much benefit. However, jobs with a `low_count` function may
+provide false positives if data is consistently delayed. In this situation, it would be useful to see if data
+comes in after an anomaly is recorded so that you can determine a next course of action.
 
 ==== How do we detect delayed data?
 
-In addition to the aforementioned `query_delay` field,
-{ref}/ml-datafeed-resource.html#ml-datafeed-delayed-data-check-config[Delayed Data Check Config] allows configuring
-the Datafeed to look in the past for delayed data. Every 15 minutes or every `check_window`, whichever is smaller, the
-Datafeed will trigger a document search over the configured indices. This search looks over a time-span with length of
-`check_window` ending with the latest finalized bucket. That time-span is partitioned into buckets, whose length equals
-the associated Job's `bucket_span`. The `doc_count` of those buckets are then compared with the Job's finalized analysis
-buckets to see if any data has arrived since our analysis.
+In addition to the `query_delay` field, there is a
+{ref}/ml-datafeed-resource.html#ml-datafeed-delayed-data-check-config[delayed data check config], which enables you to
+configuring the datafeed to look in the past for delayed data. Every 15 minutes or every `check_window`,
+whichever is smaller, the datafeed triggers a document search over the configured indices. This search looks over a
+time-span with length of `check_window` ending with the latest finalized bucket. That time-span is partitioned into buckets,
+whose length equals bucket span of the associated job. The `doc_count` of those buckets are then compared with the
+job's finalized analysis buckets to see whether any data has arrived since the analysis.
 
 ==== What to do about delayed data?
 
 The most common course of action is to simply to do nothing. For many functions and situations ignoring the data is
-acceptable. However, if the amount of delayed data is too great, or the situation calls for it, the next course
-of action to consider is to increase the `query_delay` of the Datafeed. This will allow more time for data to be
+acceptable. However, if the amount of delayed data is too great or the situation calls for it, the next course
+of action to consider is to increase the `query_delay` of the datafeed. This increased delay allows more time for data to be
 indexed. However, that may not be desirable depending on what real-time constraints there are in the system.
-In which case, one would have to {ref}/tune-for-indexing-speed.html[tune for better indexing speed.]
+In which case, you would have to {ref}/tune-for-indexing-speed.html[tune for better indexing speed.]
 
-
-NOTE: All uses of the cumbersome compound `real-time` refer to a "time closer to now, than not".
-This, of course, is determined by the situation at hand and does not necessarily refer to the concept of "now".

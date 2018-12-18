@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -58,23 +57,23 @@ public class MlAssignmentNotifier implements ClusterStateListener {
             return;
         }
 
-        if (event.metaDataChanged() == false) {
-            return;
-        }
-        PersistentTasksCustomMetaData previous = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData current = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-
         mlConfigMigrator.migrateConfigsWithoutTasks(event.state(), ActionListener.wrap(
-                response -> threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(current, previous, event.state())),
+                response -> threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(event)),
                 e -> {
                     logger.error("error migrating ml configurations", e);
-                    threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(current, previous, event.state()));
+                    threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(event));
                 }
         ));
     }
 
-    private void auditChangesToMlTasks(PersistentTasksCustomMetaData current, PersistentTasksCustomMetaData previous,
-                                       ClusterState state) {
+    private void auditChangesToMlTasks(ClusterChangedEvent event) {
+
+        if (event.metaDataChanged() == false) {
+            return;
+        }
+
+        PersistentTasksCustomMetaData previous = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetaData current = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
         if (Objects.equals(previous, current)) {
             return;
@@ -92,7 +91,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                 if (currentAssignment.getExecutorNode() == null) {
                     auditor.warning(jobId, "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]");
                 } else {
-                    DiscoveryNode node = state.nodes().get(currentAssignment.getExecutorNode());
+                    DiscoveryNode node = event.state().nodes().get(currentAssignment.getExecutorNode());
                     auditor.info(jobId, "Opening job on node [" + node.toString() + "]");
                 }
             } else if (MlTasks.DATAFEED_TASK_NAME.equals(currentTask.getTaskName())) {
@@ -106,7 +105,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                         auditor.warning(jobId, msg);
                     }
                 } else {
-                    DiscoveryNode node = state.nodes().get(currentAssignment.getExecutorNode());
+                    DiscoveryNode node = event.state().nodes().get(currentAssignment.getExecutorNode());
                     if (jobId != null) {
                         auditor.info(jobId, "Starting datafeed [" + datafeedParams.getDatafeedId() + "] on node [" + node + "]");
                     }

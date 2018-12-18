@@ -31,7 +31,6 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -154,7 +153,8 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                 .build();
 
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
-        verify(configMigrator, never()).migrateConfigsWithoutTasks(any(), any());
+        verify(configMigrator, times(1)).migrateConfigsWithoutTasks(any(), any());
+        verifyNoMoreInteractions(auditor);
 
         // no longer master
         newState = ClusterState.builder(new ClusterName("_name"))
@@ -163,6 +163,6 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                         .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT)))
                 .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
-        verify(configMigrator, never()).migrateConfigsWithoutTasks(any(), any());
+        verifyNoMoreInteractions(configMigrator);
     }
 }

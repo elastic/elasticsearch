@@ -23,4 +23,15 @@ public class StopDataFrameJobActionRequestTests extends AbstractWireSerializingT
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
     }
+
+    public void testSameButDifferentTimeout() {
+        String id = randomAlphaOfLengthBetween(1, 10);
+        boolean waitForCompletion = randomBoolean();
+
+        Request r1 = new Request(id, waitForCompletion, TimeValue.timeValueSeconds(10));
+        Request r2 = new Request(id, waitForCompletion, TimeValue.timeValueSeconds(20));
+
+        assertNotEquals(r1,r2);
+        assertNotEquals(r1.hashCode(),r2.hashCode());
+    }
 }

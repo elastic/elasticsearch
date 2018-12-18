@@ -47,12 +47,13 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
     public static class Request extends BaseTasksRequest<Request> implements ToXContent {
         private String id;
         private final boolean waitForCompletion;
-        private final TimeValue timeout;
 
         public Request(String id, boolean waitForCompletion, @Nullable TimeValue timeout) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
             this.waitForCompletion = waitForCompletion;
-            this.timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
+
+            // use the timeout value already present in BaseTasksRequest
+            this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
         }
 
         public Request() {
@@ -63,7 +64,6 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
             super(in);
             id = in.readString();
             waitForCompletion = in.readBoolean();
-            timeout = in.readTimeValue();
         }
 
         public String getId() {
@@ -72,10 +72,6 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
 
         public void setId(String id) {
             this.id = id;
-        }
-
-        public TimeValue getTimeout() {
-            return timeout;
         }
 
         public boolean waitForCompletion() {
@@ -87,7 +83,6 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
             super.writeTo(out);
             out.writeString(id);
             out.writeBoolean(waitForCompletion);
-            out.writeTimeValue(timeout);
         }
 
         @Override
@@ -99,15 +94,16 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(DataFrameField.ID.getPreferredName(), id);
             builder.field(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), waitForCompletion);
-            if (timeout != null) {
-                builder.field(DataFrameField.TIMEOUT.getPreferredName(), timeout);
+            if (this.getTimeout() != null) {
+                builder.field(DataFrameField.TIMEOUT.getPreferredName(), this.getTimeout());
             }
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, waitForCompletion, timeout);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(id, waitForCompletion, this.getTimeout());
         }
 
         @Override
@@ -120,8 +116,13 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id) && Objects.equals(waitForCompletion, other.waitForCompletion)
-                    && Objects.equals(timeout, other.timeout);
+
+            // the base class does not implement equals, therefore we need to compare timeout ourselves
+            if (Objects.equals(this.getTimeout(), other.getTimeout()) == false) {
+                return false;
+            }
+
+            return Objects.equals(id, other.id) && Objects.equals(waitForCompletion, other.waitForCompletion);
         }
 
         @Override

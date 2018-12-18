@@ -3,7 +3,7 @@
 
 The discovery and cluster formation module is responsible for discovering
 nodes, electing a master, forming a cluster, and publishing the cluster state
-each time it changes. It is integrated with other modules, for example, all
+each time it changes. It is integrated with other modules. For example, all
 communication between nodes is done using the <<modules-transport,transport>>
 module.
 
@@ -48,7 +48,7 @@ Elasticsearch tries to connect to each seed node in its list, and holds a
 gossip-like conversation with them to find other nodes and to build a complete
 picture of the master-eligible nodes in the cluster. By default the cluster
 formation module offers two hosts providers to configure the list of seed
-nodes: a _settings_-based and a _file_-based hosts provider, but can be
+nodes: a _settings_-based and a _file_-based hosts provider. It can be
 extended to support cloud environments and other forms of hosts providers via
 {plugins}/discovery.html[discovery plugins]. Hosts providers are configured
 using the `discovery.zen.hosts_provider` setting, which defaults to the

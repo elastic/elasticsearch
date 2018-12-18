@@ -1427,7 +1427,7 @@ setup:
            "_rollup.version": 2
  - do:
      xpack.rollup.rollup_search:
-       index: "foo_rollup"
+       index: "tz_rollup"
        body:
          size: 0
          aggs:
@@ -1571,7 +1571,7 @@ setup:
 
  - do:
      xpack.rollup.rollup_search:
-       index: "foo_rollup"
+       index: "tz_rollup"
        body:
          size: 0
          aggs:

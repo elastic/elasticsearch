@@ -43,7 +43,6 @@ import java.net.InetAddress;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -66,7 +65,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private final String field;
     private final String targetField;
-    private final DatabaseReaderLazyLoader dbReader;
+    private final DatabaseReaderLazyLoader lazyLoader;
     private final Set<Property> properties;
     private final boolean ignoreMissing;
     private final GeoIpCache cache;
@@ -76,7 +75,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
      *
      * @param tag           the processor tag
      * @param field         the source field to geo-IP map
-     * @param dbReader      a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
+     * @param lazyLoader    a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
      * @param targetField   the target field
      * @param properties    the properties; ideally this is lazily-loaded once on first use
      * @param ignoreMissing true if documents with a missing value for the field should be ignored
@@ -85,7 +84,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     GeoIpProcessor(
             final String tag,
             final String field,
-            final DatabaseReaderLazyLoader dbReader,
+            final DatabaseReaderLazyLoader lazyLoader,
             final String targetField,
             final Set<Property> properties,
             final boolean ignoreMissing,
@@ -93,8 +92,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         super(tag);
         this.field = field;
         this.targetField = targetField;
-        this.dbReader = dbReader;
-        this.properties = properties;
+        this.lazyLoader = lazyLoader;
+        this.properties = Collections.unmodifiableSet(properties);
         this.ignoreMissing = ignoreMissing;
         this.cache = cache;
     }
@@ -116,7 +115,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final InetAddress ipAddress = InetAddresses.forString(ip);
 
         Map<String, Object> geoData;
-        String databaseType = dbReader.get().getMetadata().getDatabaseType();
+        String databaseType = lazyLoader.get().getMetadata().getDatabaseType();
 
         if (databaseType.endsWith(CITY_DB_SUFFIX)) {
             try {
@@ -137,7 +136,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 geoData = Collections.emptyMap();
             }
         } else {
-            throw new ElasticsearchParseException("Unsupported database type [" + dbReader.get().getMetadata().getDatabaseType()
+            throw new ElasticsearchParseException("Unsupported database type [" + lazyLoader.get().getMetadata().getDatabaseType()
                     + "]", new IllegalStateException());
         }
         if (geoData.isEmpty() == false) {
@@ -159,8 +158,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    DatabaseReader getDbReader() throws IOException {
-        return dbReader.get();
+    DatabaseReader getDatabaseReader() throws IOException {
+        return lazyLoader.get();
     }
 
     Set<Property> getProperties() {
@@ -172,7 +171,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         CityResponse response = AccessController.doPrivileged((PrivilegedAction<CityResponse>) () ->
             cache.putIfAbsent(ipAddress, CityResponse.class, ip -> {
                 try {
-                    return dbReader.get().city(ip);
+                    return lazyLoader.get().city(ip);
                 } catch (AddressNotFoundException e) {
                     throw new AddressNotFoundRuntimeException(e);
                 } catch (Exception e) {
@@ -258,7 +257,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         CountryResponse response = AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () ->
             cache.putIfAbsent(ipAddress, CountryResponse.class, ip -> {
                 try {
-                    return dbReader.get().country(ip);
+                    return lazyLoader.get().country(ip);
                 } catch (AddressNotFoundException e) {
                     throw new AddressNotFoundRuntimeException(e);
                 } catch (Exception e) {
@@ -303,7 +302,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         AsnResponse response = AccessController.doPrivileged((PrivilegedAction<AsnResponse>) () ->
             cache.putIfAbsent(ipAddress, AsnResponse.class, ip -> {
                 try {
-                    return dbReader.get().asn(ip);
+                    return lazyLoader.get().asn(ip);
                 } catch (AddressNotFoundException e) {
                     throw new AddressNotFoundRuntimeException(e);
                 } catch (Exception e) {

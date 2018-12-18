@@ -102,7 +102,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
-        assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));
+        assertThat(processor.getDatabaseReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));
         assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_CITY_PROPERTIES));
         assertFalse(processor.isIgnoreMissing());
     }
@@ -122,7 +122,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
-        assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));
+        assertThat(processor.getDatabaseReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));
         assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_CITY_PROPERTIES));
         assertTrue(processor.isIgnoreMissing());
     }
@@ -143,7 +143,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
-        assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));
+        assertThat(processor.getDatabaseReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));
         assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_COUNTRY_PROPERTIES));
         assertFalse(processor.isIgnoreMissing());
     }
@@ -164,7 +164,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
-        assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-ASN"));
+        assertThat(processor.getDatabaseReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-ASN"));
         assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_ASN_PROPERTIES));
         assertFalse(processor.isIgnoreMissing());
     }
@@ -194,7 +194,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         GeoIpProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
-        assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));
+        assertThat(processor.getDatabaseReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));
         assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_COUNTRY_PROPERTIES));
         assertFalse(processor.isIgnoreMissing());
     }

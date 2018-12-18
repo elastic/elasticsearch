@@ -15,26 +15,26 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
+import java.time.ZoneId;
 import java.util.Objects;
-import java.util.TimeZone;
 
 public class Histogram extends GroupingFunction {
 
     private final Literal interval;
-    private final TimeZone timeZone;
+    private final ZoneId zoneId;
 
-    public Histogram(Location location, Expression field, Expression interval, TimeZone timeZone) {
+    public Histogram(Location location, Expression field, Expression interval, ZoneId zoneId) {
         super(location, field);
         this.interval = (Literal) interval;
-        this.timeZone = timeZone;
+        this.zoneId = zoneId;
     }
 
     public Literal interval() {
         return interval;
     }
 
-    public TimeZone timeZone() {
-        return timeZone;
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
     @Override
@@ -54,7 +54,7 @@ public class Histogram extends GroupingFunction {
 
     @Override
     protected GroupingFunction replaceChild(Expression newChild) {
-        return new Histogram(location(), newChild, interval, timeZone);
+        return new Histogram(location(), newChild, interval, zoneId);
     }
 
     @Override
@@ -64,12 +64,12 @@ public class Histogram extends GroupingFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Histogram::new, field(), interval, timeZone);
+        return NodeInfo.create(this, Histogram::new, field(), interval, zoneId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), interval, timeZone);
+        return Objects.hash(field(), interval, zoneId);
     }
 
     @Override
@@ -77,7 +77,7 @@ public class Histogram extends GroupingFunction {
         if (super.equals(obj)) {
             Histogram other = (Histogram) obj;
             return Objects.equals(interval, other.interval)
-                    && Objects.equals(timeZone, other.timeZone);
+                    && Objects.equals(zoneId, other.zoneId);
         }
         return false;
     }

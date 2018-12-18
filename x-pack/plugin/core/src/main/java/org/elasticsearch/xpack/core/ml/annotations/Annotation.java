@@ -70,7 +70,7 @@ public class Annotation implements ToXContentObject, Writeable {
         this.createTime = Objects.requireNonNull(createTime);
         this.createUsername = Objects.requireNonNull(createUsername);
         this.timestamp = Objects.requireNonNull(timestamp);
-        this.endTimestamp = Objects.requireNonNull(endTimestamp);
+        this.endTimestamp = endTimestamp;
         this.jobId = jobId;
         this.modifiedTime = modifiedTime;
         this.modifiedUsername = modifiedUsername;
@@ -82,7 +82,11 @@ public class Annotation implements ToXContentObject, Writeable {
         createTime = new Date(in.readLong());
         createUsername = in.readString();
         timestamp = new Date(in.readLong());
-        endTimestamp = new Date(in.readLong());
+        if (in.readBoolean()) {
+            endTimestamp = new Date(in.readLong());
+        } else {
+            endTimestamp = null;
+        }
         jobId = in.readOptionalString();
         if (in.readBoolean()) {
             modifiedTime = new Date(in.readLong());
@@ -99,7 +103,12 @@ public class Annotation implements ToXContentObject, Writeable {
         out.writeLong(createTime.getTime());
         out.writeString(createUsername);
         out.writeLong(timestamp.getTime());
-        out.writeLong(endTimestamp.getTime());
+        if (endTimestamp != null) {
+            out.writeBoolean(true);
+            out.writeLong(endTimestamp.getTime());
+        } else {
+            out.writeBoolean(false);
+        }
         out.writeOptionalString(jobId);
         if (modifiedTime != null) {
             out.writeBoolean(true);
@@ -149,7 +158,7 @@ public class Annotation implements ToXContentObject, Writeable {
     }
 
     public void setEndTimestamp(Date endTimestamp) {
-        this.endTimestamp = Objects.requireNonNull(endTimestamp);
+        this.endTimestamp = endTimestamp;
     }
 
     public String getJobId() {
@@ -191,7 +200,9 @@ public class Annotation implements ToXContentObject, Writeable {
         builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.getTime());
         builder.field(CREATE_USERNAME.getPreferredName(), createUsername);
         builder.timeField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
-        builder.timeField(END_TIMESTAMP.getPreferredName(), END_TIMESTAMP.getPreferredName() + "_string", endTimestamp.getTime());
+        if (endTimestamp != null) {
+            builder.timeField(END_TIMESTAMP.getPreferredName(), END_TIMESTAMP.getPreferredName() + "_string", endTimestamp.getTime());
+        }
         if (jobId != null) {
             builder.field(Job.ID.getPreferredName(), jobId);
         }

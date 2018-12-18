@@ -24,10 +24,10 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
             new Date(randomNonNegativeLong()),
             randomAlphaOfLengthBetween(5, 20),
             new Date(randomNonNegativeLong()),
-            new Date(randomNonNegativeLong()),
+            randomBoolean() ? new Date(randomNonNegativeLong()) : null,
             randomBoolean() ? randomAlphaOfLengthBetween(10, 30) : null,
-            new Date(randomNonNegativeLong()),
-            randomAlphaOfLengthBetween(5, 20),
+            randomBoolean() ? new Date(randomNonNegativeLong()) : null,
+            randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null,
             randomAlphaOfLengthBetween(10, 15));
     }
 

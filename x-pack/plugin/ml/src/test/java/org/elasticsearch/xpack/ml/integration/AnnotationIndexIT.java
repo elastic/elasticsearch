@@ -39,6 +39,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         return pluginList(LocalStateMachineLearning.class);
     }
 
+    // TODO remove this when the jindex feature branches are merged, as this is in the base class then
     @Before
     public void waitForMlTemplates() throws Exception {
         // Block until the templates are installed

@@ -25,33 +25,45 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
-final class RemoteClusterAwareClient extends AbstractClient {
+final class RemoteClusterAwareClient extends AbstractClient implements RemoteClient {
 
     private final TransportService service;
     private final String clusterAlias;
     private final RemoteClusterService remoteClusterService;
+    private final DiscoveryNode discoveryNode;
 
     RemoteClusterAwareClient(Settings settings, ThreadPool threadPool, TransportService service, String clusterAlias) {
+        this(settings, threadPool, service, clusterAlias, null);
+    }
+
+    private RemoteClusterAwareClient(Settings settings, ThreadPool threadPool, TransportService service, String clusterAlias,
+                                     DiscoveryNode discoveryNode) {
         super(settings, threadPool);
         this.service = service;
         this.clusterAlias = clusterAlias;
         this.remoteClusterService = service.getRemoteClusterService();
+        this.discoveryNode = discoveryNode;
     }
 
     @Override
     protected <Request extends ActionRequest, Response extends ActionResponse>
     void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
         remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(res -> {
-            Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
+            Transport.Connection connection;
+            if (discoveryNode == null) {
+                connection = remoteClusterService.getConnection(clusterAlias);
+            } else {
+                connection = remoteClusterService.getConnection(discoveryNode, clusterAlias);
+            }
             service.sendRequest(connection, action.name(), request, TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(listener, action.getResponseReader()));
         },
         listener::onFailure));
     }
-
 
     @Override
     public void close() {
@@ -59,7 +71,12 @@ final class RemoteClusterAwareClient extends AbstractClient {
     }
 
     @Override
-    public Client getRemoteClusterClient(String clusterAlias) {
+    public RemoteClient getRemoteClusterClient(String clusterAlias) {
         return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias);
+    }
+
+    @Override
+    public Client preferredNode(DiscoveryNode node) {
+        return new RemoteClusterAwareClient(settings, threadPool(), service, clusterAlias, node);
     }
 }

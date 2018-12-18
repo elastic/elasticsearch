@@ -8,6 +8,7 @@
  - do:
       index:
           index:  test_1
+          type:   type
           id:     1
           body:   { foo: bar }
  - match:   { _version: 1}
@@ -17,6 +18,7 @@
  - do:
       get:
           index:  test_1
+          type:   type
           id:     1
  - match: { _seq_no: $seqno }
  - match: { _primary_term: $primary_term }
@@ -25,26 +27,29 @@
       catch:        conflict
       index:
           index:            test_1
+          type:   type
           id:               1
-          if_seq_no_match:       10000
-          if_primary_term_match: $primary_term
+          if_seq_no:       10000
+          if_primary_term: $primary_term
           body:   { foo: bar2 }
 
  - do:
       catch:       conflict
       index:
           index:            test_1
+          type:   type
           id:               1
-          if_seq_no_match:       $seqno
-          if_primary_term_match: 1000
+          if_seq_no:       $seqno
+          if_primary_term: 1000
           body:   { foo: bar2 }
 
  - do:
       index:
           index:            test_1
+          type:   type
           id:               1
-          if_seq_no_match:       $seqno
-          if_primary_term_match: $primary_term
+          if_seq_no:       $seqno
+          if_primary_term: $primary_term
           body:   { foo: bar2 }
 
  - match: { _version: 2 }

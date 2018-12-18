@@ -580,10 +580,18 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     private void createIndexWithSettings(String index, Settings.Builder settings) throws IOException {
+        createIndexWithSettings(index, settings, randomBoolean());
+    }
+
+    private void createIndexWithSettings(String index, Settings.Builder settings, boolean useWriteIndex) throws IOException {
         Request request = new Request("PUT", "/" + index);
 
+        String writeIndexSnippet = "";
+        if (useWriteIndex) {
+            writeIndexSnippet = "\"is_write_index\": true";
+        }
         request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
-            + ", \"aliases\" : { \"alias\": { \"is_write_index\": true } } }");
+            + ", \"aliases\" : { \"alias\": { " + writeIndexSnippet + " } } }");
         client().performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);

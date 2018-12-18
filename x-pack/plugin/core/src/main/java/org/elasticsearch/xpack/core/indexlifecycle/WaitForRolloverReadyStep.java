@@ -53,18 +53,15 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             return;
         }
 
-        if (indexMetaData.getAliases().containsKey(rolloverAlias) == false) {
-            listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
-                "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
-                indexMetaData.getIndex().getName())));
-            return;
+        boolean aliasPointsToThisIndex = indexMetaData.getAliases().containsKey(rolloverAlias);
+        Boolean isWriteIndex = null;
+        if (aliasPointsToThisIndex) {
+            isWriteIndex = indexMetaData.getAliases().get(rolloverAlias).writeIndex();
         }
-
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetaData.getSettings());
         if (indexingComplete) {
             logger.trace(indexMetaData.getIndex() + " has lifecycle complete set, skipping " + WaitForRolloverReadyStep.NAME);
-            Boolean isWriteIndex = indexMetaData.getAliases().get(rolloverAlias).writeIndex();
-            if (Boolean.TRUE.equals(isWriteIndex)) {
+            if (aliasPointsToThisIndex && Boolean.TRUE.equals(isWriteIndex)) {
                 listener.onFailure(new IllegalStateException(String.format(Locale.ROOT,
                     "index [%s] has [%s] set to [true], but is still the write index for alias [%s]",
                     indexMetaData.getIndex().getName(), LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, rolloverAlias)));
@@ -73,6 +70,18 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
             listener.onResponse(true, new WaitForRolloverReadyStep.EmptyInfo());
             return;
+        }
+
+        if (aliasPointsToThisIndex == false) {
+            listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
+                "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
+                indexMetaData.getIndex().getName())));
+            return;
+        }
+
+        if (Boolean.FALSE.equals(isWriteIndex)) {
+            listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
+                "index [%s] is not the write index for alias [%s]", rolloverAlias, indexMetaData.getIndex().getName())));
         }
 
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null);

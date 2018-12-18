@@ -326,6 +326,10 @@ public class SecurityClient {
         return new InvalidateTokenRequestBuilder(client).setTokenString(token);
     }
 
+    public InvalidateTokenRequestBuilder prepareInvalidateToken() {
+        return new InvalidateTokenRequestBuilder(client);
+    }
+
     public void invalidateToken(InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {
         client.execute(InvalidateTokenAction.INSTANCE, request, listener);
     }

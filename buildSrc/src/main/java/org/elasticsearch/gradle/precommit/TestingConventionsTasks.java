@@ -44,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -68,6 +69,59 @@ public class TestingConventionsTasks extends DefaultTask {
         setDescription("Tests various testing conventions");
         // Run only after everything is compiled
         Boilerplate.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getClassesTaskName()));
+    }
+    
+    @Input
+    public Map<String, Set<File>> classFilesPerTask(FileTree testClassFiles) {
+        Map<String, Set<File>> collector = new HashMap<>();
+        // RandomizedTestingTask
+        collector.putAll(
+            Stream.concat(
+                getProject().getTasks().withType(getRandomizedTestingTask()).stream(),
+                // Look at sub-projects too. As sometimes tests are implemented in parent but ran in sub-projects against
+                // different configurations
+                getProject().getSubprojects().stream().flatMap(subproject ->
+                    subproject.getTasks().withType(getRandomizedTestingTask()).stream()
+                )
+            )
+                .filter(Task::getEnabled)
+                .collect(Collectors.toMap(
+                    Task::getPath,
+                    task -> testClassFiles.matching(getRandomizedTestingPatternSet(task)).getFiles()
+            ))
+        );
+        // Gradle Test
+        collector.putAll(
+            Stream.concat(
+                getProject().getTasks().withType(Test.class).stream(),
+                getProject().getSubprojects().stream().flatMap(subproject ->
+                        subproject.getTasks().withType(Test.class).stream()
+                )
+            )
+                .filter(Task::getEnabled)
+                .collect(Collectors.toMap(
+                    Task::getPath,
+                    task -> task.getCandidateClassFiles().getFiles()
+                ))
+        );
+        return Collections.unmodifiableMap(collector);
+    }
+
+    @Input
+    public Map<String, File> getTestClassNames() {
+        if (testClassNames == null) {
+            testClassNames = Boilerplate.getJavaSourceSets(getProject()).getByName("test").getOutput().getClassesDirs()
+                .getFiles().stream()
+                .filter(File::exists)
+                .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
+        return testClassNames;
+    }
+
+    @OutputFile
+    public File getSuccessMarker() {
+        return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
     @TaskAction
@@ -99,24 +153,18 @@ public class TestingConventionsTasks extends DefaultTask {
                     .collect(Collectors.toList())
             ).getAsFileTree();
 
-            final Map<String, Set<File>> classFilesPerRandomizedTestingTask = classFilesPerRandomizedTestingTask(allTestClassFiles);
-            final Map<String, Set<File>> classFilesPerGradleTestTask = classFilesPerGradleTestTask();
+            final Map<String, Set<File>> classFilesPerTask = classFilesPerTask(allTestClassFiles);
 
-            Map<String, Set<Class<?>>> testClassesPerTask =
-                Stream.concat(
-                    classFilesPerGradleTestTask.entrySet().stream(),
-                    classFilesPerRandomizedTestingTask.entrySet().stream()
-                )
-                    .collect(
-                        Collectors.toMap(
-                            Map.Entry::getKey,
-                            entry -> entry.getValue().stream()
-                                .map(classes::get)
-                                .filter(implementsNamingConvention)
-                                .collect(Collectors.toSet())
-                        )
-                    );
-
+            Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet().stream()
+                .collect(
+                    Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().stream()
+                            .map(classes::get)
+                            .filter(implementsNamingConvention)
+                            .collect(Collectors.toSet())
+                    )
+                );
 
             problems = collectProblems(
                 checkNoneExists(
@@ -135,26 +183,22 @@ public class TestingConventionsTasks extends DefaultTask {
                 ),
                 collectProblems(
                     testClassesPerTask.entrySet().stream()
-                    .map( entry ->
-                        checkAtLeastOneExists(
-                            "test class in " + entry.getKey(),
-                            entry.getValue().stream()
+                        .map( entry ->
+                            checkAtLeastOneExists(
+                                "test class in " + entry.getKey(),
+                                entry.getValue().stream()
+                            )
                         )
-                    )
-                    .collect(Collectors.joining())
+                        .collect(Collectors.joining())
                 ),
                 checkNoneExists(
                     "Test classes are not included in any enabled task (" +
-                        Stream.concat(
-                            classFilesPerRandomizedTestingTask.keySet().stream(),
-                            classFilesPerGradleTestTask.keySet().stream()
-                        ).collect(Collectors.joining(",")) + ")",
+                        classFilesPerTask.keySet().stream()
+                            .collect(Collectors.joining(",")) + ")",
                     allTestClassFiles.getFiles().stream()
                         .filter(testFile ->
-                            classFilesPerRandomizedTestingTask.values().stream()
-                                .anyMatch(fileSet -> fileSet.contains(testFile)) == false &&
-                                classFilesPerGradleTestTask.values().stream()
-                                    .anyMatch(fileSet -> fileSet.contains(testFile)) == false
+                            classFilesPerTask.values().stream()
+                                .anyMatch(fileSet -> fileSet.contains(testFile)) == false
                         )
                         .map(classes::get)
                 )
@@ -170,47 +214,12 @@ public class TestingConventionsTasks extends DefaultTask {
         }
     }
 
-
     private String collectProblems(String... problems) {
         return Stream.of(problems)
             .map(String::trim)
             .filter(String::isEmpty)
             .map(each -> each + "\n")
             .collect(Collectors.joining());
-    }
-
-
-    @Input
-    public Map<String, Set<File>> classFilesPerRandomizedTestingTask(FileTree testClassFiles) {
-        return
-            Stream.concat(
-                getProject().getTasks().withType(getRandomizedTestingTask()).stream(),
-                // Look at sub-projects too. As sometimes tests are implemented in parent but ran in sub-projects against
-                // different configurations
-                getProject().getSubprojects().stream().flatMap(subproject ->
-                    subproject.getTasks().withType(getRandomizedTestingTask()).stream()
-                )
-            )
-            .filter(Task::getEnabled)
-            .collect(Collectors.toMap(
-                Task::getPath,
-                task -> testClassFiles.matching(getRandomizedTestingPatternSet(task)).getFiles()
-            ));
-    }
-
-    @Input
-    public Map<String, Set<File>> classFilesPerGradleTestTask() {
-        return Stream.concat(
-            getProject().getTasks().withType(Test.class).stream(),
-            getProject().getSubprojects().stream().flatMap(subproject ->
-                subproject.getTasks().withType(Test.class).stream()
-            )
-        )
-            .filter(Task::getEnabled)
-            .collect(Collectors.toMap(
-                Task::getPath,
-                task -> task.getCandidateClassFiles().getFiles()
-            ));
     }
 
     @SuppressWarnings("unchecked")
@@ -237,23 +246,6 @@ public class TestingConventionsTasks extends DefaultTask {
         } catch (ClassNotFoundException | ClassCastException e) {
             throw new IllegalStateException("Failed to load randomized testing class", e);
         }
-    }
-
-    @Input
-    public Map<String, File> getTestClassNames() {
-        if (testClassNames == null) {
-            testClassNames = Boilerplate.getJavaSourceSets(getProject()).getByName("test").getOutput().getClassesDirs()
-                .getFiles().stream()
-                .filter(File::exists)
-                .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        }
-        return testClassNames;
-    }
-
-    @OutputFile
-    public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
     private String checkNoneExists(String message, Stream<? extends Class<?>> stream) {
@@ -295,7 +287,10 @@ public class TestingConventionsTasks extends DefaultTask {
             }
             return false;
         } catch (NoClassDefFoundError e) {
-            throw new IllegalStateException("Failed to inspect class " + clazz.getName(), e);
+            // Include the message to get more info to get more a more useful message when running Gradle without -s
+            throw new IllegalStateException(
+                "Failed to inspect class " + clazz.getName() + ". Missing class? " + e.getMessage(),
+                e);
         }
     }
 
@@ -323,9 +318,13 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
     private FileCollection getTestsClassPath() {
-        // This is doesn't need to be annotated with @Classpath because we only really care about the test source set
+        // Loading the classes depends on the classpath, so we could make this an input annotated with @Classpath.
+        // The reason we don't is that test classes are already inputs and while the dependencies are needed to load
+        // the classes these don't influence the checks done by this task.
+        // A side effect is that we could mark as up-to-date with missing dependencies, but these will be found when
+        // running the tests.
         return getProject().files(
-            getProject().getConfigurations().getByName("testCompile").resolve(),
+            getProject().getConfigurations().getByName("testRuntime").resolve(),
             Boilerplate.getJavaSourceSets(getProject())
                 .stream()
                 .flatMap(sourceSet -> sourceSet.getOutput().getClassesDirs().getFiles().stream())

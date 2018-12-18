@@ -19,16 +19,19 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.format.SignStyle;
 import java.time.temporal.ChronoField;
@@ -36,7 +39,10 @@ import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.WeekFields;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.DAY_OF_WEEK;
@@ -1266,10 +1272,6 @@ public class DateFormatters {
     /////////////////////////////////////////
 
     public static DateFormatter forPattern(String input) {
-        return forPattern(input, Locale.ROOT);
-    }
-
-    private static DateFormatter forPattern(String input, Locale locale) {
         if (Strings.hasLength(input)) {
             input = input.trim();
         }
@@ -1436,28 +1438,98 @@ public class DateFormatters {
             return STRICT_YEAR_MONTH;
         } else if ("strictYearMonthDay".equals(input) || "strict_year_month_day".equals(input)) {
             return STRICT_YEAR_MONTH_DAY;
-        } else if (Strings.hasLength(input) && input.contains("||")) {
-            String[] formats = Strings.delimitedListToStringArray(input, "||");
-            if (formats.length == 1) {
-                return forPattern(formats[0], locale);
-            } else {
-                try {
-                    DateFormatter[] formatters = new DateFormatter[formats.length];
-                    for (int i = 0; i < formats.length; i++) {
-                        formatters[i] = forPattern(formats[i], locale);
-                    }
-
-                    return DateFormatter.merge(formatters);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
-                }
-            }
         } else {
             try {
-                return new JavaDateFormatter(input, new DateTimeFormatterBuilder().appendPattern(input).toFormatter(locale));
+                return new JavaDateFormatter(input, new DateTimeFormatterBuilder().appendPattern(input).toFormatter(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
             }
+        }
+    }
+
+    static class MergedDateFormatter implements DateFormatter {
+
+        private final String pattern;
+        // package private for tests
+        final List<DateFormatter> formatters;
+        private final List<DateMathParser> dateMathParsers;
+
+        MergedDateFormatter(String pattern, List<DateFormatter> formatters) {
+            assert formatters.size() > 0;
+            this.pattern = pattern;
+            this.formatters = Collections.unmodifiableList(formatters);
+            this.dateMathParsers = formatters.stream().map(DateFormatter::toDateMathParser).collect(Collectors.toList());
+        }
+
+        @Override
+        public TemporalAccessor parse(String input) {
+            IllegalArgumentException failure = null;
+            for (DateFormatter formatter : formatters) {
+                try {
+                    return formatter.parse(input);
+                    // TODO: remove DateTimeParseException when JavaDateFormatter throws IAE
+                } catch (IllegalArgumentException | DateTimeParseException e) {
+                    if (failure == null) {
+                        // wrap so the entire multi format is in the message
+                        failure = new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + pattern + "]",
+                            e);
+                    } else {
+                        failure.addSuppressed(e);
+                    }
+                }
+            }
+            throw failure;
+        }
+
+        @Override
+        public DateFormatter withZone(ZoneId zoneId) {
+            return new MergedDateFormatter(pattern, formatters.stream().map(f -> f.withZone(zoneId)).collect(Collectors.toList()));
+        }
+
+        @Override
+        public DateFormatter withLocale(Locale locale) {
+            return new MergedDateFormatter(pattern, formatters.stream().map(f -> f.withLocale(locale)).collect(Collectors.toList()));
+        }
+
+        @Override
+        public String format(TemporalAccessor accessor) {
+            return formatters.get(0).format(accessor);
+        }
+
+        @Override
+        public String pattern() {
+            return pattern;
+        }
+
+        @Override
+        public Locale locale() {
+            return formatters.get(0).locale();
+        }
+
+        @Override
+        public ZoneId zone() {
+            return formatters.get(0).zone();
+        }
+
+        @Override
+        public DateMathParser toDateMathParser() {
+            return (text, now, roundUp, tz) -> {
+                ElasticsearchParseException failure = null;
+                for (DateMathParser parser : dateMathParsers) {
+                    try {
+                        return parser.parse(text, now, roundUp, tz);
+                    } catch (ElasticsearchParseException e) {
+                        if (failure == null) {
+                            // wrap so the entire multi format is in the message
+                            failure = new ElasticsearchParseException("failed to parse date field [" + text + "] with format ["
+                                + pattern + "]", e);
+                        } else {
+                            failure.addSuppressed(e);
+                        }
+                    }
+                }
+                throw failure;
+            };
         }
     }
 

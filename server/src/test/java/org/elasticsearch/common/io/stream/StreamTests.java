@@ -213,7 +213,6 @@ public class StreamTests extends ESTestCase {
     }
 
     public void testWritableArrays() throws IOException {
-
         final String[] strings = generateRandomStringArray(10, 10, false, true);
         WriteableString[] sourceArray = Arrays.stream(strings).<WriteableString>map(WriteableString::new).toArray(WriteableString[]::new);
         WriteableString[] targetArray;
@@ -231,6 +230,28 @@ public class StreamTests extends ESTestCase {
         }
 
         assertThat(targetArray, equalTo(sourceArray));
+    }
+
+    public void testArrays() throws IOException {
+        final String[] strings;
+        final String[] deserialized;
+        Writeable.Writer<String> writer = StreamOutput::writeString;
+        Writeable.Reader<String> reader = StreamInput::readString;
+        BytesStreamOutput out = new BytesStreamOutput();
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                strings = null;
+            } else {
+                strings = generateRandomStringArray(10, 10, false, true);
+            }
+            out.writeOptionalArray(writer, strings);
+            deserialized = out.bytes().streamInput().readOptionalArray(reader, String[]::new);
+        } else {
+            strings = generateRandomStringArray(10, 10, false, true);
+            out.writeArray(writer, strings);
+            deserialized = out.bytes().streamInput().readArray(reader, String[]::new);
+        }
+        assertThat(deserialized, equalTo(strings));
     }
 
     public void testSetOfLongs() throws IOException {

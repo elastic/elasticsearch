@@ -81,10 +81,10 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 });
                 break;
             case 3:
-                maxAge = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+                maxAge = randomValueOtherThan(maxAge, () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test"));
                 break;
             case 4:
-                maxDocs = randomNonNegativeLong();
+                maxDocs = randomValueOtherThan(maxDocs, () -> randomNonNegativeLong());
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");

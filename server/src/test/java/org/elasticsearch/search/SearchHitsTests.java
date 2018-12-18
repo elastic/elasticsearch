@@ -271,10 +271,9 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
         }
     }
 
-    //TODO rename method and adapt versions after backport
-    public void testReadFromPre70() throws IOException {
+    public void testReadFromPre6_6_0() throws IOException {
         try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode("AQC/gAAAAAA="))) {
-            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)));
+            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0)));
             SearchHits searchHits = new SearchHits();
             searchHits.readFrom(in);
             assertEquals(0, searchHits.getHits().length);
@@ -288,9 +287,8 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
         }
     }
 
-    //TODO rename method and adapt versions after backport
-    public void testSerializationPre70() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
+    public void testSerializationPre6_6_0() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0));
         SearchHits original = createTestItem(randomFrom(XContentType.values()), false, true, TotalHits.Relation.EQUAL_TO);
         SearchHits deserialized = copyInstance(original, version);
         assertArrayEquals(original.getHits(), deserialized.getHits());

@@ -78,6 +78,11 @@ public class GeoIpProcessorNonIngestNodeIT extends ESIntegTestCase {
         return configPath;
     }
 
+    /**
+     * This test shows that we do not load the geo-IP databases on non-ingest nodes, and only load on ingest nodes on first use.
+     *
+     * @throws IOException if an I/O exception occurs building the JSON
+     */
     public void testLazyLoading() throws IOException {
         final BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {

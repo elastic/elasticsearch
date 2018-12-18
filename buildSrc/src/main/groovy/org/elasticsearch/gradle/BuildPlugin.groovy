@@ -882,6 +882,9 @@ class BuildPlugin implements Plugin<Project> {
                     task.shouldRunAfter testTask
                 }
             }
+            if (name == "unitTest") {
+                include("**/*Tests.class")
+            }
 
             // TODO: why are we not passing maxmemory to junit4?
             jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')

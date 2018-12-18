@@ -48,7 +48,6 @@ class RandomizedTestingPlugin implements Plugin<Project> {
             it.enabled = false
             RandomizedTestingTask unitTest = tasks.create('unitTest', RandomizedTestingTask)
             unitTest.description = 'Runs unit tests with the randomized testing framework'
-            unitTest.include("**/*Tests.class")
             it.dependsOn unitTest
         }
     }

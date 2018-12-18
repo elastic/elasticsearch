@@ -14,7 +14,10 @@ import java.util.Objects;
 public class RequestInfo {
     public static final String CLI = "cli";
     private static final String CANVAS = "canvas";
-    public static final List<String> CLIENT_IDS = Arrays.asList(CLI, CANVAS);
+    public static final String ODBC32 = "odbc32";
+    private static final String ODBC64 = "odbc64";
+    public static final List<String> CLIENT_IDS = Arrays.asList(CLI, CANVAS, ODBC32, ODBC64);
+    public static final List<String> ODBC_CLIENT_IDS =  Arrays.asList(ODBC32, ODBC64);
     
     private Mode mode;
     private String clientId;

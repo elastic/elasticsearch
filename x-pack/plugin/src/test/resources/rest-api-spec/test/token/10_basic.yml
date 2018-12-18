@@ -88,13 +88,13 @@ teardown:
       catch: unauthorized
       headers:
         Authorization: Bearer ${token}
-      security.authenticate: {}
+      xpack.security.authenticate: {}
 
 ---
 "Test invalidate user's tokens":
 
   - do:
-      security.get_token:
+      xpack.security.get_token:
         body:
           grant_type: "password"
           username: "token_user"
@@ -109,14 +109,14 @@ teardown:
   - do:
       headers:
         Authorization: Bearer ${token}
-      security.authenticate: {}
+      xpack.security.authenticate: {}
 
   - match: { username: "token_user" }
   - match: { roles.0:  "superuser" }
   - match: { full_name: "Token User" }
 
   - do:
-      security.invalidate_token:
+      xpack.security.invalidate_token:
         body:
           username: "token_user"
 
@@ -129,14 +129,14 @@ teardown:
       catch: unauthorized
       headers:
         Authorization: Bearer ${token}
-      security.authenticate: {}
+      xpack.security.authenticate: {}
 
 
 ---
 "Test invalidate realm's tokens":
 
   - do:
-      security.get_token:
+      xpack.security.get_token:
         body:
           grant_type: "password"
           username: "token_user"
@@ -151,14 +151,14 @@ teardown:
   - do:
       headers:
         Authorization: Bearer ${token}
-      security.authenticate: {}
+      xpack.security.authenticate: {}
 
   - match: { username: "token_user" }
   - match: { roles.0:  "superuser" }
   - match: { full_name: "Token User" }
 
   - do:
-      security.invalidate_token:
+      xpack.security.invalidate_token:
         body:
           realm_name: "default_native"
 

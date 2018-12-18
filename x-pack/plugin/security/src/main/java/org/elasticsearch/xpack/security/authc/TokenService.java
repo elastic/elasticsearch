@@ -706,7 +706,7 @@ public final class TokenService extends AbstractComponent {
             for (String tokenId : tokenIds) {
                 UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, getTokenDocumentId(tokenId))
                     .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
-                    .setFetchSource(srcPrefix, null)
+                    .setFetchSource(srcPrefix, "")
                     .request();
                 bulkRequestBuilder.add(request);
             }

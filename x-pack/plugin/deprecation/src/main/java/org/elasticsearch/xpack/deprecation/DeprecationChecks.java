@@ -41,6 +41,7 @@ public class DeprecationChecks {
             NodeDeprecationChecks::httpEnabledSettingRemoved,
             NodeDeprecationChecks::auditLogPrefixSettingsCheck,
             NodeDeprecationChecks::indexThreadPoolCheck,
+            NodeDeprecationChecks::bulkThreadPoolCheck,
             NodeDeprecationChecks::tribeNodeCheck,
             NodeDeprecationChecks::httpPipeliningCheck,
             NodeDeprecationChecks::discoveryConfigurationCheck,

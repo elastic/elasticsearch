@@ -14,9 +14,9 @@ the environmental factors of the cluster.
 
 ==== Why worry about delayed data?
 
-This is a particularly prescient question. If there are data delayed randomly (thus, missing from analysis), the results of
-certain types of functions are not really affected. Statistically, it all comes out ok in the end as the delayed data is
-distributed randomly. An example would be a `mean` metric for a field in a large collection of data.
+This is a particularly prescient question. If there are data delayed randomly (and consequently missing from analysis),
+the results of certain types of functions are not really affected. Statistically, it all comes out ok in the end 
+as the delayed data is distributed randomly. An example would be a `mean` metric for a field in a large collection of data.
 In this case, checking for delayed data may not provide much benefit. However, jobs with a `low_count` function may
 provide false positives if data is consistently delayed. In this situation, it would be useful to see if data
 comes in after an anomaly is recorded so that you can determine a next course of action.
@@ -25,10 +25,10 @@ comes in after an anomaly is recorded so that you can determine a next course of
 
 In addition to the `query_delay` field, there is a
 {ref}/ml-datafeed-resource.html#ml-datafeed-delayed-data-check-config[delayed data check config], which enables you to
-configuring the datafeed to look in the past for delayed data. Every 15 minutes or every `check_window`,
+configure the datafeed to look in the past for delayed data. Every 15 minutes or every `check_window`,
 whichever is smaller, the datafeed triggers a document search over the configured indices. This search looks over a
-time-span with length of `check_window` ending with the latest finalized bucket. That time-span is partitioned into buckets,
-whose length equals bucket span of the associated job. The `doc_count` of those buckets are then compared with the
+time span with a length of `check_window` ending with the latest finalized bucket. That time span is partitioned into buckets,
+whose length equals the bucket span of the associated job. The `doc_count` of those buckets are then compared with the
 job's finalized analysis buckets to see whether any data has arrived since the analysis. If there is indeed missing data
 due to their ingest delay, the end user is notified.
 

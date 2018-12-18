@@ -226,7 +226,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (pCtx.query() != null) {
                     throw new ParsingException(loc, "IN query not supported yet");
                 }
-                e = new In(loc, exp, expressions(pCtx.expression()));
+                e = new In(loc, exp, expressions(pCtx.valueExpression()));
                 break;
             case SqlBaseParser.LIKE:
                 e = new Like(loc, exp, visitPattern(pCtx.pattern()));

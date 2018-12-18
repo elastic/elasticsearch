@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,9 +33,6 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  */
 public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
 
-    static final ConstructingObjectParser<Tuple<String, String>, Void> PARSER =
-            new ConstructingObjectParser<>("invalidate_token", a -> new Tuple<>((String) a[0], (String) a[1]));
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestInvalidateTokenAction.class));
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER =
         new ConstructingObjectParser<>("invalidate_token", a -> {
             final String token = (String) a[0];

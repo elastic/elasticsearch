@@ -44,7 +44,7 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(Version.V_6_6_0)) {
             out.writeBoolean(isCreated());
         } else {
             result.writeTo(out);
@@ -54,7 +54,7 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(Version.V_6_6_0)) {
             final boolean created = in.readBoolean();
             if (created) {
                 result = new TokensInvalidationResult(Arrays.asList(""), Collections.emptyList(), Collections.emptyList(), 0);

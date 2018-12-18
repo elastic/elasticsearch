@@ -137,7 +137,7 @@ public final class InvalidateTokenRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_7_0_0)) {
+        if (out.getVersion().before(Version.V_6_6_0)) {
             if (Strings.isNullOrEmpty(tokenString)) {
                 throw new IllegalArgumentException("token is required for versions  < v6.6.0");
             }
@@ -146,7 +146,7 @@ public final class InvalidateTokenRequest extends ActionRequest {
             out.writeOptionalString(tokenString);
         }
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            if (out.getVersion().before(Version.V_7_0_0)) {
+            if (out.getVersion().before(Version.V_6_6_0)) {
                 if (tokenType == null) {
                     throw new IllegalArgumentException("token type is not optional for versions > v6.2.0 and < v6.6.0");
                 }
@@ -157,7 +157,7 @@ public final class InvalidateTokenRequest extends ActionRequest {
         } else if (tokenType == Type.REFRESH_TOKEN) {
             throw new IllegalArgumentException("refresh token invalidation cannot be serialized with version [" + out.getVersion() + "]");
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeOptionalString(realmName);
             out.writeOptionalString(userName);
         } else if (realmName != null || userName != null) {
@@ -169,13 +169,13 @@ public final class InvalidateTokenRequest extends ActionRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_7_0_0)) {
+        if (in.getVersion().before(Version.V_6_6_0)) {
             tokenString = in.readString();
         } else {
             tokenString = in.readOptionalString();
         }
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            if (in.getVersion().before(Version.V_7_0_0)) {
+            if (in.getVersion().before(Version.V_6_6_0)) {
                 int type = in.readVInt();
                 tokenType = Type.values()[type];
             } else {
@@ -185,7 +185,7 @@ public final class InvalidateTokenRequest extends ActionRequest {
         } else {
             tokenType = Type.ACCESS_TOKEN;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             realmName = in.readOptionalString();
             userName = in.readOptionalString();
         }

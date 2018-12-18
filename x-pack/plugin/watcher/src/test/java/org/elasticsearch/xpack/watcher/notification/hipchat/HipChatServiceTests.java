@@ -128,7 +128,7 @@ public class HipChatServiceTests extends ESTestCase {
                 .put("xpack.notification.hipchat.account." + accountName + ".auth_token", "_token");
         SettingsException e = expectThrows(SettingsException.class, () ->
             new HipChatService(settingsBuilder.build(), httpClient,
-                new ClusterSettings(settingsBuilder.build(), new HashSet<>(HipChatService.getSettings()))));
+                new ClusterSettings(settingsBuilder.build(), new HashSet<>(HipChatService.getSettings()))).getAccount(null));
         assertThat(e.getMessage(), containsString("missing required [room] setting for [integration] account profile"));
     }
 

@@ -57,16 +57,10 @@ public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
                 ((GeoShapeFieldType)ft).setPrecisionInMeters(20);
             }
         });
-        addModifier(new Modifier("distance_error_pct", true) {
+        addModifier(new Modifier("distance_error_pct", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 ((GeoShapeFieldType)ft).setDefaultDistanceErrorPct(0.5);
-            }
-        });
-        addModifier(new Modifier("orientation", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
             }
         });
     }

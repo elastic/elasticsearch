@@ -406,6 +406,9 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             if (precisionInMeters() != other.precisionInMeters()) {
                 conflicts.add("mapper [" + name() + "] has different [precision]");
             }
+            if (distanceErrorPct() != other.distanceErrorPct()) {
+                conflicts.add("mapper [" + name() + "] has different [distance_error_pct]");
+            }
         }
 
         public String tree() {

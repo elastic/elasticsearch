@@ -21,29 +21,6 @@ package org.elasticsearch.painless;
 
 public class StandardCastTests extends ScriptTestCase {
 
-    /*
-        [x] Object
-        [ ] Number
-        [ ] String
-        [ ] boolean
-        [ ] byte
-        [ ] short
-        [ ] char
-        [ ] int
-        [ ] long
-        [ ] float
-        [ ] double
-        [ ] Boolean
-        [ ] Byte
-        [ ] Short
-        [ ] Character
-        [ ] Integer
-        [ ] Long
-        [ ] Float
-        [ ] Double
-        [ ] Reference
-    */
-
     public void testObjectCasts() {
         expectScriptThrows(ClassCastException.class, () -> exec("Object o = null; Number n = o;"));
         exec("Object o = Integer.valueOf(0); Number n = (Number)o;");

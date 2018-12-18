@@ -14,12 +14,11 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.TimeZone;
 
 public class QuarterProcessor extends BaseDateTimeProcessor {
     
-    public QuarterProcessor(TimeZone timeZone) {
-        super(timeZone);
+    public QuarterProcessor(ZoneId zoneId) {
+        super(zoneId);
     }
     
     public QuarterProcessor(StreamInput in) throws IOException {
@@ -49,7 +48,7 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(timeZone());
+        return Objects.hash(zoneId());
     }
 
     @Override
@@ -58,6 +57,6 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
             return false;
         }
         DateTimeProcessor other = (DateTimeProcessor) obj;
-        return Objects.equals(timeZone(), other.timeZone());
+        return Objects.equals(zoneId(), other.zoneId());
     }
 }

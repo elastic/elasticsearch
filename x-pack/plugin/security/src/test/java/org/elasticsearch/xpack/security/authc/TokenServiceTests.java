@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -530,7 +531,7 @@ public class TokenServiceTests extends ESTestCase {
         assertNull(future.get());
 
         e = expectThrows(IllegalStateException.class, () -> {
-            PlainActionFuture<Boolean> invalidateFuture = new PlainActionFuture<>();
+            PlainActionFuture<TokensInvalidationResult> invalidateFuture = new PlainActionFuture<>();
             tokenService.invalidateAccessToken((String) null, invalidateFuture);
             invalidateFuture.actionGet();
         });

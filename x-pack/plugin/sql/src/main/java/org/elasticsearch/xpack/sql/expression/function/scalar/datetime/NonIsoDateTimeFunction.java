@@ -14,9 +14,9 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Locale;
-import java.util.TimeZone;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -28,8 +28,8 @@ abstract class NonIsoDateTimeFunction extends BaseDateTimeFunction {
 
     private final NonIsoDateTimeExtractor extractor;
 
-    NonIsoDateTimeFunction(Location location, Expression field, TimeZone timeZone, NonIsoDateTimeExtractor extractor) {
-        super(location, field, timeZone);
+    NonIsoDateTimeFunction(Location location, Expression field, ZoneId zoneId, NonIsoDateTimeExtractor extractor) {
+        super(location, field, zoneId);
         this.extractor = extractor;
     }
 
@@ -45,13 +45,13 @@ abstract class NonIsoDateTimeFunction extends BaseDateTimeFunction {
                         StringUtils.underscoreToLowerCamelCase(extractor.name()))),
                 paramsBuilder()
                   .variable(field.name())
-                  .variable(timeZone().getID()).build(),
+                  .variable(zoneId().getId()).build(),
                 dataType());
     }
 
     @Override
     protected Processor makeProcessor() {
-        return new NonIsoDateTimeProcessor(extractor, timeZone());
+        return new NonIsoDateTimeProcessor(extractor, zoneId());
     }
 
     @Override

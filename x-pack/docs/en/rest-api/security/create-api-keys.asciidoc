@@ -50,8 +50,8 @@ The following example creates an API key:
 POST /_xpack/security/api_key
 {
   "name": "my-api-key",
-  "expiration": "1d",
-  "role_descriptors": {
+  "expiration": "1d", <1>
+  "role_descriptors": { <2>
     "role-a": {
       "cluster": ["all"],
       "index": [
@@ -74,6 +74,10 @@ POST /_xpack/security/api_key
 }
 ------------------------------------------------------------
 // CONSOLE
+<1> optional expiration for the API key being generated. If expiration is not
+ provided then the API keys do not expire.
+<2> optional role descriptors for this API key, if not provided then permissions
+ of authenticated user are applied.
 
 A successful call returns a JSON structure that provides
 API key information.

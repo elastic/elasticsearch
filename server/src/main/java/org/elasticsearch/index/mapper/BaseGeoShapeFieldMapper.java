@@ -193,8 +193,8 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
                 parsedDeprecatedParams ? deprecatedParameters : null);
         }
 
-        private Builder getBuilder(ParserContext parserContext, String name, boolean coerce, boolean ignoreMalformed, Orientation orientation,
-                                   boolean ignoreZ, DeprecatedParameters deprecatedParameters) {
+        private Builder getBuilder(ParserContext parserContext, String name, boolean coerce, boolean ignoreMalformed,
+                                   Orientation orientation, boolean ignoreZ, DeprecatedParameters deprecatedParameters) {
             if (parserContext.indexVersionCreated().before(Version.V_7_0_0) && deprecatedParameters != null) {
                 return getLegacyBuilder(name, coerce, ignoreMalformed, orientation, ignoreZ, deprecatedParameters);
             }

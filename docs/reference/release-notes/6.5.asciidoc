@@ -66,7 +66,11 @@ CCR::
 
 Machine learning::
 * Interrupt Grok in file structure finder timeout {pull}36588[#36588]
-* Prevent stack overflow while copying ML jobs and datafeeds {pull}36370[#36370] (issue: {issue}36360[#36360])
+* Prevent stack overflow while copying {ml} jobs and datafeeds {pull}36370[#36370] (issue: {issue}36360[#36360])
+* Fix a problem that could result in shifted model bounds and increased forecast
+errors with long bucket spans. The solution was to correct query times for model
+bounds and forecasts in the bucket to match the times assigned to the samples
+that are added to the model for each bucket. {ml-pull}327[#327]
 
 SQL::
 * Fix MOD() for long and integer arguments {pull}36599[#36599] (issue: {issue}36364[#36364])

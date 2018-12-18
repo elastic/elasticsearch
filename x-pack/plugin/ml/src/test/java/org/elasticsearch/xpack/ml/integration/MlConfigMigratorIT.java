@@ -193,10 +193,13 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
             mlMetadata.putDatafeed(builder.build(), Collections.emptyMap());
         }
 
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addMlConfigIndex(metaData, routingTable);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder()
-                .putCustom(MlMetadata.TYPE, mlMetadata.build()))
-            .build();
+                .metaData(metaData.putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .routingTable(routingTable.build())
+                .build();
 
         doAnswer(invocation -> {
             ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];
@@ -334,6 +337,31 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         shardRouting = shardRouting.moveToStarted();
         routingTable.add(IndexRoutingTable.builder(index)
                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+    }
+
+    public void testConfigIndexIsCreated() throws Exception {
+        // and jobs and datafeeds clusterstate
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(buildJobBuilder("job-foo").build(), false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<Boolean> responseHolder = new AtomicReference<>();
+        MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
+
+        // if the cluster state has a job config and the index does not
+        // exist it should be created
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+                responseHolder, exceptionHolder);
+
+        assertBusy(() -> assertTrue(configIndexExists()));
+    }
+
+    private boolean configIndexExists() {
+        return client().admin().indices().prepareExists(AnomalyDetectorsIndex.configIndexName()).get().isExists();
     }
 }
 

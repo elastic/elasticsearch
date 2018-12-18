@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -68,6 +69,14 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     protected static final ClusterType CLUSTER_TYPE = ClusterType.parse(System.getProperty("tests.rest.suite"));
+    protected static final Version UPGRADED_FROM_VERSION;
+    static {
+        String versionProperty = System.getProperty("tests.upgrade_from_version");
+        if (versionProperty == null) {
+            throw new IllegalStateException("System property 'tests.upgrade_from_version' not set, cannot start tests");
+        }
+        UPGRADED_FROM_VERSION = Version.fromString(versionProperty);
+    }
 
     @Override
     protected Settings restClientSettings() {

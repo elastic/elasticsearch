@@ -89,6 +89,7 @@ public class XPackIT extends AbstractRollingTestCase {
         if (masterIsNewVersion()) {
             // Everything else waits until the master is upgraded to create its templates
             expectedTemplates.add(".ml-anomalies-");
+            expectedTemplates.add(".ml-config");
             expectedTemplates.add(".ml-meta");
             expectedTemplates.add(".ml-notifications");
             expectedTemplates.add(".ml-state");

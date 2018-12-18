@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -272,7 +273,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         Annotation expectedAnnotation = new Annotation(msg,
             new Date(currentTime),
-            "ml-delayed-data-checker",
+            SystemUser.NAME,
             bucket.getTimestamp(),
             bucket.getTimestamp(),
             jobId,
@@ -306,7 +307,7 @@ public class DatafeedJobTests extends ESTestCase {
         Annotation updatedAnnotation = new Annotation(expectedAnnotation);
         updatedAnnotation.setAnnotation(msg);
         updatedAnnotation.setModifiedTime(new Date(currentTime));
-        updatedAnnotation.setModifiedUsername("ml-delayed-data-checker");
+        updatedAnnotation.setModifiedUsername(SystemUser.NAME);
         try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             updateRequest.doc(xContentBuilder);
         }

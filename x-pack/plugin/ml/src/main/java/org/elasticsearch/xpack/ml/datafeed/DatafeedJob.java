@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -185,8 +186,9 @@ class DatafeedJob {
                 long totalRecordsMissing = missingDataBuckets.stream()
                     .mapToLong(BucketWithMissingData::getMissingDocumentCount)
                     .sum();
+                Date endTime = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket().getTimestamp();
                 Annotation annotation = createAnnotation(missingDataBuckets.get(0).getBucket().getTimestamp(),
-                    missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket().getTimestamp(),
+                    endTime,
                     totalRecordsMissing);
 
                 // Have we an annotation that covers the same area with the same message?
@@ -197,6 +199,11 @@ class DatafeedJob {
                     && annotation.getEndTimestamp().equals(lastDataCheckAnnotation.getTimestamp())) {
                     return;
                 }
+
+                // Creating a warning in addition to updating/creating our annotation. This allows the issue to be plainly visible
+                // in the job list page.
+                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing,
+                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(endTime.getTime())));
 
                 if (lastDataCheckAnnotationId != null) {
                     updateAnnotation(annotation);
@@ -212,7 +219,7 @@ class DatafeedJob {
             XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(endTime.getTime()));
        return new Annotation(msg,
            new Date(currentTimeSupplier.get()),
-           "ml-delayed-data-checker",
+           SystemUser.NAME,
            startTime,
            endTime,
            jobId,
@@ -238,13 +245,16 @@ class DatafeedJob {
 
     private void updateAnnotation(Annotation annotation) {
         Annotation updatedAnnotation = new Annotation(lastDataCheckAnnotation);
-        updatedAnnotation.setModifiedUsername("ml-delayed-data-checker");
+        updatedAnnotation.setModifiedUsername(SystemUser.NAME);
         updatedAnnotation.setModifiedTime(new Date(currentTimeSupplier.get()));
         updatedAnnotation.setAnnotation(annotation.getAnnotation());
         updatedAnnotation.setTimestamp(annotation.getTimestamp());
         updatedAnnotation.setEndTimestamp(annotation.getEndTimestamp());
         try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             UpdateRequest updateRequest = new UpdateRequest(AnnotationIndex.WRITE_ALIAS_NAME, lastDataCheckAnnotationId);
+            // If the document with the lastDataCheckAnnotationId does not exist, create it with the passed doc value
+            // This is for insurance against somehow the doc being deleted, moved, etc.
+            updateRequest.docAsUpsert(true);
             updateRequest.doc(xContentBuilder);
             client.update(updateRequest).actionGet();
             lastDataCheckAnnotation = updatedAnnotation;

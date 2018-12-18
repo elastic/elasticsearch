@@ -41,6 +41,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         final int invalidatedTokens = randomInt(32);
         final int previouslyInvalidatedTokens = randomInt(32);
         builder.startObject()
+            .field("created", false)
             .field("invalidated_tokens", invalidatedTokens)
             .field("previously_invalidated_tokens", previouslyInvalidatedTokens)
             .field("error_count", 0)
@@ -49,6 +50,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
 
         try (XContentParser parser = createParser(xContentType.xContent(), xContent)) {
             final InvalidateTokenResponse response = InvalidateTokenResponse.fromXContent(parser);
+            assertThat(response.isCreated(), Matchers.equalTo(false));
             assertThat(response.getInvalidatedTokens(), Matchers.equalTo(invalidatedTokens));
             assertThat(response.getPreviouslyInvalidatedTokens(), Matchers.equalTo(previouslyInvalidatedTokens));
             assertThat(response.getErrorsCount(), Matchers.equalTo(0));
@@ -62,6 +64,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         final int invalidatedTokens = randomInt(32);
         final int previouslyInvalidatedTokens = randomInt(32);
         builder.startObject()
+            .field("created", false)
             .field("invalidated_tokens", invalidatedTokens)
             .field("previously_invalidated_tokens", previouslyInvalidatedTokens)
             .field("error_count", 0)
@@ -79,6 +82,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
 
         try (XContentParser parser = createParser(xContentType.xContent(), xContent)) {
             final InvalidateTokenResponse response = InvalidateTokenResponse.fromXContent(parser);
+            assertThat(response.isCreated(), Matchers.equalTo(false));
             assertThat(response.getInvalidatedTokens(), Matchers.equalTo(invalidatedTokens));
             assertThat(response.getPreviouslyInvalidatedTokens(), Matchers.equalTo(previouslyInvalidatedTokens));
             assertThat(response.getErrorsCount(), Matchers.equalTo(2));

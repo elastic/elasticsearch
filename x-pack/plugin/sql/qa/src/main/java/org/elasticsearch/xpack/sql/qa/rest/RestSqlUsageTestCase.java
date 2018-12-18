@@ -38,7 +38,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     );
     
     private enum ClientType {
-        CANVAS, CLI, JDBC, ODBC, REST;
+        CANVAS, CLI, JDBC, ODBC, ODBC32, ODBC64, REST;
 
         @Override
         public String toString() {
@@ -84,7 +84,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
                 baseMetrics.put(metric.toString(), (Integer) featuresMetrics.get(metric.toString()));
             }
             
-            // initialize the "base" metric values with whatever values are already recorder on ES
+            // initialize the "base" metric values with whatever values are already recorded on ES
             baseClientTypeTotalQueries = ((Map<String,Integer>) queriesMetrics.get(clientType)).get("total");
             baseClientTypeFailedQueries = ((Map<String,Integer>) queriesMetrics.get(clientType)).get("failed");
             baseAllTotalQueries = ((Map<String,Integer>) queriesMetrics.get("_all")).get("total");
@@ -252,8 +252,14 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runSql(String sql) throws IOException {
-        String mode = (clientType.equals(ClientType.JDBC.toString()) || clientType.equals(ClientType.ODBC.toString())) ?
-                clientType.toString() : Mode.PLAIN.toString();
+        String mode = Mode.PLAIN.toString();
+        if (clientType.equals(ClientType.JDBC.toString())) {
+            mode = Mode.JDBC.toString();
+        }
+        if (clientType.startsWith(ClientType.ODBC.toString())) {
+            mode = Mode.ODBC.toString();
+        }
+
         runSql(mode, clientType, sql);
     }
     

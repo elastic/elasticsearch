@@ -212,14 +212,32 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         return this;
     }
 
+    /**
+     * If set, only perform this delete request if the document was last modification was assigned this sequence number.
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
     public long ifSeqNo() {
         return ifSeqNo;
     }
 
+    /**
+     * If set, only perform this delete request if the document was last modification was assigned this primary term.
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
     public long ifPrimaryTerm() {
         return ifPrimaryTerm;
     }
 
+    /**
+     * only perform this delete request if the document was last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
     public DeleteRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
@@ -228,6 +246,13 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         return this;
     }
 
+    /**
+     * only perform this delete request if the document was last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different primary term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
     public DeleteRequest setIfPrimaryTerm(long term) {
         if (term < 0) {
             throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");

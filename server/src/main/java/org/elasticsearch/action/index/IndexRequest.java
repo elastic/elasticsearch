@@ -493,6 +493,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * only perform this indexing request if the document was last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
     public IndexRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
@@ -501,6 +508,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * only performs this indexing request if the document was last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
     public IndexRequest setIfPrimaryTerm(long term) {
         if (term < 0) {
             throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
@@ -509,10 +523,21 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * If set, only perform this indexing request if the document was last modification was assigned this sequence number.
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
     public long ifSeqNo() {
         return ifSeqNo;
     }
 
+    /**
+     * If set, only perform this indexing request if the document was last modification was assigned this primary term.
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
     public long ifPrimaryTerm() {
         return ifPrimaryTerm;
     }

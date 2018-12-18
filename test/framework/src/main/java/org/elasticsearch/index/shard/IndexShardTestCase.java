@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -701,12 +702,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 updateMappings(shard, IndexMetaData.builder(shard.indexSettings().getIndexMetaData())
                     .putMapping(type, result.getRequiredMappingUpdate().toString()).build());
                 result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
-                    IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                    SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             }
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
                 shard.getLocalCheckpoint());
@@ -730,7 +731,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected Engine.DeleteResult deleteDoc(IndexShard shard, String type, String id) throws IOException {
         final Engine.DeleteResult result;
         if (shard.routingEntry().primary()) {
-            result = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, type, id, VersionType.INTERNAL);
+            result = shard.applyDeleteOperationOnPrimary(
+                Versions.MATCH_ANY, type, id, VersionType.INTERNAL, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getEngine().getLocalCheckpoint());
         } else {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
@@ -757,7 +759,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final String index = shardId.getIndexName();
         final IndexId indexId = new IndexId(shardId.getIndex().getName(), shardId.getIndex().getUUID());
         final DiscoveryNode node = getFakeDiscoNode(shard.routingEntry().currentNodeId());
-        final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(snapshot, version, index);
+        final RecoverySource.SnapshotRecoverySource recoverySource =
+            new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, version, index);
         final ShardRouting shardRouting = newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, recoverySource);
 
         shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));

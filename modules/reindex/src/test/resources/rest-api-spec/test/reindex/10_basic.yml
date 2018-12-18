@@ -3,7 +3,7 @@
   - do:
       index:
         index:   source
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -38,13 +38,13 @@
   - do:
       index:
         index:   source
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   dest
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -79,7 +79,7 @@
   - do:
       index:
         index:   source
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -136,13 +136,13 @@
   - do:
       index:
         index:   source
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   dest
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -162,12 +162,11 @@
   - match: {version_conflicts: 1}
   - match: {batches: 1}
   - match: {failures.0.index:  dest}
-  - match: {failures.0.type:   foo}
   - match: {failures.0.id:     "1"}
   - match: {failures.0.status: 409}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
   # Use a regex so we don't mind if the version isn't always 1. Sometimes it comes out 2.
-  - match: {failures.0.cause.reason: "/\\[foo\\]\\[1\\]:.version.conflict,.document.already.exists.\\(current.version.\\[\\d+\\]\\)/"}
+  - match: {failures.0.cause.reason: "/\\[_doc\\]\\[1\\]:.version.conflict,.document.already.exists.\\(current.version.\\[\\d+\\]\\)/"}
   - match: {failures.0.cause.shard:  /\d+/}
   - match: {failures.0.cause.index:  dest}
   - gte: { took: 0 }
@@ -184,13 +183,13 @@
   - do:
       index:
         index:   source
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   dest
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -225,7 +224,7 @@
   - do:
       index:
         index:   source
-        type:    foo
+        type:    _doc
         id:      1
         body:    {}
   - do:
@@ -243,7 +242,7 @@
   - do:
       get:
         index:   dest
-        type:    foo
+        type:    _doc
         id:      1
   - match: { _source: {} }
 
@@ -288,7 +287,7 @@
   - do:
       get:
         index: dest
-        type: foo
+        type: _doc
         id: 1
   - match: { _source.text: "test" }
   - is_false: _source.filtered

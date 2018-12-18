@@ -1060,6 +1060,20 @@
                   }
                 }
               }
+            },
+            "auto_followed_clusters": {
+              "type": "nested",
+              "properties": {
+                "cluster_name": {
+                  "type": "keyword"
+                },
+                "time_since_last_check_millis": {
+                  "type": "long"
+                },
+                "last_seen_metadata_version": {
+                  "type": "long"
+                }
+              }
             }
           }
         }

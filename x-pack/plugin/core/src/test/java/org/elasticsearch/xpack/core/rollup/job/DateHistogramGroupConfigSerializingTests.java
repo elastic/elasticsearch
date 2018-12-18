@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -148,6 +149,7 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
             final DateHistogramGroupConfig reference = ConfigTestHelpers.randomDateHistogramGroupConfig(random());
 
             final BytesStreamOutput out = new BytesStreamOutput();
+            out.setVersion(Version.V_6_4_0);
             reference.writeTo(out);
 
             // previous way to deserialize a DateHistogramGroupConfig

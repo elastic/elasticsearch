@@ -339,9 +339,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         String type = (String)agg.get(RollupField.AGG);
 
                         // If the cap is for a date_histo, and the query is a range, the timezones need to match
-                        if (type.equals(DateHistogramAggregationBuilder.NAME) && timeZone != null) {
-                            boolean matchingTZ = ((String)agg.get(DateHistogramGroupConfig.TIME_ZONE))
-                                .equalsIgnoreCase(timeZone);
+                        if (type.equals(DateHistogramAggregationBuilder.NAME) && Strings.isNullOrEmpty(timeZone) == false) {
+                            boolean matchingTZ = RollupJobIdentifierUtils.timezoneRulesCompatible(agg, timeZone);
                             if (matchingTZ == false) {
                                 incompatibleTimeZones.add((String)agg.get(DateHistogramGroupConfig.TIME_ZONE));
                             }

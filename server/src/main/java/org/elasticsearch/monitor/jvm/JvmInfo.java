@@ -152,10 +152,13 @@ public class JvmInfo implements Writeable, ToXContentFragment {
 
             try {
                 dnsCacheExpiration = Security.getProperty("networkaddress.cache.ttl");
-                if (dnsCacheExpiration == null) {
-                    dnsCacheExpiration = "unlimited";
+                if (dnsCacheExpiration == null || "-1".equals(dnsCacheExpiration)) {
+                    dnsCacheExpiration = "forever";
+                } else {
+                    dnsCacheExpiration = TimeValue.timeValueSeconds(Long.valueOf(dnsCacheExpiration)).toString();
                 }
             } catch (Exception ignored) {
+                dnsCacheExpiration = "unknown";
             }
 
         } catch (Exception ignored) {

@@ -22,6 +22,7 @@ package org.elasticsearch.monitor.jvm;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.security.Security;
@@ -42,9 +43,9 @@ public class JvmInfoTests extends ESTestCase {
     public void testDnsTtl() {
         String propertyValue = Security.getProperty("networkaddress.cache.ttl");
         if (Strings.isNullOrEmpty(propertyValue)) {
-            assertEquals(JvmInfo.jvmInfo().getDnsCacheExpiration(), "unlimited");
+            assertEquals(JvmInfo.jvmInfo().getDnsCacheExpiration(), "forever");
         } else {
-            assertEquals(JvmInfo.jvmInfo().getDnsCacheExpiration(), propertyValue);
+            assertEquals(JvmInfo.jvmInfo().getDnsCacheExpiration(), TimeValue.timeValueSeconds(Long.valueOf(propertyValue)).toString());
         }
     }
 

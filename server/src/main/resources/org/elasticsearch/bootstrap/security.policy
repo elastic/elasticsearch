@@ -115,6 +115,9 @@ grant {
   // needed by jvminfo for monitoring the jvm
   permission java.lang.management.ManagementPermission "monitor";
 
+  // needed for jvminfo for monitoring dns cache expiration
+  permission java.security.SecurityPermission "getProperty.networkaddress.cache.ttl";
+
   // needed by JDKESLoggerTests
   permission java.util.logging.LoggingPermission "control";
 

@@ -28,7 +28,7 @@ In addition to the `query_delay` field, there is a
 configure the datafeed to look in the past for delayed data. Every 15 minutes or every `check_window`,
 whichever is smaller, the datafeed triggers a document search over the configured indices. This search looks over a
 time-span with length of `check_window` ending with the latest finalized bucket. That time-span is partitioned into buckets,
-whose length equals bucket span of the associated job. The `doc_count` of those buckets are then compared with the
+whose length equals the bucket span of the associated job. The `doc_count` of those buckets are then compared with the
 job's finalized analysis buckets to see whether any data has arrived since the analysis.
 
 ==== What to do about delayed data?

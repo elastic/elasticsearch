@@ -115,7 +115,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final boolean enabled;
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
-    private final SetOnce<CcrRepositoryManager> repositoryManager = new SetOnce<>();
     private final SetOnce<CcrRestoreSourceService> restoreSourceService = new SetOnce<>();
     private Client client;
 
@@ -157,12 +156,12 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return emptyList();
         }
 
-        this.repositoryManager.set(new CcrRepositoryManager(settings, clusterService, client));
         CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(settings);
         this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
             ccrLicenseChecker,
             restoreSourceService,
+            new CcrRepositoryManager(settings, clusterService, client),
             new AutoFollowCoordinator(client, clusterService, ccrLicenseChecker, threadPool::relativeTimeInMillis)
         );
     }

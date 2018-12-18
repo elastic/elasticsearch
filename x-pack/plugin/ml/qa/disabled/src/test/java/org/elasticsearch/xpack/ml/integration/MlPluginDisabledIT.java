@@ -58,6 +58,8 @@ public class MlPluginDisabledIT extends ESRestTestCase {
         Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/foo");
         request.setJsonEntity(Strings.toString(xContentBuilder));
         ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
-        assertThat(exception.getMessage(), containsString("no handler found for uri [/_xpack/ml/anomaly_detectors/foo] and method [PUT]"));
+        assertThat(exception.getMessage(), containsString("method [PUT]"));
+        assertThat(exception.getMessage(), containsString("URI [/_ml/anomaly_detectors/foo]"));
+        assertThat(exception.getMessage(), containsString("400 Bad Request"));
     }
 }

@@ -30,11 +30,11 @@ public abstract class AggregateFunction extends Function {
 
     private AggregateFunctionAttribute lazyAttribute;
 
-    AggregateFunction(Location location, Expression field) {
+    protected AggregateFunction(Location location, Expression field) {
         this(location, field, emptyList());
     }
 
-    AggregateFunction(Location location, Expression field, List<Expression> parameters) {
+    protected AggregateFunction(Location location, Expression field, List<Expression> parameters) {
         super(location, CollectionUtils.combine(singletonList(field), parameters));
         this.field = field;
         this.parameters = parameters;

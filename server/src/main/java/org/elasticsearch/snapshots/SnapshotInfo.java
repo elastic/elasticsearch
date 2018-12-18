@@ -235,6 +235,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         this(snapshotId, indices, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null);
     }
 
+    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state, Version version) {
+        this(snapshotId, indices, state, null, version, 0L, 0L, 0, 0, Collections.emptyList(), null);
+    }
+
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime, Boolean includeGlobalState) {
         this(snapshotId, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L, 0, 0,
             Collections.emptyList(), includeGlobalState);
@@ -556,14 +560,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.endArray();
         builder.endObject();
         return builder;
-    }
-
-    /**
-     * This method creates a SnapshotInfo from external x-content.  It does not
-     * handle x-content written with the internal version.
-     */
-    public static SnapshotInfo fromXContent(final XContentParser parser) throws IOException {
-        return SNAPSHOT_INFO_PARSER.parse(parser, null).build();
     }
 
     /**

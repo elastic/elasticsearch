@@ -31,7 +31,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -72,7 +72,7 @@ public class TransportClientTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
         try (TransportClient client = new MockTransportClient(baseSettings, Arrays.asList(MockPlugin.class))) {
-            final Settings settings = TcpTransport.DEFAULT_FEATURES_SETTING.get(client.settings());
+            final Settings settings = TransportSettings.DEFAULT_FEATURES_SETTING.get(client.settings());
             assertThat(settings.keySet(), hasItem("transport_client"));
             assertThat(settings.get("transport_client"), equalTo("true"));
         }

@@ -91,7 +91,7 @@ and assign the role to a new `johndoe` user.
 --
 [source,shell]
 ----------------------------------------------------------
-curl -XPOST -u elastic 'localhost:9200/_xpack/security/role/events_admin' -H "Content-Type: application/json" -d '{
+curl -XPOST -u elastic 'localhost:9200/_security/role/events_admin' -H "Content-Type: application/json" -d '{
   "indices" : [
     {
       "names" : [ "events*" ],
@@ -104,7 +104,7 @@ curl -XPOST -u elastic 'localhost:9200/_xpack/security/role/events_admin' -H "Co
   ]
 }'
 
-curl -XPOST -u elastic 'localhost:9200/_xpack/security/user/johndoe' -H "Content-Type: application/json" -d '{
+curl -XPOST -u elastic 'localhost:9200/_security/user/johndoe' -H "Content-Type: application/json" -d '{
   "password" : "userpassword",
   "full_name" : "John Doe",
   "email" : "john.doe@anony.mous",

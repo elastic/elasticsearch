@@ -124,3 +124,36 @@ suffix number for each subsequent index.
 When the rollover is performed, the newly-created index is set as the write
 index for the rolled over alias. Documents sent to the alias are indexed into
 the new index, enabling indexing to continue uninterrupted.
+
+=== Skipping Rollover
+
+beta[]
+
+After an index has been rolled over by {ilm}, the
+`index.lifecycle.indexing_complete` setting will be set to `true` on the index.
+This indicates to {ilm} that this index has already been rolled over, and does
+not need to be rolled over again. If you <<ilm-remove-policy,remove the policy>>
+from an index and set it to use another policy, this setting indicates that the
+new policy should skip execution of the Rollover action.
+
+You can also set this setting to `true` manually if you want to indicate that
+{ilm} should not roll over a particular index. This is useful if you need to
+make an exception to your normal Lifecycle Policy and switching the alias to a
+different index by hand, but do not want to remove the index from {ilm}
+completely.
+
+IMPORTANT: If `index.lifecycle.indexing_complete` is set to `true` on an index,
+it will not be rolled over by {ilm}, but {ilm} will verify that this index is no
+longer the write index for the alias specified by
+`index.lifecycle.rollover_alias`. If that setting is missing, or if the index is
+still the write index for that alias, this index will be moved to the
+<<index-lifecycle-error-handling,error step>>.
+
+For example, if you wish to change the name of new indices while retaining
+previous data in accordance with your configured policy, you can create the
+template for the new index name pattern and the first index with the new name
+manually, change the write index of the alias using the <<indices-aliases, Index
+Aliases API>>, and set `index.lifecycle.indexing_complete` to `true` on the old
+index to indicate that it does not need to be rolled over. This way, {ilm} will
+continue to manage the old index in accordance with its existing policy, as well
+as the new one, with no interruption.

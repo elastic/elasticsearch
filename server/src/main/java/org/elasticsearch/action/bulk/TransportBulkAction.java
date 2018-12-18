@@ -127,6 +127,24 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
+    /**
+     * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are
+     * modeled as {@link IndexRequest} inside the {@link UpdateRequest}. Ignores {@link org.elasticsearch.action.delete.DeleteRequest}'s
+     *
+     * @param docWriteRequest The request to find the {@link IndexRequest}
+     * @return the found {@link IndexRequest} or {@code null} if one can not be found.
+     */
+    public static IndexRequest getIndexWriteRequest(DocWriteRequest docWriteRequest) {
+        IndexRequest indexRequest = null;
+        if (docWriteRequest instanceof IndexRequest) {
+            indexRequest = (IndexRequest) docWriteRequest;
+        } else if (docWriteRequest instanceof UpdateRequest) {
+            UpdateRequest updateRequest = (UpdateRequest) docWriteRequest;
+            indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
+        }
+        return indexRequest;
+    }
+
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         final long startTime = relativeTime();
@@ -207,12 +225,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final MetaData metaData = clusterService.state().getMetaData();
         ImmutableOpenMap<String, IndexMetaData> indicesMetaData = metaData.indices();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-            if (actionRequest instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) actionRequest;
+            IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
+            if(indexRequest != null){
                 String pipeline = indexRequest.getPipeline();
                 if (pipeline == null) {
-                    IndexMetaData indexMetaData = indicesMetaData.get(indexRequest.index());
-                    if (indexMetaData == null) {
+                    IndexMetaData indexMetaData = indicesMetaData.get(actionRequest.index());
+                    if (indexMetaData == null && indexRequest.index() != null) {
                         //check the alias
                         AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
                         if (indexOrAlias != null && indexOrAlias.isAlias()) {
@@ -626,7 +644,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         void markCurrentItemAsDropped() {
-            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(currentSlot);
+            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(currentSlot));
             failedSlots.set(currentSlot);
             itemResponses.add(
                 new BulkItemResponse(currentSlot, indexRequest.opType(),
@@ -639,7 +657,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         void markCurrentItemAsFailed(Exception e) {
-            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(currentSlot);
+            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(currentSlot));
             // We hit a error during preprocessing a request, so we:
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request

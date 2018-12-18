@@ -20,17 +20,20 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
@@ -234,8 +237,31 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     private DatabaseReaderLazyLoader loader(final String path) {
-        final InputStream is = GeoIpProcessor.class.getResourceAsStream(path);
-        return new DatabaseReaderLazyLoader(PathUtils.get(path), () -> new DatabaseReader.Builder(is).build());
+        final Supplier<InputStream> databaseInputStreamSupplier = () -> GeoIpProcessor.class.getResourceAsStream(path);
+        final CheckedSupplier<DatabaseReader, IOException> loader =
+                () -> new DatabaseReader.Builder(databaseInputStreamSupplier.get()).build();
+        return new DatabaseReaderLazyLoader(PathUtils.get(path), loader) {
+
+            @Override
+            long databaseFileSize() throws IOException {
+                try (InputStream is = databaseInputStreamSupplier.get()) {
+                    long bytesRead = 0;
+                    do {
+                        final byte[] bytes = new byte[1 << 10];
+                        final int read = is.read(bytes);
+                        if (read == -1) break;
+                        bytesRead += read;
+                    } while (true);
+                    return bytesRead;
+                }
+            }
+
+            @Override
+            InputStream databaseInputStream() throws IOException {
+                return databaseInputStreamSupplier.get();
+            }
+
+        };
     }
 
 }

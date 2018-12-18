@@ -38,7 +38,7 @@ import java.util.Objects;
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
  * no memory is being wasted on the database reader.
  */
-final class DatabaseReaderLazyLoader implements Closeable {
+class DatabaseReaderLazyLoader implements Closeable {
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
@@ -46,10 +46,14 @@ final class DatabaseReaderLazyLoader implements Closeable {
     private final CheckedSupplier<DatabaseReader, IOException> loader;
     final SetOnce<DatabaseReader> databaseReader;
 
+    // cache the database type so that we do not re-read it on every pipeline execution
+    final SetOnce<String> databaseType;
+
     DatabaseReaderLazyLoader(final Path databasePath, final CheckedSupplier<DatabaseReader, IOException> loader) {
         this.databasePath = Objects.requireNonNull(databasePath);
         this.loader = Objects.requireNonNull(loader);
         this.databaseReader = new SetOnce<>();
+        this.databaseType = new SetOnce<>();
     }
 
     /**
@@ -62,53 +66,68 @@ final class DatabaseReaderLazyLoader implements Closeable {
      * @throws IOException if an I/O exception occurs reading the database type
      */
     final String getDatabaseType() throws IOException {
-        final long fileSize = Files.size(databasePath);
-        if (fileSize <= 512) {
-            throw new IOException("unexpected file length [" + fileSize + "] for [" + databasePath + "]");
+        if (databaseType.get() == null) {
+            synchronized (databaseType) {
+                if (databaseType.get() == null) {
+                    final long fileSize = databaseFileSize();
+                    if (fileSize <= 512) {
+                        throw new IOException("unexpected file length [" + fileSize + "] for [" + databasePath + "]");
+                    }
+                    final int[] databaseTypeMarker = {'d', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e'};
+                    try (InputStream in = databaseInputStream()) {
+                        // read the last 512 bytes
+                        final long skipped = in.skip(fileSize - 512);
+                        if (skipped != fileSize - 512) {
+                            throw new IOException("failed to skip [" + (fileSize - 512) + "] bytes while reading [" + databasePath + "]");
+                        }
+                        final byte[] tail = new byte[512];
+                        int read = 0;
+                        do {
+                            final int actualBytesRead = in.read(tail, read, 512 - read);
+                            if (actualBytesRead == -1) {
+                                throw new IOException("unexpected end of stream [" + databasePath + "] after reading [" + read + "] bytes");
+                            }
+                            read += actualBytesRead;
+                        } while (read != 512);
+
+                        // find the database_type header
+                        int metadataOffset = -1;
+                        int markerOffset = 0;
+                        for (int i = 0; i < tail.length; i++) {
+                            byte b = tail[i];
+
+                            if (b == databaseTypeMarker[markerOffset]) {
+                                markerOffset++;
+                            } else {
+                                markerOffset = 0;
+                            }
+                            if (markerOffset == databaseTypeMarker.length) {
+                                metadataOffset = i + 1;
+                                break;
+                            }
+                        }
+
+                        // read the database type
+                        final int offsetByte = tail[metadataOffset] & 0xFF;
+                        final int type = offsetByte >>> 5;
+                        if (type != 2) {
+                            throw new IOException("type must be UTF-8 string");
+                        }
+                        int size = offsetByte & 0x1f;
+                        databaseType.set(new String(tail, metadataOffset + 1, size, StandardCharsets.UTF_8));
+                    }
+                }
+            }
         }
-        final int[] databaseTypeMarker = {'d', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e'};
-        try (InputStream in = Files.newInputStream(databasePath)) {
-            // read the last 512 bytes
-            final long skipped = in.skip(fileSize - 512);
-            if (skipped != fileSize - 512) {
-                throw new IOException("failed to skip [" + (fileSize - 512) + "] bytes while reading [" + databasePath + "]");
-            }
-            final byte[] tail = new byte[512];
-            int read = 0;
-            do {
-                final int actualBytesRead = in.read(tail, read, 512 - read);
-                if (actualBytesRead == -1) {
-                    throw new IOException("unexpected end of stream [" + databasePath + "] after reading [" + read + "] bytes");
-                }
-                read += actualBytesRead;
-            } while (read != 512);
+        return databaseType.get();
+    }
 
-            // find the database_type header
-            int metadataOffset = -1;
-            int markerOffset = 0;
-            for (int i = 0; i < tail.length; i++) {
-                byte b = tail[i];
+    long databaseFileSize() throws IOException {
+        return Files.size(databasePath);
+    }
 
-                if (b == databaseTypeMarker[markerOffset]) {
-                    markerOffset++;
-                } else {
-                    markerOffset = 0;
-                }
-                if (markerOffset == databaseTypeMarker.length) {
-                    metadataOffset = i + 1;
-                    break;
-                }
-            }
-
-            // read the database type
-            final int offsetByte = tail[metadataOffset] & 0xFF;
-            final int type = offsetByte >>> 5;
-            if (type != 2) {
-                throw new IOException("type must be UTF-8 string");
-            }
-            int size = offsetByte & 0x1f;
-            return new String(tail, metadataOffset + 1, size, StandardCharsets.UTF_8);
-        }
+    InputStream databaseInputStream() throws IOException {
+        return Files.newInputStream(databasePath);
     }
 
     DatabaseReader get() throws IOException {

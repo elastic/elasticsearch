@@ -93,7 +93,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         this.field = field;
         this.targetField = targetField;
         this.lazyLoader = lazyLoader;
-        this.properties = Collections.unmodifiableSet(properties);
+        this.properties = properties;
         this.ignoreMissing = ignoreMissing;
         this.cache = cache;
     }
@@ -115,7 +115,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final InetAddress ipAddress = InetAddresses.forString(ip);
 
         Map<String, Object> geoData;
-        String databaseType = lazyLoader.get().getMetadata().getDatabaseType();
+        String databaseType = lazyLoader.getDatabaseType();
 
         if (databaseType.endsWith(CITY_DB_SUFFIX)) {
             try {
@@ -136,7 +136,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 geoData = Collections.emptyMap();
             }
         } else {
-            throw new ElasticsearchParseException("Unsupported database type [" + lazyLoader.get().getMetadata().getDatabaseType()
+            throw new ElasticsearchParseException("Unsupported database type [" + lazyLoader.getDatabaseType()
                     + "]", new IllegalStateException());
         }
         if (geoData.isEmpty() == false) {
@@ -158,8 +158,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    DatabaseReader getDatabaseReader() throws IOException {
-        return lazyLoader.get();
+    String getDatabaseType() throws IOException {
+        return lazyLoader.getDatabaseType();
     }
 
     Set<Property> getProperties() {
@@ -335,16 +335,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
-        static final Set<Property> DEFAULT_CITY_PROPERTIES = EnumSet.of(
+        static final Set<Property> DEFAULT_CITY_PROPERTIES = Collections.unmodifiableSet(EnumSet.of(
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_ISO_CODE,
             Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION
-        );
-        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = EnumSet.of(
+        ));
+        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Collections.unmodifiableSet(EnumSet.of(
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE
-        );
-        static final Set<Property> DEFAULT_ASN_PROPERTIES = EnumSet.of(
+        ));
+        static final Set<Property> DEFAULT_ASN_PROPERTIES = Collections.unmodifiableSet(EnumSet.of(
             Property.IP, Property.ASN, Property.ORGANIZATION_NAME
-        );
+        ));
 
         private final Map<String, DatabaseReaderLazyLoader> databaseReaders;
 
@@ -380,14 +380,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
             final Set<Property> properties;
             if (propertyNames != null) {
-                properties = EnumSet.noneOf(Property.class);
+                Set<Property> modifiableProperties = EnumSet.noneOf(Property.class);
                 for (String fieldName : propertyNames) {
                     try {
-                        properties.add(Property.parseProperty(databaseType, fieldName));
+                        modifiableProperties.add(Property.parseProperty(databaseType, fieldName));
                     } catch (IllegalArgumentException e) {
                         throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
                     }
                 }
+                properties = Collections.unmodifiableSet(modifiableProperties);
             } else {
                 if (databaseType.endsWith(CITY_DB_SUFFIX)) {
                     properties = DEFAULT_CITY_PROPERTIES;

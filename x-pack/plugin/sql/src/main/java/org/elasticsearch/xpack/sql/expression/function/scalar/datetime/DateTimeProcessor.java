@@ -9,10 +9,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.Objects;
-import java.util.TimeZone;
 
 public class DateTimeProcessor extends BaseDateTimeProcessor {
     
@@ -46,8 +46,8 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
     public static final String NAME = "dt";
     private final DateTimeExtractor extractor;
 
-    public DateTimeProcessor(DateTimeExtractor extractor, TimeZone timeZone) {
-        super(timeZone);
+    public DateTimeProcessor(DateTimeExtractor extractor, ZoneId zoneId) {
+        super(zoneId);
         this.extractor = extractor;
     }
 
@@ -78,7 +78,7 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(extractor, timeZone());
+        return Objects.hash(extractor, zoneId());
     }
 
     @Override
@@ -88,7 +88,7 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
         }
         DateTimeProcessor other = (DateTimeProcessor) obj;
         return Objects.equals(extractor, other.extractor)
-                && Objects.equals(timeZone(), other.timeZone());
+                && Objects.equals(zoneId(), other.zoneId());
     }
 
     @Override

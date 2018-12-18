@@ -128,11 +128,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Settings connectionSettings = Settings.builder()
-            .put(TransportService.CONNECTIONS_PER_NODE_RECOVERY.getKey(), 1)
-            .put(TransportService.CONNECTIONS_PER_NODE_BULK.getKey(), 1)
-            .put(TransportService.CONNECTIONS_PER_NODE_REG.getKey(), 2)
-            .put(TransportService.CONNECTIONS_PER_NODE_STATE.getKey(), 1)
-            .put(TransportService.CONNECTIONS_PER_NODE_PING.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_BULK.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_REG.getKey(), 2)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_STATE.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_PING.getKey(), 1)
             .build();
 
         serviceA = buildService("TS_A",  version0, clusterSettings, connectionSettings); // this one supports dynamic tracer updates
@@ -172,8 +172,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 Settings.builder()
                         .put(settings)
                         .put(Node.NODE_NAME_SETTING.getKey(), name)
-                        .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                        .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                        .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+                        .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                         .build(),
                 version,
                 clusterSettings, doHandshake);
@@ -514,7 +514,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            Settings settingsWithCompress = Settings.builder().put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), true).build();
+            Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
 
@@ -568,7 +568,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            Settings settingsWithCompress = Settings.builder().put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), true).build();
+            Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
 
@@ -1051,8 +1051,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             excludeSettings = "DOESN'T_MATCH";
         }
         clusterSettings.applySettings(Settings.builder()
-            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), includeSettings)
-            .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
+            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), includeSettings)
+            .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
             .build());
 
         tracer.reset(4);
@@ -1735,8 +1735,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         TransportService serviceC = build(
             Settings.builder()
                 .put("name", "TS_TEST")
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+                .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .build(),
             version0,
             null, true);
@@ -2684,7 +2684,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testProfilesIncludesDefault() {
         Set<TcpTransport.ProfileSettings> profileSettings = TcpTransport.getProfileSettings(Settings.EMPTY);
         assertEquals(1, profileSettings.size());
-        assertEquals(TcpTransport.DEFAULT_PROFILE, profileSettings.stream().findAny().get().profileName);
+        assertEquals(TransportSettings.DEFAULT_PROFILE, profileSettings.stream().findAny().get().profileName);
 
         profileSettings = TcpTransport.getProfileSettings(Settings.builder()
             .put("transport.profiles.test.port", "0")

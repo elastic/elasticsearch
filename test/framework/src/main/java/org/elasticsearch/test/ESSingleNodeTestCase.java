@@ -179,7 +179,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private Node newNode() {
         final Path tempDir = createTempDir();
-        String nodeName = nodeSettings().hasValue("node.name") ? nodeSettings().get("node.name") : "node_s_0";
+        final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), "node_s_0");
 
         Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random().nextLong()))
@@ -188,7 +188,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // TODO: use a consistent data path for custom paths
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
-            .put("node.name", nodeName)
+            .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())

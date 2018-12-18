@@ -189,13 +189,12 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
                     iterator.remove();
                 }
             }
-            return getBuilder(parserContext, name, coerce, ignoreMalformed, orientation, ignoreZ,
-                parsedDeprecatedParams ? deprecatedParameters : null);
+            return getBuilder(name, coerce, ignoreMalformed, orientation, ignoreZ, parsedDeprecatedParams ? deprecatedParameters : null);
         }
 
-        private Builder getBuilder(ParserContext parserContext, String name, boolean coerce, boolean ignoreMalformed,
+        private Builder getBuilder(String name, boolean coerce, boolean ignoreMalformed,
                                    Orientation orientation, boolean ignoreZ, DeprecatedParameters deprecatedParameters) {
-            if (parserContext.indexVersionCreated().before(Version.V_6_6_0) && deprecatedParameters != null) {
+            if (deprecatedParameters != null) {
                 return getLegacyBuilder(name, coerce, ignoreMalformed, orientation, ignoreZ, deprecatedParameters);
             }
             return new GeoShapeFieldMapper.Builder(name, coerce, ignoreMalformed, orientation, ignoreZ);

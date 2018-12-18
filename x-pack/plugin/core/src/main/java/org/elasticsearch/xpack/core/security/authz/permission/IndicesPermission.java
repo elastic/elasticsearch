@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -46,12 +49,16 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
 
     public static final IndicesPermission NONE = new IndicesPermission();
 
-    private final ConcurrentMap<String, Predicate<String>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
+    private static final Logger logger = LogManager.getLogger();
 
+    private final ConcurrentMap<String, Predicate<String>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Group, Automaton> indexGroupAutomatonCache = new ConcurrentHashMap<>();
     private final Group[] groups;
+    private final Automaton systemIndicesAutomaton;
 
     public IndicesPermission(Group... groups) {
         this.groups = groups;
+        this.systemIndicesAutomaton = Automatons.patterns(SystemIndicesNames.indexNames());
     }
 
     private static boolean isIndexPattern(String indexPattern) {
@@ -66,7 +73,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         return false == SystemIndicesNames.indexNames().contains(index);
     }
 
-    static Predicate<String> indexMatcher(Collection<String> indices) {
+    private static Predicate<String> indexMatcherPredicate(Collection<String> indices) {
         Set<String> exactMatch = new HashSet<>();
         List<String> nonExactMatch = new ArrayList<>();
         for (String indexPattern : indices) {
@@ -88,6 +95,31 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         }
     }
 
+    private Automaton indexMatcherAutomaton(String... indices) {
+        final List<String> exactMatch = new ArrayList<>();
+        final List<String> patternMatch = new ArrayList<>();
+        for (String indexPattern : indices) {
+            if (isIndexPattern(indexPattern)) {
+                patternMatch.add(indexPattern);
+            } else {
+                exactMatch.add(indexPattern);
+            }
+        }
+        try {
+            final Automaton exactMatchAutomaton = Automatons.patterns(exactMatch);
+            final Automaton indexPatternAutomaton = Automatons.patterns(patternMatch);
+            return Automatons.unionAndMinimize(
+                    Arrays.asList(exactMatchAutomaton, Automatons.minusAndMinimize(indexPatternAutomaton, systemIndicesAutomaton)));
+        } catch (TooComplexToDeterminizeException e) {
+            logger.debug("Index pattern automaton [{}] is too complex", Strings.arrayToCommaDelimitedString(indices));
+            String description = Strings.arrayToCommaDelimitedString(indices);
+            if (description.length() > 80) {
+                description = Strings.cleanTruncate(description, 80) + "...";
+            }
+            throw new ElasticsearchSecurityException("The set of permitted index patterns [{}] is too complex to evaluate", e, description);
+        }
+    }
+
     private static Predicate<String> buildExactMatchPredicate(Set<String> indices) {
         if (indices.size() == 1) {
             final String singleValue = indices.iterator().next();
@@ -96,17 +128,30 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         return indices::contains;
     }
 
-    private static Predicate<String> buildAutomataPredicate(List<String> indices) {
+    private static Predicate<String> buildAutomataPredicate(final Collection<String> indices) {
+        final Predicate<String> indicesPredicate;
         try {
-            return Automatons.predicate(indices).and(index -> isOrdinaryIndex(index));
+            indicesPredicate = Automatons.predicate(indices);
         } catch (TooComplexToDeterminizeException e) {
-            LogManager.getLogger(IndicesPermission.class).debug("Index pattern automaton [{}] is too complex", indices);
+            logger.debug("Index pattern automaton [{}] is too complex", indices);
             String description = Strings.collectionToCommaDelimitedString(indices);
             if (description.length() > 80) {
                 description = Strings.cleanTruncate(description, 80) + "...";
             }
             throw new ElasticsearchSecurityException("The set of permitted index patterns [{}] is too complex to evaluate", e, description);
         }
+        return (index) -> {
+            if (indicesPredicate.test(index)) {
+                if (isOrdinaryIndex(index)) {
+                    return true;
+                } else {
+                    logger.debug("Index pattern automaton [{}] cannot match system indices [{}]", indices, SystemIndicesNames.indexNames());
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        };
     }
 
     @Override
@@ -114,6 +159,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         return Arrays.asList(groups).iterator();
     }
 
+    // package-private for testing
     Group[] groups() {
         return groups;
     }
@@ -130,7 +176,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
                     indices.addAll(Arrays.asList(group.indices));
                 }
             }
-            return indexMatcher(indices);
+            return indexMatcherPredicate(indices);
         });
     }
 
@@ -157,6 +203,24 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             }
         }
         return automatonList.isEmpty() ? Automatons.EMPTY : Automatons.unionAndMinimize(automatonList);
+    }
+
+    public boolean testIndexMatch(String checkIndex, String checkPrivilegeName) {
+        final Automaton checkIndexAutomaton = indexMatcherAutomaton(checkIndex);
+        final List<Automaton> privilegeAutomatons = new ArrayList<>();
+        for (IndicesPermission.Group group : groups) {
+            final Automaton groupIndexAutomaton = indexGroupAutomatonCache.computeIfAbsent(group,
+                    theGroup -> indexMatcherAutomaton(theGroup.indices()));
+            if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {
+                final IndexPrivilege rolePrivilege = group.privilege();
+                if (rolePrivilege.name().contains(checkPrivilegeName)) {
+                    return true;
+                }
+                privilegeAutomatons.add(rolePrivilege.getAutomaton());
+            }
+        }
+        final IndexPrivilege checkPrivilege = IndexPrivilege.get(Collections.singleton(checkPrivilegeName));
+        return Operations.subsetOf(checkPrivilege.getAutomaton(), Automatons.unionAndMinimize(privilegeAutomatons));
     }
 
     /**
@@ -251,7 +315,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
             this.indices = indices;
-            this.indexNameMatcher = indexMatcher(Arrays.asList(indices));
+            this.indexNameMatcher = indexMatcherPredicate(Arrays.asList(indices));
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
         }

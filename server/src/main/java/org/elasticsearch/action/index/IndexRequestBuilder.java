@@ -201,10 +201,19 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
 
     /**
      * only performs this indexing request if the document was last modification was assigned the given
-     * sequence number and primary term
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      */
-    public IndexRequestBuilder setIfMatch(long seqNo, long term) {
-        request.ifMatch(seqNo, term);
+    public IndexRequestBuilder setIfSeqNo(long seqNo) {
+        request.setIfSeqNo(seqNo);
+        return this;
+    }
+
+    /**
+     * only performs this indexing request if the document was last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)} (long)}
+     */
+    public IndexRequestBuilder setIfPrimaryTerm(long term) {
+        request.setIfPrimaryTerm(term);
         return this;
     }
 

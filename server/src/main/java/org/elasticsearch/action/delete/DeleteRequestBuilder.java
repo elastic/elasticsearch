@@ -83,10 +83,19 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
 
     /**
      * only performs this delete request if the document was last modification was assigned the given
-     * sequence number and primary term
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      */
-    public DeleteRequestBuilder setIfMatch(long seqNo, long term) {
-        request.setIfMatch(seqNo, term);
+    public DeleteRequestBuilder setIfSeqNo(long seqNo) {
+        request.setIfSeqNo(seqNo);
+        return this;
+    }
+
+    /**
+     * only performs this delete request if the document was last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)} (long)}
+     */
+    public DeleteRequestBuilder setIfPrimaryTerm(long term) {
+        request.setIfPrimaryTerm(term);
         return this;
     }
 

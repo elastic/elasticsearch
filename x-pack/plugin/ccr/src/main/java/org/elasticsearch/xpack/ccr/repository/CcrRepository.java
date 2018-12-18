@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +37,10 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
+import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionRequest;
+import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
+import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,7 +86,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    protected void doClose() throws IOException {
+    protected void doClose() {
 
     }
 
@@ -227,19 +232,49 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public void restoreShard(IndexShard indexShard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId,
                              RecoveryState recoveryState) {
+        // TODO: Add timeouts to network calls / the restore process.
         final Store store = indexShard.store();
         store.incRef();
         try {
             store.createEmpty(indexShard.indexSettings().getIndexMetaData().getCreationVersion().luceneVersion);
         } catch (EngineException | IOException e) {
-            throw new IndexShardRecoveryException(shardId, "failed to recover from gateway", e);
+            throw new IndexShardRecoveryException(shardId, "failed to create empty store", e);
         } finally {
             store.decRef();
         }
+
+        Store.MetadataSnapshot recoveryMetadata;
+        try {
+            recoveryMetadata = indexShard.snapshotStoreMetadata();
+        } catch (IOException e) {
+            throw new IndexShardRecoveryException(shardId, "failed access store metadata", e);
+        }
+
+        Map<String, String> ccrMetaData = indexShard.indexSettings().getIndexMetaData().getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+        ShardId leaderShardId = new ShardId(shardId.getIndexName(), leaderUUID, shardId.getId());
+
+        Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
+        String sessionUUID = UUIDs.randomBase64UUID();
+        PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
+            new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId, recoveryMetadata)).actionGet();
+        String nodeId = response.getNodeId();
+        // TODO: Implement file restore
+        closeSession(remoteClient, nodeId, sessionUUID);
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId leaderShardId) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
+    }
+
+    private void closeSession(Client remoteClient, String nodeId, String sessionUUID) {
+        ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(nodeId,
+            new ClearCcrRestoreSessionRequest.Request(nodeId, sessionUUID));
+        ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse response =
+            remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet();
+        if (response.hasFailures()) {
+            throw response.failures().get(0);
+        }
     }
 }

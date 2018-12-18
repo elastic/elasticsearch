@@ -65,7 +65,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
     }
 
     public void testCloseWhileRelocatingShards() throws Exception {
-        final String[] indices = new String[randomIntBetween(3, 10)];
+        final String[] indices = new String[randomIntBetween(1, 3)];
         final Map<String, Long> docsPerIndex = new HashMap<>();
 
         for (int i = 0; i < indices.length; i++) {
@@ -93,7 +93,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
         final Map<String, BackgroundIndexer> indexers = new HashMap<>();
         for (final String index : indices) {
             if (randomBoolean()) {
-                final BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client());
+                final BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), -1, scaledRandomIntBetween(1, 3));
                 waitForDocs(1, indexer);
                 indexers.put(index, indexer);
             }

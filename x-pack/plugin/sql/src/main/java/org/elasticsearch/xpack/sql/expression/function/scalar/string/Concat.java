@@ -51,7 +51,7 @@ public class Concat extends BinaryScalarFunction {
     
     @Override
     public boolean nullable() {
-        return left().nullable() && right().nullable();
+        return false;
     }
 
     @Override

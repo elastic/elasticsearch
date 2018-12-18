@@ -11,13 +11,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
-import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -71,39 +69,6 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         ensureEmptyWriteBuffers();
     }
 
-    public void testFollowStatsApiFollowerIndexFiltering() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, 0,
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
-        assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
-        ensureGreen("leader1");
-        assertAcked(client().admin().indices().prepareCreate("leader2").setSource(leaderIndexSettings, XContentType.JSON));
-        ensureGreen("leader2");
-
-        PutFollowAction.Request followRequest = getPutFollowRequest("leader1", "follower1");
-        client().execute(PutFollowAction.INSTANCE, followRequest).get();
-
-        followRequest = getPutFollowRequest("leader2", "follower2");
-        client().execute(PutFollowAction.INSTANCE, followRequest).get();
-
-        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
-        statsRequest.setIndices(new String[] {"follower1"});
-        FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
-        assertThat(response.getStatsResponses().size(), equalTo(1));
-        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
-
-        statsRequest = new FollowStatsAction.StatsRequest();
-        statsRequest.setIndices(new String[] {"follower2"});
-        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
-        assertThat(response.getStatsResponses().size(), equalTo(1));
-        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower2"));
-
-        response = client().execute(FollowStatsAction.INSTANCE,  new FollowStatsAction.StatsRequest()).actionGet();
-        assertThat(response.getStatsResponses().size(), equalTo(2));
-        response.getStatsResponses().sort(Comparator.comparing(o -> o.status().followerIndex()));
-        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
-        assertThat(response.getStatsResponses().get(1).status().followerIndex(), equalTo("follower2"));
-    }
-
     public void testDoNotCreateFollowerIfLeaderDoesNotHaveSoftDeletes() throws Exception {
         final String leaderIndexSettings = getIndexSettings(2, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false"));
@@ -119,8 +84,9 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         assertThat(client().admin().indices().prepareExists("follower-index").get().isExists(), equalTo(false));
     }
 
-    private String getIndexSettings(final int numberOfShards, final int numberOfReplicas,
-                                    final Map<String, String> additionalIndexSettings) throws IOException {
+    public static String getIndexSettings(final int numberOfShards,
+                                          final int numberOfReplicas,
+                                          final Map<String, String> additionalIndexSettings) throws IOException {
         final String settings;
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

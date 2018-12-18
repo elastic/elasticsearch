@@ -1,2 +1,0 @@
-You must have the cluster `manage` privilege to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].

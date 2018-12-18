@@ -108,7 +108,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String TRANSPORT_PROFILE_FIELD_NAME = "transport.profile";
     public static final String RULE_FIELD_NAME = "rule";
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
-    public static final String FORWARDED_FOR_FIELD_NAME = "forwarded_for";
+    public static final String X_FORWARDED_FOR_FIELD_NAME = "x_forwarded_for";
 
     public static final String NAME = "logfile";
     public static final Setting<Boolean> EMIT_HOST_ADDRESS_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_host_address"),
@@ -217,7 +217,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrigin(request)
                     .withRequestBody(request)
                     .withOpaqueId(threadContext)
-                    .withForwardedFor(threadContext)
+                    .withXForwardedFor(threadContext)
                     .build();
             logger.info(logEntry);
         }
@@ -240,7 +240,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
-                        .withForwardedFor(threadContext)
+                        .withXForwardedFor(threadContext)
                         .build();
                 logger.info(logEntry);
             }
@@ -262,7 +262,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
-                        .withForwardedFor(threadContext)
+                        .withXForwardedFor(threadContext)
                         .build();
                 logger.info(logEntry);
             }
@@ -281,7 +281,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestBody(request)
                     .withRequestId(requestId)
                     .withOpaqueId(threadContext)
-                    .withForwardedFor(threadContext)
+                    .withXForwardedFor(threadContext)
                     .build();
             logger.info(logEntry);
         }
@@ -303,7 +303,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
-                        .withForwardedFor(threadContext)
+                        .withXForwardedFor(threadContext)
                         .build();
                 logger.info(logEntry);
             }
@@ -321,7 +321,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestBody(request)
                     .withRequestId(requestId)
                     .withOpaqueId(threadContext)
-                    .withForwardedFor(threadContext)
+                    .withXForwardedFor(threadContext)
                     .build();
             logger.info(logEntry);
         }
@@ -342,7 +342,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
-                        .withForwardedFor(threadContext)
+                        .withXForwardedFor(threadContext)
                         .build();
                 logger.info(logEntry);
             }
@@ -362,7 +362,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestBody(request)
                     .withRequestId(requestId)
                     .withOpaqueId(threadContext)
-                    .withForwardedFor(threadContext)
+                    .withXForwardedFor(threadContext)
                     .build();
             logger.info(logEntry);
         }
@@ -385,7 +385,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
-                        .withForwardedFor(threadContext)
+                        .withXForwardedFor(threadContext)
                         .build();
                 logger.info(logEntry);
             }
@@ -406,7 +406,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestBody(request)
                     .withRequestId(requestId)
                     .withOpaqueId(threadContext)
-                    .withForwardedFor(threadContext)
+                    .withXForwardedFor(threadContext)
                     .build();
             logger.info(logEntry);
         }
@@ -431,7 +431,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .with(PRINCIPAL_ROLES_FIELD_NAME, roleNames)
                         .withOpaqueId(threadContext)
-                        .withForwardedFor(threadContext)
+                        .withXForwardedFor(threadContext)
                         .build();
                 logger.info(logEntry);
             }
@@ -455,7 +455,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .with(PRINCIPAL_ROLES_FIELD_NAME, roleNames)
                         .withOpaqueId(threadContext)
-                        .withForwardedFor(threadContext)
+                        .withXForwardedFor(threadContext)
                         .build();
                 logger.info(logEntry);
             }
@@ -473,7 +473,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestBody(request)
                     .withRequestId(requestId)
                     .withOpaqueId(threadContext)
-                    .withForwardedFor(threadContext)
+                    .withXForwardedFor(threadContext)
                     .build();
             logger.info(logEntry);
         }
@@ -494,7 +494,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
-                        .withForwardedFor(threadContext)
+                        .withXForwardedFor(threadContext)
                         .build();
                 logger.info(logEntry);
             }
@@ -517,7 +517,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withPrincipal(user)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
-                        .withForwardedFor(threadContext)
+                        .withXForwardedFor(threadContext)
                         .build();
                 logger.info(logEntry);
             }
@@ -536,7 +536,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                     .with(RULE_FIELD_NAME, rule.toString())
                     .withOpaqueId(threadContext)
-                    .withForwardedFor(threadContext)
+                    .withXForwardedFor(threadContext)
                     .build();
             logger.info(logEntry);
         }
@@ -554,7 +554,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                     .with(RULE_FIELD_NAME, rule.toString())
                     .withOpaqueId(threadContext)
-                    .withForwardedFor(threadContext)
+                    .withXForwardedFor(threadContext)
                     .build();
             logger.info(logEntry);
         }
@@ -577,7 +577,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .with(PRINCIPAL_ROLES_FIELD_NAME, roleNames)
                         .withOpaqueId(threadContext)
-                        .withForwardedFor(threadContext)
+                        .withXForwardedFor(threadContext)
                         .build();
                 logger.info(logEntry);
             }
@@ -601,7 +601,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .with(PRINCIPAL_ROLES_FIELD_NAME, roleNames)
                         .withOpaqueId(threadContext)
-                        .withForwardedFor(threadContext)
+                        .withXForwardedFor(threadContext)
                         .build();
                 logger.info(logEntry);
             }
@@ -623,7 +623,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestBody(request)
                     .withRequestId(requestId)
                     .withOpaqueId(threadContext)
-                    .withForwardedFor(threadContext)
+                    .withXForwardedFor(threadContext)
                     .build();
             logger.info(logEntry);
         }
@@ -717,10 +717,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withForwardedFor(ThreadContext threadContext) {
-            final String forwardedFor = threadContext.getHeader(AuditTrail.X_FORWARDED_FOR_HEADER);
-            if (forwardedFor != null) {
-                with(FORWARDED_FOR_FIELD_NAME, forwardedFor.split("\\s+|,\\s*"));
+        LogEntryBuilder withXForwardedFor(ThreadContext threadContext) {
+            final String xForwardedFor = threadContext.getHeader(AuditTrail.X_FORWARDED_FOR_HEADER);
+            if (xForwardedFor != null) {
+                logEntry.with(X_FORWARDED_FOR_FIELD_NAME, xForwardedFor);
             }
             return this;
         }

@@ -78,8 +78,8 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             .put("xpack.security.transport.ssl.key", nodeKeyPath)
             .put("xpack.security.transport.ssl.key_passphrase", "testnode")
             .put("xpack.security.transport.ssl.certificate", nodeCertPath)
-            .putList("xpack.security.transport.ssl.certificate_authorities", Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(),
-                updateableCertPath.toString()))
+            .putList("xpack.security.transport.ssl.certificate_authorities",
+                Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(), updateableCertPath.toString()))
             .put("resource.reload.interval.high", "1s");
 
         return builder.build();
@@ -101,8 +101,8 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             .put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.key", keyPath)
             .put("xpack.security.transport.ssl.certificate", certPath)
-            .putList("xpack.security.transport.ssl.certificate_authorities", Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(),
-                updateableCertPath.toString()))
+            .putList("xpack.security.transport.ssl.certificate_authorities",
+                Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(), updateableCertPath.toString()))
             .setSecureSettings(secureSettings)
             .build();
         String node = randomFrom(internalCluster().getNodeNames());

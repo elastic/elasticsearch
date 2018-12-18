@@ -290,7 +290,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
      */
     public static void addSSLSettingsForPEMFiles(Settings.Builder builder, String keyPath, String password,
                                                  String certificatePath, List<String> trustedCertificates) {
-        addSSLSettingsForPEMFiles(builder, "xpack.security.transport.", keyPath, password, certificatePath, trustedCertificates, true, true);
+        addSSLSettingsForPEMFiles(builder, "xpack.security.transport.", keyPath, password, certificatePath, trustedCertificates, true,
+            true);
     }
 
     private static void addSSLSettingsForPEMFiles(Settings.Builder builder, String prefix, String keyPath, String password,

@@ -248,7 +248,10 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
                 // the cursor can return an Integer if the date-since-epoch is small enough, XContentParser (Jackson) will
                 // return the "smallest" data type for numbers when parsing
                 // TODO: this should probably be handled server side
-                return val == null ? null : ((Number) val).longValue();
+                if (val == null) {
+                    return null;
+                }
+                return DateUtils.asDateTimeField(val, DateUtils::asMillisSinceEpoch, (longValue) -> longValue);
             };
             return val == null ? null : (Long) val;
         } catch (ClassCastException cce) {

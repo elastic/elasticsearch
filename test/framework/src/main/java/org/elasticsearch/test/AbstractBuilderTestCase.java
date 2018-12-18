@@ -254,7 +254,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                         AbstractBuilderTestCase.this);
                 return null;
             });
-            if (enableWarningsCheck() == true && serviceHolder.idxSettings.getIndexVersionCreated().before(Version.V_6_6_0)) {
+            if (enableWarningsCheck() == true && currentTypes.length != 0) {
                 assertDeprecatedGeoWarnings();
             }
         }

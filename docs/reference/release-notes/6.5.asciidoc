@@ -44,6 +44,41 @@
 // === Known Issues
 ////
 
+[[release-notes-6.5.4]]
+== {es} version 6.5.4
+
+coming[6.5.4]
+
+Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
+
+[[bug-6.5.4]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix MultiValuesSourceFieldConfig toXContent {pull}36525[#36525] (issue: {issue}36474[#36474])
+
+Audit::
+* Fix origin.type for connection_* events {pull}36410[#36410]
+
+CCR::
+* Fix follow stats API's follower index filtering feature {pull}36647[#36647]
+
+Machine learning::
+* Interrupt Grok in file structure finder timeout {pull}36588[#36588]
+* Prevent stack overflow while copying {ml} jobs and datafeeds {pull}36370[#36370] (issue: {issue}36360[#36360])
+* Fix a problem that could result in shifted model bounds and increased forecast
+errors with long bucket spans. The solution was to correct query times for model
+bounds and forecasts in the bucket to match the times assigned to the samples
+that are added to the model for each bucket. {ml-pull}327[#327]
+
+SQL::
+* Fix MOD() for long and integer arguments {pull}36599[#36599] (issue: {issue}36364[#36364])
+* Fix issue with complex HAVING and GROUP BY ordinal {pull}36594[#36594] (issue: {issue}36059[#36059])
+
+Watcher::
+* Fix Watcher NotificationService's secure settings {pull}35610[#35610] (issue: {issue}35378[#35378])
+
 [[release-notes-6.5.3]]
 == {es} version 6.5.3
 

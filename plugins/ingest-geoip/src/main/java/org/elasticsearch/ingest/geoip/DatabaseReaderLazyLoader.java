@@ -107,6 +107,10 @@ class DatabaseReaderLazyLoader implements Closeable {
                             }
                         }
 
+                        if (metadataOffset == -1) {
+                            throw new IOException("database type marker not found");
+                        }
+
                         // read the database type
                         final int offsetByte = tail[metadataOffset] & 0xFF;
                         final int type = offsetByte >>> 5;

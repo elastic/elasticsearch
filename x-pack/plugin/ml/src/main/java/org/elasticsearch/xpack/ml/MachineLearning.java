@@ -424,7 +424,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobResultsProvider,
                 jobManager,
                 autodetectProcessManager,
-                new MlInitializationService(threadPool, clusterService, client),
+                new MlInitializationService(settings, threadPool, clusterService, client),
                 jobDataCountsPersister,
                 datafeedManager,
                 auditor,

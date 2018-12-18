@@ -72,8 +72,8 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         final Settings firstNodeSettings = allNodesSettings.get(0);
         final List<Settings> otherNodesSettings = allNodesSettings.subList(1, allNodesSettings.size());
         final List<String> masterNodeNames = allNodesSettings.stream()
-                .filter(s -> org.elasticsearch.node.Node.NODE_MASTER_SETTING.get(s))
-                .map(s -> org.elasticsearch.node.Node.NODE_NAME_SETTING.get(s))
+                .filter(org.elasticsearch.node.Node.NODE_MASTER_SETTING::get)
+                .map(org.elasticsearch.node.Node.NODE_NAME_SETTING::get)
                 .collect(Collectors.toList());
         final List<Settings> updatedSettings = new ArrayList<>();
 

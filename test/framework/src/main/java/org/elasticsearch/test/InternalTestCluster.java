@@ -1121,8 +1121,8 @@ public final class InternalTestCluster extends TestCluster {
 
         int bootstrapNodeIndex = -1;
         final List<String> masterNodeNames = settings.stream()
-                .filter(s -> Node.NODE_MASTER_SETTING.get(s))
-                .map(s -> Node.NODE_NAME_SETTING.get(s))
+                .filter(Node.NODE_MASTER_SETTING::get)
+                .map(Node.NODE_NAME_SETTING::get)
                 .collect(Collectors.toList());
 
         if (prevNodeCount == 0 && autoManageMinMasterNodes) {
@@ -1979,8 +1979,8 @@ public final class InternalTestCluster extends TestCluster {
                 .collect(Collectors.toList());
 
         final List<String> initialMasterNodes = settings.stream()
-                .filter(s -> Node.NODE_MASTER_SETTING.get(s))
-                .map(s -> Node.NODE_NAME_SETTING.get(s))
+                .filter(Node.NODE_MASTER_SETTING::get)
+                .map(Node.NODE_NAME_SETTING::get)
                 .collect(Collectors.toList());
 
         final List<Settings> updatedSettings = nodeConfigurationSource.updateNodesSettings(settings);

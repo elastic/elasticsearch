@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
@@ -296,7 +296,8 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
         Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final GeoShapeFieldMapper mapperBuilder = new GeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext);
+        final LegacyGeoShapeFieldMapper mapperBuilder =
+            (LegacyGeoShapeFieldMapper) (new LegacyGeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext));
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).buildS4J());
@@ -896,7 +897,6 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                         .startArray().value(101.0).value(1.0).endArray()
                     .endArray()
                 .endObject();
-
         ShapeCollection<?> expected = shapeCollection(
             SPATIAL_CONTEXT.makePoint(100, 0),
             SPATIAL_CONTEXT.makePoint(101, 1.0));
@@ -967,7 +967,6 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         shellCoordinates.add(new Coordinate(103, 2));
         shellCoordinates.add(new Coordinate(102, 2));
         shellCoordinates.add(new Coordinate(102, 3));
-
 
         shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon withoutHoles = GEOMETRY_FACTORY.createPolygon(shell, null);
@@ -1149,7 +1148,6 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                     .startObject("nested").startArray("coordinates").value(200.0).value(0.0).endArray().endObject()
                     .startObject("lala").field("type", "NotAPoint").endObject()
                 .endObject();
-
             Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
             assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson, true);
 

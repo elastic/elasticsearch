@@ -136,19 +136,17 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
         return new SearchSortValues(values);
     }
 
-    //TODO rename and update version after backport
-    public void testSerializationPre70() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
+    public void testSerializationPre6_6_0() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0));
         SearchSortValues original = createTestInstance();
         SearchSortValues deserialized = copyInstance(original, version);
         assertArrayEquals(original.getFormattedSortValues(), deserialized.getFormattedSortValues());
         assertEquals(0, deserialized.getRawSortValues().length);
     }
 
-    //TODO rename method and adapt versions after backport
-    public void testReadFromPre70() throws IOException {
+    public void testReadFromPre6_6_0() throws IOException {
         try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode("AwIAAAABAQEyBUAIAAAAAAAAAAAAAAAA"))) {
-            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)));
+            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0)));
             SearchSortValues deserialized = new SearchSortValues(in);
             SearchSortValues expected = new SearchSortValues(new Object[]{1, "2", 3d});
             assertEquals(expected, deserialized);

@@ -1,13 +1,27 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.sql.parser;
-import org.antlr.v4.runtime.atn.*;
+
+import org.antlr.v4.runtime.FailedPredicateException;
+import org.antlr.v4.runtime.NoViableAltException;
+import org.antlr.v4.runtime.Parser;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.RuleContext;
+import org.antlr.v4.runtime.RuntimeMetaData;
+import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.TokenStream;
+import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.VocabularyImpl;
+import org.antlr.v4.runtime.atn.ATN;
+import org.antlr.v4.runtime.atn.ATNDeserializer;
+import org.antlr.v4.runtime.atn.ParserATNSimulator;
+import org.antlr.v4.runtime.atn.PredictionContextCache;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.misc.*;
-import org.antlr.v4.runtime.tree.*;
+import org.antlr.v4.runtime.tree.ParseTreeListener;
+import org.antlr.v4.runtime.tree.ParseTreeVisitor;
+import org.antlr.v4.runtime.tree.TerminalNode;
+
 import java.util.List;
-import java.util.Iterator;
-import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 class SqlBaseParser extends Parser {
@@ -3276,12 +3290,6 @@ class SqlBaseParser extends Parser {
       return getRuleContext(ValueExpressionContext.class,i);
     }
     public TerminalNode NOT() { return getToken(SqlBaseParser.NOT, 0); }
-    public List<ExpressionContext> expression() {
-      return getRuleContexts(ExpressionContext.class);
-    }
-    public ExpressionContext expression(int i) {
-      return getRuleContext(ExpressionContext.class,i);
-    }
     public TerminalNode IN() { return getToken(SqlBaseParser.IN, 0); }
     public QueryContext query() {
       return getRuleContext(QueryContext.class,0);
@@ -3362,7 +3370,7 @@ class SqlBaseParser extends Parser {
         setState(490);
         match(T__0);
         setState(491);
-        expression();
+        valueExpression(0);
         setState(496);
         _errHandler.sync(this);
         _la = _input.LA(1);
@@ -3372,7 +3380,7 @@ class SqlBaseParser extends Parser {
           setState(492);
           match(T__2);
           setState(493);
-          expression();
+          valueExpression(0);
           }
           }
           setState(498);
@@ -6162,7 +6170,7 @@ class SqlBaseParser extends Parser {
     "\7\16\2\2\u01e4\u01e5\5<\37\2\u01e5\u01e6\7\n\2\2\u01e6\u01e7\5<\37\2"+
     "\u01e7\u020f\3\2\2\2\u01e8\u01ea\7\62\2\2\u01e9\u01e8\3\2\2\2\u01e9\u01ea"+
     "\3\2\2\2\u01ea\u01eb\3\2\2\2\u01eb\u01ec\7\'\2\2\u01ec\u01ed\7\3\2\2\u01ed"+
-    "\u01f2\5,\27\2\u01ee\u01ef\7\5\2\2\u01ef\u01f1\5,\27\2\u01f0\u01ee\3\2"+
+    "\u01f2\5<\37\2\u01ee\u01ef\7\5\2\2\u01ef\u01f1\5<\37\2\u01f0\u01ee\3\2"+
     "\2\2\u01f1\u01f4\3\2\2\2\u01f2\u01f0\3\2\2\2\u01f2\u01f3\3\2\2\2\u01f3"+
     "\u01f5\3\2\2\2\u01f4\u01f2\3\2\2\2\u01f5\u01f6\7\4\2\2\u01f6\u020f\3\2"+
     "\2\2\u01f7\u01f9\7\62\2\2\u01f8\u01f7\3\2\2\2\u01f8\u01f9\3\2\2\2\u01f9"+

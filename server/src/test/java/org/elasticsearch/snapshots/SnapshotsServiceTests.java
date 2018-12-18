@@ -40,10 +40,12 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -66,8 +68,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -75,7 +76,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -108,14 +108,12 @@ public class SnapshotsServiceTests extends ESTestCase {
         // Set up fake repository
         String repoName = "repo";
         String snapshotName = "snapshot";
-        final int shards = 1;
+        final int shards = randomIntBetween(1, 10);
         final Repository repository = mock(Repository.class);
         when(repository.getRepositoryData()).thenReturn(RepositoryData.EMPTY);
         testClusterNodes.nodes.values().forEach(
             node -> when(node.repositoriesService.repository(repoName)).thenReturn(repository)
         );
-
-        CompletableFuture<Void> successfulSnapshotStart = new CompletableFuture<>();
 
         String index = randomAlphaOfLength(10);
         MetaData metaData = MetaData.builder().putCustom(
@@ -154,7 +152,10 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
 
         startServices();
+
         TestClusterNode masterNode = testClusterNodes.currentMaster(clusterState);
+
+        SetOnce<Boolean> successfulSnapshotStart = new SetOnce<>();
         ClusterStateUpdateTask createSnapshotTask = expectOneUpdateTask(
             masterNode.clusterService,
             () -> masterNode.snapshotsService.createSnapshot(
@@ -162,7 +163,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                 new SnapshotsService.CreateSnapshotListener() {
                     @Override
                     public void onResponse() {
-                        successfulSnapshotStart.complete(null);
+                        successfulSnapshotStart.set(true);
                     }
 
                     @Override
@@ -176,111 +177,160 @@ public class SnapshotsServiceTests extends ESTestCase {
             masterNode.clusterService, () -> masterNode.deterministicTaskQueue.runAllTasks());
         clusterState.updateAndGet(beginSnapshotTask);
 
-        successfulSnapshotStart.get(0L, TimeUnit.SECONDS);
-        TestClusterNode primaryNode = testClusterNodes.primaryForShard(
-            clusterState, clusterState.current.routingTable().allShards(index).get(0).shardId());
-        String primaryNodeId = primaryNode.node.getId();
-        ClusterStateUpdateTask removeSnapshotTask;
-        final boolean disconnectNode = randomBoolean();
-        if (disconnectNode) {
-            clusterState.disconnectNode(primaryNodeId);
+        assertTrue(successfulSnapshotStart.get());
+        List<ShardId> shardIds = clusterState.current.routingTable().allShards(index).stream()
+            .map(ShardRouting::shardId)
+            .distinct()
+            .collect(Collectors.toList());
+        SnapshotsInProgress finalSnapshotsInProgress = null;
+        boolean firstRound = true;
+        final Map<Integer, IndexShard> indexShards = new HashMap<>();
+        final Map<Index, IndexService> indicesServices = new HashMap<>();
+        for (final ShardId shardId : shardIds) {
+            Optional<TestClusterNode> primaryNodeHolder = testClusterNodes.primaryForShard(
+                clusterState, shardId);
+            if (primaryNodeHolder.isPresent() == false) {
+                if (finalSnapshotsInProgress.entries().get(0).state().completed()) {
+                    break;
+                }
+                if (finalSnapshotsInProgress.entries().get(0).shards().get(shardId).state().completed() == false) {
+                    ClusterStateUpdateTask adjustSnapshotTask = expectOneUpdateTask(
+                        masterNode.clusterService,
+                        () -> clusterState.applyLatestChange(masterNode.node.getId(), masterNode.snapshotsService));
+                    finalSnapshotsInProgress = clusterState.updateAndGet(adjustSnapshotTask).custom(SnapshotsInProgress.TYPE);
+                }
+                continue;
+            }
+            TestClusterNode primaryNode = primaryNodeHolder.get();
+            String primaryNodeId = primaryNode.node.getId();
+            final boolean disconnectNode = randomBoolean();
+            if (disconnectNode) {
+                clusterState.disconnectNode(primaryNodeId);
+                finalSnapshotsInProgress = clusterState.current.custom(SnapshotsInProgress.TYPE);
+                if (finalSnapshotsInProgress.entries().get(0).shards().get(shardId).state().completed()) {
+                    continue;
+                }
 
-            ClusterStateUpdateTask adjustSnapshotTask = expectOneUpdateTask(
-                masterNode.clusterService,
-                () -> clusterState.applyLatestChange(masterNode.node.getId(), masterNode.snapshotsService));
+                ClusterStateUpdateTask adjustSnapshotTask = expectOneUpdateTask(
+                    masterNode.clusterService,
+                    () -> clusterState.applyLatestChange(masterNode.node.getId(), masterNode.snapshotsService));
 
-            // Notify the previous primary shard's SnapshotShardsService of the new Snapshot by reconnecting
-            clusterState.connectNode(primaryNode.node, primaryNode.snapshotShardsService);
-            assertTrue("SnapshotShardService did not enqueue a snapshot task.", primaryNode.deterministicTaskQueue.hasRunnableTasks());
+                // Notify the previous primary shard's SnapshotShardsService of the new Snapshot by reconnecting
+                clusterState.connectNode(primaryNode.node, primaryNode.snapshotShardsService);
 
-            // Now fix the SnapshotsInProgress by running the cluster state update task on master
-            clusterState.updateAndGet(adjustSnapshotTask);
-            // Allow the state update task to run on the non-master node to avoid having to mock the master node action request handling.
-            // This should be safe since we only capture the state update executor and task anyway and then manually run it.
-            when(primaryNode.clusterService.state()).thenReturn(clusterState.currentState(masterNode.node.getId()));
-            SetOnce<ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>> removeSnapshotTaskHolder = new SetOnce<>();
-            SetOnce<UpdateIndexShardSnapshotStatusRequest> statusUpdateRequest = new SetOnce<>();
-            doAnswer(invocation -> {
-                Object[] arguments = invocation.getArguments();
-                removeSnapshotTaskHolder.set((ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>) arguments[3]);
-                statusUpdateRequest.set((UpdateIndexShardSnapshotStatusRequest) arguments[1]);
-                return null;
-            }).when(primaryNode.clusterService).submitStateUpdateTask(anyString(), any(), any(), any(), any());
+                // Now fix the SnapshotsInProgress by running the cluster state update task on master
+                clusterState.updateAndGet(adjustSnapshotTask);
+                firstRound = false;
 
-            primaryNode.deterministicTaskQueue.runAllTasks();
-            // The enqueued shard snapshot action must fail since we changed the routing table and the node isn't primary anymore.
-            ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest> removeSnapshotExecutor = removeSnapshotTaskHolder.get();
-            assertNotNull(
-                "No cluster state update task executor enqueued even though a shard should have failed.", removeSnapshotExecutor);
-            // Remove short-circuiting master action on primary shard's node
+                // Allow the state update task to run on the non-master node to avoid having to mock the master node action request
+                // handling.
+                // This should be safe since we only capture the state update executor and task anyway and then manually run it.
+                when(primaryNode.clusterService.state()).thenReturn(clusterState.currentState(masterNode.node.getId()));
+                Map<UpdateIndexShardSnapshotStatusRequest, ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>>
+                    removeSnapshotTaskHolder = new HashMap<>();
+                doAnswer(invocation -> {
+                    Object[] arguments = invocation.getArguments();
+                    assertNull(
+                        removeSnapshotTaskHolder.put(
+                            (UpdateIndexShardSnapshotStatusRequest) arguments[1],
+                            (ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>) arguments[3]));
+                    return null;
+                }).when(primaryNode.clusterService).submitStateUpdateTask(anyString(), any(), any(), any(), any());
+
+                primaryNode.deterministicTaskQueue.runAllTasks();
+                // The enqueued shard snapshot action must fail since we changed the routing table and the node isn't primary anymore.
+                removeSnapshotTaskHolder.forEach((statusUpdateRequest, failSnapshotExecutor) -> {
+                    // Apply latest cluster state
+                    clusterState.applyLatestChange(masterNode.node.getId(), masterNode.snapshotsService);
+
+                    // Run the cluster state update that was caused by the failing shard
+                    clusterState.updateState(
+                        currentClusterState -> {
+                            try {
+                                return failSnapshotExecutor.execute(
+                                    currentClusterState, Collections.singletonList(statusUpdateRequest)).resultingState;
+                            } catch (Exception e) {
+                                throw new IllegalStateException(e);
+                            }
+                        }
+                    );
+                });
+            } else {
+                clusterState.handleLatestChange(primaryNodeId, primaryNode.snapshotShardsService);
+                if (firstRound) {
+                    assertHasTasks(primaryNode);
+                    firstRound = false;
+                }
+                IndexService indexService = mock(IndexService.class);
+                ClusterState currentState = clusterState.currentState(primaryNodeId);
+                doAnswer(invocation -> {
+                    Integer key = (Integer) invocation.getArguments()[0];
+                    return indexShards.computeIfAbsent(key, k -> {
+                        IndexShard indexShard = mock(IndexShard.class);
+                        when(indexShard.acquireLastIndexCommit(anyBoolean())).thenReturn(
+                            new Engine.IndexCommitRef(null,
+                                () -> {
+                                })
+                        );
+                        doAnswer(in -> currentState.routingTable().index(index).shard(shardId.id()).primaryShard())
+                            .when(indexShard).routingEntry();
+                        return indexShard;
+                    });
+                }).when(indexService).getShardOrNull(anyInt());
+                when(primaryNode.clusterService.state()).thenReturn(clusterState.currentState(masterNode.node.getId()));
+                doAnswer(
+                    invocation -> indicesServices.computeIfAbsent((Index) invocation.getArguments()[0], k -> indexService))
+                    .when(primaryNode.indicesService).indexServiceSafe(any());
+                Map<UpdateIndexShardSnapshotStatusRequest, ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>>
+                    removeSnapshotTaskHolder = new HashMap<>();
+                doAnswer(invocation -> {
+                    Object[] arguments = invocation.getArguments();
+                    assertNull(
+                        removeSnapshotTaskHolder.put(
+                            (UpdateIndexShardSnapshotStatusRequest) arguments[1],
+                            (ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>) arguments[3]));
+                    return null;
+                }).when(primaryNode.clusterService).submitStateUpdateTask(anyString(), any(), any(), any(), any());
+
+                primaryNode.deterministicTaskQueue.runAllTasks();
+                removeSnapshotTaskHolder.forEach((statusUpdateRequest, failSnapshotExecutor) -> {
+                    // Apply latest cluster state c
+                    clusterState.applyLatestChange(masterNode.node.getId(), masterNode.snapshotsService);
+
+                    assertNoWaitingTasks(testClusterNodes.nodes.values());
+
+                    // Run the cluster state update that was caused by the failing shard
+                    clusterState.updateState(
+                        currentClusterState -> {
+                            try {
+                                return failSnapshotExecutor.execute(
+                                    currentClusterState, Collections.singletonList(statusUpdateRequest)).resultingState;
+                            } catch (Exception e) {
+                                throw new IllegalStateException(e);
+                            }
+                        }
+                    );
+                });
+            }
             when(primaryNode.clusterService.state()).thenReturn(clusterState.currentState(primaryNodeId));
-
-            // Apply latest cluster state c
-            clusterState.applyLatestChange(masterNode.node.getId(), masterNode.snapshotsService);
-
-            assertNoWaitingTasks(testClusterNodes.nodes.values());
-            assertNotNull(statusUpdateRequest.get());
-
-            // Run the cluster state update that was caused by the failing shard
-            SnapshotsInProgress snapshotsInProgress = clusterState.updateState(
-                currentClusterState -> {
-                    try {
-                        return removeSnapshotExecutor.execute(
-                            currentClusterState, Collections.singletonList(statusUpdateRequest.get())).resultingState;
-                    } catch (Exception e) {
-                        throw new IllegalStateException(e);
-                    }
-                }
-            ).custom(SnapshotsInProgress.TYPE);
-            // The Snapshot should not yet have been removed from the state.
-            assertThat(snapshotsInProgress.entries(), hasSize(shards));
-        } else {
-            clusterState.handleLatestChange(primaryNodeId, primaryNode.snapshotShardsService);
-            assertHasTasks(primaryNode);
-            IndexService indexService = mock(IndexService.class);
-            ClusterState currentState = clusterState.currentState(primaryNodeId);
-            IndexShard indexShard = mock(IndexShard.class);
-            when(indexShard.acquireLastIndexCommit(anyBoolean())).thenReturn(
-                new Engine.IndexCommitRef(null,
-                    () -> {
-                    })
-            );
-            when(indexShard.routingEntry()).thenReturn(currentState.routingTable().index(index).shard(0).primaryShard());
-            doAnswer(invocation -> indexShard).when(indexService).getShardOrNull(anyInt());
-            when(primaryNode.clusterService.state()).thenReturn(clusterState.currentState(masterNode.node.getId()));
-            when(
-                primaryNode.indicesService.indexServiceSafe(
-                    currentState.metaData().index(index).getIndex()
-                )
-            ).thenReturn(indexService);
-            SetOnce<ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>> removeSnapshotTaskHolder = new SetOnce<>();
-            SetOnce<UpdateIndexShardSnapshotStatusRequest> statusUpdateRequest = new SetOnce<>();
-            doAnswer(invocation -> {
-                Object[] arguments = invocation.getArguments();
-                removeSnapshotTaskHolder.set((ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest>) arguments[3]);
-                statusUpdateRequest.set((UpdateIndexShardSnapshotStatusRequest) arguments[1]);
-                return null;
-            }).when(primaryNode.clusterService).submitStateUpdateTask(anyString(), any(), any(), any(), any());
-            primaryNode.deterministicTaskQueue.runAllTasks();
-            // Run the cluster state update that was caused by the failing shard
-            SnapshotsInProgress snapshotsInProgress = clusterState.updateState(
-                currentClusterState -> {
-                    try {
-                        return removeSnapshotTaskHolder.get().execute(
-                            currentClusterState, Collections.singletonList(statusUpdateRequest.get())).resultingState;
-                    } catch (Exception e) {
-                        throw new IllegalStateException(e);
-                    }
-                }
-            ).custom(SnapshotsInProgress.TYPE);
-            // The Snapshot should not yet have been removed from the state.
-            assertThat(snapshotsInProgress.entries(), hasSize(shards));
+            finalSnapshotsInProgress = clusterState.current.custom(SnapshotsInProgress.TYPE);
         }
-        // The finished snapshot must result in a task for removing the SnapshotInProgress from the cluster state
-        // that we capture and run.
-        assertHasTasks(primaryNode);
-        removeSnapshotTask = expectOneUpdateTask(primaryNode.clusterService, primaryNode.deterministicTaskQueue::runAllTasks);
-        assertNoSnapshotsInProgress(clusterState.updateAndGet(removeSnapshotTask));
+        assertThat(finalSnapshotsInProgress.entries(), hasSize(1));
+        if (finalSnapshotsInProgress.entries().get(0).state().completed() == false) {
+            List<TestClusterNode> primariesWithTasks = testClusterNodes.nodes.values().stream()
+                .filter(node -> node.deterministicTaskQueue.hasRunnableTasks()).collect(Collectors.toList());
+            for (TestClusterNode primary : primariesWithTasks) {
+                when(primary.clusterService.state()).thenReturn(clusterState.currentState(masterNode.node.getId()));
+                if (clusterState.current.<SnapshotsInProgress>custom(SnapshotsInProgress.TYPE).entries().isEmpty()) {
+                    break;
+                }
+                ClusterStateUpdateTask updateTask =
+                    expectOneUpdateTask(primary.clusterService, primary.deterministicTaskQueue::runAllTasks);
+                clusterState.updateAndGet(updateTask);
+                when(primary.clusterService.state()).thenReturn(clusterState.currentState(primary.node.getId()));
+            }
+        }
+        assertNoSnapshotsInProgress(clusterState.current);
     }
 
     private static void assertNoWaitingTasks(Collection<TestClusterNode> nodes) {
@@ -295,7 +345,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     private static void assertNoSnapshotsInProgress(ClusterState clusterState) {
         SnapshotsInProgress finalSnapshotsInProgress = clusterState.custom(SnapshotsInProgress.TYPE);
-        assertThat(finalSnapshotsInProgress.entries(), empty());
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> !entry.state().completed()));
     }
 
     /**
@@ -378,15 +428,15 @@ public class SnapshotsServiceTests extends ESTestCase {
             return master;
         }
 
-        public TestClusterNode primaryForShard(TestClusterState clusterState, ShardId shardId) {
+        public Optional<TestClusterNode> primaryForShard(TestClusterState clusterState, ShardId shardId) {
             return clusterState.current.routingTable().allShards().stream()
-                .filter(shardRouting -> shardRouting.primary() && shardId.equals(shardRouting.shardId()))
+                .filter(
+                    shardRouting -> shardRouting.assignedToNode() && shardRouting.primary() && shardId.equals(shardRouting.shardId()))
                 .findFirst()
-                .flatMap(shardRouting -> {
-                    assertTrue(shardRouting.assignedToNode());
-                    return nodes.values().stream().filter(node -> shardRouting.currentNodeId().equals(node.node.getId())).findFirst();
-                }).orElseThrow(
-                    () -> new AssertionError("Failed to find primary node for shard [" + shardId + "] in known nodes")
+                .flatMap(
+                    shardRouting -> nodes.values().stream()
+                        .filter(node -> shardRouting.currentNodeId().equals(node.node.getId()))
+                        .findFirst()
                 );
         }
     }
@@ -469,13 +519,13 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         public void applyLatestChange(String nodeId, ClusterStateApplier clusterStateApplier) {
             clusterStateApplier.applyClusterState(
-                new ClusterChangedEvent("", currentState(nodeId), initialState(nodeId))
+                new ClusterChangedEvent("", currentState(nodeId), previousState(nodeId))
             );
         }
 
         public void handleLatestChange(String nodeId, ClusterStateListener clusterStateApplier) {
             clusterStateApplier.clusterChanged(
-                new ClusterChangedEvent("", currentState(nodeId), initialState(nodeId))
+                new ClusterChangedEvent("", currentState(nodeId), previousState(nodeId))
             );
         }
     }

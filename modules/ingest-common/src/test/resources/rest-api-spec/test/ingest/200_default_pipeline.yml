@@ -134,9 +134,9 @@ teardown:
       mget:
         body:
           docs:
-          - { _index: "test", _type: "_doc", _id: "6" }
-          - { _index: "test", _type: "_doc", _id: "7" }
-          - { _index: "test", _type: "_doc", _id: "8" }
+          - { _index: "test", _type: "test", _id: "6" }
+          - { _index: "test", _type: "test", _id: "7" }
+          - { _index: "test", _type: "test", _id: "8" }
   - match: { docs.0._index: "test" }
   - match: { docs.0._id: "6" }
   - match: { docs.0._source.bytes_source_field: "1kb" }

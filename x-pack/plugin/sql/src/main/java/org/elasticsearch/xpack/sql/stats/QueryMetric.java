@@ -30,10 +30,9 @@ public enum QueryMetric {
 
     public static QueryMetric from(Mode mode, String clientId) {
         if (mode == Mode.ODBC) {
-            // "client_id" should always have a value when coming from the ODBC driver
-            // but still make sure it does have one (and which is one of the possible ones)
+            // default to "odbc_32" if the client_id is not provided or it has a wrong value
             if (clientId == null || false == ODBC_CLIENT_IDS.contains(clientId)) {
-                return fromString(RequestInfo.ODBC32);
+                return fromString(RequestInfo.ODBC_32);
             } else {
                 return fromString(clientId);
             }

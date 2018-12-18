@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -52,19 +53,19 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     public void testInitialize() {
-        MlInitializationService initializationService = new MlInitializationService(threadPool, clusterService, client);
+        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
         initializationService.onMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
     }
 
     public void testInitialize_noMasterNode() {
-        MlInitializationService initializationService = new MlInitializationService(threadPool, clusterService, client);
+        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
         initializationService.offMaster();
         assertThat(initializationService.getDailyMaintenanceService(), is(nullValue()));
     }
 
     public void testInitialize_alreadyInitialized() {
-        MlInitializationService initializationService = new MlInitializationService(threadPool, clusterService, client);
+        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
         initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);
         initializationService.onMaster();
@@ -73,7 +74,7 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     public void testNodeGoesFromMasterToNonMasterAndBack() {
-        MlInitializationService initializationService = new MlInitializationService(threadPool, clusterService, client);
+        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
         initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);
 

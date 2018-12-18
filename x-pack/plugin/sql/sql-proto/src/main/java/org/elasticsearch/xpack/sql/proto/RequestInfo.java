@@ -6,15 +6,34 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 public class RequestInfo {
     public static final String CLI = "cli";
     private static final String CANVAS = "canvas";
-    public static final List<String> CLIENT_IDS = Arrays.asList(CLI, CANVAS);
+    public static final String ODBC_32 = "odbc32";
+    private static final String ODBC_64 = "odbc64";
+    public static final Set<String> CLIENT_IDS;
+    public static final Set<String> ODBC_CLIENT_IDS;
+    
+    static {
+        Set<String> clientIds = new HashSet<>(4);
+        clientIds.add(CLI);
+        clientIds.add(CANVAS);
+        clientIds.add(ODBC_32);
+        clientIds.add(ODBC_64);
+
+        Set<String> odbcClientIds = new HashSet<>(2);
+        odbcClientIds.add(ODBC_32);
+        odbcClientIds.add(ODBC_64);
+        
+        CLIENT_IDS = Collections.unmodifiableSet(clientIds);
+        ODBC_CLIENT_IDS = Collections.unmodifiableSet(odbcClientIds);
+    }
     
     private Mode mode;
     private String clientId;

@@ -83,7 +83,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     }
 
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape) {
-        // XLatLonShape does not support MultiPoint queries
+        // LatLonShape does not support MultiPoint queries
         RandomShapeGenerator.ShapeType shapeType =
             randomFrom(ShapeType.POINT, ShapeType.LINESTRING, ShapeType.MULTILINESTRING, ShapeType.POLYGON);
         ShapeBuilder<?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
@@ -113,7 +113,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
                 builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS));
             } else {
-                // XLatLonShape does not support CONTAINS:
+                // LatLonShape does not support CONTAINS:
                 builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN));
             }
         }

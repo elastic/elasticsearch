@@ -52,7 +52,7 @@ final class XLatLonShapePolygonQuery extends XLatLonShapeQuery {
       if (polygons[i] == null) {
         throw new IllegalArgumentException("polygon[" + i + "] must not be null");
       } else if (polygons[i].minLon > polygons[i].maxLon) {
-        throw new IllegalArgumentException("XLatLonShapePolygonQuery does not currently support querying across dateline.");
+        throw new IllegalArgumentException("LatLonShapePolygonQuery does not currently support querying across dateline.");
       }
     }
     this.polygons = polygons.clone();

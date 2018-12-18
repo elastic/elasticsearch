@@ -40,7 +40,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Base XLatLonShape Query class providing common query logic for
+ * Base LatLonShape Query class providing common query logic for
  * {@link XLatLonShapeBoundingBoxQuery} and {@link XLatLonShapePolygonQuery}
  *
  * Note: this class implements the majority of the INTERSECTS, WITHIN, DISJOINT relation logic

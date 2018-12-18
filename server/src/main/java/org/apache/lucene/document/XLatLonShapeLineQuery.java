@@ -51,7 +51,7 @@ final class XLatLonShapeLineQuery extends XLatLonShapeQuery {
     super(field, queryRelation);
     /** line queries do not support within relations, only intersects and disjoint */
     if (queryRelation == QueryRelation.WITHIN) {
-      throw new IllegalArgumentException("XLatLonShapeLineQuery does not support " + QueryRelation.WITHIN + " queries");
+      throw new IllegalArgumentException("LatLonShapeLineQuery does not support " + QueryRelation.WITHIN + " queries");
     }
 
     if (lines == null) {
@@ -64,7 +64,7 @@ final class XLatLonShapeLineQuery extends XLatLonShapeQuery {
       if (lines[i] == null) {
         throw new IllegalArgumentException("line[" + i + "] must not be null");
       } else if (lines[i].minLon > lines[i].maxLon) {
-        throw new IllegalArgumentException("XLatLonShapeLineQuery does not currently support querying across dateline.");
+        throw new IllegalArgumentException("LatLonShapeLineQuery does not currently support querying across dateline.");
       }
     }
     this.lines = lines.clone();

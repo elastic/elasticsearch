@@ -22,10 +22,11 @@ upgrade from 6.x, but can be removed in all other circumstances.
 If you wish to remove half or more of the master-eligible nodes from a cluster,
 you must first exclude the affected nodes from the voting configuration using
 the <<modules-discovery-adding-removing-nodes,voting config exclusions API>>.
-If you remove fewer than half of the master-eligible nodes at the same time, voting exclusions are not required.
-If you remove only master-ineligible nodes
-such as data-only nodes or coordinating-only nodes, voting exclusions are not required. Likewise, if you
-add nodes to the cluster, voting exclusions are not required.
+If you remove fewer than half of the master-eligible nodes at the same time,
+voting exclusions are not required.  If you remove only master-ineligible nodes
+such as data-only nodes or coordinating-only nodes, voting exclusions are not
+required. Likewise, if you add nodes to the cluster, voting exclusions are not
+required.
 
 [float]
 ==== Discovery configuration is required in production

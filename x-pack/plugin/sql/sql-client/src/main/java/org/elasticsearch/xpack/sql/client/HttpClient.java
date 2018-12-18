@@ -32,8 +32,8 @@ import java.io.InputStream;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
+import java.time.ZoneId;
 import java.util.Collections;
-import java.util.TimeZone;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
@@ -66,7 +66,7 @@ public class HttpClient {
     public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI. "client_id" is set to "cli"
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), null, TimeZone.getTimeZone("UTC"),
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), null, ZoneId.of("Z"),
             fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()),
             new RequestInfo(Mode.PLAIN, CLI));
         return query(sqlRequest);

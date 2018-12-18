@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
 import org.elasticsearch.xpack.sql.tree.NodeTests.Dummy;
@@ -449,14 +450,12 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                 }
                 return b.toString();
             }
-        } else if (toBuildClass == LikePattern.class) {
-            /*
-             * The pattern and escape character have to be valid together
-             * so we pick an escape character that isn't used
-             */
-            if (argClass == char.class) {
-                return randomFrom('\\', '|', '/', '`');
+        } else if (toBuildClass == Like.class) {
+
+            if (argClass == LikePattern.class) {
+                return new LikePattern(randomAlphaOfLength(16), randomFrom('\\', '|', '/', '`'));
             }
+
         } else if (toBuildClass == Histogram.class) {
             if (argClass == Expression.class) {
                 return LiteralTests.randomLiteral();

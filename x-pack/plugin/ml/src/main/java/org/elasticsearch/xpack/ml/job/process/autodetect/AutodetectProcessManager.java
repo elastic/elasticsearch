@@ -361,10 +361,20 @@ public class AutodetectProcessManager {
                     updateProcessMessage.setFilter(filter);
 
                     if (updateParams.isUpdateScheduledEvents()) {
-                        Job job = jobManager.getJobOrThrowIfUnknown(jobTask.getJobId());
-                        DataCounts dataCounts = getStatistics(jobTask).get().v1();
-                        ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().start(job.earliestValidTimestamp(dataCounts));
-                        jobResultsProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
+                        jobManager.getJob(jobTask.getJobId(), new ActionListener<Job>() {
+                            @Override
+                            public void onResponse(Job job) {
+                                DataCounts dataCounts = getStatistics(jobTask).get().v1();
+                                ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder()
+                                        .start(job.earliestValidTimestamp(dataCounts));
+                                jobResultsProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                handler.accept(e);
+                            }
+                        });
                     } else {
                         eventsListener.onResponse(null);
                     }
@@ -393,71 +403,79 @@ public class AutodetectProcessManager {
         }
     }
 
-    public void openJob(JobTask jobTask, Consumer<Exception> handler) {
+    public void openJob(JobTask jobTask, Consumer<Exception> closeHandler) {
         String jobId = jobTask.getJobId();
-        Job job = jobManager.getJobOrThrowIfUnknown(jobId);
-
-        if (job.getJobVersion() == null) {
-            handler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId
-                    + "] because jobs created prior to version 5.5 are not supported"));
-            return;
-        }
-
         logger.info("Opening job [{}]", jobId);
-        processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
-        jobResultsProvider.getAutodetectParams(job, params -> {
-            // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    handler.accept(e);
-                }
 
-                @Override
-                protected void doRun() throws Exception {
-                    ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
-                    if (processContext == null) {
-                        logger.debug("Aborted opening job [{}] as it has been closed", jobId);
-                        return;
-                    }
-                    if (processContext.getState() !=  ProcessContext.ProcessStateName.NOT_RUNNING) {
-                        logger.debug("Cannot open job [{}] when its state is [{}]", jobId, processContext.getState().getClass().getName());
+        jobManager.getJob(jobId, ActionListener.wrap(
+                // NORELEASE JIndex. Should not be doing this work on the network thread
+                job -> {
+                    if (job.getJobVersion() == null) {
+                        closeHandler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId
+                                + "] because jobs created prior to version 5.5 are not supported"));
                         return;
                     }
 
-                    try {
-                        createProcessAndSetRunning(processContext, params, handler);
-                        processContext.getAutodetectCommunicator().init(params.modelSnapshot());
-                        setJobState(jobTask, JobState.OPENED);
-                    } catch (Exception e1) {
-                        // No need to log here as the persistent task framework will log it
-                        try {
-                            // Don't leave a partially initialised process hanging around
-                            processContext.newKillBuilder()
-                                    .setAwaitCompletion(false)
-                                    .setFinish(false)
-                                    .kill();
-                            processByAllocation.remove(jobTask.getAllocationId());
-                        } finally {
-                            setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
-                        }
-                    }
-                }
-            });
-        }, e1 -> {
-            logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
-            setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
-        });
+
+                    processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
+                    jobResultsProvider.getAutodetectParams(job, params -> {
+                        // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
+                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+                            @Override
+                            public void onFailure(Exception e) {
+                                closeHandler.accept(e);
+                            }
+
+                            @Override
+                            protected void doRun() {
+                                ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
+                                if (processContext == null) {
+                                    logger.debug("Aborted opening job [{}] as it has been closed", jobId);
+                                    return;
+                                }
+                                if (processContext.getState() !=  ProcessContext.ProcessStateName.NOT_RUNNING) {
+                                    logger.debug("Cannot open job [{}] when its state is [{}]",
+                                            jobId, processContext.getState().getClass().getName());
+                                    return;
+                                }
+
+                                try {
+                                    createProcessAndSetRunning(processContext, job, params, closeHandler);
+                                    processContext.getAutodetectCommunicator().init(params.modelSnapshot());
+                                    setJobState(jobTask, JobState.OPENED);
+                                } catch (Exception e1) {
+                                    // No need to log here as the persistent task framework will log it
+                                    try {
+                                        // Don't leave a partially initialised process hanging around
+                                        processContext.newKillBuilder()
+                                                .setAwaitCompletion(false)
+                                                .setFinish(false)
+                                                .kill();
+                                        processByAllocation.remove(jobTask.getAllocationId());
+                                    } finally {
+                                        setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1));
+                                    }
+                                }
+                            }
+                        });
+                    }, e1 -> {
+                        logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
+                        setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1));
+                    });
+                },
+                closeHandler
+        ));
+
     }
 
-    private void createProcessAndSetRunning(ProcessContext processContext, AutodetectParams params, Consumer<Exception> handler) {
+    private void createProcessAndSetRunning(ProcessContext processContext, Job job, AutodetectParams params, Consumer<Exception> handler) {
         // At this point we lock the process context until the process has been started.
         // The reason behind this is to ensure closing the job does not happen before
         // the process is started as that can result to the job getting seemingly closed
         // but the actual process is hanging alive.
         processContext.tryLock();
         try {
-            AutodetectCommunicator communicator = create(processContext.getJobTask(), params, handler);
+            AutodetectCommunicator communicator = create(processContext.getJobTask(), job, params, handler);
             processContext.setRunning(communicator);
         } finally {
             // Now that the process is running and we have updated its state we can unlock.
@@ -467,7 +485,7 @@ public class AutodetectProcessManager {
         }
     }
 
-    AutodetectCommunicator create(JobTask jobTask, AutodetectParams autodetectParams, Consumer<Exception> handler) {
+    AutodetectCommunicator create(JobTask jobTask, Job job, AutodetectParams autodetectParams, Consumer<Exception> handler) {
         // Closing jobs can still be using some or all threads in MachineLearning.AUTODETECT_THREAD_POOL_NAME
         // that an open job uses, so include them too when considering if enough threads are available.
         int currentRunningJobs = processByAllocation.size();
@@ -492,7 +510,6 @@ public class AutodetectProcessManager {
             }
         }
 
-        Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, autodetectParams.dataCounts(), jobDataCountsPersister);
@@ -505,8 +522,7 @@ public class AutodetectProcessManager {
         AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autoDetectExecutorService,
                 onProcessCrash(jobTask));
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
-                client, auditor, jobId, renormalizer, jobResultsPersister, jobResultsProvider, autodetectParams.modelSizeStats(),
-                autodetectParams.modelSnapshot() != null);
+                client, auditor, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);

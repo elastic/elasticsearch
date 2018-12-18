@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -46,12 +47,11 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         logger.info("--> use SSL? {}", useSSL);
-        Settings s = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.enabled", useSSL)
-                .build();
-        return s;
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
+        return builder.put(NetworkModule.HTTP_ENABLED.getKey(), true)
+            .put("xpack.security.http.ssl.enabled", useSSL)
+            .build();
     }
 
     @Override
@@ -75,7 +75,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         SecurityClient c = new SecurityClient(client());
         logger.error("--> creating users");
         int numToAdd = randomIntBetween(1,10);
-        Set<String> addedUsers = new HashSet(numToAdd);
+        Set<String> addedUsers = new HashSet<>(numToAdd);
         for (int i = 0; i < numToAdd; i++) {
             String uname = randomAlphaOfLength(5);
             c.preparePutUser(uname, "s3kirt".toCharArray(), getFastStoredHashAlgoForTests(), "role1", "user").get();

@@ -39,8 +39,9 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
 
         // disable client auth default
         settings = Settings.builder().put(settings)
-                .put("xpack.ssl.client_authentication", "none")
-                .build();
+            .put("xpack.watcher.enabled", false) // avoid deprecation warning for xpack.http.ssl
+            .put("xpack.ssl.client_authentication", "none")
+            .build();
         env = TestEnvironment.newEnvironment(settings);
         assertTrue(runCheck(settings, env).isFailure());
 
@@ -79,6 +80,9 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
                 .build();
         env = TestEnvironment.newEnvironment(settings);
         assertFalse(runCheck(settings, env).isFailure());
+
+        assertWarnings("SSL configuration [xpack.security.transport.ssl.] relies upon fallback to another configuration for " +
+            "[client authentication], which is deprecated.");
     }
 
     private BootstrapCheck.BootstrapCheckResult runCheck(Settings settings, Environment env) throws Exception {
@@ -87,11 +91,12 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
 
     public void testBootstrapCheckWithDisabledRealm() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.authc.realms.test_pki.type", PkiRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.test_pki.enabled", false)
-                .put("xpack.ssl.client_authentication", "none")
-                .put("path.home", createTempDir())
-                .build();
+            .put("xpack.security.authc.realms.test_pki.type", PkiRealmSettings.TYPE)
+            .put("xpack.security.authc.realms.test_pki.enabled", false)
+            .put("xpack.ssl.client_authentication", "none")
+            .put("xpack.watcher.enabled", false) // avoid deprecation warning for xpack.http.ssl
+            .put("path.home", createTempDir())
+            .build();
         Environment env = TestEnvironment.newEnvironment(settings);
         assertFalse(runCheck(settings, env).isFailure());
     }

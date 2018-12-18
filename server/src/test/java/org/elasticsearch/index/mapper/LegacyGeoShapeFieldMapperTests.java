@@ -521,6 +521,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(e.getMessage(), containsString("mapper [shape] has different [tree]"));
             assertThat(e.getMessage(), containsString("mapper [shape] has different [tree_levels]"));
             assertThat(e.getMessage(), containsString("mapper [shape] has different [precision]"));
+            assertThat(e.getMessage(), containsString("mapper [shape] has different [distance_error_pct]"));
         }
 
         // verify nothing changed
@@ -542,7 +543,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .field("tree", "geohash")
                 .field("strategy", "recursive")
                 .field("precision", "1m")
-                .field("tree_levels", 8).field("distance_error_pct", 0.001)
+                .field("tree_levels", 8).field("distance_error_pct", 0.01)
                 .field("orientation", "cw").endObject().endObject().endObject().endObject());
         docMapper = mapperService.merge("type", new CompressedXContent(stage2Mapping),
             MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -555,7 +556,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(strategy, instanceOf(RecursivePrefixTreeStrategy.class));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
-        assertThat(strategy.getDistErrPct(), equalTo(0.001));
+        assertThat(strategy.getDistErrPct(), equalTo(0.01));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(1d)));
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
 

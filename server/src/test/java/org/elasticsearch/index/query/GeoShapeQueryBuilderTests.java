@@ -150,12 +150,6 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         return new GetResponse(new GetResult(indexedShapeIndex, indexedShapeType, indexedShapeId, 0, true, new BytesArray(json), null));
     }
 
-    @Override
-    public void testNegativeBoosts() {
-        GeoShapeQueryBuilder testQuery = createTestQueryBuilder();
-        testQuery.boost(-0.5f);
-    }
-
     @After
     public void clearShapeFields() {
         indexedShapeToReturn = null;

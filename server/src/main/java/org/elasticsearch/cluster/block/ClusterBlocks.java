@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.block;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -146,6 +145,18 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     public boolean hasIndexBlock(String index, ClusterBlock block) {
         return indicesBlocks.containsKey(index) && indicesBlocks.get(index).contains(block);
+    }
+
+    public boolean hasIndexBlock(String index, int blockId) {
+        final Set<ClusterBlock> clusterBlocks = indicesBlocks.get(index);
+        if (clusterBlocks != null) {
+            for (ClusterBlock clusterBlock : clusterBlocks) {
+                if (clusterBlock.id() == blockId) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public void globalBlockedRaiseException(ClusterBlockLevel level) throws ClusterBlockException {
@@ -335,7 +346,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         public Builder addBlocks(IndexMetaData indexMetaData) {
             String indexName = indexMetaData.getIndex().getName();
             if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                addIndexBlock(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+                addIndexBlock(indexName, MetaDataIndexStateService.createIndexClosedBlock());
             }
             if (IndexMetaData.INDEX_READ_ONLY_SETTING.get(indexMetaData.getSettings())) {
                 addIndexBlock(indexName, IndexMetaData.INDEX_READ_ONLY_BLOCK);
@@ -398,6 +409,17 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
                 return this;
             }
             indices.get(index).remove(block);
+            if (indices.get(index).isEmpty()) {
+                indices.remove(index);
+            }
+            return this;
+        }
+
+        public Builder removeIndexBlock(String index, int blockId) {
+            if (!indices.containsKey(index)) {
+                return this;
+            }
+            indices.get(index).removeIf(block -> block.id() == blockId);
             if (indices.get(index).isEmpty()) {
                 indices.remove(index);
             }

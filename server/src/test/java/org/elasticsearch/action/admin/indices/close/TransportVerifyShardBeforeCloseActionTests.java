@@ -23,8 +23,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -37,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
-import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -50,6 +51,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     private IndexShard indexShard;
     private TransportVerifyShardBeforeCloseAction action;
     private ClusterService clusterService;
+    private ClusterBlock clusterBlock;
 
     @Override
     @Before
@@ -64,9 +66,10 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", randomIntBetween(0, 3));
         when(indexShard.shardId()).thenReturn(shardId);
 
+        clusterBlock = MetaDataIndexStateService.createIndexClosedBlock();
         clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(new ClusterState.Builder(new ClusterName("test"))
-            .blocks(ClusterBlocks.builder().addIndexBlock("index", INDEX_CLOSED_BLOCK).build()).build());
+            .blocks(ClusterBlocks.builder().addIndexBlock("index", clusterBlock).build()).build());
 
         action = new TransportVerifyShardBeforeCloseAction(Settings.EMPTY, mock(TransportService.class), clusterService,
             mock(IndicesService.class), mock(ThreadPool.class), mock(ShardStateAction.class), mock(ActionFilters.class),
@@ -75,7 +78,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     private void executeOnPrimaryOrReplica() throws Exception {
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId());
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock);
         if (randomBoolean()) {
             assertNotNull(action.shardOperationOnPrimary(request, indexShard));
         } else {
@@ -102,7 +105,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
         assertThat(exception.getMessage(),
-            equalTo("Index shard " + indexShard.shardId() + " must be blocked by " + INDEX_CLOSED_BLOCK + " before closing"));
+            equalTo("Index shard " + indexShard.shardId() + " must be blocked by " + clusterBlock + " before closing"));
         verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 

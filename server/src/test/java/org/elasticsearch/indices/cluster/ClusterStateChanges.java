@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasValidator;
@@ -222,10 +223,12 @@ public class ClusterStateChanges {
         final Index[] concreteIndices = Arrays.stream(request.indices())
             .map(index -> state.metaData().index(index).getIndex()).toArray(Index[]::new);
 
-        final Set<Index> blockedIndices = new HashSet<>();
-        ClusterState newState = MetaDataIndexStateServiceUtils.addIndexClosedBlocks(concreteIndices, state, blockedIndices);
+        final ClusterBlock closingBlock = MetaDataIndexStateService.createIndexClosedBlock();
 
-        newState = MetaDataIndexStateServiceUtils.closeRoutingTable(newState, blockedIndices.stream()
+        final Set<Index> blockedIndices = new HashSet<>();
+        ClusterState newState = MetaDataIndexStateServiceUtils.addIndexClosedBlocks(concreteIndices, closingBlock, state, blockedIndices);
+
+        newState = MetaDataIndexStateServiceUtils.closeRoutingTable(newState, closingBlock, blockedIndices.stream()
             .collect(Collectors.toMap(Function.identity(), index -> new AcknowledgedResponse(true))));
         return allocationService.reroute(newState, "indices closed");
     }

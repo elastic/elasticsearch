@@ -12,14 +12,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
 
 import java.util.Collections;
@@ -34,7 +34,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
             .put(settings)
             .put("xpack.security.transport.ssl.enabled", true).build();
         Transport transport = new SecurityNetty4ServerTransport(settings1, version, threadPool,
-            networkService, BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
+            networkService, PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
             new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
 
             @Override
@@ -56,9 +56,9 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
 
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        if (TcpTransport.PORT.exists(settings) == false) {
+        if (TransportSettings.PORT.exists(settings) == false) {
             settings = Settings.builder().put(settings)
-                .put(TcpTransport.PORT.getKey(), "0")
+                .put(TransportSettings.PORT.getKey(), "0")
                 .build();
         }
         MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);

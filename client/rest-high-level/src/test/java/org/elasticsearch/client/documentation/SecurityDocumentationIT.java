@@ -53,6 +53,9 @@ import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.GetUserPrivilegesResponse;
+import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.GetUsersResponse;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
@@ -71,19 +74,21 @@ import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpress
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.user.User;
-import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
+import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
+import org.elasticsearch.client.security.user.privileges.Role;
+import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
 import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Matchers;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+
 import java.io.IOException;
-import java.security.SecureRandom;
-import java.util.Base64;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -94,8 +99,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,6 +110,98 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    public void testGetUsers() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        String[] usernames = new String[] {"user1", "user2", "user3"};
+        addUser(client, usernames[0], randomAlphaOfLengthBetween(6, 10));
+        addUser(client, usernames[1], randomAlphaOfLengthBetween(6, 10));
+        addUser(client, usernames[2], randomAlphaOfLengthBetween(6, 10));
+        {
+            //tag::get-users-request
+            GetUsersRequest request = new GetUsersRequest(usernames[0]);
+            //end::get-users-request
+            //tag::get-users-execute
+            GetUsersResponse response = client.security().getUsers(request, RequestOptions.DEFAULT);
+            //end::get-users-execute
+            //tag::get-users-response
+            List<User> users = new ArrayList<>(1);
+            users.addAll(response.getUsers());
+            //end::get-users-response
+
+            assertNotNull(response);
+            assertThat(users.size(), equalTo(1));
+            assertThat(users.get(0).getUsername(), is(usernames[0]));
+        }
+
+        {
+            //tag::get-users-list-request
+            GetUsersRequest request = new GetUsersRequest(usernames);
+            GetUsersResponse response = client.security().getUsers(request, RequestOptions.DEFAULT);
+            //end::get-users-list-request
+
+            List<User> users = new ArrayList<>(3);
+            users.addAll(response.getUsers());
+            assertNotNull(response);
+            assertThat(users.size(), equalTo(3));
+            assertThat(users.get(0).getUsername(), equalTo(usernames[0]));
+            assertThat(users.get(1).getUsername(), equalTo(usernames[1]));
+            assertThat(users.get(2).getUsername(), equalTo(usernames[2]));
+            assertThat(users.size(), equalTo(3));
+        }
+
+        {
+            //tag::get-users-all-request
+            GetUsersRequest request = new GetUsersRequest();
+            GetUsersResponse response = client.security().getUsers(request, RequestOptions.DEFAULT);
+            //end::get-users-all-request
+
+            List<User> users = new ArrayList<>(3);
+            users.addAll(response.getUsers());
+            assertNotNull(response);
+            // 9 users are expected to be returned
+            // test_users (3): user1, user2, user3
+            // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, remote_monitoring_user
+            assertThat(users.size(), equalTo(9));
+        }
+
+        {
+            GetUsersRequest request = new GetUsersRequest(usernames[0]);
+            ActionListener<GetUsersResponse> listener;
+
+            //tag::get-users-execute-listener
+            listener = new ActionListener<GetUsersResponse>() {
+                @Override
+                public void onResponse(GetUsersResponse getRolesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::get-users-execute-listener
+
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<GetUsersResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            //tag::get-users-execute-async
+            client.security().getUsersAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::get-users-execute-async
+
+            final GetUsersResponse response = future.get(30, TimeUnit.SECONDS);
+            List<User> users = new ArrayList<>(1);
+            users.addAll(response.getUsers());
+            assertNotNull(response);
+            assertThat(users.size(), equalTo(1));
+            assertThat(users.get(0).getUsername(), equalTo(usernames[0]));
+        }
+    }
+
 
     public void testPutUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -128,7 +225,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             byte[] salt = new byte[32];
-            SecureRandom.getInstanceStrong().nextBytes(salt);
+            // no need for secure random in a test; it could block and would not be reproducible anyway
+            random().nextBytes(salt);
             char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             User user = new User("example2", Collections.singletonList("superuser"));
 
@@ -697,6 +795,66 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetUserPrivileges() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::get-user-privileges-execute
+            GetUserPrivilegesResponse response = client.security().getUserPrivileges(RequestOptions.DEFAULT);
+            //end::get-user-privileges-execute
+
+            assertNotNull(response);
+            //tag::get-user-privileges-response
+            final Set<String> cluster = response.getClusterPrivileges();
+            final Set<UserIndicesPrivileges> index = response.getIndicesPrivileges();
+            final Set<ApplicationResourcePrivileges> application = response.getApplicationPrivileges();
+            final Set<String> runAs = response.getRunAsPrivilege();
+            //end::get-user-privileges-response
+
+            assertNotNull(cluster);
+            assertThat(cluster, contains("all"));
+
+            assertNotNull(index);
+            assertThat(index.size(), is(1));
+            final UserIndicesPrivileges indexPrivilege = index.iterator().next();
+            assertThat(indexPrivilege.getIndices(), contains("*"));
+            assertThat(indexPrivilege.getPrivileges(), contains("all"));
+            assertThat(indexPrivilege.getFieldSecurity().size(), is(0));
+            assertThat(indexPrivilege.getQueries().size(), is(0));
+
+            assertNotNull(application);
+            assertThat(application.size(), is(1));
+
+            assertNotNull(runAs);
+            assertThat(runAs, contains("*"));
+        }
+
+        {
+            //tag::get-user-privileges-execute-listener
+            ActionListener<GetUserPrivilegesResponse> listener = new ActionListener<GetUserPrivilegesResponse>() {
+                @Override
+                public void onResponse(GetUserPrivilegesResponse getUserPrivilegesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::get-user-privileges-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-user-privileges-execute-async
+            client.security().getUserPrivilegesAsync(RequestOptions.DEFAULT, listener); // <1>
+            // end::get-user-privileges-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testClearRealmCache() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -1159,6 +1317,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/36362")
     public void testInvalidateToken() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1513,5 +1672,5 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-}
 
+}

@@ -67,11 +67,11 @@ ${path.logs}
 #
 #discovery.zen.ping.unicast.hosts: ["host1", "host2"]
 #
-# Prevent the "split brain" by configuring the majority of nodes (total number of master-eligible nodes / 2 + 1):
+# Bootstrap the cluster using an initial set of master-eligible nodes:
 #
-#discovery.zen.minimum_master_nodes: 
+#cluster.initial_master_nodes: ["node-1", "node-2"]
 #
-# For more information, consult the zen discovery module documentation.
+# For more information, consult the discovery and cluster formation module documentation.
 #
 # ---------------------------------- Gateway -----------------------------------
 #

@@ -38,7 +38,7 @@ import java.util.Objects;
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
  * no memory is being wasted on the database reader.
  */
-class DatabaseReaderLazyLoader implements Closeable {
+final class DatabaseReaderLazyLoader implements Closeable {
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 

@@ -721,8 +721,8 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
-        long randomDate1 = randomLong();
-        long randomDate2 = randomLong();
+        long randomDate1 = randomNonNegativeLong();
+        long randomDate2 = randomNonNegativeLong();
         
         // true values
         indexSimpleDocumentWithTrueValues(randomDate1);

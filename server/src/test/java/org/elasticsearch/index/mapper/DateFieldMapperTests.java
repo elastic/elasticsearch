@@ -227,7 +227,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        long epochMillis = randomLong();
+        long epochMillis = randomNonNegativeLong();
         String epochFloatValue = epochMillis + "." + randomIntBetween(0, 999);
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference

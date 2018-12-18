@@ -659,6 +659,6 @@ public class UpdateRequestTests extends ESTestCase {
         request = new UpdateRequest("test", "type1", "1").fromXContent(
             createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}")));
         assertThat(request.toString(), equalTo("update {[test][type1][1], doc_as_upsert[false], "
-            + "doc[index {[null][null][null], source[{\"body\":\"bar\"}]}], scripted_upsert[false], detect_noop[true]}"));
+            + "doc[index {[null][_doc][null], source[{\"body\":\"bar\"}]}], scripted_upsert[false], detect_noop[true]}"));
     }
 }

@@ -63,7 +63,7 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
 
         assertFalse(Thread.interrupted());
 
-        TimeValue timeout = TimeValue.timeValueMillis(1);
+        TimeValue timeout = TimeValue.timeValueMillis(100);
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("watchdog test", timeout, scheduler)) {
 
             TimeoutChecker.watchdog.register();
@@ -75,7 +75,7 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
         }
     }
 
-    public void testGrokCaptures() {
+    public void testGrokCaptures() throws Exception {
 
         assertFalse(Thread.interrupted());
         Grok grok = new Grok(Grok.getBuiltinPatterns(), "{%DATA:data}{%GREEDYDATA:greedydata}", TimeoutChecker.watchdog);
@@ -83,10 +83,12 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
         TimeValue timeout = TimeValue.timeValueMillis(1);
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("grok captures test", timeout, scheduler)) {
 
-            ElasticsearchTimeoutException e = expectThrows(ElasticsearchTimeoutException.class,
-                () -> timeoutChecker.grokCaptures(grok, randomAlphaOfLength(1000000), "should timeout"));
-            assertEquals("Aborting grok captures test during [should timeout] as it has taken longer than the timeout of [" +
-                timeout + "]", e.getMessage());
+            assertBusy(() -> {
+                ElasticsearchTimeoutException e = expectThrows(ElasticsearchTimeoutException.class,
+                    () -> timeoutChecker.grokCaptures(grok, randomAlphaOfLength(1000000), "should timeout"));
+                assertEquals("Aborting grok captures test during [should timeout] as it has taken longer than the timeout of [" +
+                    timeout + "]", e.getMessage());
+            });
         }
     }
 }

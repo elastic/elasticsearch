@@ -70,6 +70,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -267,8 +268,14 @@ final class RequestConverters {
     }
 
     static Request sourceExists(GetRequest getRequest) {
-        Request request = new Request(HttpHead.METHOD_NAME, endpoint(getRequest.index(), getRequest.type(), getRequest.id(), "_source"));
-
+        String optionalType = getRequest.type();
+        String endpoint;
+        if (optionalType.equals(MapperService.SINGLE_MAPPING_NAME)) {
+            endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
+        } else {
+            endpoint = endpoint(getRequest.index(), optionalType, getRequest.id(), "_source");
+        }
+        Request request = new Request(HttpHead.METHOD_NAME, endpoint);
         Params parameters = new Params(request);
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
@@ -316,7 +323,9 @@ final class RequestConverters {
     }
 
     static Request update(UpdateRequest updateRequest) throws IOException {
-        String endpoint = endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
+        String endpoint = updateRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
+            ? endpoint(updateRequest.index(), "_update", updateRequest.id())
+            : endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         Params parameters = new Params(request);

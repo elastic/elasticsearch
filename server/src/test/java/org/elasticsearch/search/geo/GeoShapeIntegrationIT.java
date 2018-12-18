@@ -45,21 +45,21 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     public void testOrientationPersistence() throws Exception {
         String idxName = "orientation";
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("orientation", "left")
-                .endObject().endObject()
-                .endObject().endObject());
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("orientation", "left")
+            .endObject().endObject()
+            .endObject().endObject());
 
         // create index
         assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("orientation", "right")
-                .endObject().endObject()
-                .endObject().endObject());
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("orientation", "right")
+            .endObject().endObject()
+            .endObject().endObject());
 
         assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping, XContentType.JSON));
         ensureGreen(idxName, idxName+"2");
@@ -144,9 +144,8 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
         String source = "{\n" +
             "    \"shape\" : {\n" +
-            "        \"type\" : \"circle\",\n" +
-            "        \"coordinates\" : [-45.0, 45.0],\n" +
-            "        \"radius\" : \"100m\"\n" +
+            "        \"type\" : \"bbox\",\n" +
+            "        \"coordinates\" : [[-45.0, 45.0], [45.0, -45.0]]\n" +
             "    }\n" +
             "}";
 

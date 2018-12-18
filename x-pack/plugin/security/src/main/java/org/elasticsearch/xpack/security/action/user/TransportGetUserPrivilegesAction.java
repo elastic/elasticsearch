@@ -90,7 +90,7 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
         }
 
         final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
-        for (IndicesPermission.Group group : userRole.indices()) {
+        for (IndicesPermission.Group group : userRole.indices().groups()) {
             final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
             final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = group.getFieldPermissions().hasFieldLevelSecurity()
                 ? group.getFieldPermissions().getFieldPermissionsDefinition().getFieldGrantExcludeGroups() : Collections.emptySet();

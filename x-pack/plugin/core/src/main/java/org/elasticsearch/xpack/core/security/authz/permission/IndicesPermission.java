@@ -45,7 +45,7 @@ import static java.util.Collections.unmodifiableSet;
  * A permission that is based on privileges for index related actions executed
  * on specific indices
  */
-public final class IndicesPermission implements Iterable<IndicesPermission.Group> {
+public final class IndicesPermission {
 
     public static final IndicesPermission NONE = new IndicesPermission();
 
@@ -59,18 +59,6 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
     public IndicesPermission(Group... groups) {
         this.groups = groups;
         this.systemIndicesAutomaton = Automatons.patterns(SystemIndicesNames.indexNames());
-    }
-
-    private static boolean isIndexPattern(String indexPattern) {
-        if (indexPattern.startsWith("/") || indexPattern.contains("*") || indexPattern.contains("?")) {
-            return true;
-        }
-        return false;
-    }
-
-    private static boolean isOrdinaryIndex(String index) {
-        assert false == isIndexPattern(index);
-        return false == SystemIndicesNames.indexNames().contains(index);
     }
 
     private static Predicate<String> indexMatcherPredicate(Collection<String> indices) {
@@ -154,13 +142,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         };
     }
 
-    @Override
-    public Iterator<Group> iterator() {
-        return Arrays.asList(groups).iterator();
-    }
-
-    // package-private for testing
-    Group[] groups() {
+    public Group[] groups() {
         return groups;
     }
 
@@ -300,6 +282,18 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(entry.getValue(), fieldPermissions, roleQueries));
         }
         return unmodifiableMap(indexPermissions);
+    }
+
+    private static boolean isIndexPattern(String indexPattern) {
+        if (indexPattern.startsWith("/") || indexPattern.contains("*") || indexPattern.contains("?")) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isOrdinaryIndex(String index) {
+        assert false == isIndexPattern(index);
+        return false == SystemIndicesNames.indexNames().contains(index);
     }
 
     public static class Group {

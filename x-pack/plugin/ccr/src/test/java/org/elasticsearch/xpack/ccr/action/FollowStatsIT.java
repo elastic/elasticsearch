@@ -13,11 +13,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -106,6 +108,12 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
 
         assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
         assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower2")).actionGet());
+
+        assertBusy(() -> {
+            List<FollowStatsAction.StatsResponse> responseList =
+                client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet().getFollowStats().getStatsResponses();
+            assertThat(responseList.size(), equalTo(0));
+        });
     }
 
 }

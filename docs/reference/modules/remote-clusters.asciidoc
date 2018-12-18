@@ -161,6 +161,14 @@ PUT _cluster/settings
   are sent according to the global `transport.ping_schedule` setting, which
   defaults to ``-1` meaning that pings are not sent.
 
+`cluster.remote.${cluster_alias}.transport.compress`::
+
+  Per cluster boolean setting that allows compression to be configured for
+  requests to a specific remote cluster. This setting only impacts requests
+  sent to the remote cluster. Elasticsearch will compress a response if the
+  inbound request was compressed. If unset, the global `transport.compress`
+  is used as the fallback setting.
+
 [float]
 [[retrieve-remote-clusters-info]]
 === Retrieving remote clusters info

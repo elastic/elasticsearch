@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -23,6 +24,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36764")
 public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
     public void testFollowIndex() throws Exception {

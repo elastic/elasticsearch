@@ -555,7 +555,7 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
                 DistanceUnit.METERS.toString(50));
         }
 
-        if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
+        if (indexCreatedVersion.onOrAfter(Version.V_6_6_0)) {
             builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
         }
 

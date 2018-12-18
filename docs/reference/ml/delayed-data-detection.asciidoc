@@ -25,7 +25,7 @@ comes in after an anomaly is recorded so that you can determine a next course of
 
 In addition to the `query_delay` field, there is a
 {ref}/ml-datafeed-resource.html#ml-datafeed-delayed-data-check-config[delayed data check config], which enables you to
-configuring the datafeed to look in the past for delayed data. Every 15 minutes or every `check_window`,
+configure the datafeed to look in the past for delayed data. Every 15 minutes or every `check_window`,
 whichever is smaller, the datafeed triggers a document search over the configured indices. This search looks over a
 time-span with length of `check_window` ending with the latest finalized bucket. That time-span is partitioned into buckets,
 whose length equals bucket span of the associated job. The `doc_count` of those buckets are then compared with the

@@ -73,6 +73,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -115,6 +116,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -154,6 +156,58 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testGetWithType() {
         getAndExistsWithTypeTest(RequestConverters::get, HttpGet.METHOD_NAME);
+    }
+
+    public void testSourceExists() throws IOException {
+        doTestSourceExists((index, id) -> new GetRequest(index, id));
+    }
+
+    public void testSourceExistsWithType() throws IOException {
+        String type = frequently() ? randomAlphaOfLengthBetween(3, 10) : MapperService.SINGLE_MAPPING_NAME;
+        doTestSourceExists((index, id) -> new GetRequest(index, type, id));
+    }
+
+    private static void doTestSourceExists(BiFunction<String, String, GetRequest> requestFunction) throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+        final GetRequest getRequest = requestFunction.apply(index, id);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            String preference = randomAlphaOfLengthBetween(3, 10);
+            getRequest.preference(preference);
+            expectedParams.put("preference", preference);
+        }
+        if (randomBoolean()) {
+            String routing = randomAlphaOfLengthBetween(3, 10);
+            getRequest.routing(routing);
+            expectedParams.put("routing", routing);
+        }
+        if (randomBoolean()) {
+            boolean realtime = randomBoolean();
+            getRequest.realtime(realtime);
+            if (realtime == false) {
+                expectedParams.put("realtime", "false");
+            }
+        }
+        if (randomBoolean()) {
+            boolean refresh = randomBoolean();
+            getRequest.refresh(refresh);
+            if (refresh) {
+                expectedParams.put("refresh", "true");
+            }
+        }
+        Request request = RequestConverters.sourceExists(getRequest);
+        assertEquals(HttpHead.METHOD_NAME, request.getMethod());
+        String type = getRequest.type();
+        if (type.equals(MapperService.SINGLE_MAPPING_NAME)) {
+            assertEquals("/" + index + "/_source/" + id, request.getEndpoint());
+        } else {
+            assertEquals("/" + index + "/" + type + "/" + id + "/_source", request.getEndpoint());
+        }
+
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
     }
 
     public void testMultiGet() throws IOException {

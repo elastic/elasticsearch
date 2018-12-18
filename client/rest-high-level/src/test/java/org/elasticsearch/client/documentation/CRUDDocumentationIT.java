@@ -1267,7 +1267,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(3, getResponse.getSourceAsMap().size());
             //tag::get-response
             String index = getResponse.getIndex();
-            String type = getResponse.getType();
             String id = getResponse.getId();
             if (getResponse.isExists()) {
                 long version = getResponse.getVersion();

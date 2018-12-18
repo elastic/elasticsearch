@@ -23,31 +23,74 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.rest.action.document.RestGetSourceAction.RestGetSourceResponseListener;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.AfterClass;
+import org.junit.Before;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.document.RestGetSourceAction.RestGetSourceResponseListener;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RestGetSourceActionTests extends ESTestCase {
+public class RestGetSourceActionTests extends RestActionTestCase {
 
     private static RestRequest request = new FakeRestRequest();
     private static FakeRestChannel channel = new FakeRestChannel(request, true, 0);
     private static RestGetSourceResponseListener listener = new RestGetSourceResponseListener(channel, request);
+
+    @Before
+    public void setUpAction() {
+        new RestGetSourceAction(Settings.EMPTY, controller());
+    }
 
     @AfterClass
     public static void cleanupReferences() {
         request = null;
         channel = null;
         listener = null;
+    }
+
+    /**
+     * test deprecation is logged if type is used in path
+     */
+    public void testTypeInPath() {
+        for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                    .withMethod(method)
+                    .withPath("/some_index/some_type/id/_source")
+                    .build();
+            dispatchRequest(request);
+            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+        }
+    }
+
+    /**
+     * test deprecation is logged if type is used as parameter
+     */
+    public void testTypeParameter() {
+        Map<String, String> params = new HashMap<>();
+        params.put("type", "some_type");
+        for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                    .withMethod(method)
+                    .withPath("/some_index/_source/id")
+                    .withParams(params)
+                    .build();
+            dispatchRequest(request);
+            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+        }
     }
 
     public void testRestGetSourceAction() throws Exception {

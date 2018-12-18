@@ -96,7 +96,7 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
         List<ComparableBucket> ordered = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             ComparableBucket comparableBucket = new ComparableBucket(originalAgg, bucket);
-            if (!comparableBucket.skip()) {
+            if (comparableBucket.skip() == false) {
                 ordered.add(new ComparableBucket(originalAgg, bucket));
             }
         }

@@ -305,11 +305,11 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts", "_doc", "1")
+            request.add(new IndexRequest("posts").id("1")
                     .source(XContentType.JSON, "company", "Elastic", "age", 20));
-            request.add(new IndexRequest("posts", "_doc", "2")
+            request.add(new IndexRequest("posts").id("2")
                     .source(XContentType.JSON, "company", "Elastic", "age", 30));
-            request.add(new IndexRequest("posts", "_doc", "3")
+            request.add(new IndexRequest("posts").id("3")
                     .source(XContentType.JSON, "company", "Elastic", "age", 40));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
@@ -381,10 +381,10 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts", "_doc", "1").source(XContentType.JSON, "user", "kimchy"));
-            request.add(new IndexRequest("posts", "_doc", "2").source(XContentType.JSON, "user", "javanna"));
-            request.add(new IndexRequest("posts", "_doc", "3").source(XContentType.JSON, "user", "tlrx"));
-            request.add(new IndexRequest("posts", "_doc", "4").source(XContentType.JSON, "user", "cbuescher"));
+            request.add(new IndexRequest("posts").id("1").source(XContentType.JSON, "user", "kimchy"));
+            request.add(new IndexRequest("posts").id("2").source(XContentType.JSON, "user", "javanna"));
+            request.add(new IndexRequest("posts").id("3").source(XContentType.JSON, "user", "tlrx"));
+            request.add(new IndexRequest("posts").id("4").source(XContentType.JSON, "user", "cbuescher"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -424,13 +424,13 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts", "_doc", "1")
+            request.add(new IndexRequest("posts").id("1")
                     .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?", "user",
                             Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
-            request.add(new IndexRequest("posts", "_doc", "2")
+            request.add(new IndexRequest("posts").id("2")
                     .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch", "user",
                             Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
-            request.add(new IndexRequest("posts", "_doc", "3")
+            request.add(new IndexRequest("posts").id("3")
                     .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
                             Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -487,7 +487,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testSearchRequestProfiling() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
-            IndexRequest request = new IndexRequest("posts", "_doc", "1")
+            IndexRequest request = new IndexRequest("posts").id("1")
                     .source(XContentType.JSON, "tags", "elasticsearch", "comments", 123);
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
             IndexResponse indexResponse = client.index(request, RequestOptions.DEFAULT);
@@ -559,11 +559,11 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts", "_doc", "1")
+            request.add(new IndexRequest("posts").id("1")
                     .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?"));
-            request.add(new IndexRequest("posts", "_doc", "2")
+            request.add(new IndexRequest("posts").id("2")
                     .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch"));
-            request.add(new IndexRequest("posts", "_doc", "3")
+            request.add(new IndexRequest("posts").id("3")
                     .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
@@ -1259,19 +1259,19 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(reviewersResponse.isAcknowledged());
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("posts", "_doc", "1")
+        bulkRequest.add(new IndexRequest("posts").id("1")
                 .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?", "user",
                         Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
-        bulkRequest.add(new IndexRequest("posts", "_doc", "2")
+        bulkRequest.add(new IndexRequest("posts").id("2")
                 .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch", "user",
                         Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
-        bulkRequest.add(new IndexRequest("posts", "_doc", "3")
+        bulkRequest.add(new IndexRequest("posts").id("3")
                 .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
                         Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
 
-        bulkRequest.add(new IndexRequest("authors", "_doc", "1")
+        bulkRequest.add(new IndexRequest("authors").id("1")
             .source(XContentType.JSON, "user", "kimchy"));
-        bulkRequest.add(new IndexRequest("contributors", "_doc", "1")
+        bulkRequest.add(new IndexRequest("contributors").id("1")
             .source(XContentType.JSON, "user", "tanguy"));
 
 
@@ -1373,17 +1373,17 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(authorsResponse.isAcknowledged());
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("blog", "_doc", "1")
+        bulkRequest.add(new IndexRequest("blog").id("1")
             .source(XContentType.JSON, "title", "Doubling Down on Open?", "user",
                 Collections.singletonList("kimchy"), "innerObject", Collections.singletonMap("key", "value")));
-        bulkRequest.add(new IndexRequest("blog", "_doc", "2")
+        bulkRequest.add(new IndexRequest("blog").id("2")
             .source(XContentType.JSON, "title", "Swiftype Joins Forces with Elastic", "user",
                 Arrays.asList("kimchy", "matt"), "innerObject", Collections.singletonMap("key", "value")));
-        bulkRequest.add(new IndexRequest("blog", "_doc", "3")
+        bulkRequest.add(new IndexRequest("blog").id("3")
             .source(XContentType.JSON, "title", "On Net Neutrality", "user",
                 Arrays.asList("tyler", "kimchy"), "innerObject", Collections.singletonMap("key", "value")));
 
-        bulkRequest.add(new IndexRequest("author", "_doc", "1")
+        bulkRequest.add(new IndexRequest("author").id("1")
             .source(XContentType.JSON, "user", "kimchy"));
 
 

@@ -356,8 +356,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             ActionListener<SearchResponse> listener = ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure);
             // TODO probably something more intelligent than every-50 is needed
             if (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0) {
-                doSaveState(IndexerState.INDEXING, position, () -> doNextSearch(buildSearchRequest(), listener));
+                doSaveState(IndexerState.INDEXING, position, () -> {
+                    stats.markStartSearch();
+                    doNextSearch(buildSearchRequest(), listener);
+                });
             } else {
+                stats.markStartSearch();
                 doNextSearch(buildSearchRequest(), listener);
             }
         } catch (Exception e) {

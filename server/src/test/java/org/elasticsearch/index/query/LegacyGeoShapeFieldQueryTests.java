@@ -19,9 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 
@@ -31,7 +35,17 @@ public class LegacyGeoShapeFieldQueryTests extends GeoShapeQueryBuilderTests {
 
     @Override
     protected String fieldName() {
-        return LEGACY_GEO_SHAPE_FIELD_NAME;
+        return GEO_SHAPE_FIELD_NAME;
+    }
+
+    @Override
+    protected Settings createTestIndexSettings() {
+        // force the legacy shape impl
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_5_0);
+        return Settings.builder()
+                .put(super.createTestIndexSettings())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .build();
     }
 
     @Override

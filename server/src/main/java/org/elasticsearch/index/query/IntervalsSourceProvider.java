@@ -19,11 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchesIterator;
 import org.apache.lucene.search.intervals.FilteredIntervalsSource;
-import org.apache.lucene.search.intervals.IntervalFilter;
 import org.apache.lucene.search.intervals.IntervalIterator;
 import org.apache.lucene.search.intervals.Intervals;
 import org.apache.lucene.search.intervals.IntervalsSource;
@@ -47,7 +43,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;

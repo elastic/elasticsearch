@@ -52,7 +52,7 @@ public abstract class NodeConfigurationSource {
 
     public abstract Path nodeConfigPath(int nodeOrdinal);
 
-    public List<Settings> updateNodesSettings(List<Settings> allNodesSettings) {
+    public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
         return allNodesSettings;
     }
 

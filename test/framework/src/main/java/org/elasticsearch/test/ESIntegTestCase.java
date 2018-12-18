@@ -1948,8 +1948,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             @Override
-            public List<Settings> updateNodesSettings(List<Settings> allNodesSettings) {
-                return ESIntegTestCase.this.updateNodesSettings(allNodesSettings);
+            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+                return ESIntegTestCase.this.addExtraClusterBootstrapSettings(allNodesSettings);
             }
 
             @Override
@@ -1989,7 +1989,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param allNodesSettings list of node settings before update
      * @return list of node settings after update
      */
-    protected List<Settings> updateNodesSettings(List<Settings> allNodesSettings) {
+    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
         return allNodesSettings;
     }
 

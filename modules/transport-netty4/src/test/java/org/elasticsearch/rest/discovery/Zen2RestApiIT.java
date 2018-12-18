@@ -68,7 +68,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     }
 
     @Override
-    protected List<Settings> updateNodesSettings(List<Settings> allNodesSettings) {
+    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
         final Settings firstNodeSettings = allNodesSettings.get(0);
         final List<Settings> otherNodesSettings = allNodesSettings.subList(1, allNodesSettings.size());
         final List<String> masterNodeNames = allNodesSettings.stream()

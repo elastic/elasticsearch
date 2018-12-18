@@ -43,7 +43,7 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
     private static final TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
     @Override
-    protected List<Settings> updateNodesSettings(List<Settings> allNodesSettings) {
+    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
         if (internalCluster().numDataAndMasterNodes() == 0) {
             final Settings firstNodeSettings = allNodesSettings.get(0);
             final List<Settings> otherNodesSettings = allNodesSettings.subList(1, allNodesSettings.size());
@@ -56,7 +56,7 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
 
             return updatedSettings;
         }
-        return super.updateNodesSettings(allNodesSettings);
+        return super.addExtraClusterBootstrapSettings(allNodesSettings);
     }
 
     public Set<ClusterBlock> waitForNoBlocksOnNode(TimeValue timeout, Client nodeClient) throws InterruptedException {

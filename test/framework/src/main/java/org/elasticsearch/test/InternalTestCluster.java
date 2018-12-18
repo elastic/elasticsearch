@@ -1125,7 +1125,7 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        final List<Settings> updatedSettings = nodeConfigurationSource.updateNodesSettings(settings);
+        final List<Settings> updatedSettings = nodeConfigurationSource.addExtraClusterBootstrapSettings(settings);
 
         for (int i = 0; i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             Settings nodeSettings = updatedSettings.get(i);
@@ -1979,7 +1979,7 @@ public final class InternalTestCluster extends TestCluster {
                 .map(Node.NODE_NAME_SETTING::get)
                 .collect(Collectors.toList());
 
-        final List<Settings> updatedSettings = nodeConfigurationSource.updateNodesSettings(settings);
+        final List<Settings> updatedSettings = nodeConfigurationSource.addExtraClusterBootstrapSettings(settings);
 
         for (int i = 0; i < numOfNodes; i++) {
             final Settings nodeSettings = updatedSettings.get(i);

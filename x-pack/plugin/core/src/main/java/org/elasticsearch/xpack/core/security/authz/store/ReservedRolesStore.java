@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges.ManageApplicationPrivileges;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
@@ -32,7 +33,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor("superuser",
             new String[] { "all" },
             new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build(),
+                    RoleDescriptor.IndicesPrivileges.builder().indices(SystemIndicesNames.indexNames().toArray(new String[0]))
+                            .privileges("all").build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build()
             },
@@ -45,7 +48,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         return MapBuilder.<String, RoleDescriptor>newMapBuilder()
                 .put("superuser", new RoleDescriptor("superuser", new String[] { "all" },
                         new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
+                                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build(),
+                                RoleDescriptor.IndicesPrivileges.builder().indices(SystemIndicesNames.indexNames().toArray(new String[0]))
+                                .privileges("all").build() },
                         new String[] { "*" },
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("transport_client", new RoleDescriptor("transport_client", new String[] { "transport_client" }, null, null,
@@ -83,6 +88,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("monitor").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices(SystemIndicesNames.indexNames().toArray(new String[0]))
+                                .privileges("monitor").build(),
                             RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("read").build()
                         },
                         null,

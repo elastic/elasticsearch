@@ -4,14 +4,6 @@
 coming[7.0.0-alpha2]
 
 [float]
-[[enhancement-7.0.0-alpha2]]
-=== Enhancements
-
-Machine learning::
-* Adds include categorical filter type to detector rules. {ml-pull}27[#27]
-
-
-[float]
 [[bug-7.0.0-alpha2]]
 === Bug fixes
 

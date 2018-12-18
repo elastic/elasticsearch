@@ -50,6 +50,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.join.aggregations.Children;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
@@ -101,18 +102,23 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void indexDocuments() throws IOException {
         {
             Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/type/1");
+            doc1.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             doc1.setJsonEntity("{\"type\":\"type1\", \"num\":10, \"num2\":50}");
             client().performRequest(doc1);
             Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/type/2");
+            doc2.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             doc2.setJsonEntity("{\"type\":\"type1\", \"num\":20, \"num2\":40}");
             client().performRequest(doc2);
             Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/type/3");
+            doc3.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             doc3.setJsonEntity("{\"type\":\"type1\", \"num\":50, \"num2\":35}");
             client().performRequest(doc3);
             Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/type/4");
+            doc4.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             doc4.setJsonEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}");
             client().performRequest(doc4);
             Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/type/5");
+            doc5.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             doc5.setJsonEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}");
             client().performRequest(doc5);
         }
@@ -400,7 +406,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         createIndex.setJsonEntity(
                 "{\n" +
                 "    \"mappings\": {\n" +
-                "        \"qa\" : {\n" +
+                "        \"_doc\" : {\n" +
                 "            \"properties\" : {\n" +
                 "                \"qa_join_field\" : {\n" +
                 "                    \"type\" : \"join\",\n" +
@@ -411,7 +417,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "    }" +
                 "}");
         client().performRequest(createIndex);
-        Request questionDoc = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/qa/1");
+        Request questionDoc = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/1");
         questionDoc.setJsonEntity(
                 "{\n" +
                 "    \"body\": \"<p>I have Windows 2003 server and i bought a new Windows 2008 server...\",\n" +
@@ -424,7 +430,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "    \"qa_join_field\" : \"question\"\n" +
                 "}");
         client().performRequest(questionDoc);
-        Request answerDoc1 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/qa/2");
+        Request answerDoc1 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/2");
         answerDoc1.addParameter("routing", "1");
         answerDoc1.setJsonEntity(
                 "{\n" +
@@ -441,7 +447,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "    \"creation_date\": \"2009-05-04T13:45:37.030\"\n" +
                 "}");
         client().performRequest(answerDoc1);
-        Request answerDoc2 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/qa/3");
+        Request answerDoc2 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/3");
         answerDoc2.addParameter("routing", "1");
         answerDoc2.setJsonEntity(
                 "{\n" +
@@ -535,7 +541,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testSearchWithWeirdScriptFields() throws Exception {
-        Request doc = new Request("PUT", "test/type/1");
+        Request doc = new Request("PUT", "test/_doc/1");
         doc.setJsonEntity("{\"field\":\"value\"}");
         client().performRequest(doc);
         client().performRequest(new Request("POST", "/test/_refresh"));
@@ -579,7 +585,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void testSearchScroll() throws Exception {
         for (int i = 0; i < 100; i++) {
             XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
-            Request doc = new Request(HttpPut.METHOD_NAME, "/test/type1/" + Integer.toString(i));
+            Request doc = new Request(HttpPut.METHOD_NAME, "/test/_doc/" + Integer.toString(i));
             doc.setJsonEntity(Strings.toString(builder));
             client().performRequest(doc);
         }

@@ -43,6 +43,7 @@ import java.net.InetAddress;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -347,6 +348,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
         );
 
         private final Map<String, DatabaseReaderLazyLoader> databaseReaders;
+
+        Map<String, DatabaseReaderLazyLoader> databaseReaders() {
+            return Collections.unmodifiableMap(databaseReaders);
+        }
+
         private final GeoIpCache cache;
 
         public Factory(Map<String, DatabaseReaderLazyLoader> databaseReaders, GeoIpCache cache) {

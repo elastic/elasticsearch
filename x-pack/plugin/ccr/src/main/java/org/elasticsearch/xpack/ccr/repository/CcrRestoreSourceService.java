@@ -14,9 +14,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -102,10 +102,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 logger.debug("not opening new session [{}] as it already exists", sessionUUID);
                 restore = onGoingRestores.get(sessionUUID);
             } else {
-                logger.debug("opening session [{}] for shard [{}]", sessionUUID, indexShard);
+                logger.debug("opening session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
                 if (indexShard.state() == IndexShardState.CLOSED) {
-                    throw new IllegalIndexShardStateException(indexShard.shardId(), IndexShardState.CLOSED,
-                        "cannot open ccr restore session if shard closed");
+                    throw new IndexShardClosedException(indexShard.shardId(), "cannot open ccr restore session if shard closed");
                 }
                 restore = new RestoreContext(sessionUUID, indexShard, indexShard.acquireSafeIndexCommit());
                 onGoingRestores.put(sessionUUID, restore);
@@ -163,7 +162,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
 
         private void removeSessionForShard(String sessionUUID, IndexShard indexShard) {
-            logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard);
+            logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
             HashSet<String> sessions = sessionsForShard.get(indexShard);
             if (sessions != null) {
                 sessions.remove(sessionUUID);

@@ -10,8 +10,8 @@ each other and elect a master node.
 ==== `discovery.zen.ping.unicast.hosts`
 
 Out of the box, without any network configuration, Elasticsearch will bind to
-the available loopback addresses and will scan ports 9300 to 9305 to try to
-connect to other nodes running on the same server. This provides an auto-
+the available loopback addresses and will scan local ports 9300 to 9305 to try
+to connect to other nodes running on the same server. This provides an auto-
 clustering experience without having to do any configuration.
 
 When the moment comes to form a cluster with nodes on other servers, you must

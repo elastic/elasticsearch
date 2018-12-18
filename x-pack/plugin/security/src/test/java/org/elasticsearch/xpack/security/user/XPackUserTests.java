@@ -10,10 +10,9 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 
@@ -31,8 +30,8 @@ public class XPackUserTests extends ESTestCase {
     public void testXPackUserCannotAccessSecurityIndex() {
         final String action = randomFrom(GetAction.NAME, SearchAction.NAME, IndexAction.NAME);
         final Predicate<String> predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(SecurityIndexManager.SECURITY_INDEX_NAME), Matchers.is(false));
-        assertThat(predicate.test(SecurityIndexManager.INTERNAL_SECURITY_INDEX), Matchers.is(false));
+        assertThat(predicate.test(SystemIndicesNames.SECURITY_INDEX_NAME), Matchers.is(false));
+        assertThat(predicate.test(SystemIndicesNames.INTERNAL_SECURITY_INDEX), Matchers.is(false));
     }
 
     public void testXPackUserCanReadAuditTrail() {
@@ -50,6 +49,6 @@ public class XPackUserTests extends ESTestCase {
     private String getAuditLogName() {
         final DateTime date = new DateTime().plusDays(randomIntBetween(1, 360));
         final IndexNameResolver.Rollover rollover = randomFrom(IndexNameResolver.Rollover.values());
-        return IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, date, rollover);
+        return IndexNameResolver.resolve(SystemIndicesNames.AUDIT_INDEX_NAME_PREFIX, date, rollover);
     }
 }

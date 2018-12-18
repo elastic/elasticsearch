@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -109,7 +110,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
 
         final GetResult result = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
+                SystemIndicesNames.SECURITY_INDEX_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
                 1L,
@@ -178,7 +179,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         nativeUsersStore.verifyPassword(username, password, future);
 
         final GetResult getResult = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
+                SystemIndicesNames.SECURITY_INDEX_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 1L,
@@ -220,7 +221,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE);
         final BytesReference source = BytesReference.bytes(jsonBuilder().map(values));
         final GetResult getResult = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
+                SystemIndicesNames.SECURITY_INDEX_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 1L,

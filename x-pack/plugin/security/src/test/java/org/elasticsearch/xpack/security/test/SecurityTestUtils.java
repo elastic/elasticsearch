@@ -19,6 +19,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -35,7 +36,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 
 public class SecurityTestUtils {
 
@@ -83,7 +83,7 @@ public class SecurityTestUtils {
      * Adds the index alias {@code .security} to the underlying concrete index.
      */
     public static MetaData addAliasToMetaData(MetaData metaData, String indexName) {
-        AliasMetaData aliasMetaData = AliasMetaData.newAliasMetaDataBuilder(SECURITY_INDEX_NAME).build();
+        AliasMetaData aliasMetaData = AliasMetaData.newAliasMetaDataBuilder(SystemIndicesNames.SECURITY_INDEX_NAME).build();
         MetaData.Builder metaDataBuilder = new MetaData.Builder(metaData);
         IndexMetaData indexMetaData = metaData.index(indexName);
         metaDataBuilder.put(IndexMetaData.builder(indexMetaData).putAlias(aliasMetaData));

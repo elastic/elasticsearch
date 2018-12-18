@@ -16,7 +16,7 @@ import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
@@ -84,7 +84,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
             addedUsers.add(uname);
         }
         logger.error("--> waiting for .security index");
-        ensureGreen(SecurityIndexManager.SECURITY_INDEX_NAME);
+        ensureGreen(SystemIndicesNames.SECURITY_INDEX_NAME);
 
         MockTerminal t = new MockTerminal();
         String username = nodeClientUsername();
@@ -133,7 +133,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
             addedRoles.add(rname);
         }
         logger.error("--> waiting for .security index");
-        ensureGreen(SecurityIndexManager.SECURITY_INDEX_NAME);
+        ensureGreen(SystemIndicesNames.SECURITY_INDEX_NAME);
 
         MockTerminal t = new MockTerminal();
         String username = nodeClientUsername();

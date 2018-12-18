@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -67,7 +68,6 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -320,7 +320,7 @@ public class AuthorizationService {
             // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
             // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
             logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
-                authentication.getUser().principal(), action, SecurityIndexManager.SECURITY_INDEX_NAME);
+                authentication.getUser().principal(), action, SystemIndicesNames.SECURITY_INDEX_NAME);
             throw denial(auditId, authentication, action, request, permission.names());
         } else {
             putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
@@ -360,7 +360,7 @@ public class AuthorizationService {
     }
 
     private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
-        for (String index : SecurityIndexManager.indexNames()) {
+        for (String index : SystemIndicesNames.indexNames()) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
             if (indexPermissions != null && indexPermissions.isGranted()) {
                 return true;

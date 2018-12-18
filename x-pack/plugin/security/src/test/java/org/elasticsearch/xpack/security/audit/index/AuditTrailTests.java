@@ -23,7 +23,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.joda.time.DateTime;
@@ -155,7 +155,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
     private Collection<Map<String, Object>> getAuditEvents() throws Exception {
         final Client client = client();
         final DateTime now = new DateTime(DateTimeZone.UTC);
-        final String indexName = IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY);
+        final String indexName = IndexNameResolver.resolve(SystemIndicesNames.AUDIT_INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY);
 
         assertTrue(awaitBusy(() -> indexExists(client, indexName), 5, TimeUnit.SECONDS));
 

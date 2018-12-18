@@ -20,9 +20,9 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.List;
 import java.util.Set;
@@ -85,7 +85,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder(SecurityIndexManager.SECURITY_INDEX_NAME).settings(indexSettings)
+                .put(new IndexMetaData.Builder(SystemIndicesNames.SECURITY_INDEX_NAME).settings(indexSettings)
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
@@ -101,12 +101,12 @@ public class AuthorizedIndicesTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder(SecurityIndexManager.SECURITY_INDEX_NAME).settings(indexSettings)
+                .put(new IndexMetaData.Builder(SystemIndicesNames.SECURITY_INDEX_NAME).settings(indexSettings)
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
         AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, role, SearchAction.NAME, metaData);
         List<String> list = authorizedIndices.get();
-        assertThat(list, containsInAnyOrder("an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME));
+        assertThat(list, containsInAnyOrder("an-index", "another-index", SystemIndicesNames.SECURITY_INDEX_NAME));
     }
 }

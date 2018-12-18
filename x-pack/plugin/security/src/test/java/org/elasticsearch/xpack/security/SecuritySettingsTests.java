@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
-
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -39,7 +38,7 @@ public class SecuritySettingsTests extends ESTestCase {
                     .build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString(IndexAuditTrailField.INDEX_NAME_PREFIX));
+            assertThat(e.getMessage(), containsString(SystemIndicesNames.AUDIT_INDEX_NAME_PREFIX));
         }
 
         Security.validateAutoCreateIndex(Settings.builder()

@@ -56,7 +56,7 @@ import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
@@ -934,7 +934,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
     private SearchHit getIndexedAuditMessage(Message message) throws InterruptedException {
         assertNotNull("no audit message was enqueued", message);
-        final String indexName = IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, message.timestamp, rollover);
+        final String indexName = IndexNameResolver.resolve(SystemIndicesNames.AUDIT_INDEX_NAME_PREFIX, message.timestamp, rollover);
         ensureYellowAndNoInitializingShards(indexName);
         GetSettingsResponse settingsResponse = getClient().admin().indices().prepareGetSettings(indexName).get();
         assertThat(settingsResponse.getSetting(indexName, "index.number_of_shards"), is(Integer.toString(numShards)));

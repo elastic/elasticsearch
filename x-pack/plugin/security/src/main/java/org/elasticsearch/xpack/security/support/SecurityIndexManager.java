@@ -40,12 +40,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
-import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -67,12 +65,10 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class SecurityIndexManager implements ClusterStateListener {
 
-    public static final String INTERNAL_SECURITY_INDEX = ".security-" + IndexUpgradeCheckVersion.UPRADE_VERSION;
     public static final int INTERNAL_INDEX_FORMAT = 6;
     public static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
     public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
-    public static final String SECURITY_INDEX_NAME = ".security";
     private static final Logger LOGGER = LogManager.getLogger(SecurityIndexManager.class);
 
     private final String indexName;
@@ -95,10 +91,6 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     public SecurityIndexManager freeze() {
         return new SecurityIndexManager(null, indexName, indexState);
-    }
-
-    public static List<String> indexNames() {
-        return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
     }
 
     public boolean checkMappingVersion(Predicate<Version> requiredVersion) {
@@ -136,7 +128,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         if (localState.indexExists) {
             return new UnavailableShardsException(null, "at least one primary shard for the security index is unavailable");
         } else {
-            return new IndexNotFoundException(SECURITY_INDEX_NAME);
+            return new IndexNotFoundException(SystemIndicesNames.SECURITY_INDEX_NAME);
         }
     }
 
@@ -307,8 +299,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                             "the upgrade API is run on the security index"));
         } else if (indexState.indexExists == false) {
             Tuple<String, Settings> mappingAndSettings = loadMappingAndSettingsSourceFromTemplate();
-            CreateIndexRequest request = new CreateIndexRequest(INTERNAL_SECURITY_INDEX)
-                    .alias(new Alias(SECURITY_INDEX_NAME))
+            CreateIndexRequest request = new CreateIndexRequest(SystemIndicesNames.INTERNAL_SECURITY_INDEX)
+                    .alias(new Alias(SystemIndicesNames.SECURITY_INDEX_NAME))
                     .mapping("doc", mappingAndSettings.v1(), XContentType.JSON)
                     .waitForActiveShards(ActiveShardCount.ALL)
                     .settings(mappingAndSettings.v2());
@@ -336,7 +328,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                         }
                     }, client.admin().indices()::create);
         } else if (indexState.mappingUpToDate == false) {
-            PutMappingRequest request = new PutMappingRequest(INTERNAL_SECURITY_INDEX)
+            PutMappingRequest request = new PutMappingRequest(SystemIndicesNames.INTERNAL_SECURITY_INDEX)
                     .source(loadMappingAndSettingsSourceFromTemplate().v1(), XContentType.JSON)
                     .type("doc");
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,

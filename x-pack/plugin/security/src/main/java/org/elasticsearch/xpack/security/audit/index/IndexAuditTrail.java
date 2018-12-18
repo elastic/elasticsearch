@@ -53,7 +53,7 @@ import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -301,9 +301,9 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
         final Message first = peek();
         final String index;
         if (first == null) {
-            index = resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, DateTime.now(DateTimeZone.UTC), rollover);
+            index = resolve(SystemIndicesNames.AUDIT_INDEX_NAME_PREFIX, DateTime.now(DateTimeZone.UTC), rollover);
         } else {
-            index = resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, first.timestamp, rollover);
+            index = resolve(SystemIndicesNames.AUDIT_INDEX_NAME_PREFIX, first.timestamp, rollover);
         }
         return index;
     }
@@ -1156,7 +1156,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
                         break;
                     }
                     final IndexRequest indexRequest = client.prepareIndex()
-                            .setIndex(resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, message.timestamp, rollover))
+                            .setIndex(resolve(SystemIndicesNames.AUDIT_INDEX_NAME_PREFIX, message.timestamp, rollover))
                             .setType(DOC_TYPE).setSource(message.builder).request();
                     bulkProcessor.add(indexRequest);
                 } catch (InterruptedException e) {

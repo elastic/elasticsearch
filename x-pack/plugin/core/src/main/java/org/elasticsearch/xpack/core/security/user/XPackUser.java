@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 /**
@@ -20,7 +20,7 @@ public class XPackUser extends User {
     public static final Role ROLE = Role.builder(new RoleDescriptor(ROLE_NAME, new String[] { "all" },
             new RoleDescriptor.IndicesPrivileges[] {
                     RoleDescriptor.IndicesPrivileges.builder().indices("/@&~(\\.security.*)/").privileges("all").build(),
-                    RoleDescriptor.IndicesPrivileges.builder().indices(IndexAuditTrailField.INDEX_NAME_PREFIX + "-*")
+                    RoleDescriptor.IndicesPrivileges.builder().indices(SystemIndicesNames.AUDIT_INDEX_NAME_PREFIX + "-*")
                             .privileges("read").build()
             },
             new String[] { "*" },

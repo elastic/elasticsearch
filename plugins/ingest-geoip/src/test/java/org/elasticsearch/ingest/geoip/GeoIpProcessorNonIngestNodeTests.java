@@ -45,7 +45,7 @@ import java.util.Collections;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoIpProcessorNonIngestNodeIT extends ESIntegTestCase {
+public class GeoIpProcessorNonIngestNodeTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -103,11 +103,11 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
 
         Collections.sort(ordered, Collections.reverseOrder());
 
-        int resultSize = Math.max(ordered.size() - from, 0);
-
-        // We just have to get as many elements as we expect in results and store them in the same order.
+        // We just have to get as many elements as we expect in results and store them in the same order starting from
+        // the specified offset and taking currentSize into consideration.
+        int limit = Math.min(from + currentSize, ordered.size());
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
-        for (int i = from; i < from + resultSize; ++i) {
+        for (int i = from; i < limit; ++i) {
             newBuckets.add(ordered.get(i).internalBucket);
         }
         return originalAgg.create(newBuckets);

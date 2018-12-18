@@ -57,6 +57,14 @@
           "options" : ["internal", "external", "external_gte", "force"],
           "description" : "Specific version type"
         },
+        "if_seq_no_match" : {
+          "type" : "number",
+          "description" : "only perform the index operation if the last operation that has changed the document has the specified sequence number"
+        },
+        "if_primary_term_match" : {
+          "type" : "number",
+          "description" : "only perform the index operation if the last operation that has changed the document has the specified primary term"
+        },
         "pipeline" : {
           "type" : "string",
           "description" : "The pipeline id to preprocess incoming documents with"

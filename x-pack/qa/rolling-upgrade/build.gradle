@@ -182,6 +182,21 @@ subprojects {
         }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
       }
+
+      // Old versions of the code contain an invalid assertion that trips
+      // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
+      // the assertion, but this is impossible for released versions.
+      // However, released versions run without assertions, so end users won't
+      // be suffering the effects.  This argument effectively removes the
+      // incorrect assertion from the older versions used in the BWC tests.
+      if (version.before('5.6.9') || (version.onOrAfter('6.0.0') && version.before('6.2.4'))) {
+        jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
+      }
+
+      systemProperty 'tests.rest.blacklist', [
+              'old_cluster/30_ml_jobs_crud/*',
+              'old_cluster/40_ml_datafeed_crud/*',
+      ].join(',')
     }
 
     Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
@@ -224,6 +239,11 @@ subprojects {
         if (version.before('6.0.0')) {
           keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
         }
+
+        systemProperty 'tests.rest.blacklist', [
+                'mixed_cluster/30_ml_jobs_crud/*',
+                'mixed_cluster/40_ml_datafeed_crud/*',
+        ].join(',')
       }
     }
 
@@ -240,8 +260,8 @@ subprojects {
       // We only need to run these tests once so we may as well do it when we're two thirds upgraded
       systemProperty 'tests.rest.blacklist', [
           'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
-          'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
-          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
+          'mixed_cluster/30_ml_jobs_crud/*',
+          'mixed_cluster/40_ml_datafeed_crud/*',
         ].join(',')
       finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
     }
@@ -257,6 +277,11 @@ subprojects {
       systemProperty 'tests.rest.suite', 'mixed_cluster'
       systemProperty 'tests.first_round', 'false'
       finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
+
+      systemProperty 'tests.rest.blacklist', [
+              'mixed_cluster/30_ml_jobs_crud/*',
+              'mixed_cluster/40_ml_datafeed_crud/*',
+      ].join(',')
     }
 
     Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
@@ -286,6 +311,11 @@ subprojects {
               systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
           }
       }
+
+      systemProperty 'tests.rest.blacklist', [
+              'upgraded_cluster/30_ml_jobs_crud/*',
+              'upgraded_cluster/40_ml_datafeed_crud/*',
+      ].join(',')
     }
 
     Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {

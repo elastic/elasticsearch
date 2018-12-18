@@ -7,8 +7,8 @@ Single terms are still indexed. It can be used as an alternative to the
 Token Filter>> when we don't want to completely ignore common terms.
 
 For example, the text "the quick brown is a fox" will be tokenized as
-"the", "the_quick", "quick", "brown", "brown_is", "is_a", "a_fox",
-"fox". Assuming "the", "is" and "a" are common words.
+"the", "the_quick", "quick", "brown", "brown_is", "is", "is_a", "a",
+"a_fox", "fox". Assuming "the", "is" and "a" are common words.
 
 When `query_mode` is enabled, the token filter removes common words and
 single terms followed by a common word. This parameter should be enabled
@@ -45,7 +45,7 @@ PUT /common_grams_example
 {
     "settings": {
         "analysis": {
-            "my_analyzer": {
+            "analyzer": {
                 "index_grams": {
                     "tokenizer": "whitespace",
                     "filter": ["common_grams"]

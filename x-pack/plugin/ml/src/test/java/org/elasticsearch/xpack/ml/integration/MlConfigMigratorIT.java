@@ -193,10 +193,13 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
             mlMetadata.putDatafeed(builder.build(), Collections.emptyMap());
         }
 
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addMlConfigIndex(metaData, routingTable);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder()
-                .putCustom(MlMetadata.TYPE, mlMetadata.build()))
-            .build();
+                .metaData(metaData.putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .routingTable(routingTable.build())
+                .build();
 
         doAnswer(invocation -> {
             ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];
@@ -354,9 +357,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
-        assertBusy(() -> {
-            assertTrue(configIndexExists());
-        });
+        assertBusy(() -> assertTrue(configIndexExists()));
     }
 
     private boolean configIndexExists() {

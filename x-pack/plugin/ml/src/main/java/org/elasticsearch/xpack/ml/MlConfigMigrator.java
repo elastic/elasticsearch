@@ -104,7 +104,6 @@ public class MlConfigMigrator {
 
     private final AtomicBoolean migrationInProgress;
     private final AtomicBoolean tookConfigSnapshot;
-    private final AtomicBoolean configIndexCreated;
 
     public MlConfigMigrator(Settings settings, Client client, ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
@@ -112,7 +111,6 @@ public class MlConfigMigrator {
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.migrationInProgress = new AtomicBoolean(false);
         this.tookConfigSnapshot = new AtomicBoolean(false);
-        this.configIndexCreated = new AtomicBoolean(false);
     }
 
     /**
@@ -149,9 +147,13 @@ public class MlConfigMigrator {
                 }
         );
 
-        if (configIndexCreated.get() == false &&
-                clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+        List<JobsAndDatafeeds> batches = splitInBatches(clusterState);
+        if (batches.isEmpty()) {
+            unMarkMigrationInProgress.onResponse(Boolean.FALSE);
+            return;
+        }
 
+        if (clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
             createConfigIndex(ActionListener.wrap(
                     response -> {
                         unMarkMigrationInProgress.onResponse(Boolean.FALSE);
@@ -162,21 +164,16 @@ public class MlConfigMigrator {
         }
 
         if (migrationEligibilityCheck.canStartMigration(clusterState) == false) {
-            unMarkMigrationInProgress.onResponse(false);
+            unMarkMigrationInProgress.onResponse(Boolean.FALSE);
             return;
         }
 
         snapshotMlMeta(MlMetadata.getMlMetadata(clusterState), ActionListener.wrap(
-            response -> {
-                // We have successfully snapshotted the ML configs so we don't need to try again
-                tookConfigSnapshot.set(true);
-                List<JobsAndDatafeeds> batches = splitInBatches(clusterState);
-                if (batches.isEmpty()) {
-                    unMarkMigrationInProgress.onResponse(Boolean.FALSE);
-                    return;
-                }
-                migrateBatches(batches, unMarkMigrationInProgress);
-            },
+                response -> {
+                    // We have successfully snapshotted the ML configs so we don't need to try again
+                    tookConfigSnapshot.set(true);
+                    migrateBatches(batches, unMarkMigrationInProgress);
+                },
                 unMarkMigrationInProgress::onFailure
         ));
     }

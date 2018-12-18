@@ -129,6 +129,35 @@ public class CompoundProcessorTests extends ESTestCase {
         assertThat(processor2.getInvokedCounter(), equalTo(1));
     }
 
+    public void testSingleProcessorWithOnFailureDropProcessor() throws Exception {
+        TestProcessor processor1 = new TestProcessor("id", "first", ingestDocument -> {throw new RuntimeException("error");});
+        Processor processor2 = new Processor() {
+            @Override
+            public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                //Simulates the drop processor
+                return null;
+            }
+
+            @Override
+            public String getType() {
+                return "drop";
+            }
+
+            @Override
+            public String getTag() {
+                return null;
+            }
+        };
+
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.singletonList(processor1),
+            Collections.singletonList(processor2), relativeTimeProvider);
+        assertNull(compoundProcessor.execute(ingestDocument));
+        assertThat(processor1.getInvokedCounter(), equalTo(1));
+        assertStats(compoundProcessor, 1, 1, 0);
+    }
+
     public void testSingleProcessorWithNestedFailures() throws Exception {
         TestProcessor processor = new TestProcessor("id", "first", ingestDocument -> {throw new RuntimeException("error");});
         TestProcessor processorToFail = new TestProcessor("id2", "second", ingestDocument -> {

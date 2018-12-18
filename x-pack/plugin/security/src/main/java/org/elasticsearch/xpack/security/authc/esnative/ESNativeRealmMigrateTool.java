@@ -204,7 +204,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
 
         Set<String> getUsersThatExist(Terminal terminal, Settings settings, Environment env, OptionSet options) throws Exception {
             Set<String> existingUsers = new HashSet<>();
-            String allUsersJson = postURL(settings, env, "GET", this.url.value(options) + "/_xpack/security/user/", options, null);
+            String allUsersJson = postURL(settings, env, "GET", this.url.value(options) + "/_security/user/", options, null);
             // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = JsonXContent.jsonXContent
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, allUsersJson)) {
@@ -277,7 +277,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
                 try {
                     reqBody = createUserJson(userToRoles.get(user), userToHashedPW.get(user));
                     String resp = postURL(env.settings(), env, "POST",
-                            this.url.value(options) + "/_xpack/security/user/" + user, options, reqBody);
+                        this.url.value(options) + "/_security/user/" + user, options, reqBody);
                     terminal.println(resp);
                 } catch (Exception e) {
                     throw new ElasticsearchException("failed to migrate user [" + user + "] with body: " + reqBody, e);
@@ -287,7 +287,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
 
         Set<String> getRolesThatExist(Terminal terminal, Settings settings, Environment env, OptionSet options) throws Exception {
             Set<String> existingRoles = new HashSet<>();
-            String allRolesJson = postURL(settings, env, "GET", this.url.value(options) + "/_xpack/security/role/", options, null);
+            String allRolesJson = postURL(settings, env, "GET", this.url.value(options) + "/_security/role/", options, null);
             // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = JsonXContent.jsonXContent
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, allRolesJson)) {
@@ -346,7 +346,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
                 try {
                     reqBody = createRoleJson(roles.get(roleName));
                     String resp = postURL(env.settings(), env, "POST",
-                            this.url.value(options) + "/_xpack/security/role/" + roleName, options, reqBody);
+                        this.url.value(options) + "/_security/role/" + roleName, options, reqBody);
                     terminal.println(resp);
                 } catch (Exception e) {
                     throw new ElasticsearchException("failed to migrate role [" + roleName + "] with body: " + reqBody, e);

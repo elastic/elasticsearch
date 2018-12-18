@@ -9,23 +9,12 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.Objects;
-
-public class User extends BaseSystemFunction {
+public class User extends ConfigurationFunction {
 
     public User(Location location, Configuration configuration) {
-        super(location, configuration);
-    }
-
-    @Override
-    protected NodeInfo<User> info() {
-        return NodeInfo.create(this, User::new, configuration());
-    }
-
-    @Override
-    public boolean nullable() {
-        return true;
+        super(location, configuration, DataType.KEYWORD);
     }
 
     @Override
@@ -34,13 +23,7 @@ public class User extends BaseSystemFunction {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), configuration().username());
+    protected NodeInfo<User> info() {
+        return NodeInfo.create(this, User::new, configuration());
     }
-
-    @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(configuration().username(), ((User) obj).configuration().username());
-    }
-
 }

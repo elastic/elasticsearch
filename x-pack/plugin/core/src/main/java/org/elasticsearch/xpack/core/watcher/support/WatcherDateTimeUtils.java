@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -34,6 +35,9 @@ public class WatcherDateTimeUtils {
     public static DateTime convertToDate(Object value, Clock clock) {
         if (value instanceof DateTime) {
             return (DateTime) value;
+        }
+        if (value instanceof JodaCompatibleZonedDateTime) {
+            return new DateTime(((JodaCompatibleZonedDateTime) value).toInstant().toEpochMilli(), DateTimeZone.UTC);
         }
         if (value instanceof String) {
             return parseDateMath((String) value, DateTimeZone.UTC, clock);

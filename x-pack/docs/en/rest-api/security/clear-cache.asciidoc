@@ -7,9 +7,9 @@ the cache or evict specific users.
 
 ==== Request
 
-`POST _xpack/security/realm/<realms>/_clear_cache` +
+`POST /_security/realm/<realms>/_clear_cache` +
 
-`POST _xpack/security/realm/<realms>/_clear_cache?usernames=<usernames>`
+`POST /_security/realm/<realms>/_clear_cache?usernames=<usernames>`
 
 
 ==== Description
@@ -37,7 +37,7 @@ For example, to evict all users cached by the `file` realm:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/security/realm/default_file/_clear_cache
+POST /_security/realm/default_file/_clear_cache
 --------------------------------------------------
 // CONSOLE
 
@@ -45,7 +45,7 @@ To evict selected users, specify the `usernames` parameter:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/security/realm/default_file/_clear_cache?usernames=rdeniro,alpacino
+POST /_security/realm/default_file/_clear_cache?usernames=rdeniro,alpacino
 --------------------------------------------------
 // CONSOLE
 
@@ -54,6 +54,6 @@ list:
 
 [source, js]
 ------------------------------------------------------------
-POST _xpack/security/realm/default_file,ldap1/_clear_cache
+POST /_security/realm/default_file,ldap1/_clear_cache
 ------------------------------------------------------------
 // CONSOLE

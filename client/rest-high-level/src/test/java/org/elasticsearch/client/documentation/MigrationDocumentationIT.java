@@ -106,7 +106,7 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             });
             //end::migration-request-async-execution
-            assertBusy(() -> assertFalse(client.exists(new GetRequest("index", "_doc", "id"), RequestOptions.DEFAULT)));
+            assertBusy(() -> assertFalse(client.exists(new GetRequest("index", "id"), RequestOptions.DEFAULT)));
         }
         {
             //tag::migration-request-sync-execution

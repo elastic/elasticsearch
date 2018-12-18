@@ -660,8 +660,9 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
+        final Settings nodeSettings = finalSettings.build();
         MockNode node = new MockNode(
-                finalSettings.build(),
+                nodeSettings,
                 plugins,
                 nodeConfigurationSource.nodeConfigPath(nodeId),
                 forbidPrivateIndexSettings);
@@ -676,7 +677,7 @@ public final class InternalTestCluster extends TestCluster {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new NodeAndClient(name, node, nodeId);
+        return new NodeAndClient(name, node, nodeSettings, nodeId);
     }
 
     private String buildNodeName(int id, Settings settings) {
@@ -820,15 +821,17 @@ public final class InternalTestCluster extends TestCluster {
 
     private final class NodeAndClient implements Closeable {
         private MockNode node;
+        private final Settings originalNodeSettings;
         private Client nodeClient;
         private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
         private final int nodeAndClientId;
 
-        NodeAndClient(String name, MockNode node, int nodeAndClientId) {
+        NodeAndClient(String name, MockNode node, Settings originalNodeSettings, int nodeAndClientId) {
             this.node = node;
             this.name = name;
+            this.originalNodeSettings = originalNodeSettings;
             this.nodeAndClientId = nodeAndClientId;
             markNodeDataDirsAsNotEligableForWipe(node);
         }
@@ -954,7 +957,7 @@ public final class InternalTestCluster extends TestCluster {
             // use a new seed to make sure we have new node id
             final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1;
             Settings finalSettings = Settings.builder()
-                    .put(node.originalSettings())
+                    .put(originalNodeSettings)
                     .put(newSettings)
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                     .build();

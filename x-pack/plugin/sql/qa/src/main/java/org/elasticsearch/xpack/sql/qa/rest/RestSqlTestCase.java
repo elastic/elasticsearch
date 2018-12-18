@@ -720,7 +720,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     private void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_doc/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {

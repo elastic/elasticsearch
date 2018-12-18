@@ -295,21 +295,21 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(indexResponse.getPrimaryTerm(), equalTo(1L));
 
         assertThrows(
-            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfMatch(10, 1).execute(),
+            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(1).execute(),
             VersionConflictEngineException.class);
 
         assertThrows(
-            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfMatch(10, 2).execute(),
+            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(2).execute(),
             VersionConflictEngineException.class);
 
         assertThrows(
-            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfMatch(1, 2).execute(),
+            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfSeqNo(1).setIfPrimaryTerm(2).execute(),
             VersionConflictEngineException.class);
 
 
-        assertThrows(client().prepareDelete("test", "type", "1").setIfMatch(10, 1).execute(), VersionConflictEngineException.class);
-        assertThrows(client().prepareDelete("test", "type", "1").setIfMatch(10, 2).execute(), VersionConflictEngineException.class);
-        assertThrows(client().prepareDelete("test", "type", "1").setIfMatch(1, 2).execute(), VersionConflictEngineException.class);
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(10).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(10).setIfPrimaryTerm(2), VersionConflictEngineException.class);
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
@@ -331,19 +331,19 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(Versions.NOT_FOUND));
         }
 
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setIfMatch(1, 1).execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(1).get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getSeqNo(), equalTo(2L));
         assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
 
-        assertThrows(client().prepareDelete("test", "type", "1").setIfMatch(1, 1).execute(), VersionConflictEngineException.class);
-        assertThrows(client().prepareDelete("test", "type", "1").setIfMatch(3, 2).execute(), VersionConflictEngineException.class);
-        assertThrows(client().prepareDelete("test", "type", "1").setIfMatch(1, 2).execute(), VersionConflictEngineException.class);
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(3).setIfPrimaryTerm(12), VersionConflictEngineException.class);
+        assertThrows(client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
 
 
         // This is intricate - the object was deleted but a delete transaction was with the right version. We add another one
         // and thus the transaction is increased.
-        deleteResponse = client().prepareDelete("test", "type", "1").setIfMatch(2, 1).execute().actionGet();
+        deleteResponse = client().prepareDelete("test", "type", "1").setIfSeqNo(2).setIfPrimaryTerm(1).get();
         assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
         assertThat(deleteResponse.getSeqNo(), equalTo(3L));
         assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));

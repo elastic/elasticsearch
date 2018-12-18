@@ -27,7 +27,8 @@ include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
 ==== Authorization
 
-include::ilm-cluster-mgt-privilege.asciidoc[]
+You must have the `manage_ilm` or `read_ilm` or both cluster privileges to use this API.
+For more information, see {stack-ov}/security-privileges.html[Security Privileges].
 
 ==== Examples
 

@@ -82,7 +82,7 @@ public class OldElasticsearch {
         Path bin = esDir.resolve("bin").resolve("elasticsearch" + (Constants.WINDOWS ? ".bat" : ""));
         Path config = esDir.resolve("config").resolve("elasticsearch.yml");
 
-        Files.write(config, Arrays.asList("http.port: 0", "transport.tcp.port: 0", "network.host: 127.0.0.1"), StandardCharsets.UTF_8);
+        Files.write(config, Arrays.asList("http.port: 0", "transport.port: 0", "network.host: 127.0.0.1"), StandardCharsets.UTF_8);
 
         List<String> command = new ArrayList<>();
         command.add(bin.toString());

@@ -79,7 +79,7 @@ tasks.withType(CheckForbiddenApis) {
     signaturesFiles += files('src/forbidden/cli-signatures.txt')
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.allowMissingClasses (
     // jLine's optional dependencies
     'org.apache.sshd.client.SshClient',
     'org.apache.sshd.client.auth.keyboard.UserInteraction',
@@ -108,7 +108,7 @@ thirdPartyAudit.excludes = [
     'org.mozilla.universalchardet.UniversalDetector',
     'org.fusesource.jansi.internal.Kernel32$FOCUS_EVENT_RECORD',
     'org.fusesource.jansi.internal.Kernel32$MOUSE_EVENT_RECORD',
-]
+)
 
 task runcli {
     description = 'Run the CLI and connect to elasticsearch running on 9200'

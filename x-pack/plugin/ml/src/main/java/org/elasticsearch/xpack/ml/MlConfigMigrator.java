@@ -94,7 +94,6 @@ public class MlConfigMigrator {
     private static final Logger logger = LogManager.getLogger(MlConfigMigrator.class);
 
     public static final String MIGRATED_FROM_VERSION = "migrated from version";
-    public static final int CONFIG_INDEX_MAX_RESULTS_WINDOW = 10_000;
 
     static final int MAX_BULK_WRITE_SIZE = 100;
 
@@ -383,7 +382,7 @@ public class MlConfigMigrator {
                     Settings.builder()
                             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                            .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), CONFIG_INDEX_MAX_RESULTS_WINDOW)
+                            .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
             );
             createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, ElasticsearchMappings.configMapping());
         } catch (Exception e) {

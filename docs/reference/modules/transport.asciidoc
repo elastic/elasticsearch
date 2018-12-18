@@ -17,8 +17,8 @@ as search in Elasticsearch.
 [float]
 === Transport Settings
 
-The internal transport communicates over TCP. It allows for the following
-settings:
+The internal transport communicates over TCP. You can configure it with the
+following settings:
 
 [cols="<,<",options="header",]
 |=======================================================================

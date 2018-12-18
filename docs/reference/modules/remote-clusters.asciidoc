@@ -163,11 +163,11 @@ PUT _cluster/settings
 
 `cluster.remote.${cluster_alias}.transport.compress`::
 
-  Per cluster boolean setting that allows compression to be configured for
-  requests to a specific remote cluster. This setting only impacts requests
-  sent to the remote cluster. Elasticsearch will compress a response if the
-  inbound request was compressed. If unset, the global `transport.compress`
-  is used as the fallback setting.
+  Per cluster boolean setting that enables you to configure compression for
+  requests to a specific remote cluster. This setting impacts only requests
+  sent to the remote cluster. If the inbound request is compressed,
+  Elasticsearch compresses the response. If unset, the global
+  `transport.compress` is used as the fallback setting.
 
 [float]
 [[retrieve-remote-clusters-info]]

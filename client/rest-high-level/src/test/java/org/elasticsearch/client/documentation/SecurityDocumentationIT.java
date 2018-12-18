@@ -1318,6 +1318,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/36362")
     public void testInvalidateToken() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.RoutingMissingException;
@@ -52,7 +53,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -190,7 +190,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 Tuple<XContentType, Map<String, Object>> sourceAndContent =
                                         XContentHelper.convertToMap(upsertSourceBytes, true, upsertRequest.getContentType());
                                 update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
-                                    response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
+                                    response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), sourceAndContent.v2(),
+                                    sourceAndContent.v1(), upsertSourceBytes));
                             } else {
                                 update.setGetResult(null);
                             }
@@ -210,7 +211,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
                                 response.getVersion(), response.getResult());
                             update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
-                                response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
+                                response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), result.updatedSourceAsMap(),
+                                result.updateSourceContentType(), indexSourceBytes));
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
                         }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
@@ -224,7 +226,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
                                 response.getVersion(), response.getResult());
                             update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
-                                response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
+                                response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), result.updatedSourceAsMap(),
+                                result.updateSourceContentType(), null));
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
                         }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))

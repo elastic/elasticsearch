@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 
 import java.util.Collections;
@@ -35,8 +35,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT;
+import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedConfig;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedJob;
@@ -303,7 +303,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(datafeedConfig1.getId(), 0L);
-        tasksBuilder.addTask(MlTasks.datafeedTaskId("datafeed1"), StartDatafeedAction.TASK_NAME, params, INITIAL_ASSIGNMENT);
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("datafeed1"), MlTasks.DATAFEED_TASK_NAME, params, INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasksInProgress = tasksBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
@@ -385,7 +385,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("datafeed1", 0L);
-        tasksBuilder.addTask(MlTasks.datafeedTaskId("datafeed1"), StartDatafeedAction.TASK_NAME, params, INITIAL_ASSIGNMENT);
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("datafeed1"), MlTasks.DATAFEED_TASK_NAME, params, INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasksInProgress = tasksBuilder.build();
 
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
@@ -397,10 +397,10 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     public void testExpandJobIds() {
         MlMetadata mlMetadata = newMlMetadataWithJobs("bar-1", "foo-1", "foo-2").build();
 
-        assertThat(mlMetadata.expandJobIds("_all", false), contains("bar-1", "foo-1", "foo-2"));
-        assertThat(mlMetadata.expandJobIds("*", false), contains("bar-1", "foo-1", "foo-2"));
-        assertThat(mlMetadata.expandJobIds("foo-*", false), contains("foo-1", "foo-2"));
-        assertThat(mlMetadata.expandJobIds("foo-1,bar-*", false), contains("bar-1", "foo-1"));
+        assertThat(mlMetadata.expandJobIds("_all"), contains("bar-1", "foo-1", "foo-2"));
+        assertThat(mlMetadata.expandJobIds("*"), contains("bar-1", "foo-1", "foo-2"));
+        assertThat(mlMetadata.expandJobIds("foo-*"), contains("foo-1", "foo-2"));
+        assertThat(mlMetadata.expandJobIds("foo-1,bar-*"), contains("bar-1", "foo-1"));
     }
 
     public void testExpandDatafeedIds() {
@@ -411,10 +411,10 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata mlMetadata = mlMetadataBuilder.build();
 
 
-        assertThat(mlMetadata.expandDatafeedIds("_all", false), contains("bar-1-feed", "foo-1-feed", "foo-2-feed"));
-        assertThat(mlMetadata.expandDatafeedIds("*", false), contains("bar-1-feed", "foo-1-feed", "foo-2-feed"));
-        assertThat(mlMetadata.expandDatafeedIds("foo-*", false), contains("foo-1-feed", "foo-2-feed"));
-        assertThat(mlMetadata.expandDatafeedIds("foo-1-feed,bar-1*", false), contains("bar-1-feed", "foo-1-feed"));
+        assertThat(mlMetadata.expandDatafeedIds("_all"), contains("bar-1-feed", "foo-1-feed", "foo-2-feed"));
+        assertThat(mlMetadata.expandDatafeedIds("*"), contains("bar-1-feed", "foo-1-feed", "foo-2-feed"));
+        assertThat(mlMetadata.expandDatafeedIds("foo-*"), contains("foo-1-feed", "foo-2-feed"));
+        assertThat(mlMetadata.expandDatafeedIds("foo-1-feed,bar-1*"), contains("bar-1-feed", "foo-1-feed"));
     }
 
     private static MlMetadata.Builder newMlMetadataWithJobs(String... jobIds) {

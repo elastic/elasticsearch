@@ -1,11 +1,5 @@
 ---
 "Default values":
-
-
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
-
   - do:
       index:
         index: test_1
@@ -16,6 +10,7 @@
   - do:
       get_source:
         index: test_1
+        type:  test
         id:    1
 
   - match: { '':  { foo: bar } }

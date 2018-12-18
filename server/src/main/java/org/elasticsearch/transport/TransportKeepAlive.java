@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.AsyncBiFunction;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -55,10 +56,10 @@ final class TransportKeepAlive implements Closeable {
     private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
     private final Lifecycle lifecycle = new Lifecycle();
     private final ThreadPool threadPool;
-    private final AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender;
-    private final BytesReference pingMessage;
+    private final AsyncBiFunction<TcpChannel, CheckedSupplier<BytesReference, IOException>, Void> pingSender;
+    private final CheckedSupplier<BytesReference, IOException> pingSupplier;
 
-    TransportKeepAlive(ThreadPool threadPool, AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender) {
+    TransportKeepAlive(ThreadPool threadPool, AsyncBiFunction<TcpChannel, CheckedSupplier<BytesReference, IOException>, Void> pingSender) {
         this.threadPool = threadPool;
         this.pingSender = pingSender;
 
@@ -66,7 +67,8 @@ final class TransportKeepAlive implements Closeable {
             out.writeByte((byte) 'E');
             out.writeByte((byte) 'S');
             out.writeInt(PING_DATA_SIZE);
-            pingMessage = out.bytes();
+            final BytesReference pingMessage = out.bytes();
+            this.pingSupplier = () -> pingMessage;
         } catch (IOException e) {
             throw new AssertionError(e.getMessage(), e); // won't happen
         }
@@ -116,7 +118,7 @@ final class TransportKeepAlive implements Closeable {
     }
 
     private void sendPing(TcpChannel channel) {
-        pingSender.apply(channel, pingMessage, new ActionListener<Void>() {
+        pingSender.apply(channel, pingSupplier, new ActionListener<Void>() {
 
             @Override
             public void onResponse(Void v) {

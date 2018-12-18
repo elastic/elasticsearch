@@ -374,15 +374,14 @@ public class TextFieldMapper extends FieldMapper {
             builder.endObject();
         }
 
-        public Query termQuery(Object value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            assert value instanceof String;
-            String strValue = (String) value;
-            if (strValue.length() >= minChars) {
+        @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            if (value.length() >= minChars) {
                 return super.termQuery(value, context);
             }
             List<Automaton> automata = new ArrayList<>();
-            automata.add(Automata.makeString(strValue));
-            for (int i = strValue.length(); i < minChars; i++) {
+            automata.add(Automata.makeString(value));
+            for (int i = value.length(); i < minChars; i++) {
                 automata.add(Automata.makeAnyChar());
             }
             Automaton automaton = Operations.concatenate(automata);
@@ -584,7 +583,7 @@ public class TextFieldMapper extends FieldMapper {
             if (prefixFieldType == null || prefixFieldType.accept(value.length()) == false) {
                 return super.prefixQuery(value, method, context);
             }
-            Query tq = prefixFieldType.termQuery(value, method, context);
+            Query tq = prefixFieldType.prefixQuery(value, method, context);
             if (method == null || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
                 || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
                 return new ConstantScoreQuery(tq);

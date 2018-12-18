@@ -7,8 +7,6 @@ each time it changes. It is integrated with other modules. For example, all
 communication between nodes is done using the <<modules-transport,transport>>
 module.
 
-It is separated into several sections, which are explained below:
-
 *   <<modules-discovery-hosts-providers,Discovery>> is the process where nodes
     find each other when the master is unknown, such as when a node has just
     started up or when the previous master has failed.
@@ -19,27 +17,30 @@ It is separated into several sections, which are explained below:
     performed by the nodes themselves. As this auto-bootstrapping is
     <<modules-discovery-quorums,inherently unsafe>>, running a node in
     <<dev-vs-prod-mode,production mode>> requires bootstrapping to be explicitly
-    configured via the `cluster.initial_master_nodes` setting.
+    configured via the
+    <<modules-discovery-bootstrap-cluster,`cluster.initial_master_nodes`
+    setting>>.
 
 *   It is recommended to have a small and fixed number of master-eligible nodes
     in a cluster, and to scale the cluster up and down by adding and removing
     master-ineligible nodes only. However there are situations in which it may
     be desirable to add or remove some master-eligible nodes to or from a
     cluster. A section on <<modules-discovery-adding-removing-nodes,adding and
-    removing nodes>> describes this process as well as the extra steps that need
-    to be performed when removing more than half of the master-eligible nodes at
-    the same time.
+    removing master-eligible nodes>> describes this process as well as the extra
+    steps that need to be performed when removing more than half of the
+    master-eligible nodes at the same time.
 
-*   <<cluster-state-publishing,Cluster state publishing>> covers how a master
-    publishes cluster states to the other nodes in the cluster.
+*   <<cluster-state-publishing,Cluster state publishing>> is the process by
+    which the elected master node updates the cluster state on all the other
+    nodes in the cluster.
 
 *   The <<no-master-block,no-master block>> is put in place when there is no
     known elected master, and can be configured to determine which operations
     should be rejected when it is in place.
 
-*   <<master-election,Master election>> and <<fault-detection,fault detection>>
-    sections cover advanced settings to influence the election and fault
-    detection processes.
+*   The <<master-election,master election>> and <<fault-detection,fault
+    detection>> sections cover advanced settings that influence the election and
+    fault detection processes.
 
 *   <<modules-discovery-quorums,Quorum-based decision making>> explains the
     design behind the master election and auto-reconfiguration logic.

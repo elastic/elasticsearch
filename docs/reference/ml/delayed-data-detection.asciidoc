@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-delayed-data-detection]]
-== What is Delayed Data?
+=== Working with delayed data
 
 In short, delayed data are any documents that have been indexed *AFTER* a Datafeed has gathered data
 from the index at that point in time.
@@ -11,7 +11,7 @@ before trying to gather it. However, if the setting is set too low, the Datafeed
 indexed, and consequently missing that document. Conversely, if it is set too high, analysis drifts farther away from
 real-time. The balance that is struck depends upon each use case and the environmental factors of the cluster.
 
-== Why worry about delayed data?
+==== Why worry about delayed data?
 
 This is a particular prescient question. Certain types of detectors are not really effected by randomly missing data
 due to ingest delays. Statistically, it all comes out ok in the end as the missing data is distributed randomly. An
@@ -20,7 +20,7 @@ may not provide much benefit. However, Job's with a `low_count` function may pro
 consistently delayed. In this situation, it would be useful to see if data comes in after an anomaly is recorded
 so that one can determine a next course of action.
 
-== How do we detect delayed data?
+==== How do we detect delayed data?
 
 In addition to the aforementioned `query_delay` field,
 {ref}/ml-datafeed-resource.html#ml-datafeed-delayed-data-check-config[Delayed Data Check Config] allows configuring
@@ -30,7 +30,7 @@ Datafeed will trigger a document search over the configured indices. This search
 the associated Job's `bucket_span`. The `doc_count` of those buckets are then compared with the Job's finalized analysis
 buckets to see if any data has arrived since our analysis.
 
-== What to do about delayed data?
+==== What to do about delayed data?
 
 The most common course of action is to simply to do nothing. For many functions and situations ignoring the data is
 acceptable. However, if the amount of delayed data is too great, or the situation calls for it, the next course

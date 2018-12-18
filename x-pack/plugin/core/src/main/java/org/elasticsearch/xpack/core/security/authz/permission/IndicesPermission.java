@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
@@ -63,11 +64,23 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         };
     }
 
+    private static boolean isIndexPattern(String indexPattern) {
+        if (indexPattern.startsWith("/") || indexPattern.contains("*") || indexPattern.contains("?")) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isOrdinaryIndex(String index) {
+        assert false == isIndexPattern(index);
+        return false == SystemIndicesNames.indexNames().contains(index);
+    }
+
     static Predicate<String> indexMatcher(List<String> indices) {
         Set<String> exactMatch = new HashSet<>();
         List<String> nonExactMatch = new ArrayList<>();
         for (String indexPattern : indices) {
-            if (indexPattern.startsWith("/") || indexPattern.contains("*") || indexPattern.contains("?")) {
+            if (isIndexPattern(indexPattern)) {
                 nonExactMatch.add(indexPattern);
             } else {
                 exactMatch.add(indexPattern);
@@ -95,7 +108,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
 
     private static Predicate<String> buildAutomataPredicate(List<String> indices) {
         try {
-            return Automatons.predicate(indices);
+            return Automatons.predicate(indices).and(index -> isOrdinaryIndex(index));
         } catch (TooComplexToDeterminizeException e) {
             LogManager.getLogger(IndicesPermission.class).debug("Index pattern automaton [{}] is too complex", indices);
             String description = Strings.collectionToCommaDelimitedString(indices);
@@ -232,11 +245,6 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         private final Predicate<String> actionMatcher;
         private final String[] indices;
         private final Predicate<String> indexNameMatcher;
-
-        public FieldPermissions getFieldPermissions() {
-            return fieldPermissions;
-        }
-
         private final FieldPermissions fieldPermissions;
         private final Set<BytesReference> query;
 
@@ -256,6 +264,10 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
 
         public String[] indices() {
             return indices;
+        }
+
+        public FieldPermissions getFieldPermissions() {
+            return fieldPermissions;
         }
 
         @Nullable

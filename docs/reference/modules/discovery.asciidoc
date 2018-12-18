@@ -57,19 +57,19 @@ Advanced settings::
     This section describes the detailed design behind the master election and
     auto-reconfiguration logic.
 
-include::discovery/adding-removing-nodes.asciidoc[]
+include::discovery/discovery.asciidoc[]
 
 include::discovery/bootstrapping.asciidoc[]
 
-include::discovery/discovery.asciidoc[]
+include::discovery/adding-removing-nodes.asciidoc[]
 
-include::discovery/fault-detection.asciidoc[]
-
-include::discovery/master-election.asciidoc[]
+include::discovery/publishing.asciidoc[]
 
 include::discovery/no-master-block.asciidoc[]
 
-include::discovery/publishing.asciidoc[]
+include::discovery/master-election.asciidoc[]
+
+include::discovery/fault-detection.asciidoc[]
 
 include::discovery/quorums.asciidoc[]
 

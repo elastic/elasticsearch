@@ -1497,13 +1497,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         {
-            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
             indexRequest.source("{\"job_id\":\"test-get-overall-buckets-1\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
                     "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 60.0}", XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
         {
-            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
             indexRequest.source("{\"job_id\":\"test-get-overall-buckets-2\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
                     "\"bucket_span\": 3600,\"is_interim\": false, \"anomaly_score\": 100.0}", XContentType.JSON);
             bulkRequest.add(indexRequest);

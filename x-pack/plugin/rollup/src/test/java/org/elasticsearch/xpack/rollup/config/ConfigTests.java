@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.joda.time.DateTimeZone;
 
 import java.time.zone.ZoneRulesException;
 import java.util.HashMap;

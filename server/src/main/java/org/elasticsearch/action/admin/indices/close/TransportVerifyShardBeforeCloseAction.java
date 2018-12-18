@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.close;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -38,6 +39,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.function.Consumer;
 
 public class TransportVerifyShardBeforeCloseAction extends TransportReplicationAction<
     TransportVerifyShardBeforeCloseAction.ShardRequest, TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> {
@@ -107,6 +110,30 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         }
         indexShard.flush(new FlushRequest());
         logger.debug("{} shard is ready for closing", shardId);
+    }
+
+    @Override
+    protected ReplicationOperation.Replicas<ShardRequest> newReplicasProxy(final long primaryTerm) {
+        return new VerifyShardBeforeCloseActionReplicasProxy(primaryTerm);
+    }
+
+    /**
+     * A {@link ReplicasProxy} that marks as stale the shards that are unavailable during the verification
+     * and the flush of the shard. This is done to ensure that such shards won't be later promoted as primary
+     * or reopened in an unverified state with potential non flushed translog operations.
+     */
+    class VerifyShardBeforeCloseActionReplicasProxy extends ReplicasProxy {
+
+        VerifyShardBeforeCloseActionReplicasProxy(final long primaryTerm) {
+            super(primaryTerm);
+        }
+
+        @Override
+        public void markShardCopyAsStaleIfNeeded(final ShardId shardId, final String allocationId, final Runnable onSuccess,
+                                                 final Consumer<Exception> onPrimaryDemoted, final Consumer<Exception> onIgnoredFailure) {
+            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null,
+                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        }
     }
 
     public static class ShardRequest extends ReplicationRequest<ShardRequest> {

@@ -82,8 +82,9 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         this.id = id;
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
-        assert (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO && primaryTerm == 0) || (seqNo >= 0 && primaryTerm >= 1) :
-            "seqNo: " + seqNo + " primaryTerm: " + primaryTerm;
+        // Note: pre 6.0 will not have seq# nor primary terms stored in their indices. When a replica
+        // is on a 6.x node while the primary is on 5.x, the documents will not have a sequence number but
+        // will have a primary term. We therefore can't assert on consistency between the two.
         assert exists || (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO && primaryTerm == 0) :
             "doc not found but seqNo/primaryTerm are set";
         this.version = version;

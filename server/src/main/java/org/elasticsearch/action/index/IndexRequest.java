@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -80,7 +81,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     static final int MAX_SOURCE_LENGTH_IN_TOSTRING = 2048;
 
-    private String type;
+    private String type = MapperService.SINGLE_MAPPING_NAME;
     private String id;
     @Nullable
     private String routing;
@@ -123,7 +124,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Constructs a new index request against the specific index and type. The
      * {@link #source(byte[], XContentType)} must be set.
+     * @deprecated Types are in the process of being removed. Use {@link #IndexRequest(String)} instead.
      */
+    @Deprecated
     public IndexRequest(String index, String type) {
         this.index = index;
         this.type = type;
@@ -135,7 +138,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * @param index The index to index into
      * @param type  The type to index into
      * @param id    The id of document
+     *
+     * @deprecated Types are in the process of being removed. Use {@link #IndexRequest(String)} with {@link #id(String)} instead.
      */
+    @Deprecated
     public IndexRequest(String index, String type, String id) {
         this.index = index;
         this.type = type;
@@ -227,7 +233,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * The type of the indexed document.
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     @Override
     public String type() {
         return type;
@@ -235,7 +243,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Sets the type of the indexed document.
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     @Override
     public IndexRequest type(String type) {
         this.type = type;

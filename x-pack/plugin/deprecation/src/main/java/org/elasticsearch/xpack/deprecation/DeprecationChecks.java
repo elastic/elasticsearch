@@ -39,9 +39,11 @@ public class DeprecationChecks {
     static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             NodeDeprecationChecks::httpEnabledSettingRemoved,
+            NodeDeprecationChecks::auditLogPrefixSettingsCheck,
             NodeDeprecationChecks::indexThreadPoolCheck,
             NodeDeprecationChecks::tribeNodeCheck,
             NodeDeprecationChecks::httpPipeliningCheck,
+            NodeDeprecationChecks::discoveryConfigurationCheck,
             NodeDeprecationChecks::azureRepositoryChanges,
             NodeDeprecationChecks::gcsRepositoryChanges,
             NodeDeprecationChecks::fileDiscoveryPluginRemoved

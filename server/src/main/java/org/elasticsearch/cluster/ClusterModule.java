@@ -118,7 +118,7 @@ public class ClusterModule extends AbstractModule {
     public static Map<String, Supplier<ClusterState.Custom>> getClusterStateCustomSuppliers(List<ClusterPlugin> clusterPlugins) {
         final Map<String, Supplier<ClusterState.Custom>> customSupplier = new HashMap<>();
         customSupplier.put(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress::new);
-        customSupplier.put(RestoreInProgress.TYPE, RestoreInProgress::new);
+        customSupplier.put(RestoreInProgress.TYPE, () -> new RestoreInProgress.Builder().build());
         customSupplier.put(SnapshotsInProgress.TYPE, SnapshotsInProgress::new);
         for (ClusterPlugin plugin : clusterPlugins) {
             Map<String, Supplier<ClusterState.Custom>> initialCustomSupplier = plugin.getInitialClusterStateCustomSupplier();

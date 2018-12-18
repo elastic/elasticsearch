@@ -46,6 +46,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
+import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 import static org.apache.lucene.geo.GeoUtils.orient;
 
 /**
@@ -226,8 +228,19 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
     }
 
     @Override
-    public JtsGeometry build() {
-        return jtsGeometry(buildGeometry(FACTORY, wrapdateline));
+    public JtsGeometry buildS4J() {
+        return jtsGeometry(buildS4JGeometry(FACTORY, wrapdateline));
+    }
+
+    @Override
+    public Object buildLucene() {
+        if (wrapdateline) {
+            Coordinate[][][] polygons = coordinates();
+            return polygons.length == 1
+                ? polygonLucene(polygons[0])
+                : multipolygonLucene(polygons);
+        }
+        return toPolygonLucene();
     }
 
     protected XContentBuilder coordinatesArray(XContentBuilder builder, Params params) throws IOException {
@@ -250,32 +263,46 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return builder;
     }
 
-    public Geometry buildGeometry(GeometryFactory factory, boolean fixDateline) {
+    public Geometry buildS4JGeometry(GeometryFactory factory, boolean fixDateline) {
         if(fixDateline) {
             Coordinate[][][] polygons = coordinates();
             return polygons.length == 1
-                    ? polygon(factory, polygons[0])
-                    : multipolygon(factory, polygons);
+                    ? polygonS4J(factory, polygons[0])
+                    : multipolygonS4J(factory, polygons);
         } else {
-            return toPolygon(factory);
+            return toPolygonS4J(factory);
         }
     }
 
-    public Polygon toPolygon() {
-        return toPolygon(FACTORY);
+    public Polygon toPolygonS4J() {
+        return toPolygonS4J(FACTORY);
     }
 
-    protected Polygon toPolygon(GeometryFactory factory) {
-        final LinearRing shell = linearRing(factory, this.shell.coordinates);
+    protected Polygon toPolygonS4J(GeometryFactory factory) {
+        final LinearRing shell = linearRingS4J(factory, this.shell.coordinates);
         final LinearRing[] holes = new LinearRing[this.holes.size()];
         Iterator<LineStringBuilder> iterator = this.holes.iterator();
         for (int i = 0; iterator.hasNext(); i++) {
-            holes[i] = linearRing(factory, iterator.next().coordinates);
+            holes[i] = linearRingS4J(factory, iterator.next().coordinates);
         }
         return factory.createPolygon(shell, holes);
     }
 
-    protected static LinearRing linearRing(GeometryFactory factory, List<Coordinate> coordinates) {
+    public Object toPolygonLucene() {
+        final org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[this.holes.size()];
+        for (int i = 0; i < holes.length; ++i) {
+            holes[i] = linearRing(this.holes.get(i).coordinates);
+        }
+        return new org.apache.lucene.geo.Polygon(this.shell.coordinates.stream().mapToDouble(i -> normalizeLat(i.y)).toArray(),
+            this.shell.coordinates.stream().mapToDouble(i -> normalizeLon(i.x)).toArray(), holes);
+    }
+
+    protected static org.apache.lucene.geo.Polygon linearRing(List<Coordinate> coordinates) {
+        return new org.apache.lucene.geo.Polygon(coordinates.stream().mapToDouble(i -> normalizeLat(i.y)).toArray(),
+            coordinates.stream().mapToDouble(i -> normalizeLon(i.x)).toArray());
+    }
+
+    protected static LinearRing linearRingS4J(GeometryFactory factory, List<Coordinate> coordinates) {
         return factory.createLinearRing(coordinates.toArray(new Coordinate[coordinates.size()]));
     }
 
@@ -293,7 +320,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return shell.numDimensions();
     }
 
-    protected static Polygon polygon(GeometryFactory factory, Coordinate[][] polygon) {
+    protected static Polygon polygonS4J(GeometryFactory factory, Coordinate[][] polygon) {
         LinearRing shell = factory.createLinearRing(polygon[0]);
         LinearRing[] holes;
 
@@ -308,6 +335,35 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return factory.createPolygon(shell, holes);
     }
 
+    protected static org.apache.lucene.geo.Polygon polygonLucene(Coordinate[][] polygon) {
+        org.apache.lucene.geo.Polygon[] holes;
+        Coordinate[] shell = polygon[0];
+        if (polygon.length > 1) {
+            holes = new org.apache.lucene.geo.Polygon[polygon.length - 1];
+            for (int i = 0; i < holes.length; ++i) {
+                Coordinate[] coords = polygon[i+1];
+                double[] x = new double[coords.length];
+                double[] y = new double[coords.length];
+                for (int c = 0; c < coords.length; ++c) {
+                    x[c] = normalizeLon(coords[c].x);
+                    y[c] = normalizeLat(coords[c].y);
+                }
+                holes[i] = new org.apache.lucene.geo.Polygon(y, x);
+            }
+        } else {
+            holes = new org.apache.lucene.geo.Polygon[0];
+        }
+
+        double[] x = new double[shell.length];
+        double[] y = new double[shell.length];
+        for (int i = 0; i < shell.length; ++i) {
+            x[i] = normalizeLon(shell[i].x);
+            y[i] = normalizeLat(shell[i].y);
+        }
+
+        return new org.apache.lucene.geo.Polygon(y, x, holes);
+    }
+
     /**
      * Create a Multipolygon from a set of coordinates. Each primary array contains a polygon which
      * in turn contains an array of linestrings. These line Strings are represented as an array of
@@ -318,12 +374,20 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
      * @param polygons definition of polygons
      * @return a new Multipolygon
      */
-    protected static MultiPolygon multipolygon(GeometryFactory factory, Coordinate[][][] polygons) {
+    protected static MultiPolygon multipolygonS4J(GeometryFactory factory, Coordinate[][][] polygons) {
         Polygon[] polygonSet = new Polygon[polygons.length];
         for (int i = 0; i < polygonSet.length; i++) {
-            polygonSet[i] = polygon(factory, polygons[i]);
+            polygonSet[i] = polygonS4J(factory, polygons[i]);
         }
         return factory.createMultiPolygon(polygonSet);
+    }
+
+    protected static org.apache.lucene.geo.Polygon[] multipolygonLucene(Coordinate[][][] polygons) {
+        org.apache.lucene.geo.Polygon[] polygonSet = new org.apache.lucene.geo.Polygon[polygons.length];
+        for (int i = 0; i < polygonSet.length; ++i) {
+            polygonSet[i] = polygonLucene(polygons[i]);
+        }
+        return polygonSet;
     }
 
     /**

@@ -100,6 +100,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -108,7 +109,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.TimeZone;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -441,13 +441,13 @@ public class FunctionRegistry {
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children.get(0), cfg.timeZone());
+            return ctorRef.build(location, children.get(0), cfg.zoneId());
         };
         return def(function, builder, true, names);
     }
 
     interface DatetimeUnaryFunctionBuilder<T> {
-        T build(Location location, Expression target, TimeZone tz);
+        T build(Location location, Expression target, ZoneId zi);
     }
 
     /**
@@ -463,13 +463,13 @@ public class FunctionRegistry {
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children.get(0), children.get(1), cfg.timeZone());
+            return ctorRef.build(location, children.get(0), children.get(1), cfg.zoneId());
         };
         return def(function, builder, false, names);
     }
 
     interface DatetimeBinaryFunctionBuilder<T> {
-        T build(Location location, Expression lhs, Expression rhs, TimeZone tz);
+        T build(Location location, Expression lhs, Expression rhs, ZoneId zi);
     }
 
     /**

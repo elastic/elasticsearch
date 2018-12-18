@@ -105,9 +105,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.Assert;
 
 import java.io.Closeable;
@@ -365,7 +364,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve("custom"));
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
-        builder.put(TcpTransport.PORT.getKey(), 0);
+        builder.put(TransportSettings.PORT.getKey(), 0);
         builder.put("http.port", 0);
         builder.put("http.pipelining", enableHttpPipelining);
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
@@ -443,7 +442,7 @@ public final class InternalTestCluster extends TestCluster {
     private Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.builder();
-        builder.put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), rarely(random));
+        builder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), rarely(random));
         if (random.nextBoolean()) {
             builder.put("cache.recycler.page.type", RandomPicks.randomFrom(random, PageCacheRecycler.Type.values()));
         }
@@ -465,9 +464,9 @@ public final class InternalTestCluster extends TestCluster {
 
         // randomize tcp settings
         if (random.nextBoolean()) {
-            builder.put(TransportService.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
-            builder.put(TransportService.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
-            builder.put(TransportService.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
+            builder.put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
+            builder.put(TransportSettings.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
+            builder.put(TransportSettings.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
         }
 
         if (random.nextBoolean()) {
@@ -491,7 +490,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(TcpTransport.PING_SCHEDULE.getKey(), RandomNumbers.randomIntBetween(random, 100, 2000) + "ms");
+            builder.put(TransportSettings.PING_SCHEDULE.getKey(), RandomNumbers.randomIntBetween(random, 100, 2000) + "ms");
         }
 
         if (random.nextBoolean()) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.apache.lucene.geo.Line;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -124,12 +125,12 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, MultiLineS
     }
 
     @Override
-    public JtsGeometry build() {
+    public JtsGeometry buildS4J() {
         final Geometry geometry;
         if(wrapdateline) {
             ArrayList<LineString> parts = new ArrayList<>();
             for (LineStringBuilder line : lines) {
-                LineStringBuilder.decompose(FACTORY, line.coordinates(false), parts);
+                LineStringBuilder.decomposeS4J(FACTORY, line.coordinates(false), parts);
             }
             if(parts.size() == 1) {
                 geometry = parts.get(0);
@@ -146,6 +147,27 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, MultiLineS
             geometry = FACTORY.createMultiLineString(lineStrings);
         }
         return jtsGeometry(geometry);
+    }
+
+    @Override
+    public Object buildLucene() {
+        if (wrapdateline) {
+            ArrayList<Line> parts = new ArrayList<>();
+            for (LineStringBuilder line : lines) {
+                LineStringBuilder.decomposeLucene(line.coordinates(false), parts);
+            }
+            if (parts.size() == 1) {
+                return parts.get(0);
+            }
+            return parts.toArray(new Line[parts.size()]);
+        }
+        Line[] linestrings = new Line[lines.size()];
+        for (int i = 0; i < lines.size(); ++i) {
+            LineStringBuilder lsb = lines.get(i);
+            linestrings[i] = new Line(lsb.coordinates.stream().mapToDouble(c->c.y).toArray(),
+                lsb.coordinates.stream().mapToDouble(c->c.x).toArray());
+        }
+        return linestrings;
     }
 
     @Override

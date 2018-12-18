@@ -19,18 +19,17 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,16 +41,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     public void testSerialization() throws Exception {
         SearchRequest searchRequest = createSearchRequest();
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            searchRequest.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                SearchRequest deserializedRequest = new SearchRequest();
-                deserializedRequest.readFrom(in);
-                assertEquals(deserializedRequest, searchRequest);
-                assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
-                assertNotSame(deserializedRequest, searchRequest);
-            }
-        }
+        SearchRequest deserializedRequest = copyStreamable(searchRequest, namedWriteableRegistry, SearchRequest::new, Version.CURRENT);
+        assertEquals(deserializedRequest, searchRequest);
+        assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
+        assertNotSame(deserializedRequest, searchRequest);
     }
 
     public void testIllegalArguments() {
@@ -139,11 +132,19 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     }
 
+    public void testCopyConstructor() throws IOException {
+        SearchRequest searchRequest = createSearchRequest();
+        SearchRequest deserializedRequest = copyStreamable(searchRequest, namedWriteableRegistry, SearchRequest::new, Version.CURRENT);
+        assertEquals(deserializedRequest, searchRequest);
+        assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
+        assertNotSame(deserializedRequest, searchRequest);
+    }
+
     public void testEqualsAndHashcode() throws IOException {
         checkEqualsAndHashCode(createSearchRequest(), SearchRequestTests::copyRequest, this::mutate);
     }
 
-    private SearchRequest mutate(SearchRequest searchRequest) throws IOException {
+    private SearchRequest mutate(SearchRequest searchRequest) {
         SearchRequest mutation = copyRequest(searchRequest);
         List<Runnable> mutators = new ArrayList<>();
         mutators.add(() -> mutation.indices(ArrayUtils.concat(searchRequest.indices(), new String[] { randomAlphaOfLength(10) })));
@@ -152,7 +153,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.types(ArrayUtils.concat(searchRequest.types(), new String[] { randomAlphaOfLength(10) })));
         mutators.add(() -> mutation.preference(randomValueOtherThan(searchRequest.preference(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.routing(randomValueOtherThan(searchRequest.routing(), () -> randomAlphaOfLengthBetween(3, 10))));
-        mutators.add(() -> mutation.requestCache((randomValueOtherThan(searchRequest.requestCache(), () -> randomBoolean()))));
+        mutators.add(() -> mutation.requestCache((randomValueOtherThan(searchRequest.requestCache(), ESTestCase::randomBoolean))));
         mutators.add(() -> mutation
                 .scroll(randomValueOtherThan(searchRequest.scroll(), () -> new Scroll(new TimeValue(randomNonNegativeLong() % 100000)))));
         mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(),
@@ -162,20 +163,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         return mutation;
     }
 
-    private static SearchRequest copyRequest(SearchRequest searchRequest) throws IOException {
-        SearchRequest result = new SearchRequest();
-        result.indices(searchRequest.indices());
-        result.indicesOptions(searchRequest.indicesOptions());
-        result.types(searchRequest.types());
-        result.searchType(searchRequest.searchType());
-        result.preference(searchRequest.preference());
-        result.routing(searchRequest.routing());
-        result.requestCache(searchRequest.requestCache());
-        result.allowPartialSearchResults(searchRequest.allowPartialSearchResults());
-        result.scroll(searchRequest.scroll());
-        if (searchRequest.source() != null) {
-            result.source(searchRequest.source());
-        }
-        return result;
+    private static SearchRequest copyRequest(SearchRequest searchRequest) {
+        return new SearchRequest(searchRequest);
     }
 }

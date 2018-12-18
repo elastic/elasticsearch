@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -35,7 +37,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
-    public static final String TASK_NAME = "xpack/ml/job";
+
 
     private OpenJobAction() {
         super(NAME);
@@ -136,15 +138,16 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
 
         /** TODO Remove in 7.0.0 */
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
-
         public static final ParseField TIMEOUT = new ParseField("timeout");
-        public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, JobParams::new);
+        public static final ParseField JOB = new ParseField("job");
 
+        public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(MlTasks.JOB_TASK_NAME, true, JobParams::new);
         static {
             PARSER.declareString(JobParams::setJobId, Job.ID);
             PARSER.declareBoolean((p, v) -> {}, IGNORE_DOWNTIME);
             PARSER.declareString((params, val) ->
                     params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareObject(JobParams::setJob, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOB);
         }
 
         public static JobParams fromXContent(XContentParser parser) {
@@ -163,6 +166,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
         // A big state can take a while to restore.  For symmetry with the _close endpoint any
         // changes here should be reflected there too.
         private TimeValue timeout = MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT;
+        private Job job;
 
         JobParams() {
         }
@@ -178,6 +182,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
                 in.readBoolean();
             }
             timeout = TimeValue.timeValueMillis(in.readVLong());
+            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+                job = in.readOptionalWriteable(Job::new);
+            }
         }
 
         public String getJobId() {
@@ -196,9 +203,18 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             this.timeout = timeout;
         }
 
+        @Nullable
+        public Job getJob() {
+            return job;
+        }
+
+        public void setJob(Job job) {
+            this.job = job;
+        }
+
         @Override
         public String getWriteableName() {
-            return TASK_NAME;
+            return MlTasks.JOB_TASK_NAME;
         }
 
         @Override
@@ -209,6 +225,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
                 out.writeBoolean(true);
             }
             out.writeVLong(timeout.millis());
+            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+                out.writeOptionalWriteable(job);
+            }
         }
 
         @Override
@@ -216,13 +235,17 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             builder.startObject();
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
+            if (job != null) {
+                builder.field("job", job);
+            }
             builder.endObject();
+            // The job field is streamed but not persisted
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, timeout);
+            return Objects.hash(jobId, timeout, job);
         }
 
         @Override
@@ -235,7 +258,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
             }
             OpenJobAction.JobParams other = (OpenJobAction.JobParams) obj;
             return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(timeout, other.timeout);
+                    Objects.equals(timeout, other.timeout) &&
+                    Objects.equals(job, other.job);
         }
 
         @Override

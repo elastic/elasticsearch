@@ -58,28 +58,31 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @After
-    public void remoteLocalRemote() throws Exception {
+    public void purgeCCRMetadata() throws Exception {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         removeCCRRelatedMetadataFromClusterState(clusterService);
+    }
 
+    @After
+    public void removeLocalRemote() {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 
-    protected ResumeFollowAction.Request getResumeFollowRequest() {
+    protected ResumeFollowAction.Request getResumeFollowRequest(String followerIndex) {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setFollowerIndex("follower");
-        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
-        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.setFollowerIndex(followerIndex);
+        request.setMaxRetryDelay(TimeValue.timeValueMillis(1));
+        request.setReadPollTimeout(TimeValue.timeValueMillis(1));
         return request;
     }
 
-    protected PutFollowAction.Request getPutFollowRequest() {
+    protected PutFollowAction.Request getPutFollowRequest(String leaderIndex, String followerIndex) {
         PutFollowAction.Request request = new PutFollowAction.Request();
         request.setRemoteCluster("local");
-        request.setLeaderIndex("leader");
-        request.setFollowRequest(getResumeFollowRequest());
+        request.setLeaderIndex(leaderIndex);
+        request.setFollowRequest(getResumeFollowRequest(followerIndex));
         return request;
     }
 

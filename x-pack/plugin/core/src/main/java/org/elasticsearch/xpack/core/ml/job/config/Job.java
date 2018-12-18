@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
@@ -142,6 +143,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     private final Date createTime;
     private final Date finishedTime;
     private final Date lastDataTime;
+    // TODO: Remove in 7.0
     private final Long establishedModelMemory;
     private final AnalysisConfig analysisConfig;
     private final AnalysisLimits analysisLimits;
@@ -222,6 +224,25 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         resultsIndexName = in.readString();
         deleting = in.readBoolean();
     }
+
+    /**
+     * Get the persisted job document name from the Job Id.
+     * Throws if {@code jobId} is not a valid job Id.
+     *
+     * @param jobId The job id
+     * @return The id of document the job is persisted in
+     */
+    public static String documentId(String jobId) {
+        if (!MlStrings.isValidId(jobId)) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), jobId));
+        }
+        if (!MlStrings.hasValidLengthForId(jobId)) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
+        }
+
+        return ANOMALY_DETECTOR_JOB_TYPE + "-" + jobId;
+    }
+
 
     /**
      * Return the Job Id.
@@ -420,11 +441,18 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      * program code and stack.
      * @return an estimate of the memory requirement of this job, in bytes
      */
+    // TODO: remove this method in 7.0
     public long estimateMemoryFootprint() {
         if (establishedModelMemory != null && establishedModelMemory > 0) {
             return establishedModelMemory + PROCESS_MEMORY_OVERHEAD.getBytes();
         }
-        return ByteSizeUnit.MB.toBytes(analysisLimits.getModelMemoryLimit()) + PROCESS_MEMORY_OVERHEAD.getBytes();
+        // Pre v6.1 jobs may have a null analysis limits object or
+        // a null model memory limit
+        long modelMemoryLimit = AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB;
+        if (analysisLimits != null && analysisLimits.getModelMemoryLimit() != null) {
+            modelMemoryLimit = analysisLimits.getModelMemoryLimit();
+        }
+        return ByteSizeUnit.MB.toBytes(modelMemoryLimit) + PROCESS_MEMORY_OVERHEAD.getBytes();
     }
 
     /**
@@ -639,6 +667,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private Date createTime;
         private Date finishedTime;
         private Date lastDataTime;
+        // TODO: remove in 7.0
         private Long establishedModelMemory;
         private ModelPlotConfig modelPlotConfig;
         private Long renormalizationWindowDays;
@@ -736,6 +765,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public void setGroups(List<String> groups) {
             this.groups = groups == null ? Collections.emptyList() : groups;
+        }
+
+        public List<String> getGroups() {
+            return groups;
         }
 
         public Builder setCustomSettings(Map<String, Object> customSettings) {
@@ -1062,6 +1095,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 if (MlStrings.isValidId(group) == false) {
                     throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_GROUP, group));
                 }
+                if (this.id.equals(group)) {
+                    // cannot have a group name the same as the job id
+                    throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, group));
+                }
             }
         }
 
@@ -1075,10 +1112,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public Job build(Date createTime) {
             setCreateTime(createTime);
             setJobVersion(Version.CURRENT);
-            // TODO: Maybe we _could_ accept a value for this supplied at create time - it would
-            // mean cloned jobs that hadn't been edited much would start with an accurate expected size.
-            // But on the other hand it would mean jobs that were cloned and then completely changed
-            // would start with a size that was completely wrong.
             setEstablishedModelMemory(null);
             return build();
         }

@@ -66,7 +66,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
@@ -123,6 +122,9 @@ public class Lucene {
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(0, EMPTY_SCORE_DOCS, 0.0f);
+
+    private Lucene() {
+    }
 
     public static Version parseVersion(@Nullable String version, Version defaultVersion, Logger logger) {
         if (version == null) {
@@ -197,7 +199,7 @@ public class Lucene {
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             int foundSegmentFiles = 0;
             for (final String file : directory.listAll()) {
-                /**
+                /*
                  * we could also use a deletion policy here but in the case of snapshot and restore
                  * sometimes we restore an index and override files that were referenced by a "future"
                  * commit. If such a commit is opened by the IW it would likely throw a corrupted index exception
@@ -223,7 +225,7 @@ public class Lucene {
                 .setCommitOnClose(false)
                 .setMergePolicy(NoMergePolicy.INSTANCE)
                 .setOpenMode(IndexWriterConfig.OpenMode.APPEND))) {
-            // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
+            // do nothing and close this will kick off IndexFileDeleter which will remove all pending files
         }
         return si;
     }
@@ -308,12 +310,7 @@ public class Lucene {
         } else if (type == 1) {
             long totalHits = in.readVLong();
             float maxScore = in.readFloat();
-
-            SortField[] fields = new SortField[in.readVInt()];
-            for (int i = 0; i < fields.length; i++) {
-                fields[i] = readSortField(in);
-            }
-
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
             FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
             for (int i = 0; i < fieldDocs.length; i++) {
                 fieldDocs[i] = readFieldDoc(in);
@@ -324,10 +321,7 @@ public class Lucene {
             float maxScore = in.readFloat();
 
             String field = in.readString();
-            SortField[] fields = new SortField[in.readVInt()];
-            for (int i = 0; i < fields.length; i++) {
-               fields[i] = readSortField(in);
-            }
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
             int size = in.readVInt();
             Object[] collapseValues = new Object[size];
             FieldDoc[] fieldDocs = new FieldDoc[size];
@@ -372,7 +366,7 @@ public class Lucene {
         return new FieldDoc(in.readVInt(), in.readFloat(), cFields);
     }
 
-    private static Comparable readSortValue(StreamInput in) throws IOException {
+    public static Comparable readSortValue(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
             return null;
@@ -414,11 +408,7 @@ public class Lucene {
             out.writeFloat(topDocs.getMaxScore());
 
             out.writeString(collapseDocs.field);
-
-            out.writeVInt(collapseDocs.fields.length);
-            for (SortField sortField : collapseDocs.fields) {
-               writeSortField(out, sortField);
-            }
+            out.writeArray(Lucene::writeSortField, collapseDocs.fields);
 
             out.writeVInt(topDocs.scoreDocs.length);
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
@@ -433,10 +423,7 @@ public class Lucene {
             out.writeVLong(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
-            out.writeVInt(topFieldDocs.fields.length);
-            for (SortField sortField : topFieldDocs.fields) {
-              writeSortField(out, sortField);
-            }
+            out.writeArray(Lucene::writeSortField, topFieldDocs.fields);
 
             out.writeVInt(topDocs.scoreDocs.length);
             for (ScoreDoc doc : topFieldDocs.scoreDocs) {
@@ -479,8 +466,7 @@ public class Lucene {
         }
     }
 
-
-    private static void writeSortValue(StreamOutput out, Object field) throws IOException {
+    public static void writeSortValue(StreamOutput out, Object field) throws IOException {
         if (field == null) {
             out.writeByte((byte) 0);
         } else {
@@ -630,11 +616,7 @@ public class Lucene {
         }
     }
 
-    private Lucene() {
-
-    }
-
-    public static final boolean indexExists(final Directory directory) throws IOException {
+    public static boolean indexExists(final Directory directory) throws IOException {
         return DirectoryReader.indexExists(directory);
     }
 
@@ -644,7 +626,7 @@ public class Lucene {
      *
      * Will retry the directory every second for at least {@code timeLimitMillis}
      */
-    public static final boolean waitForIndex(final Directory directory, final long timeLimitMillis)
+    public static boolean waitForIndex(final Directory directory, final long timeLimitMillis)
             throws IOException {
         final long DELAY = 1000;
         long waited = 0;
@@ -1021,7 +1003,7 @@ public class Lucene {
             }
 
             public LeafMetaData getMetaData() {
-                return new LeafMetaData(Version.LATEST.major, Version.LATEST, (Sort)null);
+                return new LeafMetaData(Version.LATEST.major, Version.LATEST, null);
             }
 
             public CacheHelper getCoreCacheHelper() {

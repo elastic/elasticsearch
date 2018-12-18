@@ -527,12 +527,14 @@ public final class InternalTestCluster extends TestCluster {
             return randomNodeAndClient;
         }
         final Runnable onTransportServiceStarted = () -> {}; // do not create unicast host file for this one node.
-        final Settings settings = getNodeSettings(Settings.EMPTY, 1);
+
+        final int nodeId = nextNodeId.getAndIncrement();
+        final Settings settings = getNodeSettings(nodeId, random.nextLong(), Settings.EMPTY, 1);
         final Settings nodeSettings = Settings.builder()
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), Node.NODE_NAME_SETTING.get(settings))
                 .put(settings)
                 .build();
-        final NodeAndClient buildNode = buildNode(nodeSettings, false, onTransportServiceStarted);
+        final NodeAndClient buildNode = buildNode(nodeId, nodeSettings, false, onTransportServiceStarted);
         assert nodes.isEmpty();
         buildNode.startNode();
         publishNode(buildNode);
@@ -602,12 +604,6 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private Settings getNodeSettings(final Settings extraSettings, final int defaultMinMasterNodes) {
-        final int nodeId = nextNodeId.getAndIncrement();
-        final long seed = random.nextLong();
-        return getNodeSettings(nodeId, seed, extraSettings, defaultMinMasterNodes);
-    }
-
     private Settings getNodeSettings(final int nodeId, final long seed, final Settings extraSettings, final int defaultMinMasterNodes) {
         final Settings settings = getSettings(nodeId, seed, extraSettings);
 
@@ -640,18 +636,18 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * builds a new node
      *
+     * @param nodeId                    node ordinal
      * @param settings                  the settings to use
      * @param reuseExisting             if a node with the same name is already part of {@link #nodes}, no new node will be built and
      *                                  the method will return the existing one
      * @param onTransportServiceStarted callback to run when transport service is started
      */
-    private NodeAndClient buildNode(Settings settings,
+    private NodeAndClient buildNode(int nodeId, Settings settings,
                                     boolean reuseExisting, Runnable onTransportServiceStarted) {
         assert Thread.holdsLock(this);
         ensureOpen();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
         String name = settings.get("node.name");
-        int nodeId = getNodeOrdinal(name, settings);
 
         if (reuseExisting && nodes.containsKey(name)) {
             onTransportServiceStarted.run(); // reusing an existing node implies its transport service already started
@@ -687,10 +683,6 @@ public final class InternalTestCluster extends TestCluster {
 
     private String getNodePrefix(Settings settings) {
         return nodePrefix + getRoleSuffix(settings);
-    }
-
-    private int getNodeOrdinal(String nodeName, Settings settings) {
-        return Integer.parseInt(nodeName.substring(getNodePrefix(settings).length()));
     }
 
     private String buildNodeName(int id, Settings settings) {
@@ -1140,7 +1132,7 @@ public final class InternalTestCluster extends TestCluster {
             if (i == bootstrapNodeIndex) {
                 nodeSettings = Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), masterNodeNames).put(nodeSettings).build();
             }
-            final NodeAndClient nodeAndClient = buildNode(nodeSettings, true, onTransportServiceStarted);
+            final NodeAndClient nodeAndClient = buildNode(i, nodeSettings, true, onTransportServiceStarted);
             toStartAndPublish.add(nodeAndClient);
         }
 
@@ -1974,9 +1966,13 @@ public final class InternalTestCluster extends TestCluster {
             .allMatch(s -> Node.NODE_MASTER_SETTING.get(s) == false || TestZenDiscovery.USE_ZEN2.get(s) == true)
             ? RandomNumbers.randomIntBetween(random, 0, newMasterCount - 1) : -1;
 
-        final List<Settings> settings = Arrays.stream(extraSettings)
-                .map(nodeSettings -> getNodeSettings(nodeSettings, defaultMinMasterNodes))
-                .collect(Collectors.toList());
+        final int numOfNodes = extraSettings.length;
+        final int firstNodeId = nextNodeId.getAndIncrement();
+        final List<Settings> settings = new ArrayList<>();
+        for (int i = 0; i < numOfNodes; i++) {
+            settings.add(getNodeSettings(firstNodeId + i, random.nextLong(), extraSettings[i], defaultMinMasterNodes));
+        }
+        nextNodeId.set(firstNodeId + numOfNodes);
 
         final List<String> initialMasterNodes = settings.stream()
                 .filter(Node.NODE_MASTER_SETTING::get)
@@ -1985,7 +1981,8 @@ public final class InternalTestCluster extends TestCluster {
 
         final List<Settings> updatedSettings = nodeConfigurationSource.updateNodesSettings(settings);
 
-        for (Settings nodeSettings : updatedSettings) {
+        for (int i = 0; i < numOfNodes; i++) {
+            final Settings nodeSettings = updatedSettings.get(i);
             final Builder builder = Settings.builder();
             if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {
                 if (bootstrapMasterNodeIndex == 0) {
@@ -1994,7 +1991,8 @@ public final class InternalTestCluster extends TestCluster {
                 bootstrapMasterNodeIndex -= 1;
             }
 
-            final NodeAndClient nodeAndClient = buildNode(builder.put(nodeSettings).build(), false, () -> rebuildUnicastHostFiles(nodes));
+            final NodeAndClient nodeAndClient =
+                    buildNode(firstNodeId + i, builder.put(nodeSettings).build(), false, () -> rebuildUnicastHostFiles(nodes));
             nodes.add(nodeAndClient);
         }
         startAndPublishNodesAndClients(nodes);

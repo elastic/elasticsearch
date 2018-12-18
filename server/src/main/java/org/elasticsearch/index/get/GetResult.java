@@ -384,7 +384,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         index = in.readString();
         type = in.readOptionalString();
         id = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             seqNo = in.readZLong();
             primaryTerm = in.readVLong();
         } else {
@@ -416,7 +416,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         out.writeString(index);
         out.writeOptionalString(type);
         out.writeString(id);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeZLong(seqNo);
             out.writeVLong(primaryTerm);
         }

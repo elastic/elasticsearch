@@ -205,7 +205,21 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
         Set<String> jdkJarHellClasses = runJdkJarHellCheck();
 
-        assertNoPointlessExclusions(missingClasses, violationsClasses, jdkJarHellClasses);
+        long bogousExcludesCount = Stream.concat(missingClassExcludes.stream(), violationsExcludes.stream())
+            .filter(each -> missingClasses.contains(each) == false)
+            .filter(each -> violationsClasses.contains(each) == false)
+            .count();
+        if (bogousExcludesCount != 0 && bogousExcludesCount == missingClassExcludes.size() + violationsExcludes.size()) {
+            logForbiddenAPIsOutput(forbiddenApisOutput);
+            throw new IllegalStateException(
+                "All excluded classes seem to have no issues. " +
+                    "This is sometimes an indication that the check silently failed"
+            );
+        }
+
+        assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
+        assertNoPointlessExclusions("have no violations", violationsExcludes, violationsClasses);
+        assertNoPointlessExclusions("do not generate jar hell with the JDK", jdkJarHellExcludes, jdkJarHellClasses);
 
         missingClasses.removeAll(missingClassExcludes);
         if (allowAllMissingClasses && (missingClasses.isEmpty() == false)) {
@@ -220,7 +234,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         if (missingClasses.isEmpty() && violationsClasses.isEmpty()) {
             getLogger().info("Third party audit passed successfully");
         } else {
-            getLogger().error("Forbidden APIs output:\n{}==end of forbidden APIs==", forbiddenApisOutput);
+            logForbiddenAPIsOutput(forbiddenApisOutput);
             if (missingClasses.isEmpty() == false) {
                 getLogger().error("Missing classes:\n{}", formatClassList(missingClasses));
             }
@@ -231,6 +245,10 @@ public class ThirdPartyAuditTask extends DefaultTask {
         }
 
         assertNoJarHell(jdkJarHellClasses);
+    }
+
+    private void logForbiddenAPIsOutput(String forbiddenApisOutput) {
+        getLogger().error("Forbidden APIs output:\n{}==end of forbidden APIs==", forbiddenApisOutput);
     }
 
     private void throwNotConfiguredCorrectlyException() {
@@ -283,23 +301,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
                     "  Jar Hell with the JDK:\n" + formatClassList(jdkJarHellClasses)
             );
         }
-    }
-
-    private void assertNoPointlessExclusions(Set<String> missingClasses, Set<String> violationsClasses, Set<String> jdkJarHellClasses) {
-        long bogousExcludesCount = Stream.concat(missingClassExcludes.stream(), violationsExcludes.stream())
-            .filter(each -> missingClasses.contains(each) == false)
-            .filter(each -> violationsClasses.contains(each) == false)
-            .count();
-        if (bogousExcludesCount != 0 && bogousExcludesCount == missingClassExcludes.size() + violationsExcludes.size()) {
-            throw new IllegalStateException(
-                "All excluded classes seem to have no issues. " +
-                    "This is sometimes an indication that the check silently failed"
-            );
-        }
-
-        assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
-        assertNoPointlessExclusions("have no violations", violationsExcludes, violationsClasses);
-        assertNoPointlessExclusions("do not generate jar hell with the JDK", jdkJarHellExcludes, jdkJarHellClasses);
     }
 
     private void assertNoPointlessExclusions(String specifics, Set<String> excludes, Set<String> problematic) {

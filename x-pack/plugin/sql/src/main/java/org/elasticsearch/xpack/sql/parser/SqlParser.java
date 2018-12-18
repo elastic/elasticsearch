@@ -26,12 +26,16 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BackQuotedIdentifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanDefaultContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PrimaryExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryPrimaryDefaultContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryTermContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QuoteIdentifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementDefaultContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.UnquoteIdentifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -257,10 +261,10 @@ public class SqlParser {
             // Skip PrimaryExpressionContext for IN as it's not visited on exit due to
             // the grammar's peculiarity rule with "predicated" and "predicate".
             // Also skip the Identifiers as they are "cheap".
-            if (ctx.getClass() != SqlBaseParser.UnquoteIdentifierContext.class &&
-                ctx.getClass() != SqlBaseParser.QuoteIdentifierContext.class &&
-                ctx.getClass() != SqlBaseParser.BackQuotedIdentifierContext.class &&
-                (insideIn == false || ctx.getClass() != SqlBaseParser.PrimaryExpressionContext.class)) {
+            if (ctx.getClass() != UnquoteIdentifierContext.class &&
+                ctx.getClass() != QuoteIdentifierContext.class &&
+                ctx.getClass() != BackQuotedIdentifierContext.class &&
+                (insideIn == false || ctx.getClass() != PrimaryExpressionContext.class)) {
 
                 int currentDepth = depthCounts.putOrAdd(ctx.getClass().getSimpleName(), (short) 1, (short) 1);
                 if (currentDepth > MAX_RULE_DEPTH) {

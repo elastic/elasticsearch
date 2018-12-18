@@ -30,6 +30,7 @@ import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -111,10 +112,10 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
         public SpatialStrategy strategy = null;
         public String tree = null;
-        public int treeLevels = Integer.MIN_VALUE;
+        public Integer treeLevels = null;
         public String precision = null;
         public Boolean pointsOnly = null;
-        public double distanceErrorPct = Double.NaN;
+        public Double distanceErrorPct = null;
 
         public void setSpatialStrategy(SpatialStrategy strategy) {
             this.strategy = strategy;
@@ -141,44 +142,6 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
         public void setDistanceErrorPct(double distanceErrorPct) {
             this.distanceErrorPct = distanceErrorPct;
-        }
-
-        protected void setup() {
-            if (strategy == null) {
-                strategy = Defaults.STRATEGY;
-            }
-            if (tree == null) {
-                tree = Defaults.TREE;
-            }
-            if (Double.isNaN(distanceErrorPct)) {
-                if (precision != null || treeLevels != Integer.MIN_VALUE) {
-                    distanceErrorPct = 0d;
-                } else {
-                    distanceErrorPct = Defaults.DISTANCE_ERROR_PCT;
-                }
-            }
-            if (treeLevels == Integer.MIN_VALUE && precision == null) {
-                // set default precision if treeLevels is not explicitly set
-                precision = Defaults.PRECISION;
-            }
-            if (treeLevels == Integer.MIN_VALUE) {
-                if (precision.equals(Defaults.PRECISION)) {
-                    treeLevels = tree.equals(Defaults.TREE)
-                        ? Defaults.QUADTREE_LEVELS
-                        : Defaults.GEOHASH_TREE_LEVELS;
-                } else {
-                    treeLevels = tree == Defaults.TREE
-                        ? GeoUtils.quadTreeLevelsForPrecision(precision)
-                        : GeoUtils.geoHashLevelsForPrecision(precision);
-                }
-            }
-            if (pointsOnly == null) {
-                if (strategy == SpatialStrategy.TERM) {
-                    pointsOnly = true;
-                } else {
-                    pointsOnly = Defaults.POINTS_ONLY;
-                }
-            }
         }
 
         public static boolean parse(String name, String fieldName, Object fieldNode, DeprecatedParameters deprecatedParameters) {
@@ -225,16 +188,12 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         DeprecatedParameters deprecatedParameters;
 
         public Builder(String name) {
-            super(name, new GeoShapeFieldType(), new GeoShapeFieldType());
-            this.deprecatedParameters = new DeprecatedParameters();
-            this.deprecatedParameters.setup();
+            this(name, new DeprecatedParameters());
         }
 
-        public Builder(String name, boolean coerce, boolean ignoreMalformed, Orientation orientation,
-                       boolean ignoreZ, DeprecatedParameters deprecatedParameters) {
-            super(name, new GeoShapeFieldType(), new GeoShapeFieldType(), coerce, ignoreMalformed, orientation, ignoreZ);
+        public Builder(String name, DeprecatedParameters deprecatedParameters) {
+            super(name, new GeoShapeFieldType(), new GeoShapeFieldType());
             this.deprecatedParameters = deprecatedParameters;
-            this.deprecatedParameters.setup();
         }
 
         @Override
@@ -244,16 +203,32 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
         private void setupFieldTypeDeprecatedParameters() {
             GeoShapeFieldType ft = fieldType();
-            ft.setStrategy(deprecatedParameters.strategy);
-            ft.setTree(deprecatedParameters.tree);
-            ft.setTreeLevels(deprecatedParameters.treeLevels);
+            if (deprecatedParameters.strategy != null) {
+                ft.setStrategy(deprecatedParameters.strategy);
+            }
+            if (deprecatedParameters.tree != null) {
+                ft.setTree(deprecatedParameters.tree);
+            }
+            if (deprecatedParameters.treeLevels != null) {
+                ft.setTreeLevels(deprecatedParameters.treeLevels);
+            }
             if (deprecatedParameters.precision != null) {
                 // precision is only set iff: a. treeLevel is not explicitly set, b. its explicitly set
                 ft.setPrecisionInMeters(DistanceUnit.parse(deprecatedParameters.precision,
                     DistanceUnit.DEFAULT, DistanceUnit.DEFAULT));
             }
-            ft.setDistanceErrorPct(deprecatedParameters.distanceErrorPct);
-            ft.setPointsOnly(deprecatedParameters.pointsOnly);
+            if (deprecatedParameters.distanceErrorPct != null) {
+                ft.setDistanceErrorPct(deprecatedParameters.distanceErrorPct);
+            }
+            if (deprecatedParameters.pointsOnly != null) {
+                ft.setPointsOnly(deprecatedParameters.pointsOnly);
+            }
+
+            GeoShapeFieldType geoShapeFieldType = (GeoShapeFieldType)fieldType;
+
+            if (geoShapeFieldType.treeLevels() == 0 && geoShapeFieldType.precisionInMeters() < 0) {
+                geoShapeFieldType.setDefaultDistanceErrorPct(DeprecatedParameters.Defaults.DISTANCE_ERROR_PCT);
+            }
         }
 
         private void setupPrefixTrees() {
@@ -580,7 +555,9 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
                 DistanceUnit.METERS.toString(50));
         }
 
-        builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
+        if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
+            builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
+        }
 
         if (includeDefaults || fieldType().distanceErrorPct() != fieldType().defaultDistanceErrorPct) {
             builder.field(DeprecatedParameters.Names.DISTANCE_ERROR_PCT.getPreferredName(), fieldType().distanceErrorPct());

@@ -61,11 +61,6 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             super (name, new GeoShapeFieldType(), new GeoShapeFieldType());
         }
 
-        public Builder(String name, boolean coerce, boolean ignoreMalformed, ShapeBuilder.Orientation orientation,
-                       boolean ignoreZ) {
-            super(name, new GeoShapeFieldType(), new GeoShapeFieldType(), coerce, ignoreMalformed, orientation, ignoreZ);
-        }
-
         @Override
         public GeoShapeFieldMapper build(BuilderContext context) {
             setupFieldType(context);

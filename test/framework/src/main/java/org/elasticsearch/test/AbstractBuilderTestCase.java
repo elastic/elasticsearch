@@ -113,7 +113,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
     protected static final String GEO_POINT_ALIAS_FIELD_NAME = "mapped_geo_point_alias";
     protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
-    protected static final String LEGACY_GEO_SHAPE_FIELD_NAME = "mapped_legacy_geo_shape";
     protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME,
         INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME,
         DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME,
@@ -254,25 +253,9 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                         AbstractBuilderTestCase.this);
                 return null;
             });
-            if (enableWarningsCheck() == true && currentTypes.length != 0) {
-                assertDeprecatedGeoWarnings();
-            }
         }
 
         serviceHolder.clientInvocationHandler.delegate = this;
-    }
-
-    protected void assertDeprecatedGeoWarnings() {
-        String prefix = "Field parameter [";
-        String postfix = "] is deprecated and will be removed in a future version.";
-        String[] deprecationWarnings = new String[] {
-            prefix + "tree" + postfix,
-            prefix + "tree_levels" + postfix,
-            prefix + "precision" + postfix,
-            prefix + "strategy" + postfix,
-            prefix + "distance_error_pct" + postfix
-        };
-        assertWarnings(deprecationWarnings);
     }
 
     protected static SearchContext getSearchContext(String[] types, QueryShardContext context) {
@@ -431,8 +414,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     DATE_RANGE_FIELD_NAME, "type=date_range",
                     OBJECT_FIELD_NAME, "type=object",
                     GEO_POINT_FIELD_NAME, "type=geo_point",
-                    GEO_SHAPE_FIELD_NAME, "type=geo_shape",
-                    LEGACY_GEO_SHAPE_FIELD_NAME, "type=geo_shape,tree=quadtree"
+                    GEO_SHAPE_FIELD_NAME, "type=geo_shape"
                 ))), MapperService.MergeReason.MAPPING_UPDATE, false);
 
                 // Field aliases are only supported on indexes with a single type. If the index has multiple types, we

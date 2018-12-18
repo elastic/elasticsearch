@@ -161,10 +161,10 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
 
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            boolean coerce = Defaults.COERCE.value();
-            boolean ignoreZ = Defaults.IGNORE_Z_VALUE.value();
-            boolean ignoreMalformed = Defaults.IGNORE_MALFORMED.value();
-            Orientation orientation = Defaults.ORIENTATION.value();
+            Boolean coerce = null;
+            Boolean ignoreZ = null;
+            Boolean ignoreMalformed = null;
+            Orientation orientation = null;
             DeprecatedParameters deprecatedParameters = new DeprecatedParameters();
             boolean parsedDeprecatedParams = false;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -189,20 +189,32 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
                     iterator.remove();
                 }
             }
-            return getBuilder(name, coerce, ignoreMalformed, orientation, ignoreZ, parsedDeprecatedParams ? deprecatedParameters : null);
-        }
-
-        private Builder getBuilder(String name, boolean coerce, boolean ignoreMalformed,
-                                   Orientation orientation, boolean ignoreZ, DeprecatedParameters deprecatedParameters) {
-            if (deprecatedParameters != null) {
-                return getLegacyBuilder(name, coerce, ignoreMalformed, orientation, ignoreZ, deprecatedParameters);
+            final Builder builder;
+            if (parsedDeprecatedParams || parserContext.indexVersionCreated().before(Version.V_7_0_0)) {
+                // Legacy index-based shape
+                builder = new LegacyGeoShapeFieldMapper.Builder(name, deprecatedParameters);
+            } else {
+                // BKD-based shape
+                builder = new GeoShapeFieldMapper.Builder(name);
             }
-            return new GeoShapeFieldMapper.Builder(name, coerce, ignoreMalformed, orientation, ignoreZ);
-        }
 
-        private Builder getLegacyBuilder(String name, boolean coerce, boolean ignoreMalformed, Orientation orientation,
-                                         boolean ignoreZ, DeprecatedParameters deprecatedParameters) {
-            return new LegacyGeoShapeFieldMapper.Builder(name, coerce, ignoreMalformed, orientation, ignoreZ, deprecatedParameters);
+            if (coerce != null) {
+                builder.coerce(coerce);
+            }
+
+            if (ignoreZ != null) {
+                builder.ignoreZValue(ignoreZ);
+            }
+
+            if (ignoreMalformed != null) {
+                builder.ignoreMalformed(ignoreMalformed);
+            }
+
+            if (orientation != null) {
+                builder.orientation(orientation);
+            }
+
+            return builder;
         }
     }
 

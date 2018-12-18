@@ -28,7 +28,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -129,12 +128,13 @@ public final class IndicesPermission {
             throw new ElasticsearchSecurityException("The set of permitted index patterns [{}] is too complex to evaluate", e, description);
         }
         return (index) -> {
+            assert false == isIndexPattern(index);
             if (indicesPredicate.test(index)) {
-                if (isOrdinaryIndex(index)) {
-                    return true;
-                } else {
+                if (isSystemIndex(index)) {
                     logger.debug("Index pattern automaton [{}] cannot match system indices [{}]", indices, SystemIndicesNames.indexNames());
                     return false;
+                } else {
+                    return true;
                 }
             } else {
                 return false;
@@ -285,15 +285,11 @@ public final class IndicesPermission {
     }
 
     private static boolean isIndexPattern(String indexPattern) {
-        if (indexPattern.startsWith("/") || indexPattern.contains("*") || indexPattern.contains("?")) {
-            return true;
-        }
-        return false;
+        return indexPattern.startsWith("/") || indexPattern.contains("*") || indexPattern.contains("?");
     }
 
-    private static boolean isOrdinaryIndex(String index) {
-        assert false == isIndexPattern(index);
-        return false == SystemIndicesNames.indexNames().contains(index);
+    private static boolean isSystemIndex(String index) {
+        return SystemIndicesNames.indexNames().contains(index);
     }
 
     public static class Group {
@@ -314,8 +310,12 @@ public final class IndicesPermission {
             this.query = query;
         }
 
-        public IndexPrivilege privilege() {
+        private IndexPrivilege privilege() {
             return privilege;
+        }
+
+        public Set<String> privilegeName() {
+            return privilege.name();
         }
 
         public String[] indices() {

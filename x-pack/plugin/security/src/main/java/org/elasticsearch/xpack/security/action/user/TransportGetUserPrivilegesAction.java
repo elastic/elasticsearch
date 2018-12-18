@@ -96,7 +96,7 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
                 ? group.getFieldPermissions().getFieldPermissionsDefinition().getFieldGrantExcludeGroups() : Collections.emptySet();
             indices.add(new GetUserPrivilegesResponse.Indices(
                 Arrays.asList(group.indices()),
-                group.privilege().name(),
+                group.privilegeName(),
                 fieldSecurity,
                 queries
             ));

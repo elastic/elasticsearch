@@ -609,31 +609,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                             throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
-            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
-                // no shard operation permits are being held here, move state from started to relocated
-                assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
+            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES,
+                () -> refresh("relocation requested"),
+                () -> {
+                    // no shard operation permits are being held here, move state from started to relocated
+                    assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
                         "in-flight operations in progress while moving shard state to relocated";
-                /*
-                 * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
-                 * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
-                 */
-                verifyRelocatingState();
-                final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff();
-                try {
-                    consumer.accept(primaryContext);
-                    synchronized (mutex) {
-                        verifyRelocatingState();
-                        replicationTracker.completeRelocationHandoff(); // make changes to primaryMode and relocated flag only under mutex
-                    }
-                } catch (final Exception e) {
+                    /*
+                     * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context
+                     * via a network operation. Doing this under the mutex can implicitly block the cluster state update thread
+                     * on network operations.
+                     */
+                    verifyRelocatingState();
+                    final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff();
                     try {
-                        replicationTracker.abortRelocationHandoff();
-                    } catch (final Exception inner) {
-                        e.addSuppressed(inner);
+                        consumer.accept(primaryContext);
+                        synchronized (mutex) {
+                            verifyRelocatingState();
+                            // make changes to primaryMode and relocated flag only under mutex
+                            replicationTracker.completeRelocationHandoff();
+                        }
+                    } catch (final Exception e) {
+                        try {
+                            replicationTracker.abortRelocationHandoff();
+                        } catch (final Exception inner) {
+                            e.addSuppressed(inner);
+                        }
+                        throw e;
                     }
-                    throw e;
-                }
-            });
+                });
         } catch (TimeoutException e) {
             logger.warn("timed out waiting for relocation hand-off to complete");
             // This is really bad as ongoing replication operations are preventing this shard from completing relocation hand-off.

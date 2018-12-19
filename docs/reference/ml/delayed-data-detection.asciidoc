@@ -18,7 +18,7 @@ This is a particularly prescient question. If there are data delayed randomly (a
 the results of certain types of functions are not really affected. Statistically, it all comes out ok in the end 
 as the delayed data is distributed randomly. An example would be a `mean` metric for a field in a large collection of data.
 In this case, checking for delayed data may not provide much benefit. However, jobs with a `low_count` function may
-provide false positives if data is consistently delayed. In this situation, it would be useful to see if data
+provide false positives. In this situation, it would be useful to see if data
 comes in after an anomaly is recorded so that you can determine a next course of action.
 
 ==== How do we detect delayed data?

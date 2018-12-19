@@ -129,19 +129,17 @@ public interface DateFormatter {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
+        if (input.startsWith("8") == false) {
+            return Joda.forPattern(input);
+        }
+
+        // force java 8 date format
         List<DateFormatter> formatters = new ArrayList<>();
-        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
-            if (Strings.hasLength(input) == false) {
+        for (String pattern : Strings.delimitedListToStringArray(input.substring(1), "||")) {
+            if (Strings.hasLength(pattern) == false) {
                 throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
             }
-            final DateFormatter formatter;
-            if (pattern.startsWith("8")) {
-                // force java 8 date format
-                formatter = DateFormatters.forPattern(pattern.substring(1));
-            } else {
-                formatter = Joda.forPattern(pattern);
-            }
-            formatters.add(formatter);
+            formatters.add(DateFormatters.forPattern(pattern));
         }
 
         if (formatters.size() == 1) {

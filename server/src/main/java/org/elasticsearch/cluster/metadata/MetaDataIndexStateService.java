@@ -223,6 +223,9 @@ public class MetaDataIndexStateService {
 
         for (IndexMetaData indexToClose : indicesToClose) {
             final Index index = indexToClose.getIndex();
+            if (currentState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID)) {
+                blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
+            }
             blocks.addIndexBlock(index.getName(), closingBlock);
             if (useDirectClose) {
                 logger.debug("closing index {} directly", index);
@@ -367,16 +370,20 @@ public class MetaDataIndexStateService {
             final boolean acknowledged = result.getValue().isAcknowledged();
             try {
                 final IndexMetaData indexMetaData = metadata.getSafe(index);
-                assert currentState.blocks().hasIndexBlock(index.getName(), closingBlock);
                 if (acknowledged) {
-                    if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
-                        logger.debug("closing index {} succeed, removing index routing table", index);
+                    if (currentState.blocks().hasIndexBlock(index.getName(), closingBlock) == false) {
+                        logger.debug("closing index {} succeed but block has been removed by a concurrent open or close request", index);
+                        assert indexMetaData.getState() == IndexMetaData.State.OPEN
+                            || currentState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
+
+                    } else if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+                        logger.debug("closing index {} succeed", index);
                         metadata.put(IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE));
                         routingTable.remove(index.getName());
                         closedIndices.add(index.getName());
                     } else {
-                        logger.debug("index {} already closed, removing index block {}", index, closingBlock);
-                        blocks.removeIndexBlock(index.getName(), closingBlock);
+                        logger.debug("closing index {} succeed but index is already closed", index);
+                        assert false : "Cluster block should have been removed";
                     }
                 } else {
                     logger.debug("closing index {} failed, removing index block {}", index, closingBlock);

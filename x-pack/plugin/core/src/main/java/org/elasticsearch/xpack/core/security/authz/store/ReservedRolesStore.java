@@ -136,13 +136,22 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put(UsernamesField.APM_ROLE, new RoleDescriptor(UsernamesField.APM_ROLE,
                         new String[] { "monitor", MonitoringBulkAction.NAME}, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("machine_learning_user", new RoleDescriptor("machine_learning_user", new String[] { "monitor_ml" },
-                        new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*",
-                                ".ml-notifications").privileges("view_index_metadata", "read").build() },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*", ".ml-notifications*")
+                                        .privileges("view_index_metadata", "read").build(),
+                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
+                                        .privileges("view_index_metadata", "read", "write").build()
+                        },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("machine_learning_admin", new RoleDescriptor("machine_learning_admin", new String[] { "manage_ml" },
                         new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-*").privileges("view_index_metadata", "read")
-                                        .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices(".ml-anomalies*", ".ml-notifications*", ".ml-state*", ".ml-meta*")
+                                        .privileges("view_index_metadata", "read").build(),
+                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
+                                        .privileges("view_index_metadata", "read", "write").build()
+                        },
+                        null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("watcher_admin", new RoleDescriptor("watcher_admin", new String[] { "manage_watcher" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME,

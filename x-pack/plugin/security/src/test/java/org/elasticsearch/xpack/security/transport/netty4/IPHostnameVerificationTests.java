@@ -9,7 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 
 import java.nio.file.Files;
@@ -61,7 +61,7 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
         return settingsBuilder.put("xpack.security.transport.ssl.key", keyPath.toAbsolutePath())
             .put("xpack.security.transport.ssl.certificate", certPath.toAbsolutePath())
             .put("xpack.security.transport.ssl.certificate_authorities", certPath.toAbsolutePath())
-            .put(TcpTransport.BIND_HOST.getKey(), "127.0.0.1")
+            .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
             .put("network.host", "127.0.0.1")
             .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
             .put("xpack.security.transport.ssl.verification_mode", "full")

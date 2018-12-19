@@ -195,14 +195,14 @@ public class MlJobIT extends ESRestTestCase {
 
         { //create jobId1 docs
             String id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId1, "1234", 300);
-            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/doc/" + id);
+            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id);
             createResultRequest.setJsonEntity(String.format(Locale.ROOT,
                 "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
                 jobId1, "1234", 1));
             client().performRequest(createResultRequest);
 
             id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId1, "1236", 300);
-            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/doc/" + id);
+            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id);
             createResultRequest.setJsonEntity(String.format(Locale.ROOT,
                 "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
                 jobId1, "1236", 1));
@@ -220,14 +220,14 @@ public class MlJobIT extends ESRestTestCase {
         }
         { //create jobId2 docs
             String id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId2, "1234", 300);
-            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/doc/" + id);
+            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id);
             createResultRequest.setJsonEntity(String.format(Locale.ROOT,
                 "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
                 jobId2, "1234", 1));
             client().performRequest(createResultRequest);
 
             id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId2, "1236", 300);
-            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/doc/" + id);
+            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id);
             createResultRequest.setJsonEntity(String.format(Locale.ROOT,
                 "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
                 jobId2, "1236", 1));
@@ -510,20 +510,20 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(indicesBeforeDelete, containsString(indexName + "-002"));
 
         // Add some documents to each index to make sure the DBQ clears them out
-        Request createDoc0 = new Request("PUT", indexName + "/doc/" + 123);
+        Request createDoc0 = new Request("PUT", indexName + "/_doc/" + 123);
         createDoc0.setJsonEntity(String.format(Locale.ROOT,
                         "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"result_type\":\"record\"}",
                         jobId, 123, 1));
         client().performRequest(createDoc0);
-        Request createDoc1 = new Request("PUT", indexName + "-001/doc/" + 123);
+        Request createDoc1 = new Request("PUT", indexName + "-001/_doc/" + 123);
         createDoc1.setEntity(createDoc0.getEntity());
         client().performRequest(createDoc1);
-        Request createDoc2 = new Request("PUT", indexName + "-002/doc/" + 123);
+        Request createDoc2 = new Request("PUT", indexName + "-002/_doc/" + 123);
         createDoc2.setEntity(createDoc0.getEntity());
         client().performRequest(createDoc2);
 
         // Also index a few through the alias for the first job
-        Request createDoc3 = new Request("PUT", indexName + "/doc/" + 456);
+        Request createDoc3 = new Request("PUT", indexName + "/_doc/" + 456);
         createDoc3.setEntity(createDoc0.getEntity());
         client().performRequest(createDoc3);
 

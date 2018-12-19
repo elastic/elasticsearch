@@ -25,7 +25,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper;
@@ -83,7 +83,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         Set<String> profileNames = settings.getGroups("transport.profiles.", true).keySet();
         Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileNames.size() + 1);
         for (String profileName : profileNames) {
-            if (profileName.equals(TcpTransport.DEFAULT_PROFILE)) {
+            if (profileName.equals(TransportSettings.DEFAULT_PROFILE)) {
                 // don't attempt to parse ssl settings from the profile;
                 // profiles need to be killed with fire
                 if (settings.getByPrefix("transport.profiles.default.xpack.security.ssl.").isEmpty()) {
@@ -97,8 +97,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
             profileConfiguration.put(profileName, configuration);
         }
 
-        assert profileConfiguration.containsKey(TcpTransport.DEFAULT_PROFILE) == false;
-        profileConfiguration.put(TcpTransport.DEFAULT_PROFILE, defaultConfiguration);
+        assert profileConfiguration.containsKey(TransportSettings.DEFAULT_PROFILE) == false;
+        profileConfiguration.put(TransportSettings.DEFAULT_PROFILE, defaultConfiguration);
         return profileConfiguration;
     }
 

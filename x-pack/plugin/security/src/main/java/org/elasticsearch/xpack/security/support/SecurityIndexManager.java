@@ -40,7 +40,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -59,6 +58,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.index.SystemIndicesNames.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.SystemIndicesNames.INTERNAL_SECURITY_INDEX;
 
 /**
  * Manages the lifecycle of a single index, its template, mapping and and data upgrades/migrations.
@@ -128,7 +129,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         if (localState.indexExists) {
             return new UnavailableShardsException(null, "at least one primary shard for the security index is unavailable");
         } else {
-            return new IndexNotFoundException(SystemIndicesNames.SECURITY_INDEX_NAME);
+            return new IndexNotFoundException(SECURITY_INDEX_NAME);
         }
     }
 
@@ -299,8 +300,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                             "the upgrade API is run on the security index"));
         } else if (indexState.indexExists == false) {
             Tuple<String, Settings> mappingAndSettings = loadMappingAndSettingsSourceFromTemplate();
-            CreateIndexRequest request = new CreateIndexRequest(SystemIndicesNames.INTERNAL_SECURITY_INDEX)
-                    .alias(new Alias(SystemIndicesNames.SECURITY_INDEX_NAME))
+            CreateIndexRequest request = new CreateIndexRequest(INTERNAL_SECURITY_INDEX)
+                    .alias(new Alias(SECURITY_INDEX_NAME))
                     .mapping("doc", mappingAndSettings.v1(), XContentType.JSON)
                     .waitForActiveShards(ActiveShardCount.ALL)
                     .settings(mappingAndSettings.v2());
@@ -328,7 +329,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                         }
                     }, client.admin().indices()::create);
         } else if (indexState.mappingUpToDate == false) {
-            PutMappingRequest request = new PutMappingRequest(SystemIndicesNames.INTERNAL_SECURITY_INDEX)
+            PutMappingRequest request = new PutMappingRequest(INTERNAL_SECURITY_INDEX)
                     .source(loadMappingAndSettingsSourceFromTemplate().v1(), XContentType.JSON)
                     .type("doc");
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,

@@ -47,13 +47,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
-import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
+import static org.elasticsearch.xpack.core.security.index.SystemIndicesNames.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -328,8 +328,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
         final ClusterState clusterState = clusterStateBuilder.build();
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> SecurityIndexManager
-                .checkIndexMappingVersionMatches(SystemIndicesNames.SECURITY_INDEX_NAME, clusterState, logger, Version.CURRENT::equals));
-        assertEquals("Cannot read security-version string in index " + SystemIndicesNames.SECURITY_INDEX_NAME, exception.getMessage());
+                .checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger, Version.CURRENT::equals));
+        assertEquals("Cannot read security-version string in index " + SECURITY_INDEX_NAME, exception.getMessage());
     }
 
     public void testIndexTemplateIsIdentifiedAsUpToDate() throws IOException {
@@ -386,7 +386,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private ClusterState.Builder createClusterStateWithMapping(String securityTemplateString) throws IOException {
         final ClusterState clusterState = createClusterStateWithIndex(securityTemplateString).build();
         final String indexName = clusterState.metaData().getAliasAndIndexLookup()
-            .get(SystemIndicesNames.SECURITY_INDEX_NAME).getIndices().get(0).getIndex().getName();
+            .get(SECURITY_INDEX_NAME).getIndices().get(0).getIndex().getName();
         return ClusterState.builder(clusterState).routingTable(SecurityTestUtils.buildIndexRoutingTable(indexName));
     }
 
@@ -420,7 +420,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private ClusterState.Builder createClusterStateWithIndex(String securityTemplate) throws IOException {
         final MetaData.Builder metaDataBuilder = new MetaData.Builder();
         final boolean withAlias = randomBoolean();
-        final String securityIndexName = SystemIndicesNames.SECURITY_INDEX_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");
+        final String securityIndexName = SECURITY_INDEX_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");
         metaDataBuilder.put(createIndexMetadata(securityIndexName, securityTemplate));
 
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(state());

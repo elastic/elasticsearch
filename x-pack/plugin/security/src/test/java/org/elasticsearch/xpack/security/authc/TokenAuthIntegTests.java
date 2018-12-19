@@ -144,7 +144,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .prepareInvalidateToken(response.getTokenString())
                 .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
                 .get();
-        assertTrue(invalidateResponse.isCreated());
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
@@ -189,6 +191,72 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    public void testInvalidateAllTokensForUser() throws Exception{
+        final int numOfRequests = randomIntBetween(5, 10);
+        for (int i = 0; i < numOfRequests; i++) {
+            securityClient().prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+                .get();
+        }
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClientSuperuser = new SecurityClient(client);
+        InvalidateTokenResponse invalidateResponse = securityClientSuperuser
+            .prepareInvalidateToken()
+            .setUserName(SecuritySettingsSource.TEST_USER_NAME)
+            .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(2 * (numOfRequests)));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+    }
+
+    public void testInvalidateAllTokensForRealm() throws Exception{
+        final int numOfRequests = randomIntBetween(5, 10);
+        for (int i = 0; i < numOfRequests; i++) {
+            securityClient().prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+                .get();
+        }
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClientSuperuser = new SecurityClient(client);
+        InvalidateTokenResponse invalidateResponse = securityClientSuperuser
+            .prepareInvalidateToken()
+            .setRealmName("file")
+            .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(2 * (numOfRequests)));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+    }
+
+    public void testInvalidateAllTokensForRealmThatHasNone() {
+        final int numOfRequests = randomIntBetween(2, 4);
+        for (int i = 0; i < numOfRequests; i++) {
+            securityClient().prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+                .get();
+        }
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClientSuperuser = new SecurityClient(client);
+        InvalidateTokenResponse invalidateResponse = securityClientSuperuser
+            .prepareInvalidateToken()
+            .setRealmName("saml")
+            .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+    }
+
     public void testExpireMultipleTimes() {
         CreateTokenResponse response = securityClient().prepareCreateToken()
                 .setGrantType("password")
@@ -200,12 +268,16 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .prepareInvalidateToken(response.getTokenString())
                 .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
                 .get();
-        assertTrue(invalidateResponse.isCreated());
-        assertFalse(securityClient()
-                .prepareInvalidateToken(response.getTokenString())
-                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
-                .get()
-                .isCreated());
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        InvalidateTokenResponse invalidateAgainResponse = securityClient()
+            .prepareInvalidateToken(response.getTokenString())
+            .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+            .get();
+        assertThat(invalidateAgainResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateAgainResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(1));
+        assertThat(invalidateAgainResponse.getResult().getErrors().size(), equalTo(0));
     }
 
     public void testRefreshingToken() {
@@ -248,7 +320,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .prepareInvalidateToken(createTokenResponse.getRefreshToken())
                 .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
                 .get();
-        assertTrue(invalidateResponse.isCreated());
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
                 () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
@@ -362,9 +436,11 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // invalidate
         PlainActionFuture<InvalidateTokenResponse> invalidateResponseFuture = new PlainActionFuture<>();
         InvalidateTokenRequest invalidateTokenRequest =
-            new InvalidateTokenRequest(createTokenResponse.getTokenString(), InvalidateTokenRequest.Type.ACCESS_TOKEN);
+            new InvalidateTokenRequest(createTokenResponse.getTokenString(), InvalidateTokenRequest.Type.ACCESS_TOKEN.getValue());
         securityClient.invalidateToken(invalidateTokenRequest, invalidateResponseFuture);
-        assertTrue(invalidateResponseFuture.get().isCreated());
+        assertThat(invalidateResponseFuture.get().getResult().getInvalidatedTokens().size(), equalTo(1));
+        assertThat(invalidateResponseFuture.get().getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateResponseFuture.get().getResult().getErrors().size(), equalTo(0));
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             PlainActionFuture<AuthenticateResponse> responseFuture = new PlainActionFuture<>();

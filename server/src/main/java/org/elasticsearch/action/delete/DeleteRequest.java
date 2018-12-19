@@ -37,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSINGED_PRIMARY_TERM;
 
 /**
  * A request to delete a document from an index based on its type and id. Best created using
@@ -59,7 +60,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
     private long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-    private long ifPrimaryTerm = 0;
+    private long ifPrimaryTerm = UNASSINGED_PRIMARY_TERM;
 
     public DeleteRequest() {
     }
@@ -122,7 +123,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
             validationException = addValidationError("compare and write operations can not use versioning", validationException);
         }
 
-        if (ifPrimaryTerm == 0 && ifSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (ifPrimaryTerm == UNASSINGED_PRIMARY_TERM && ifSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
         }
         if (ifPrimaryTerm != 0 && ifSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
@@ -287,7 +288,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
             ifPrimaryTerm = in.readVLong();
         } else {
             ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            ifPrimaryTerm = 0;
+            ifPrimaryTerm = UNASSINGED_PRIMARY_TERM;
         }
     }
 

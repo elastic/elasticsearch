@@ -345,17 +345,19 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         });
 
         try {
-            nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
+            if (nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+                logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // restore interrupt status
-            logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
         }
 
         try {
-            indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
+            if (indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+                logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // restore interrupt status
-            logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
         }
         ClusterInfo clusterInfo = getClusterInfo();
         try {

@@ -48,8 +48,6 @@ final class TypeConverter {
 
     private TypeConverter() {}
 
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
-
     /**
      * Converts millisecond after epoc to date
      */
@@ -216,7 +214,7 @@ final class TypeConverter {
             case FLOAT:
                 return floatValue(v); // Float might be represented as string for infinity and NaN values
             case DATE:
-                return new Timestamp(((Number) v).longValue());
+                return JdbcDateUtils.asDateTimeField(v, JdbcDateUtils::asTimestamp, Timestamp::new);
             case INTERVAL_YEAR:
             case INTERVAL_MONTH:
             case INTERVAL_YEAR_TO_MONTH:
@@ -470,21 +468,21 @@ final class TypeConverter {
 
     private static Date asDate(Object val, EsType columnType, String typeString) throws SQLException {
         if (columnType == EsType.DATE) {
-            return new Date(utcMillisRemoveTime(((Number) val).longValue()));
+            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asDate, Date::new);
         }
         return failConversion(val, columnType, typeString, Date.class);
     }
 
     private static Time asTime(Object val, EsType columnType, String typeString) throws SQLException {
         if (columnType == EsType.DATE) {
-            return new Time(utcMillisRemoveDate(((Number) val).longValue()));
+            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTime, Time::new);
         }
         return failConversion(val, columnType, typeString, Time.class);
     }
 
     private static Timestamp asTimestamp(Object val, EsType columnType, String typeString) throws SQLException {
         if (columnType == EsType.DATE) {
-            return new Timestamp(((Number) val).longValue());
+            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTimestamp, Timestamp::new);
         }
         return failConversion(val, columnType, typeString, Timestamp.class);
     }
@@ -511,14 +509,6 @@ final class TypeConverter {
 
     private static OffsetDateTime asOffsetDateTime(Object val, EsType columnType, String typeString) throws SQLException {
         throw new SQLFeatureNotSupportedException();
-    }
-
-    private static long utcMillisRemoveTime(long l) {
-        return l - (l % DAY_IN_MILLIS);
-    }
-
-    private static long utcMillisRemoveDate(long l) {
-        return l % DAY_IN_MILLIS;
     }
 
     private static byte safeToByte(long x) throws SQLException {

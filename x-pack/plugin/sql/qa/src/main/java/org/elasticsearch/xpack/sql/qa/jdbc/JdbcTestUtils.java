@@ -12,6 +12,9 @@ import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,6 +23,8 @@ public abstract class JdbcTestUtils {
     public static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
 
     public static final String JDBC_TIMEZONE = "timezone";
+    
+    public static ZoneId UTC = ZoneId.of("Z");
 
     public static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
@@ -127,5 +132,9 @@ public abstract class JdbcTestUtils {
 
         CliFormatter formatter = new CliFormatter(cols, data);
         logger.info("\n" + formatter.formatWithHeader(cols, data));
+    }
+    
+    public static ZonedDateTime of(long millis) {
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
     }
 }

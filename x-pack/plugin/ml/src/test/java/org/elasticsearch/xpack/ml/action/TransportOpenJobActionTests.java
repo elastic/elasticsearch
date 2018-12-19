@@ -69,7 +69,6 @@ import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilde
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
-import static org.mockito.Matchers.contains;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

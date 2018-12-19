@@ -93,6 +93,10 @@ class DatafeedJob {
         return isIsolated;
     }
 
+    public String getJobId() {
+        return jobId;
+    }
+
     Long runLookBack(long startTime, Long endTime) throws Exception {
         lookbackStartTimeMs = skipToStartTime(startTime);
         Optional<Long> endMs = Optional.ofNullable(endTime);

@@ -71,6 +71,15 @@ Advance settings include:
     to a file configured with protected words (one on each line).
     Automatically resolves to `config/` based location if exists.
 
+`adjust_offsets`::
+    By default, the filter tries to output subtokens with adjusted offsets
+    to reflect their actual position in the token stream.  However, when
+    used in combination with other filters that alter the length or starting
+    position of tokens without changing their offsets
+    (e.g. <<analysis-trim-tokenfilter,`trim`>>) this can cause tokens with
+    illegal offsets to be emitted.  Setting `adjust_offsets` to false will
+    stop `word_delimiter_graph` from adjusting these internal offsets.
+
 `type_table`::
     A custom type mapping table, for example (when configured
     using `type_table_path`):

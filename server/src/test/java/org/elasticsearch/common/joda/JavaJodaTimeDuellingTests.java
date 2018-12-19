@@ -77,13 +77,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("1", "epoch_second");
         assertSameDate("-1", "epoch_second");
         assertSameDate("-1522332219", "epoch_second");
-        assertSameDate("1.0e3", "epoch_second");
         assertSameDate("1522332219321", "epoch_millis");
         assertSameDate("0", "epoch_millis");
         assertSameDate("1", "epoch_millis");
         assertSameDate("-1", "epoch_millis");
         assertSameDate("-1522332219321", "epoch_millis");
-        assertSameDate("1.0e3", "epoch_millis");
 
         assertSameDate("20181126", "basic_date");
         assertSameDate("20181126T121212.123Z", "basic_date_time");

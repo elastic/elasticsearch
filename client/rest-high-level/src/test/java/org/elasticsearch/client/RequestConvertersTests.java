@@ -608,8 +608,7 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testIndex() throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
-        IndexRequest indexRequest = new IndexRequest(index, type);
+        IndexRequest indexRequest = new IndexRequest(index);
 
         String id = randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null;
         indexRequest.id(id);
@@ -662,13 +661,56 @@ public class RequestConvertersTests extends ESTestCase {
 
         Request request = RequestConverters.index(indexRequest);
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
+            assertEquals("/" + index + "/_doc/" + id + "/_create", request.getEndpoint());
+        } else if (id != null) {
+            assertEquals("/" + index + "/_doc/" + id, request.getEndpoint());
+        } else {
+            assertEquals("/" + index + "/_doc", request.getEndpoint());
+        }
+        assertEquals(expectedParams, request.getParameters());
+        assertEquals(method, request.getMethod());
+
+        HttpEntity entity = request.getEntity();
+        assertTrue(entity instanceof ByteArrayEntity);
+        assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType().getValue());
+        try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
+            assertEquals(nbFields, parser.map().size());
+        }
+    }
+
+    public void testIndexWithType() throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        IndexRequest indexRequest = new IndexRequest(index, type);
+        String id = randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null;
+        indexRequest.id(id);
+
+        String method = HttpPost.METHOD_NAME;
+        if (id != null) {
+            method = HttpPut.METHOD_NAME;
+            if (randomBoolean()) {
+                indexRequest.opType(DocWriteRequest.OpType.CREATE);
+            }
+        }
+        XContentType xContentType = randomFrom(XContentType.values());
+        int nbFields = randomIntBetween(0, 10);
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            for (int i = 0; i < nbFields; i++) {
+                builder.field("field_" + i, i);
+            }
+            builder.endObject();
+            indexRequest.source(builder);
+        }
+
+        Request request = RequestConverters.index(indexRequest);
+        if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
             assertEquals("/" + index + "/" + type + "/" + id + "/_create", request.getEndpoint());
         } else if (id != null) {
             assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
         } else {
             assertEquals("/" + index + "/" + type, request.getEndpoint());
         }
-        assertEquals(expectedParams, request.getParameters());
         assertEquals(method, request.getMethod());
 
         HttpEntity entity = request.getEntity();

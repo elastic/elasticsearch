@@ -24,6 +24,8 @@ import java.nio.file.Path
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
+import org.redline_rpm.header.Flags
+
 /*****************************************************************************
  *                         Deb and rpm configuration                         *
  *****************************************************************************
@@ -56,7 +58,7 @@ buildscript {
     }
   }
   dependencies {
-    classpath 'com.netflix.nebula:gradle-ospackage-plugin:4.7.1'
+    classpath 'com.netflix.nebula:gradle-ospackage-plugin:5.2.0'
   }
 }
 
@@ -235,7 +237,21 @@ Closure commonPackageConfig(String type, boolean oss) {
     copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
 
     // the oss package conflicts with the default distribution and vice versa
-    conflicts('elasticsearch' + (oss ? '' : '-oss'))
+    if (oss) {
+      // elasticsearch 6.2 has a single package called 'elaticsearch' that has  an OSS licence.
+      // starting with 6.3 this was renamed to `elasticsearch-oss` and a new package that has the same name as the OSS
+      // used to have (`elasticsearch`) was introduced.
+      // The configuration bellow prevents both elasticsearch and elasticsearch-oss to be installed after 6.3 and
+      // provides an upgrade path from before 6.3 elasticsearch to elasticsearch-oss
+      conflicts 'elasticsearch', '6.3', Flags.GREATER | Flags.EQUAL
+    } else {
+      conflicts "elasticsearch-oss"
+    }
+    if (type == "rpm") {
+      obsoletes 'elasticsearch', '6.3', Flags.LESS
+    } else {
+      replaces 'elasticsearch', '6.3', Flags.LESS
+    }
   }
 }
 
@@ -305,16 +321,8 @@ task buildOssDeb(type: Deb) {
   configure(commonDebConfig(true))
 }
 
-Closure commonRpmConfig(boolean oss) {
+Closure commonRpmConfig() {
   return {
-    configure(commonPackageConfig('rpm', oss))
-
-    if (oss) {
-      license 'ASL 2.0'
-    } else {
-      license 'Elastic License'
-    }
-
     packageGroup 'Application/Internet'
     requires '/bin/bash'
 
@@ -334,11 +342,15 @@ Closure commonRpmConfig(boolean oss) {
 }
 
 task buildRpm(type: Rpm) {
-  configure(commonRpmConfig(false))
+  configure(commonPackageConfig('rpm', false))
+  configure(commonRpmConfig())
+  license 'Elastic License'
 }
 
 task buildOssRpm(type: Rpm) {
-  configure(commonRpmConfig(true))
+  configure(commonPackageConfig('rpm', true))
+  configure(commonRpmConfig())
+  license 'ASL 2.0'
 }
 
 Closure dpkgExists = { it -> new File('/bin/dpkg-deb').exists() || new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }

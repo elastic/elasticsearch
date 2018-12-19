@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -1324,19 +1325,52 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         String accessToken;
         String refreshToken;
         {
-            // Setup user
+            // Setup users
             final char[] password = "password".toCharArray();
-            User invalidate_token_user = new User("invalidate_token", Collections.singletonList("kibana_user"));
-            PutUserRequest putUserRequest = new PutUserRequest(invalidate_token_user, password, true, RefreshPolicy.IMMEDIATE);
+            User user = new User("user", Collections.singletonList("kibana_user"));
+            PutUserRequest putUserRequest = new PutUserRequest(user, password, true, RefreshPolicy.IMMEDIATE);
             PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
             assertTrue(putUserResponse.isCreated());
 
+            User this_user = new User("this_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putThisUserRequest = new PutUserRequest(this_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putThisUserResponse = client.security().putUser(putThisUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putThisUserResponse.isCreated());
+
+            User that_user = new User("that_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putThatUserRequest = new PutUserRequest(that_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putThatUserResponse = client.security().putUser(putThatUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putThatUserResponse.isCreated());
+
+            User other_user = new User("other_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putOtherUserRequest = new PutUserRequest(other_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putOtherUserResponse = client.security().putUser(putOtherUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putOtherUserResponse.isCreated());
+
+            User extra_user = new User("extra_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putExtraUserRequest = new PutUserRequest(extra_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putExtraUserResponse = client.security().putUser(putExtraUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putExtraUserResponse.isCreated());
+
             // Create tokens
-            final CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("invalidate_token", password);
+            final CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("user", password);
             final CreateTokenResponse tokenResponse = client.security().createToken(createTokenRequest, RequestOptions.DEFAULT);
             accessToken = tokenResponse.getAccessToken();
             refreshToken = tokenResponse.getRefreshToken();
+            final CreateTokenRequest createThisTokenRequest = CreateTokenRequest.passwordGrant("this_user", password);
+            final CreateTokenResponse thisTokenResponse = client.security().createToken(createThisTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(thisTokenResponse);
+            final CreateTokenRequest createThatTokenRequest = CreateTokenRequest.passwordGrant("that_user", password);
+            final CreateTokenResponse thatTokenResponse = client.security().createToken(createThatTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(thatTokenResponse);
+            final CreateTokenRequest createOtherTokenRequest = CreateTokenRequest.passwordGrant("other_user", password);
+            final CreateTokenResponse otherTokenResponse = client.security().createToken(createOtherTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(otherTokenResponse);
+            final CreateTokenRequest createExtraTokenRequest = CreateTokenRequest.passwordGrant("extra_user", password);
+            final CreateTokenResponse extraTokenResponse = client.security().createToken(createExtraTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(extraTokenResponse);
         }
+
         {
             // tag::invalidate-access-token-request
             InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.accessToken(accessToken);
@@ -1348,15 +1382,54 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::invalidate-token-execute
 
             // tag::invalidate-token-response
-            boolean isCreated = invalidateTokenResponse.isCreated();
+            final List<ElasticsearchException> errors = invalidateTokenResponse.getErrors();
+            final int invalidatedTokens = invalidateTokenResponse.getInvalidatedTokens();
+            final int previouslyInvalidatedTokens = invalidateTokenResponse.getPreviouslyInvalidatedTokens();
             // end::invalidate-token-response
-            assertTrue(isCreated);
+            assertTrue(errors.isEmpty());
+            assertThat(invalidatedTokens, equalTo(1));
+            assertThat(previouslyInvalidatedTokens, equalTo(0));
         }
 
         {
             // tag::invalidate-refresh-token-request
             InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.refreshToken(refreshToken);
             // end::invalidate-refresh-token-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(1));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-user-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.userTokens("other_user");
+            // end::invalidate-user-tokens-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            // We have one refresh and one access token for that user
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(2));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-user-realm-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = new InvalidateTokenRequest(null, null, "default_native", "extra_user");
+            // end::invalidate-user-realm-tokens-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            // We have one refresh and one access token for that user in this realm
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(2));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-realm-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.realmTokens("default_native");
+            // end::invalidate-realm-tokens-request
 
             ActionListener<InvalidateTokenResponse> listener;
             //tag::invalidate-token-execute-listener
@@ -1386,8 +1459,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             final InvalidateTokenResponse response = future.get(30, TimeUnit.SECONDS);
             assertNotNull(response);
-            assertTrue(response.isCreated());// technically, this should be false, but the API is broken
-            // See https://github.com/elastic/elasticsearch/issues/35115
+            assertTrue(response.getErrors().isEmpty());
+            //We still have 4 tokens ( 2 access_tokens and 2 refresh_tokens ) for the default_native realm
+            assertThat(response.getInvalidatedTokens(), equalTo(4));
+            assertThat(response.getPreviouslyInvalidatedTokens(), equalTo(0));
         }
     }
 

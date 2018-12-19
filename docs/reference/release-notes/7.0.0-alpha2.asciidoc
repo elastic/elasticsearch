@@ -8,20 +8,20 @@
 Authentication::
 * Enhance Invalidate Token API {pull}35388[#35388] (issues: {issue}34556[#34556], {issue}35115[#35115])
 
+Circuit Breakers::
+* Lower fielddata circuit breaker's default limit {pull}27162[#27162] (issue: {issue}27130[#27130])
+
 CCR::
 * Change get autofollow patterns API response format {pull}36203[#36203] (issue: {issue}36049[#36049])
 
-Features/Index APIs::
+Index APIs::
 * Always enforce cluster-wide shard limit {pull}34892[#34892] (issues: {issue}20705[#20705], {issue}34021[#34021])
-
-Infra/Circuit Breakers::
-* Lower fielddata circuit breaker's default limit {pull}27162[#27162] (issue: {issue}27130[#27130])
-
-Infra/Scripting::
-* Delete deprecated getValues from ScriptDocValues {pull}36183[#36183] (issue: {issue}22919[#22919])
 
 Ranking::
 * Forbid negative scores in functon_score query {pull}35709[#35709] (issue: {issue}33309[#33309])
+
+Scripting::
+* Delete deprecated getValues from ScriptDocValues {pull}36183[#36183] (issue: {issue}22919[#22919])
 
 Search::
 * Remove the deprecated _termvector endpoint. {pull}36131[#36131] (issues: {issue}36098[#36098], {issue}8484[#8484])
@@ -45,23 +45,9 @@ ZenDiscovery::
 [float]
 === Deprecations
 
-Features/Features::
-* Deprecate X-Pack centric Migration endpoints {pull}35976[#35976] (issue: {issue}35958[#35958])
-
-Features/Watcher::
-* Deprecate X-Pack centric watcher endpoints {pull}36218[#36218] (issue: {issue}35958[#35958])
-
-Infra/Core::
+Core::
 * Deprecate use of scientific notation in epoch time parsing {pull}36691[#36691]
 * Add backcompat for joda time formats {pull}36531[#36531]
-
-Infra/REST API::
-* Deprecate /_xpack/security/* in favor of /_security/* {pull}36293[#36293] (issue: {issue}35958[#35958])
-* Deprecate /_xpack/monitoring/* in favor of /_monitoring/* {pull}36130[#36130] (issue: {issue}35958[#35958])
-
-Infra/Scripting::
-* Adds deprecation logging to ScriptDocValues#getValues. {pull}34279[#34279] (issue: {issue}22919[#22919])
-* Scripting: Conditionally use java time api in scripting {pull}31441[#31441]
 
 Machine Learning::
 * Deprecate X-Pack centric ML endpoints {pull}36315[#36315] (issue: {issue}35958[#35958])
@@ -80,19 +66,34 @@ Mapping::
 * Deprecate types in validate query requests. {pull}35575[#35575]
 * Deprecate types in count and msearch. {pull}35421[#35421] (issue: {issue}34041[#34041])
 
+Migration::
+* Deprecate X-Pack centric Migration endpoints {pull}35976[#35976] (issue: {issue}35958[#35958])
+
+Monitoring::
+* Deprecate /_xpack/monitoring/* in favor of /_monitoring/* {pull}36130[#36130] (issue: {issue}35958[#35958])
+
 Rollup::
 * Re-deprecate xpack rollup endpoints {pull}36451[#36451] (issue: {issue}36044[#36044])
 * Deprecate X-Pack centric rollup endpoints {pull}35962[#35962] (issue: {issue}35958[#35958])
 
-SQL::
-* SQL: deprecate X-Pack SQL translate endpoint {pull}36030[#36030]
-* Deprecate X-Pack centric SQL endpoints {pull}35964[#35964] (issue: {issue}35958[#35958])
+Scripting::
+* Adds deprecation logging to ScriptDocValues#getValues. {pull}34279[#34279] (issue: {issue}22919[#22919])
+* Conditionally use java time api in scripting {pull}31441[#31441]
 
 Search::
 * Remove X-Pack centric graph endpoints {pull}36010[#36010] (issue: {issue}35958[#35958])
 
 Security::
 * Deprecate X-Pack centric license endpoints {pull}35959[#35959] (issue: {issue}35958[#35958])
+* Deprecate /_xpack/security/* in favor of /_security/* {pull}36293[#36293] (issue: {issue}35958[#35958])
+
+SQL::
+* Deprecate X-Pack SQL translate endpoint {pull}36030[#36030]
+* Deprecate X-Pack centric SQL endpoints {pull}35964[#35964] (issue: {issue}35958[#35958])
+
+Watcher::
+* Deprecate X-Pack centric watcher endpoints {pull}36218[#36218] (issue: {issue}35958[#35958])
+
 
 [[feature-7.0.0-alpha2]]
 [float]
@@ -102,10 +103,10 @@ Analysis::
 * Add support for inlined user dictionary in Nori {pull}36123[#36123] (issue: {issue}35842[#35842])
 * Add a prebuilt ICU Analyzer {pull}34958[#34958] (issue: {issue}34285[#34285])
 
-Features/Java High Level REST Client::
+Java High Level REST Client::
 * Add rollup search {pull}36334[#36334] (issue: {issue}29827[#29827])
 
-Features/Java Low Level REST Client::
+Java Low Level REST Client::
 * Make warning behavior pluggable per request {pull}36345[#36345]
 * Add PreferHasAttributeNodeSelector {pull}36005[#36005]
 
@@ -172,11 +173,23 @@ Authorization::
 * `manage_token` privilege for `kibana_system` {pull}35751[#35751]
 * Grant .tasks access to kibana_system role {pull}35573[#35573]
 
+Build::
+* Sounds like typo in exception message {pull}35458[#35458]
+* Allow set section in setup section of REST tests {pull}34678[#34678]
+
 CCR::
 * Add time since last auto follow fetch to auto follow stats {pull}36542[#36542] (issues: {issue}33007[#33007], {issue}35895[#35895])
 * Clean followed leader index UUIDs in auto follow metadata {pull}36408[#36408] (issue: {issue}33007[#33007])
 * Change AutofollowCoordinator to use wait_for_metadata_version {pull}36264[#36264] (issues: {issue}33007[#33007], {issue}35895[#35895])
 * Refactor AutoFollowCoordinator to track leader indices per remote cluster {pull}36031[#36031] (issues: {issue}33007[#33007], {issue}35895[#35895])
+
+Core::
+* Override the JVM DNS cache policy {pull}36570[#36570]
+* Replace usages of AtomicBoolean based block of code by the RunOnce class {pull}35553[#35553] (issue: {issue}35489[#35489])
+* Added wait_for_metadata_version parameter to cluster state api. {pull}35535[#35535]
+* Extract RunOnce into a dedicated class {pull}35489[#35489]
+* Introduce elasticsearch-core jar {pull}28191[#28191] (issue: {issue}27933[#27933])
+*  Rename core module to server {pull}28180[#28180] (issue: {issue}27933[#27933])
 
 CRUD::
 * Rename seq# powered optimistic concurrency control parameters to ifSeqNo/ifPrimaryTerm  {pull}36757[#36757] (issues: {issue}10708[#10708], {issue}36148[#36148])
@@ -202,17 +215,17 @@ Engine::
 * Add a `_freeze` / `_unfreeze` API {pull}35592[#35592] (issue: {issue}34352[#34352])
 * [RCI] Add IndexShardOperationPermits.asyncBlockOperations(ActionListener<Releasable>) {pull}34902[#34902] (issue: {issue}33888[#33888])
 
-Features/Features::
+Features::
 * Simplify deprecation issue levels {pull}36326[#36326]
 
-Features/Index APIs::
+Index APIs::
 * Add cluster-wide shard limit warnings {pull}34021[#34021] (issues: {issue}20705[#20705], {issue}32856[#32856])
 
-Features/Ingest::
+Ingest::
 * Grok fix duplicate patterns JAVACLASS and JAVAFILE  {pull}35886[#35886]
 * Implement Drop Processor {pull}32278[#32278] (issue: {issue}23726[#23726])
 
-Features/Java High Level REST Client::
+Java High Level REST Client::
 * Add get users action {pull}36332[#36332] (issue: {issue}29827[#29827])
 * Add delete template API {pull}36320[#36320] (issue: {issue}27205[#27205])
 * Implement get-user-privileges API {pull}36292[#36292]
@@ -272,46 +285,16 @@ Features/Java High Level REST Client::
 * Add ML HLRC wrapper and put_job API call {pull}32726[#32726]
 * Add Get Snapshots High Level REST API {pull}31537[#31537] (issue: {issue}27205[#27205])
 
-Features/Java Low Level REST Client::
+Java Low Level REST Client::
 * On retry timeout add root exception {pull}25576[#25576]
 
-Features/Monitoring::
+Monitoring::
 * Make Exporters Async {pull}35765[#35765] (issue: {issue}35743[#35743])
-
-Features/Stats::
-* Handle OS pretty name on old OS without OS release {pull}35453[#35453] (issue: {issue}35440[#35440])
 
 Geo::
 * Adds a name of the field to geopoint parsing errors {pull}36529[#36529] (issue: {issue}15965[#15965])
 * Add support to ShapeBuilders for building Lucene geometry {pull}35707[#35707] (issue: {issue}35320[#35320])
 * Add ST_WktToSQL function {pull}35416[#35416] (issue: {issue}29872[#29872])
-
-Infra/Build::
-* Sounds like typo in exception message {pull}35458[#35458]
-* Allow set section in setup section of REST tests {pull}34678[#34678]
-
-Infra/Core::
-* Override the JVM DNS cache policy {pull}36570[#36570]
-* Replace usages of AtomicBoolean based block of code by the RunOnce class {pull}35553[#35553] (issue: {issue}35489[#35489])
-* Added wait_for_metadata_version parameter to cluster state api. {pull}35535[#35535]
-* Extract RunOnce into a dedicated class {pull}35489[#35489]
-* Introduce elasticsearch-core jar {pull}28191[#28191] (issue: {issue}27933[#27933])
-*  Rename core module to server {pull}28180[#28180] (issue: {issue}27933[#27933])
-
-Infra/Packaging::
-* Introduce Docker images build {pull}36246[#36246]
-* Move creation of temporary directory to Java {pull}36002[#36002] (issue: {issue}31003[#31003])
-
-Infra/Plugins::
-* plugin install: don't print download progress in batch mode {pull}36361[#36361]
-
-Infra/Scripting::
-* Update joda compat methods to use compat class {pull}36654[#36654]
-* [Painless] Add boxed type to boxed type casts for method/return {pull}36571[#36571]
-* [Painless] Add def to boxed type casts {pull}36506[#36506]
-
-Infra/Settings::
-* Add user-defined cluster metadata {pull}33325[#33325] (issue: {issue}33220[#33220])
 
 License::
 * Require acknowledgement to start_trial license {pull}30135[#30135] (issue: {issue}30134[#30134])
@@ -344,6 +327,13 @@ Network::
 * Remove tcp profile from low level nio channel {pull}27441[#27441] (issue: {issue}27260[#27260])
 * Decouple `ChannelFactory` from Tcp classes {pull}27286[#27286] (issue: {issue}27260[#27260])
 
+Packaging::
+* Introduce Docker images build {pull}36246[#36246]
+* Move creation of temporary directory to Java {pull}36002[#36002] (issue: {issue}31003[#31003])
+
+Plugins::
+* Plugin install: don't print download progress in batch mode {pull}36361[#36361]
+
 Ranking::
 * Vector field {pull}33022[#33022] (issue: {issue}31615[#31615])
 
@@ -354,6 +344,31 @@ Rollup::
 * Add non-X-Pack centric rollup endpoints {pull}36383[#36383] (issues: {issue}35958[#35958], {issue}35962[#35962])
 * Add more diagnostic stats to job {pull}35471[#35471]
 * Add `wait_for_completion` option to StopRollupJob API {pull}34811[#34811] (issue: {issue}34574[#34574])
+
+Scripting::
+* Update joda compat methods to use compat class {pull}36654[#36654]
+* [Painless] Add boxed type to boxed type casts for method/return {pull}36571[#36571]
+* [Painless] Add def to boxed type casts {pull}36506[#36506]
+
+Settings::
+* Add user-defined cluster metadata {pull}33325[#33325] (issue: {issue}33220[#33220])
+
+Search::
+* Add copy constructor to SearchRequest {pull}36641[#36641] (issue: {issue}32125[#32125])
+* Add raw sort values to SearchSortValues transport serialization {pull}36617[#36617] (issue: {issue}32125[#32125])
+* Add sort and collapse info to SearchHits transport serialization {pull}36555[#36555] (issue: {issue}32125[#32125])
+* Add default methods to DocValueFormat {pull}36480[#36480]
+* Respect indices options on _msearch {pull}35887[#35887]
+* Allow efficient can_match phases on frozen indices {pull}35431[#35431] (issues: {issue}34352[#34352], {issue}34357[#34357])
+* Add a new query type - ScriptScoreQuery {pull}34533[#34533] (issues: {issue}23850[#23850], {issue}27588[#27588], {issue}30303[#30303])
+
+Security::
+* Make credentials mandatory when launching xpack/migrate {pull}36197[#36197] (issues: {issue}29847[#29847], {issue}33972[#33972])
+
+Snapshot/Restore::
+* Allow Parallel Restore Operations {pull}36397[#36397]
+* Repo Creation out of ClusterStateTask {pull}36157[#36157] (issue: {issue}9488[#9488])
+* Add read-only repository verification {pull}35731[#35731] (issue: {issue}35703[#35703])
 
 SQL::
 * Extend the ODBC metric by differentiating between 32 and 64bit platforms {pull}36753[#36753] (issue: {issue}36740[#36740])
@@ -377,22 +392,8 @@ SQL::
 * Improve validation of unsupported fields {pull}35675[#35675] (issue: {issue}35673[#35673])
 * Move internals from Joda to java.time {pull}35649[#35649] (issue: {issue}35633[#35633])
 
-Search::
-* Add copy constructor to SearchRequest {pull}36641[#36641] (issue: {issue}32125[#32125])
-* Add raw sort values to SearchSortValues transport serialization {pull}36617[#36617] (issue: {issue}32125[#32125])
-* Add sort and collapse info to SearchHits transport serialization {pull}36555[#36555] (issue: {issue}32125[#32125])
-* Add default methods to DocValueFormat {pull}36480[#36480]
-* Respect indices options on _msearch {pull}35887[#35887]
-* Allow efficient can_match phases on frozen indices {pull}35431[#35431] (issues: {issue}34352[#34352], {issue}34357[#34357])
-* Add a new query type - ScriptScoreQuery {pull}34533[#34533] (issues: {issue}23850[#23850], {issue}27588[#27588], {issue}30303[#30303])
-
-Security::
-* Make credentials mandatory when launching xpack/migrate {pull}36197[#36197] (issues: {issue}29847[#29847], {issue}33972[#33972])
-
-Snapshot/Restore::
-* Allow Parallel Restore Operations {pull}36397[#36397]
-* Repo Creation out of ClusterStateTask {pull}36157[#36157] (issue: {issue}9488[#9488])
-* Add read-only repository verification {pull}35731[#35731] (issue: {issue}35703[#35703])
+Stats::
+* Handle OS pretty name on old OS without OS release {pull}35453[#35453] (issue: {issue}35440[#35440])
 
 Task Management::
 * Periodically try to reassign unassigned persistent tasks {pull}36069[#36069] (issue: {issue}35792[#35792])
@@ -435,12 +436,25 @@ Authentication::
 * Fix kerberos setting registration {pull}35986[#35986] (issues: {issue}30241[#30241], {issue}35942[#35942])
 * Add support for Kerberos V5 Oid {pull}35764[#35764] (issue: {issue}34763[#34763])
 
+Build::
+* Use explicit deps on test tasks for check {pull}36325[#36325]
+* Fix jdbc jar pom to not include deps {pull}36036[#36036] (issue: {issue}32014[#32014])
+* Fix official plugins list {pull}35661[#35661] (issue: {issue}35623[#35623])
+
 CCR::
 * Fix follow stats API's follower index filtering feature {pull}36647[#36647]
 * AutoFollowCoordinator should tolerate that auto follow patterns may be removed {pull}35945[#35945] (issue: {issue}35937[#35937])
 * Only auto follow indices when all primary shards have started {pull}35814[#35814] (issue: {issue}35480[#35480])
 * Avoid NPE in follower stats when no tasks metadata {pull}35802[#35802]
 * Fix the names of CCR stats endpoints in usage API {pull}35438[#35438]
+
+Circuit Breakers::
+* Modify `BigArrays` to take name of circuit breaker {pull}36461[#36461] (issue: {issue}31435[#31435])
+
+Core::
+* Fix CompositeBytesReference#slice to not throw AIOOBE with legal offsets. {pull}35955[#35955] (issue: {issue}35950[#35950])
+* Suppress CachedTimeThread in hot threads output {pull}35558[#35558] (issue: {issue}23175[#23175])
+* Upgrade to Joda 2.10.1 {pull}35410[#35410] (issue: {issue}33749[#33749])
 
 Distributed::
 * Combine the execution of an exclusive replica operation with primary term update {pull}36116[#36116] (issue: {issue}35850[#35850])
@@ -451,55 +465,19 @@ Engine::
 * Wrap can_match reader with ElasticsearchDirectoryReader {pull}35857[#35857]
 * Copy checkpoint atomically when rolling generation {pull}35407[#35407]
 
-Features/Index APIs::
-* Fix duplicate phrase in shrink/split error message {pull}36734[#36734] (issue: {issue}36729[#36729])
-* Raise a 404 exception when document source is not found (#33384) {pull}34083[#34083] (issue: {issue}33384[#33384])
-
-Features/Ingest::
-* Fix on_failure with Drop processor {pull}36686[#36686] (issue: {issue}36151[#36151])
-* Support default pipelines + bulk upserts {pull}36618[#36618] (issue: {issue}36219[#36219])
-* Support default pipeline through an alias {pull}36231[#36231] (issue: {issue}35817[#35817])
-
-Features/Watcher::
-* Watcher accounts constructed lazily {pull}36656[#36656]
-* Only trigger a watch if new or schedule/changed {pull}35908[#35908]
-* Fix Watcher NotificationService's secure settings {pull}35610[#35610] (issue: {issue}35378[#35378])
-* Fix integration tests to ensure correct start/stop of Watcher {pull}35271[#35271] (issues: {issue}29877[#29877], {issue}30705[#30705], {issue}33291[#33291], {issue}34448[#34448], {issue}34462[#34462])
-
 Geo::
 * More robust handling of ignore_malformed in geoshape parsing {pull}35603[#35603] (issues: {issue}34047[#34047], {issue}34498[#34498])
 * Better handling of malformed geo_points {pull}35554[#35554] (issue: {issue}35419[#35419])
 * Enables coerce support in WKT polygon parser {pull}35414[#35414] (issue: {issue}35059[#35059])
 
-Infra/Build::
-* Use explicit deps on test tasks for check {pull}36325[#36325]
-* Fix jdbc jar pom to not include deps {pull}36036[#36036] (issue: {issue}32014[#32014])
-* Fix official plugins list {pull}35661[#35661] (issue: {issue}35623[#35623])
+Index APIs::
+* Fix duplicate phrase in shrink/split error message {pull}36734[#36734] (issue: {issue}36729[#36729])
+* Raise a 404 exception when document source is not found (#33384) {pull}34083[#34083] (issue: {issue}33384[#33384])
 
-Infra/Circuit Breakers::
-* Modify `BigArrays` to take name of circuit breaker {pull}36461[#36461] (issue: {issue}31435[#31435])
-
-Infra/Core::
-* Fix CompositeBytesReference#slice to not throw AIOOBE with legal offsets. {pull}35955[#35955] (issue: {issue}35950[#35950])
-* Suppress CachedTimeThread in hot threads output {pull}35558[#35558] (issue: {issue}23175[#23175])
-* Upgrade to Joda 2.10.1 {pull}35410[#35410] (issue: {issue}33749[#33749])
-
-Infra/Packaging::
-* Fix error message when package install fails due to missing Java {pull}36077[#36077] (issue: {issue}31845[#31845])
-* Add missing entries to conffiles  {pull}35810[#35810] (issue: {issue}35691[#35691])
-
-Infra/Plugins::
-* Ensure that azure stream has socket privileges {pull}28751[#28751] (issue: {issue}28662[#28662])
-
-Infra/Scripting::
-* Properly support no-offset date formatting {pull}36316[#36316] (issue: {issue}36306[#36306])
-* [Painless] Generate Bridge Methods {pull}36097[#36097]
-* Fix serialization bug in painless execute api request {pull}36075[#36075] (issue: {issue}36050[#36050])
-* Actually add joda time back to whitelist {pull}35965[#35965] (issue: {issue}35915[#35915])
-* Add back joda to whitelist {pull}35915[#35915] (issue: {issue}35913[#35913])
-
-Infra/Settings::
-* Correctly Identify Noop Updates {pull}36560[#36560] (issue: {issue}36496[#36496])
+Ingest::
+* Fix on_failure with Drop processor {pull}36686[#36686] (issue: {issue}36151[#36151])
+* Support default pipelines + bulk upserts {pull}36618[#36618] (issue: {issue}36219[#36219])
+* Support default pipeline through an alias {pull}36231[#36231] (issue: {issue}35817[#35817])
 
 License::
 * Do not serialize basic license exp in x-pack info {pull}30848[#30848]
@@ -529,11 +507,28 @@ Network::
 * Do not set SO_LINGER to 0 when not shutting down {pull}26871[#26871] (issue: {issue}26764[#26764])
 * Release pipelined http responses on close {pull}26226[#26226]
 
+Packaging::
+* Fix error message when package install fails due to missing Java {pull}36077[#36077] (issue: {issue}31845[#31845])
+* Add missing entries to conffiles  {pull}35810[#35810] (issue: {issue}35691[#35691])
+
+Plugins::
+* Ensure that azure stream has socket privileges {pull}28751[#28751] (issue: {issue}28662[#28662])
+
 Recovery::
 * Register ResyncTask.Status as a NamedWriteable {pull}36610[#36610]
 
 Rollup::
 * Fix rollup search statistics {pull}36674[#36674]
+
+Scripting::
+* Properly support no-offset date formatting {pull}36316[#36316] (issue: {issue}36306[#36306])
+* [Painless] Generate Bridge Methods {pull}36097[#36097]
+* Fix serialization bug in painless execute api request {pull}36075[#36075] (issue: {issue}36050[#36050])
+* Actually add joda time back to whitelist {pull}35965[#35965] (issue: {issue}35915[#35915])
+* Add back joda to whitelist {pull}35915[#35915] (issue: {issue}35913[#35913])
+
+Settings::
+* Correctly Identify Noop Updates {pull}36560[#36560] (issue: {issue}36496[#36496])
 
 SQL::
 * Fix translation of LIKE/RLIKE keywords {pull}36672[#36672] (issues: {issue}36039[#36039], {issue}36584[#36584])
@@ -572,6 +567,12 @@ Snapshot/Restore::
 * Ensure that gcs client creation is privileged {pull}25938[#25938] (issue: {issue}25932[#25932])
 * Make calls to CloudBlobContainer#exists privileged {pull}25937[#25937] (issue: {issue}25931[#25931])
 
+Watcher::
+* Watcher accounts constructed lazily {pull}36656[#36656]
+* Only trigger a watch if new or schedule/changed {pull}35908[#35908]
+* Fix Watcher NotificationService's secure settings {pull}35610[#35610] (issue: {issue}35378[#35378])
+* Fix integration tests to ensure correct start/stop of Watcher {pull}35271[#35271] (issues: {issue}29877[#29877], {issue}30705[#30705], {issue}33291[#33291], {issue}34448[#34448], {issue}34462[#34462])
+
 ZenDiscovery::
 * [Zen2] Respect the no_master_block setting {pull}36478[#36478]
 * Cancel GetDiscoveredNodesAction when bootstrapped {pull}36423[#36423] (issues: {issue}36380[#36380], {issue}36381[#36381])
@@ -579,21 +580,19 @@ ZenDiscovery::
 * [Zen2] Remove duplicate discovered peers {pull}35505[#35505]
 
 
-
 [[regression-7.0.0-alpha2]]
 [float]
 === Regressions
 
-Infra/Scripting::
+Scripting::
 * Use Number as a return value for BucketAggregationScript {pull}35653[#35653] (issue: {issue}35351[#35351])
-
 
 
 [[upgrade-7.0.0-alpha2]]
 [float]
 === Upgrades
 
-Features/Ingest::
+Ingest::
 * Update geolite2 database in ingest geoip plugin {pull}33840[#33840]
 
 Network::

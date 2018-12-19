@@ -75,7 +75,7 @@ public class CardinalityIT extends ESIntegTestCase {
             scripts.put("doc['str_values']", vars -> {
                 Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 ScriptDocValues.Strings strValue = (ScriptDocValues.Strings) doc.get("str_values");
-                return strValue.getValues();
+                return strValue;
             });
 
             scripts.put("doc[' + singleNumericField() + '].value", vars -> {
@@ -85,7 +85,7 @@ public class CardinalityIT extends ESIntegTestCase {
 
             scripts.put("doc[' + multiNumericField(false) + ']", vars -> {
                 Map<?, ?> doc =(Map<?, ?>) vars.get("doc");
-                return ((ScriptDocValues<?>) doc.get(multiNumericField(false))).getValues();
+                return (ScriptDocValues<?>) doc.get(multiNumericField(false));
             });
 
             return scripts;

@@ -78,9 +78,9 @@ xpack.security.http.filter.enabled: true
 [float]
 === Specifying TCP transport profiles
 
-{ref}/modules-transport.html#_tcp_transport_profiles[TCP transport profiles]
-enable {es} to bind on multiple hosts. The {es} {security-features} enable you
-to apply different IP filtering on different profiles.
+{ref}/modules-transport.html[TCP transport profiles]
+enable Elasticsearch to bind on multiple hosts. The {es} {security-features} enable you to apply
+different IP filtering on different profiles.
 
 [source,yaml]
 --------------------------------------------------

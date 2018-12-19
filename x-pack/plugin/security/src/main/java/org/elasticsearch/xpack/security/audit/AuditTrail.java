@@ -16,6 +16,8 @@ import java.net.InetAddress;
 
 public interface AuditTrail {
 
+    String X_FORWARDED_FOR_HEADER = "X-Forwarded-For";
+
     String name();
 
     void authenticationSuccess(String requestId, String realm, User user, RestRequest request);

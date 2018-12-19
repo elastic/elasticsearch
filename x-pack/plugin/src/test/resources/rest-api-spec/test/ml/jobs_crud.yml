@@ -397,6 +397,28 @@
             "description":"Can't update all description"
           }
 
+  - do:
+      ml.put_job:
+        job_id: job-crud-update-group-name-clash
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      catch: "/job and group names must be unique/"
+      ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+            "groups": ["job-crud-update-group-name-clash"]
+          }
+
 ---
 "Test cannot decrease model_memory_limit below current usage":
   - skip:
@@ -1178,10 +1200,11 @@
   - match: { job_id: "delimited-format-job" }
 
 ---
-"Test job with named categorization_analyzer":
+"Test jobs with named and custom categorization_analyzer":
+# Check named and custom configs can share the same index & mappings
   - do:
       ml.put_job:
-        job_id: jobs-crud-categorization-analyzer-job
+        job_id: jobs-crud-named-categorization-analyzer-job
         body:  >
           {
             "analysis_config" : {
@@ -1193,14 +1216,12 @@
             "data_description" : {
             }
           }
-  - match: { job_id: "jobs-crud-categorization-analyzer-job" }
+  - match: { job_id: "jobs-crud-named-categorization-analyzer-job" }
   - match: { analysis_config.categorization_analyzer: "standard" }
 
----
-"Test job with custom categorization_analyzer":
   - do:
       ml.put_job:
-        job_id: jobs-crud-categorization-analyzer-job
+        job_id: jobs-crud-custom-categorization-analyzer-job
         body:  >
           {
             "analysis_config" : {
@@ -1216,7 +1237,7 @@
             "data_description" : {
             }
           }
-  - match: { job_id: "jobs-crud-categorization-analyzer-job" }
+  - match: { job_id: "jobs-crud-custom-categorization-analyzer-job" }
   - match: { analysis_config.categorization_analyzer.char_filter.0: "html_strip" }
   - match: { analysis_config.categorization_analyzer.tokenizer: "classic" }
   - match: { analysis_config.categorization_analyzer.filter.0: "stop" }

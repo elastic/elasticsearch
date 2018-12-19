@@ -64,7 +64,7 @@ task writeTestJavaPolicy {
   }
 }
 
-test {
+unitTest {
   dependsOn writeTestJavaPolicy
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name

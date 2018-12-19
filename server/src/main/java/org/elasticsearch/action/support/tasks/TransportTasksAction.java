@@ -212,10 +212,6 @@ public abstract class TransportTasksAction<
      */
     protected abstract void taskOperation(TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
 
-    protected boolean transportCompress() {
-        return false;
-    }
-
     private class AsyncAction {
 
         private final TasksRequest request;
@@ -255,7 +251,6 @@ public abstract class TransportTasksAction<
                 if (request.getTimeout() != null) {
                     builder.withTimeout(request.getTimeout());
                 }
-                builder.withCompress(transportCompress());
                 for (int i = 0; i < nodesIds.length; i++) {
                     final String nodeId = nodesIds[i];
                     final int idx = i;

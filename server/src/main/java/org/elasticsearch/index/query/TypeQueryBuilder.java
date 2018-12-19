@@ -32,6 +32,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -127,7 +128,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        deprecationLogger.deprecated("The [type] query is deprecated, filter on a field instead.");
+        deprecationLogger.deprecatedAndMaybeLog("type_query", TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
         //LUCENE 4 UPGRADE document mapper should use bytesref as well?
         DocumentMapper documentMapper = context.getMapperService().documentMapper(type);
         if (documentMapper == null) {

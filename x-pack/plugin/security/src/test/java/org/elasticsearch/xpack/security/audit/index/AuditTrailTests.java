@@ -155,7 +155,8 @@ public class AuditTrailTests extends SecurityIntegTestCase {
     private Collection<Map<String, Object>> getAuditEvents() throws Exception {
         final Client client = client();
         final DateTime now = new DateTime(DateTimeZone.UTC);
-        final String indexName = IndexNameResolver.resolve(SystemIndicesNames.AUDIT_INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY);
+        final String indexName = IndexNameResolver.resolve(SystemIndicesNames.AUDIT_INDEX_NAME_PREFIX, now,
+                IndexNameResolver.Rollover.DAILY);
 
         assertTrue(awaitBusy(() -> indexExists(client, indexName), 5, TimeUnit.SECONDS));
 

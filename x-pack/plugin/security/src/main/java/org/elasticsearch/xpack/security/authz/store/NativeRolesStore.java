@@ -140,7 +140,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final String[] roleIds = names.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
-                MultiGetRequest multiGetRequest = client.prepareMultiGet().add(SystemIndicesNames.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, roleIds).request();
+                MultiGetRequest multiGetRequest = client.prepareMultiGet()
+                        .add(SystemIndicesNames.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, roleIds).request();
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, multiGetRequest,
                     ActionListener.<MultiGetResponse>wrap(mGetResponse -> {
                             final MultiGetItemResponse[] responses = mGetResponse.getResponses();
@@ -217,7 +218,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 listener.onFailure(e);
                 return;
             }
-            final IndexRequest indexRequest = client.prepareIndex(SystemIndicesNames.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForRole(role.getName()))
+            final IndexRequest indexRequest = client
+                    .prepareIndex(SystemIndicesNames.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForRole(role.getName()))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();

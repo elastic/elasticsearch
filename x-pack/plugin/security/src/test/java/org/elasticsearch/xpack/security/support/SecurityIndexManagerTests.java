@@ -327,8 +327,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         String templateString = "/missing-version-" + SECURITY_TEMPLATE_NAME + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
         final ClusterState clusterState = clusterStateBuilder.build();
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> SecurityIndexManager.checkIndexMappingVersionMatches(SystemIndicesNames.SECURITY_INDEX_NAME, clusterState, logger, Version.CURRENT::equals));
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> SecurityIndexManager
+                .checkIndexMappingVersionMatches(SystemIndicesNames.SECURITY_INDEX_NAME, clusterState, logger, Version.CURRENT::equals));
         assertEquals("Cannot read security-version string in index " + SystemIndicesNames.SECURITY_INDEX_NAME, exception.getMessage());
     }
 

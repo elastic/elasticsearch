@@ -84,7 +84,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         assertTrue(list.isEmpty());
     }
 
-    public void testSecurityIndicesAreRemovedFromRegularUser() {
+    public void testSecurityIndicesAreNotAuthorizedForWildcardPermission() {
         Role role = Role.builder(randomFrom("user_role", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))
                 .add(IndexPrivilege.ALL, "*")
                 .add(IndexPrivilege.ALL, SystemIndicesNames.SECURITY_INDEX_NAME + "*") // wildcards not allowed over security indices
@@ -110,7 +110,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         assertThat(list, not(contains(SystemIndicesNames.SECURITY_INDEX_NAME)));
     }
 
-    public void testSecurityIndicesAreNotRemovedFromSuperUsers() {
+    public void testSecurityIndicesAreAuthorizedWhenNamedExplicitly() {
         Role role = Role.builder(randomAlphaOfLength(8)) // role name is not important
                 .add(IndexPrivilege.ALL, "*")
                 .add(IndexPrivilege.ALL, SystemIndicesNames.INTERNAL_SECURITY_INDEX)
@@ -133,7 +133,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
         assertThat(authorizedIndices.get(), containsInAnyOrder("an-index", "another-index", SystemIndicesNames.SECURITY_INDEX_NAME,
                 SystemIndicesNames.INTERNAL_SECURITY_INDEX));
         
-        AuthorizedIndices authorizedIndicesSuperUser = new AuthorizedIndices(ReservedRolesStore.SUPERUSER_ROLE, SearchAction.NAME, metaData);
+        AuthorizedIndices authorizedIndicesSuperUser = new AuthorizedIndices(ReservedRolesStore.SUPERUSER_ROLE, SearchAction.NAME,
+                metaData);
         assertThat(authorizedIndicesSuperUser.get(), containsInAnyOrder("an-index", "another-index", SystemIndicesNames.SECURITY_INDEX_NAME,
                 SystemIndicesNames.INTERNAL_SECURITY_INDEX));
     }

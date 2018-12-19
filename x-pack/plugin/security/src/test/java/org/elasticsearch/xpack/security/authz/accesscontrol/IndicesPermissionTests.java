@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.is;
 
 public class IndicesPermissionTests extends ESTestCase {
 
@@ -265,6 +267,45 @@ public class IndicesPermissionTests extends ESTestCase {
                 () -> new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, indices.toArray(Strings.EMPTY_ARRAY)));
         assertThat(e.getMessage(), containsString(indices.get(0)));
         assertThat(e.getMessage(), containsString("too complex to evaluate"));
+    }
+
+    public void testSecurityIndicesPermissions() {
+        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final MetaData metaData = new MetaData.Builder()
+                .put(new IndexMetaData.Builder(SystemIndicesNames.INTERNAL_SECURITY_INDEX)
+                        .settings(indexSettings)
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .putAlias(new AliasMetaData.Builder(SystemIndicesNames.SECURITY_INDEX_NAME).build())
+                        .build(), true)
+                .build();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+        // global wildcard
+        IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, "*");
+        Map<String, IndicesAccessControl.IndexAccessControl> authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
+                Sets.newHashSet(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME), metaData,
+                fieldPermissionsCache);
+        assertThat(authzMap.get(SystemIndicesNames.INTERNAL_SECURITY_INDEX).isGranted(), is(false));
+        assertThat(authzMap.get(SystemIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(false));
+
+        // narrow wildcard
+        group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, SystemIndicesNames.SECURITY_INDEX_NAME + "*",
+                SystemIndicesNames.INTERNAL_SECURITY_INDEX + "*");
+        authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
+                Sets.newHashSet(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME), metaData,
+                fieldPermissionsCache);
+        assertThat(authzMap.get(SystemIndicesNames.INTERNAL_SECURITY_INDEX).isGranted(), is(false));
+        assertThat(authzMap.get(SystemIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(false));
+
+        // specific name in permission
+        group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, SystemIndicesNames.SECURITY_INDEX_NAME,
+                SystemIndicesNames.INTERNAL_SECURITY_INDEX);
+        authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
+                Sets.newHashSet(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME), metaData,
+                fieldPermissionsCache);
+        assertThat(authzMap.get(SystemIndicesNames.INTERNAL_SECURITY_INDEX).isGranted(), is(true));
+        assertThat(authzMap.get(SystemIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(true));
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

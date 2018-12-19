@@ -47,17 +47,16 @@ import static java.util.Collections.unmodifiableSet;
 public final class IndicesPermission {
 
     public static final IndicesPermission NONE = new IndicesPermission();
+    private static final Automaton systemIndicesAutomaton = Automatons.patterns(SystemIndicesNames.indexNames());
 
     private static final Logger logger = LogManager.getLogger();
 
     private final ConcurrentMap<String, Predicate<String>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
     private final ConcurrentMap<Group, Automaton> indexGroupAutomatonCache = new ConcurrentHashMap<>();
     private final Group[] groups;
-    private final Automaton systemIndicesAutomaton;
 
     public IndicesPermission(Group... groups) {
         this.groups = groups;
-        this.systemIndicesAutomaton = Automatons.patterns(SystemIndicesNames.indexNames());
     }
 
     private static Predicate<String> indexMatcherPredicate(Collection<String> indices) {
@@ -82,7 +81,7 @@ public final class IndicesPermission {
         }
     }
 
-    private Automaton indexMatcherAutomaton(String... indices) {
+    private static Automaton indexMatcherAutomaton(String... indices) {
         final List<String> exactMatch = new ArrayList<>();
         final List<String> patternMatch = new ArrayList<>();
         for (String indexPattern : indices) {
@@ -310,7 +309,7 @@ public final class IndicesPermission {
             this.query = query;
         }
 
-        private IndexPrivilege privilege() {
+        public IndexPrivilege privilege() {
             return privilege;
         }
 

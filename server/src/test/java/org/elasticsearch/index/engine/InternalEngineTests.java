@@ -172,6 +172,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANS
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -1801,7 +1802,7 @@ public class InternalEngineTests extends EngineTestCase {
         int opsPerformed = 0;
         long lastOpVersion = currentOpVersion;
         long lastOpSeqNo = UNASSIGNED_SEQ_NO;
-        long lastOpTerm = 0;
+        long lastOpTerm = UNASSIGNED_PRIMARY_TERM;
         final AtomicLong currentTerm = new AtomicLong(1);
         BiFunction<Long, Engine.Index, Engine.Index> indexWithVersion = (version, index) -> new Engine.Index(index.uid(), index.parsedDoc(),
             UNASSIGNED_SEQ_NO, currentTerm.get(), version, index.versionType(), index.origin(), index.startTime(),
@@ -1900,7 +1901,7 @@ public class InternalEngineTests extends EngineTestCase {
                     docDeleted = true;
                     lastOpVersion = result.getVersion();
                     lastOpSeqNo = UNASSIGNED_SEQ_NO;
-                    lastOpTerm = 0;
+                    lastOpTerm = UNASSIGNED_PRIMARY_TERM;
                     opsPerformed++;
                 }
             }
@@ -4309,7 +4310,7 @@ public class InternalEngineTests extends EngineTestCase {
             final long seqNo;
             DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), get.uid());
             if (docIdAndSeqNo == null) {
-                primaryTerm = 0;
+                primaryTerm = UNASSIGNED_PRIMARY_TERM;
                 seqNo = UNASSIGNED_SEQ_NO;
             } else {
                 seqNo = docIdAndSeqNo.seqNo;
@@ -5418,6 +5419,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36470")
     public void testRebuildLocalCheckpointTracker() throws Exception {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())

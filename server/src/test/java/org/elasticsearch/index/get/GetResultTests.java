@@ -44,6 +44,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.get.DocumentFieldTests.randomDocumentField;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -209,7 +210,7 @@ public class GetResultTests extends ESTestCase {
             }
         } else {
             seqNo = UNASSIGNED_SEQ_NO;
-            primaryTerm = 0;
+            primaryTerm = UNASSIGNED_PRIMARY_TERM;
             version = -1;
             exists = false;
         }

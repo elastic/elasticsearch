@@ -333,7 +333,7 @@ public class ElasticsearchNode {
         config.put("node.attr.testattr", "test");
         config.put("node.portsfile", "true");
         config.put("http.port", "0");
-        config.put("transport.port", "0");
+        config.put("transport.tcp.port", "0");
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         config.put("cluster.routing.allocation.disk.watermark.low", "1b");
         config.put("cluster.routing.allocation.disk.watermark.high", "1b");

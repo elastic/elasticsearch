@@ -40,6 +40,7 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionGraph
+import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -888,14 +889,21 @@ class BuildPlugin implements Plugin<Project> {
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
+            project.sourceSets.matching { it.name == "test" }.all { test ->
+                task.testClassesDirs = test.output.classesDirs
+                task.classpath = test.runtimeClasspath
+            }
+            group =  JavaBasePlugin.VERIFICATION_GROUP
+            dependsOn 'testClasses'
 
             // Make sure all test tasks are configured properly
             if (name != "test") {
                 project.tasks.matching { it.name == "test"}.all { testTask ->
-                    task.testClassesDirs = testTask.testClassesDirs
-                    task.classpath = testTask.classpath
                     task.shouldRunAfter testTask
                 }
+            }
+            if (name == "unitTest") {
+                include("**/*Tests.class")
             }
 
             // TODO: why are we not passing maxmemory to junit4?
@@ -985,8 +993,6 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             exclude '**/*$*.class'
-
-            dependsOn(project.tasks.testClasses)
 
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
                 // Test against a shadow jar if we made one

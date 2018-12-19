@@ -19,16 +19,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper.GeoShapeFieldType;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
 import org.junit.Before;
 
 import java.io.IOException;
 
-public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
+public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new GeoShapeFieldMapper.GeoShapeFieldType();
+        return new GeoShapeFieldType();
     }
 
     @Before
@@ -36,51 +35,45 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
         addModifier(new Modifier("tree", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setTree("quadtree");
+                ((GeoShapeFieldType)ft).setTree("geohash");
             }
         });
         addModifier(new Modifier("strategy", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setStrategyName("term");
+                ((GeoShapeFieldType)ft).setStrategy(SpatialStrategy.TERM);
             }
         });
         addModifier(new Modifier("tree_levels", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setTreeLevels(10);
+                ((GeoShapeFieldType)ft).setTreeLevels(10);
             }
         });
         addModifier(new Modifier("precision", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setPrecisionInMeters(20);
+                ((GeoShapeFieldType)ft).setPrecisionInMeters(20);
             }
         });
-        addModifier(new Modifier("distance_error_pct", true) {
+        addModifier(new Modifier("distance_error_pct", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setDefaultDistanceErrorPct(0.5);
-            }
-        });
-        addModifier(new Modifier("orientation", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
+                ((GeoShapeFieldType)ft).setDefaultDistanceErrorPct(0.5);
             }
         });
     }
 
     /**
-     * Test for {@link GeoShapeFieldType#setStrategyName(String)} that checks that {@link GeoShapeFieldType#pointsOnly()}
-     * gets set as a side effect when using SpatialStrategy.TERM
+     * Test for {@link LegacyGeoShapeFieldMapper.GeoShapeFieldType#setStrategy(SpatialStrategy)} that checks
+     * that {@link LegacyGeoShapeFieldMapper.GeoShapeFieldType#pointsOnly()} gets set as a side effect when using SpatialStrategy.TERM
      */
     public void testSetStrategyName() throws IOException {
-        GeoShapeFieldType fieldType = new GeoShapeFieldMapper.GeoShapeFieldType();
+        GeoShapeFieldType fieldType = new GeoShapeFieldType();
         assertFalse(fieldType.pointsOnly());
-        fieldType.setStrategyName(SpatialStrategy.RECURSIVE.getStrategyName());
+        fieldType.setStrategy(SpatialStrategy.RECURSIVE);
         assertFalse(fieldType.pointsOnly());
-        fieldType.setStrategyName(SpatialStrategy.TERM.getStrategyName());
+        fieldType.setStrategy(SpatialStrategy.TERM);
         assertTrue(fieldType.pointsOnly());
     }
 }

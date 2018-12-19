@@ -202,9 +202,7 @@ public class ScriptTransformTests extends ESTestCase {
                 return getParams().get("ctx");
             }
         };
-        assertThat(watcherScript.execute(), is(watcherScript.getCtx()));
-        assertWarnings("Accessing variable [ctx] via [params.ctx] from within a watcher_transform script " +
-            "is deprecated in favor of directly accessing [ctx].");
+        assertNull(watcherScript.execute());
     }
 
     static String scriptTypeField(ScriptType type) {

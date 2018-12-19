@@ -206,7 +206,7 @@ public class ScriptConditionTests extends ESTestCase {
         assertThat(condition.execute(ctx).met(), is(true));
     }
 
-    public void testParamsCtxDeprecated() throws Exception {
+    public void testParamsCtxNull() throws Exception {
         WatchExecutionContext watcherContext = mock(WatchExecutionContext.class);
         when(watcherContext.id()).thenReturn(mock(Wid.class));
         when(watcherContext.watch()).thenReturn(mock(Watch.class));
@@ -216,13 +216,11 @@ public class ScriptConditionTests extends ESTestCase {
         WatcherConditionScript watcherScript = new WatcherConditionScript(Collections.emptyMap(), watcherContext) {
             @Override
             public boolean execute() {
-                assertThat(getParams().get("ctx"), is(getCtx()));
+                assertNull(getParams().get("ctx"));
                 return true;
             }
         };
-        watcherScript.execute();
-        assertWarnings("Accessing variable [ctx] via [params.ctx] from within a watcher_condition script " +
-            "is deprecated in favor of directly accessing [ctx].");
+        assertTrue(watcherScript.execute());
     }
 
     private static XContentBuilder createConditionContent(String script, String scriptLang, ScriptType scriptType) throws IOException {

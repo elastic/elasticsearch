@@ -1227,6 +1227,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.writeString(type);
             out.writeBytesReference(source);
             out.writeOptionalString(routing);
+            if (format < FORMAT_NO_PARENT) {
+                 out.writeOptionalString(null); // _parent
+            }
             out.writeLong(version);
             if (format < FORMAT_NO_VERSION_TYPE) {
                 out.writeByte(VersionType.EXTERNAL.getValue());

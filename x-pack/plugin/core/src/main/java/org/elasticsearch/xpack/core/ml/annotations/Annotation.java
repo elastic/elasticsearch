@@ -77,6 +77,19 @@ public class Annotation implements ToXContentObject, Writeable {
         this.type = Objects.requireNonNull(type);
     }
 
+    public Annotation(Annotation other) {
+        Objects.requireNonNull(other);
+        this.annotation = other.annotation;
+        this.createTime = new Date(other.createTime.getTime());
+        this.createUsername = other.createUsername;
+        this.timestamp = new Date(other.timestamp.getTime());
+        this.endTimestamp = other.endTimestamp == null ? null : new Date(other.endTimestamp.getTime());
+        this.jobId = other.jobId;
+        this.modifiedTime = other.modifiedTime == null ? null : new Date(other.modifiedTime.getTime());
+        this.modifiedUsername = other.modifiedUsername;
+        this.type = other.type;
+    }
+
     public Annotation(StreamInput in) throws IOException {
         annotation = in.readString();
         createTime = new Date(in.readLong());

@@ -372,7 +372,7 @@ public class MetaDataIndexStateService {
                 final IndexMetaData indexMetaData = metadata.getSafe(index);
                 if (acknowledged) {
                     if (currentState.blocks().hasIndexBlock(index.getName(), closingBlock) == false) {
-                        logger.debug("closing index {} succeed but block has been removed by a concurrent open or close request", index);
+                        logger.debug("closing index {} succeed but block has been removed by a concurrent close request", index);
                         assert indexMetaData.getState() == IndexMetaData.State.OPEN
                             || currentState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
 

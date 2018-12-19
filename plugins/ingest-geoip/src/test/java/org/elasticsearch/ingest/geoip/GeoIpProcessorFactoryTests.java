@@ -317,9 +317,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertNull(lazyLoader.databaseReader.get());
         }
 
-        final IngestDocument document =
-                new IngestDocument(
-                        "index", "type", "id", "routing", 1L, VersionType.EXTERNAL, Collections.singletonMap("_field", "1.1.1.1"));
+        final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
+        final IngestDocument document = new IngestDocument("index", "type", "id", "routing", 1L, VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");

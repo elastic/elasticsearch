@@ -115,21 +115,7 @@ Geo::
 * Integrate Lucene's LatLonShape (BKD Backed GeoShapes) as default `geo_shape` indexing approach {pull}35320[#35320] (issue: {issue}32039[#32039])
 
 Machine Learning::
-* [ML-DataFrame] move common fields and string into a utility class {pull}36557[#36557]
-* [ML-DataFrame] add generation to dataframe state {pull}36434[#36434]
-* [ML-DataFrame] fix state persistence and load on startup {pull}36375[#36375]
-* [ML-DataFrame] cancel indexer on job deletion and remove task, allow only stopped jo… {pull}36204[#36204]
-* [ML-DataFrame] add a client helper origin for data frame {pull}36057[#36057]
-* [ML-DataFrame] Rename plugin and endpoints {pull}36048[#36048]
-* [ML-Dataframe] Feature/fib cleanups {pull}35995[#35995]
-* [ML-DataFrame] add a stats endpoint {pull}35911[#35911]
-* [ML-DataFrame]remove settings from transport actions {pull}35831[#35831]
-* [ML-Dataframe] Feature/fib get jobs {pull}35825[#35825]
-* [ML-Dataframe] re-factor code to use LogManager and own loggers {pull}35631[#35631]
-* [ML-Dataframe] change licensing check and plugin name/description {pull}35618[#35618]
 * Add delayed datacheck to the datafeed job runner {pull}35387[#35387] (issue: {issue}35131[#35131])
-* [ML-Dataframe] add validation and mapping detection {pull}34844[#34844]
-* [ML-Dataframe] add integration tests {pull}34554[#34554]
 
 Mapping::
 * Make typeless APIs usable with indices whose type name is different from `_doc` {pull}35790[#35790] (issue: {issue}35190[#35190])

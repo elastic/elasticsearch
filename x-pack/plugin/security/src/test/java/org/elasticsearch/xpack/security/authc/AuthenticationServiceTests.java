@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -1115,12 +1116,12 @@ public class AuthenticationServiceTests extends ESTestCase {
                 creatorMap.put("metadata", Collections.emptyMap());
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
-                GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 1L, true,
+                GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
                     BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap()));
                 listener.onResponse(getResponse);
             } else {
-                listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(), -1L, false, null,
-                    Collections.emptyMap())));
+                listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(),
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null, Collections.emptyMap())));
             }
             return Void.TYPE;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
@@ -1153,12 +1154,12 @@ public class AuthenticationServiceTests extends ESTestCase {
                 creatorMap.put("metadata", Collections.emptyMap());
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
-                GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 1L, true,
-                    BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap()));
+                GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
+                        BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap()));
                 listener.onResponse(getResponse);
             } else {
-                listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(), -1L, false, null,
-                    Collections.emptyMap())));
+                listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(),
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null, Collections.emptyMap())));
             }
             return Void.TYPE;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));

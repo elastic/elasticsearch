@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -133,10 +134,9 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
 
         logger.info("--> wait until the snapshot is done");
         assertBusy(() -> {
-            SnapshotsInProgress snapshots = dataNodeClient().admin().cluster().prepareState().setLocal(false).get().getState()
-                .custom(SnapshotsInProgress.TYPE);
-            SnapshotDeletionsInProgress snapshotDeletionsInProgress =
-                dataNodeClient().admin().cluster().prepareState().setLocal(false).get().getState().custom(SnapshotDeletionsInProgress.TYPE);
+            ClusterState state = dataNodeClient().admin().cluster().prepareState().get().getState();
+            SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
+            SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
             if (snapshots != null && snapshots.entries().size() > 0) {
                 logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
                 fail("Snapshot is still running");

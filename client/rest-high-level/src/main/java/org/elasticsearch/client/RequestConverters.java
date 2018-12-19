@@ -299,8 +299,16 @@ final class RequestConverters {
 
     static Request index(IndexRequest indexRequest) {
         String method = Strings.hasLength(indexRequest.id()) ? HttpPut.METHOD_NAME : HttpPost.METHOD_NAME;
-        boolean isCreate = (indexRequest.opType() == DocWriteRequest.OpType.CREATE);
-        String endpoint = endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id(), isCreate ? "_create" : null);
+
+        String endpoint;
+        if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
+            endpoint = indexRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
+                ? endpoint(indexRequest.index(), "_create", indexRequest.id())
+                : endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id(), "_create");
+        } else {
+            endpoint = endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id());
+        }
+
         Request request = new Request(method, endpoint);
 
         Params parameters = new Params(request);

@@ -7,7 +7,7 @@ related to a time that the {dfeed} has already processed.
 
 When you create a datafeed, you can specify a {ref}/ml-datafeed-resource.html[`query_delay`] setting.
 This setting enables the datafeed to wait for some time past real-time, which means any "late" data in this period
-is fully index before the datafeed tries to gather it. However, if the setting is set too low, the datafeed may query
+is fully indexed before the datafeed tries to gather it. However, if the setting is set too low, the datafeed may query
 for data before it has been indexed and consequently miss that document. Conversely, if it is set too high,
 analysis drifts farther away from real-time. The balance that is struck depends upon each use case and
 the environmental factors of the cluster.

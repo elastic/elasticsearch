@@ -23,13 +23,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
@@ -48,7 +46,6 @@ import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * We enforce bootstrap checks once a node has the transport protocol bound to a non-loopback interface or if the system property {@code
@@ -210,7 +207,6 @@ final class BootstrapChecks {
         checks.add(new EarlyAccessCheck());
         checks.add(new G1GCCheck());
         checks.add(new AllPermissionCheck());
-        checks.add(new ClusterNameInDataPathCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -715,37 +711,5 @@ final class BootstrapChecks {
             return true;
         }
 
-    }
-
-    /**
-     * Bootstrap check for cluster name directories in data paths
-     */
-    static class ClusterNameInDataPathCheck implements BootstrapCheck {
-
-        @Override
-        public BootstrapCheckResult check(BootstrapContext context) {
-            final Environment checkEnvironment = new Environment(context.settings(), null);
-            final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(checkEnvironment.settings());
-            List<Path> existingPathsWithClusterName = Arrays.stream(checkEnvironment.dataFiles())
-                .map(p -> p.resolve(clusterName.value()))
-                .filter(Files::exists).collect(Collectors.toList());
-            if (existingPathsWithClusterName.isEmpty()) {
-                return BootstrapCheckResult.success();
-            } else {
-                final List<String> clusterPathStrings = existingPathsWithClusterName.stream()
-                    .map(Path::toString).collect(Collectors.toList());
-                final List<String> dataPathStrings = existingPathsWithClusterName.stream()
-                    .map(Path::getParent).map(Path::toString).collect(Collectors.toList());
-                return BootstrapCheckResult.failure(
-                    "Cluster name [" + clusterName.value() + "] subdirectory exists in data paths ["
-                    + String.join(",", clusterPathStrings) + "]. " +
-                    "All data under these paths must be moved up one directory to paths [" + String.join(",", dataPathStrings) + "]");
-            }
-        }
-
-        @Override
-        public boolean alwaysEnforce() {
-            return true;
-        }
     }
 }

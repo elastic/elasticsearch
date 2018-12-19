@@ -739,6 +739,20 @@ public abstract class Node implements Closeable {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+
+        final List<Path> existingPathsWithClusterName = Arrays.stream(environment.dataFiles())
+            .map(p -> p.resolve(clusterService.getClusterName().value()))
+            .filter(Files::exists).collect(Collectors.toList());
+        if (existingPathsWithClusterName.isEmpty() == false) {
+            final List<String> clusterPathStrings = existingPathsWithClusterName.stream()
+                .map(Path::toString).collect(Collectors.toList());
+            final List<String> dataPathStrings = existingPathsWithClusterName.stream()
+                .map(Path::getParent).map(Path::toString).collect(Collectors.toList());
+            throw new NodeValidationException("Cluster name [" + clusterService.getClusterName().value()
+                + "] subdirectory exists in data paths [" + String.join(",", clusterPathStrings) + "]. " +
+                "All data under these paths must be moved up one directory to paths [" + String.join(",", dataPathStrings) + "]");
+        }
+
         validateNodeBeforeAcceptingRequests(new BootstrapContext(environment, onDiskMetadata), transportService.boundAddress(), pluginsService
             .filterPlugins(Plugin
             .class)

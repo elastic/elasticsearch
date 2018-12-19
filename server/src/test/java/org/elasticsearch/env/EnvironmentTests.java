@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
 
+import static org.elasticsearch.env.Environment.PATH_DATA_SETTING;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -47,7 +48,7 @@ public class EnvironmentTests extends ESTestCase {
         Settings build = Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
+                .putList(PATH_DATA_SETTING.getKey(), tmpPaths()).build();
         return new Environment(build, null);
     }
 
@@ -87,9 +88,9 @@ public class EnvironmentTests extends ESTestCase {
 
     public void testPathDataNotSetInEnvironmentIfNotSet() {
         final Settings settings = Settings.builder().put("path.home", createTempDir().toAbsolutePath()).build();
-        assertFalse(Environment.PATH_DATA_SETTING.exists(settings));
+        assertFalse(PATH_DATA_SETTING.exists(settings));
         final Environment environment = new Environment(settings, null);
-        assertFalse(Environment.PATH_DATA_SETTING.exists(environment.settings()));
+        assertFalse(PATH_DATA_SETTING.exists(environment.settings()));
     }
 
     public void testPathLogsWhenNotSet() {

@@ -46,13 +46,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     private static Map<String, RoleDescriptor> initializeReservedRoles() {
         return MapBuilder.<String, RoleDescriptor>newMapBuilder()
-                .put("superuser", new RoleDescriptor("superuser", new String[] { "all" },
-                        new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build(),
-                                RoleDescriptor.IndicesPrivileges.builder().indices(SystemIndicesNames.indexNames().toArray(new String[0]))
-                                .privileges("all").build() },
-                        new String[] { "*" },
-                        MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("superuser", SUPERUSER_ROLE_DESCRIPTOR)
                 .put("transport_client", new RoleDescriptor("transport_client", new String[] { "transport_client" }, null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("kibana_user", new RoleDescriptor("kibana_user", null, new RoleDescriptor.IndicesPrivileges[] {

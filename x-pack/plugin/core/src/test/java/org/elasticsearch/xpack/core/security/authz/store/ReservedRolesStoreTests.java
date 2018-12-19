@@ -15,10 +15,15 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
@@ -95,6 +100,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
@@ -178,6 +184,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(false));
         assertThat(ingestAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
+
+        assertNoAccessAllowed(ingestAdminRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(ingestAdminRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testKibanaSystemRole() {
@@ -277,6 +286,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(false));
+
+        assertNoAccessAllowed(kibanaRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(kibanaRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testKibanaUserRole() {
@@ -326,6 +338,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
         assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"),
             "*"), is(false));
+
+        assertNoAccessAllowed(kibanaUserRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(kibanaUserRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testMonitoringUserRole() {
@@ -367,6 +382,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(true));
+
+        assertNoAccessAllowed(monitoringUserRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(monitoringUserRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testRemoteMonitoringAgentRole() {
@@ -424,7 +442,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(metricbeatIndex), is(false));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(metricbeatIndex), is(false));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(metricbeatIndex), is(false));
-
+        
+        assertNoAccessAllowed(remoteMonitoringAgentRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(remoteMonitoringAgentRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testRemoteMonitoringCollectorRole() {
@@ -454,6 +474,27 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(".kibana"), is(true));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo")
             .test(randomAlphaOfLengthBetween(8, 24)), is(false));
+        
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetSettingsAction.NAME)
+                .test(randomFrom(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME)), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesShardStoresAction.NAME)
+                .test(randomFrom(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME)), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpgradeStatusAction.NAME)
+                .test(randomFrom(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME)), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(RecoveryAction.NAME)
+                .test(randomFrom(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME)), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME)
+                .test(randomFrom(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME)), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesSegmentsAction.NAME)
+                .test(randomFrom(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME)), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME)
+                .test(randomFrom(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME)), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME)
+                .test(randomFrom(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME)), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
+                .test(randomFrom(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME)), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME)
+                .test(randomFrom(SystemIndicesNames.INTERNAL_SECURITY_INDEX, SystemIndicesNames.SECURITY_INDEX_NAME)), is(false));
 
         Arrays.asList(
             ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -471,6 +512,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(false));
             assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(false));
         });
+        
+        assertNoAccessAllowed(remoteMonitoringAgentRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(remoteMonitoringAgentRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testReportingUserRole() {
@@ -509,6 +553,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(UpdateAction.NAME).test(index), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(false));
+
+        assertNoAccessAllowed(reportingUserRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(reportingUserRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testKibanaDashboardOnlyUserRole() {
@@ -554,6 +601,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
         assertThat(dashboardsOnlyUserRole.application().grants(
             new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"), is(false));
+
+        assertNoAccessAllowed(dashboardsOnlyUserRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(dashboardsOnlyUserRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testSuperuserRole() {
@@ -577,6 +627,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .put(new IndexMetaData.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("bbbbb").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+                .put(new IndexMetaData.Builder(SystemIndicesNames.INTERNAL_SECURITY_INDEX)
+                        .settings(indexSettings)
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .putAlias(new AliasMetaData.Builder(SystemIndicesNames.SECURITY_INDEX_NAME).build())
+                        .build(), true)
                 .put(new IndexMetaData.Builder("b")
                         .settings(indexSettings)
                         .numberOfShards(1)
@@ -601,10 +657,19 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), metaData, fieldPermissionsCache);
         assertThat(authzMap.get("aaaaaa").isGranted(), is(true));
         assertThat(authzMap.get("b").isGranted(), is(true));
+        authzMap = superuserRole.indices().authorize(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME),
+                Sets.newHashSet(SystemIndicesNames.SECURITY_INDEX_NAME), metaData, fieldPermissionsCache);
+        assertThat(authzMap.get(SystemIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(true));
+        assertThat(authzMap.get(SystemIndicesNames.INTERNAL_SECURITY_INDEX).isGranted(), is(true));
         assertTrue(superuserRole.indices().check(SearchAction.NAME));
         assertFalse(superuserRole.indices().check("unknown"));
 
         assertThat(superuserRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(true));
+        
+        assertThat(superuserRole.indices().allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
+                .test(SystemIndicesNames.SECURITY_INDEX_NAME), is(true));
+        assertThat(superuserRole.indices().allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
+                .test(SystemIndicesNames.INTERNAL_SECURITY_INDEX), is(true));
     }
 
     public void testLogstashSystemRole() {
@@ -629,6 +694,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
+
+        assertNoAccessAllowed(logstashSystemRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(logstashSystemRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testBeatsAdminRole() {
@@ -665,6 +733,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsAdminRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
         assertThat(beatsAdminRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
         assertThat(beatsAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
+
+        assertNoAccessAllowed(beatsAdminRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(beatsAdminRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testBeatsSystemRole() {
@@ -689,6 +760,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
+
+        assertNoAccessAllowed(logstashSystemRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(logstashSystemRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testAPMSystemRole() {
@@ -713,6 +787,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(APMSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(APMSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
+
+        assertNoAccessAllowed(APMSystemRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(APMSystemRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testMachineLearningAdminRole() {
@@ -765,6 +842,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, AnomalyDetectorsIndex.jobStateIndexName());
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
+
+        assertNoAccessAllowed(role, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(role, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testMachineLearningUserRole() {
@@ -817,6 +897,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, AnomalyDetectorsIndex.jobStateIndexName());
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
+
+        assertNoAccessAllowed(role, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(role, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testWatcherAdminRole() {
@@ -844,6 +927,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         for (String index : new String[]{ Watch.INDEX, historyIndex, TriggeredWatchStoreField.INDEX_NAME }) {
             assertOnlyReadAllowed(role, index);
         }
+
+        assertNoAccessAllowed(role, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(role, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     public void testWatcherUserRole() {
@@ -872,6 +958,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         for (String index : new String[]{ Watch.INDEX, historyIndex }) {
             assertOnlyReadAllowed(role, index);
         }
+
+        assertNoAccessAllowed(role, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(role, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 
     private void assertOnlyReadAllowed(Role role, String index) {
@@ -929,5 +1018,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(true));
+        
+        assertNoAccessAllowed(logstashAdminRole, SystemIndicesNames.SECURITY_INDEX_NAME);
+        assertNoAccessAllowed(logstashAdminRole, SystemIndicesNames.INTERNAL_SECURITY_INDEX);
     }
 }

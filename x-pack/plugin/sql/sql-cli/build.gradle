@@ -74,8 +74,9 @@ artifacts  {
     nodeps nodepsJar
 }
 
-
-tasks.withType(CheckForbiddenApis) {
+forbiddenApisMain {
+    //sql does not depend on server, so only jdk signatures should be checked
+    replaceSignatureFiles 'jdk-signatures'
     signaturesFiles += files('src/forbidden/cli-signatures.txt')
 }
 

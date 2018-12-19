@@ -70,7 +70,7 @@ public final class NodeIdPatternConverter extends LogEventPatternConverter imple
         String id = localNode.getId();
         boolean wasSet = nodeId.compareAndSet(null, id);
         if (wasSet) {
-            System.setProperty("node_id_raw", id);
+            System.setProperty("node_id_sys_prop", id);
             //TODO deregister as no longer the id will change ?
         }
     }

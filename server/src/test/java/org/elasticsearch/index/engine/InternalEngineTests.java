@@ -5442,6 +5442,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36470")
     public void testRebuildLocalCheckpointTracker() throws Exception {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())

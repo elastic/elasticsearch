@@ -92,7 +92,8 @@ public class IndexDeprecationChecks {
         }
         if (issues.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Use of 'delimited_payload_filter'.",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_analysis_changes.html", issues.toString());
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#_literal_delimited_payload_filter_literal_renaming", issues.toString());
         }
         return null;
     }

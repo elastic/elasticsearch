@@ -59,6 +59,10 @@ public final class IndicesPermission {
         this.groups = groups;
     }
 
+    /**
+     * Builds a predicate out of a collection of index names and index patterns. The returned predicate checks a given concrete index for
+     * membership.
+     */
     private static Predicate<String> indexMatcherPredicate(Collection<String> indices) {
         Set<String> exactMatch = new HashSet<>();
         List<String> nonExactMatch = new ArrayList<>();
@@ -81,6 +85,10 @@ public final class IndicesPermission {
         }
     }
 
+    /**
+     * Builds an {@code Automaton} out of a collection of index names and index patterns. The automaton can be used to check other index
+     * patterns for inclusion.
+     */
     private static Automaton indexMatcherAutomaton(String... indices) {
         final List<String> exactMatch = new ArrayList<>();
         final List<String> patternMatch = new ArrayList<>();
@@ -93,9 +101,9 @@ public final class IndicesPermission {
         }
         try {
             final Automaton exactMatchAutomaton = Automatons.patterns(exactMatch);
-            final Automaton indexPatternAutomaton = Automatons.patterns(patternMatch);
-            return Automatons.unionAndMinimize(
-                    Arrays.asList(exactMatchAutomaton, Automatons.minusAndMinimize(indexPatternAutomaton, systemIndicesAutomaton)));
+            // index patterns don't cover certain system indices, these have to be named explicitly 
+            final Automaton indexPatternAutomaton = Automatons.minusAndMinimize(Automatons.patterns(patternMatch), systemIndicesAutomaton);
+            return Automatons.unionAndMinimize(Arrays.asList(exactMatchAutomaton, indexPatternAutomaton));
         } catch (TooComplexToDeterminizeException e) {
             logger.debug("Index pattern automaton [{}] is too complex", Strings.arrayToCommaDelimitedString(indices));
             String description = Strings.arrayToCommaDelimitedString(indices);
@@ -176,7 +184,11 @@ public final class IndicesPermission {
         return false;
     }
 
+    /**
+     * Computes and returns an {@code Automaton} for action names, given a concrete (no pattern) index name.
+     */
     public Automaton allowedActionsMatcher(String index) {
+        assert false == isIndexPattern(index);
         List<Automaton> automatonList = new ArrayList<>();
         for (Group group : groups) {
             if (group.indexNameMatcher.test(index)) {
@@ -186,7 +198,12 @@ public final class IndicesPermission {
         return automatonList.isEmpty() ? Automatons.EMPTY : Automatons.unionAndMinimize(automatonList);
     }
 
-    public boolean testIndexMatch(String checkIndex, String checkPrivilegeName) {
+    /**
+     * Checks if a privilege (or an action pattern) is granted over an index pattern.
+     * @param checkIndex The index pattern to check
+     * @param checkPrivilegeName The privilege name or pattern to check
+     */
+    public boolean checkPrivilegeOverIndexPattern(String checkIndex, String checkPrivilegeName) {
         final Automaton checkIndexAutomaton = indexMatcherAutomaton(checkIndex);
         final List<Automaton> privilegeAutomatons = new ArrayList<>();
         for (IndicesPermission.Group group : groups) {

@@ -223,12 +223,13 @@ public final class Verifier {
                 validateInExpression(p, localFailures);
                 validateConditional(p, localFailures);
 
+                checkFilterOnAggs(p, localFailures);
+
                 if (!groupingFailures.contains(p)) {
                     checkGroupBy(p, localFailures, resolvedFunctions, groupingFailures);
                 }
 
                 checkForScoreInsideFunctions(p, localFailures);
-
                 checkNestedUsedInGroupByOrHaving(p, localFailures);
 
                 // everything checks out
@@ -370,7 +371,7 @@ public final class Verifier {
                 if (!missing.isEmpty()) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
-                            fail(condition, "Cannot filter HAVING on non-aggregate" + plural + " %s; consider using WHERE instead",
+                            fail(condition, "Cannot use HAVING filter on non-aggregate" + plural + " %s; use WHERE instead",
                             Expressions.names(missing.keySet())));
                     groupingFailures.add(a);
                     return false;
@@ -541,6 +542,23 @@ public final class Verifier {
         }
         return false;
     }
+
+    private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures) {
+        if (p instanceof Filter) {
+            Filter filter = (Filter) p;
+            if ((filter.child() instanceof Aggregate) == false) {
+                filter.condition().forEachDown(f -> {
+                    if (Functions.isAggregate(f) || Functions.isGrouping(f)) {
+                        String type = Functions.isAggregate(f) ? "aggregate" : "grouping";
+                        localFailures.add(fail(f,
+                                "Cannot use WHERE filtering on %s function [%s], use HAVING instead", type, Expressions.name(f)));
+                    }
+
+                }, Function.class);
+            }
+        }
+    }
+
 
     private static void checkForScoreInsideFunctions(LogicalPlan p, Set<Failure> localFailures) {
         // Make sure that SCORE is only used in "top level" functions

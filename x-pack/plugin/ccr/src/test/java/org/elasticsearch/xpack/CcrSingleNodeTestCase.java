@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -55,6 +56,11 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         String address = getInstanceFromNode(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", address));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    @Before
+    public void waitForTrialLicenseToBeGenerated() throws Exception {
+        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metaData().custom(LicensesMetaData.TYPE)));
     }
 
     @After

@@ -39,4 +39,4 @@ task hdfs(type: JavaExec) {
 // just a test fixture: we aren't using jars in releases
 thirdPartyAudit.enabled = false
 // TODO: add a simple HDFS client test for this fixture
-test.enabled = false
+unitTest.enabled = false

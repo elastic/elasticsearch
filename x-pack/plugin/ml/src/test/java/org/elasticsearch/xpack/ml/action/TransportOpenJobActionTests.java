@@ -443,7 +443,8 @@ public class TransportOpenJobActionTests extends ESTestCase {
         cs.nodes(nodes);
 
         Job job = jobWithRules("post-v650-job");
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("post-v650-job", job, cs.build(), 2, 10, 30, memoryTracker, logger);
+        Assignment result =
+                TransportOpenJobAction.selectLeastLoadedMlNode("post-v650-job", job, cs.build(), 2, 10, 30, memoryTracker, logger);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("Not opening job [post-v650-job] on node [_node_name1] version [6.5.0], " +
                 "because this node does not support jobs of version "));

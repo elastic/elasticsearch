@@ -661,7 +661,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         Request request = RequestConverters.index(indexRequest);
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
-            assertEquals("/" + index + "/_doc/" + id + "/_create", request.getEndpoint());
+            assertEquals("/" + index + "/_create/" + id, request.getEndpoint());
         } else if (id != null) {
             assertEquals("/" + index + "/_doc/" + id, request.getEndpoint());
         } else {
@@ -1685,17 +1685,17 @@ public class RequestConvertersTests extends ESTestCase {
             assertEquals("/a/b", endpointBuilder.build());
         }
         {
-            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPart("b").addPathPartAsIs("_create");
-            assertEquals("/a/b/_create", endpointBuilder.build());
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPart("b").addPathPartAsIs("_endpoint");
+            assertEquals("/a/b/_endpoint", endpointBuilder.build());
         }
 
         {
-            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a", "b", "c").addPathPartAsIs("_create");
-            assertEquals("/a/b/c/_create", endpointBuilder.build());
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a", "b", "c").addPathPartAsIs("_endpoint");
+            assertEquals("/a/b/c/_endpoint", endpointBuilder.build());
         }
         {
-            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPartAsIs("_create");
-            assertEquals("/a/_create", endpointBuilder.build());
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPartAsIs("_endpoint");
+            assertEquals("/a/_endpoint", endpointBuilder.build());
         }
     }
 

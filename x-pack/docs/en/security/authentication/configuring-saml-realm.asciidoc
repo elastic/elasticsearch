@@ -101,7 +101,7 @@ introduction to realms, see {stack-ov}/realms.html[Realms].
 It is recommended that the SAML realm be at the bottom of your authentication 
 chain (that is, it has the _highest_ order).
 <4> This is the path to the metadata file that you saved for your identity provider.
-The path that you enter here is relative to your `config/` directory. {security} 
+The path that you enter here is relative to your `config/` directory. {es} 
 automatically monitors this file for changes and reloads the configuration 
 whenever it is updated.
 <5> This is the identifier (SAML EntityID) that your IdP uses. It should match 
@@ -218,8 +218,8 @@ When a user authenticates using SAML, they are identified to the {stack},
 but this does not automatically grant them access to perform any actions or
 access any data.
 
-Your SAML users cannot do anything until they are mapped to {security}
-roles. See {stack-ov}/saml-role-mapping.html[Configuring role mappings]. 
+Your SAML users cannot do anything until they are mapped to roles. See
+{stack-ov}/saml-role-mapping.html[Configuring role mappings]. 
 
 NOTE: The SAML realm supports
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an

@@ -83,7 +83,7 @@ public class TranslogHeaderTests extends ESTestCase {
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
             final TranslogHeader inHeader = TranslogHeader.read(translogUUID, translogFile, channel);
             assertThat(inHeader.getTranslogUUID(), equalTo(translogUUID));
-            assertThat(inHeader.getPrimaryTerm(), equalTo(TranslogHeader.UNKNOWN_PRIMARY_TERM));
+            assertThat(inHeader.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
             assertThat(inHeader.sizeInBytes(), equalTo((int)channel.position()));
         }
         expectThrows(TranslogCorruptedException.class, () -> {

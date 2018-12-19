@@ -25,7 +25,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -72,7 +74,6 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
             .build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36779")
     public void testDisruptionOnSnapshotInitialization() throws Exception {
         final String idxName = "test";
         final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(3);
@@ -133,11 +134,15 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
 
         logger.info("--> wait until the snapshot is done");
         assertBusy(() -> {
-            SnapshotsInProgress snapshots = dataNodeClient().admin().cluster().prepareState().setLocal(false).get().getState()
-                .custom(SnapshotsInProgress.TYPE);
+            ClusterState state = dataNodeClient().admin().cluster().prepareState().get().getState();
+            SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
+            SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
             if (snapshots != null && snapshots.entries().size() > 0) {
                 logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
                 fail("Snapshot is still running");
+            } else if (snapshotDeletionsInProgress != null && snapshotDeletionsInProgress.hasDeletionsInProgress()) {
+                logger.info("Current snapshot deletion state [{}]", snapshotDeletionsInProgress);
+                fail("Snapshot deletion is still running");
             } else {
                 logger.info("Snapshot is no longer in the cluster state");
             }

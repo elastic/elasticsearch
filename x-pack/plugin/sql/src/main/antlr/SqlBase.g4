@@ -186,7 +186,7 @@ predicated
 // instead the property kind is used to differentiate
 predicate
     : NOT? kind=BETWEEN lower=valueExpression AND upper=valueExpression
-    | NOT? kind=IN '(' expression (',' expression)* ')'
+    | NOT? kind=IN '(' valueExpression (',' valueExpression)* ')'
     | NOT? kind=IN '(' query ')'
     | NOT? kind=LIKE pattern
     | NOT? kind=RLIKE regex=string

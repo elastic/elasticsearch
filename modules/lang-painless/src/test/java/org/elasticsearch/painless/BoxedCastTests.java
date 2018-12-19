@@ -508,4 +508,242 @@ public class BoxedCastTests extends ScriptTestCase {
                 () -> exec("def u = (double)1; def b = Float.valueOf((float)1); b.compareTo(u);"));
         assertEquals(0, exec("def u = (double)1; def b = Double.valueOf((double)1); b.compareTo(u);"));
     }
+
+    public void testReturnToByteBoxedCasts() {
+        assertEquals((byte)1, exec("Byte rtn() {return (byte)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return (short)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return (char)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return (int)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return (long)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return (float)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return (double)1} rtn()"));
+
+        assertEquals((byte)1, exec("Byte rtn() {return Byte.valueOf((byte)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return Short.valueOf((short)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return Character.valueOf((char)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return Integer.valueOf((int)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return Long.valueOf((long)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return Float.valueOf((float)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {return Double.valueOf((double)1)} rtn()"));
+
+        assertEquals((byte)1, exec("Byte rtn() {def d = (byte)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = (short)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = (char)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = (int)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = (long)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = (float)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = (double)1; return d} rtn()"));
+
+        assertEquals((byte)1, exec("Byte rtn() {def d = Byte.valueOf((byte)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = Short.valueOf((short)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = Character.valueOf((char)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = Integer.valueOf((int)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = Long.valueOf((long)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = Float.valueOf((float)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Byte rtn() {def d = Double.valueOf((double)1); return d} rtn()"));
+    }
+
+    public void testReturnToShortBoxedCasts() {
+        assertEquals((short)1, exec("Short rtn() {return (byte)1} rtn()"));
+        assertEquals((short)1, exec("Short rtn() {return (short)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {return (char)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {return (int)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {return (long)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {return (float)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {return (double)1} rtn()"));
+
+        assertEquals((short)1, exec("Short rtn() {return Byte.valueOf((byte)1)} rtn()"));
+        assertEquals((short)1, exec("Short rtn() {return Short.valueOf((short)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {return Character.valueOf((char)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {return Integer.valueOf((int)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {return Long.valueOf((long)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {return Float.valueOf((float)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {return Double.valueOf((double)1)} rtn()"));
+
+        assertEquals((short)1, exec("Short rtn() {def d = (byte)1; return d} rtn()"));
+        assertEquals((short)1, exec("Short rtn() {def d = (short)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {def d = (char)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {def d = (int)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {def d = (long)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {def d = (float)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {def d = (double)1; return d} rtn()"));
+
+        assertEquals((short)1, exec("Short rtn() {def d = Byte.valueOf((byte)1); return d} rtn()"));
+        assertEquals((short)1, exec("Short rtn() {def d = Short.valueOf((short)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {def d = Character.valueOf((char)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {def d = Integer.valueOf((int)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {def d = Long.valueOf((long)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {def d = Float.valueOf((float)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Short rtn() {def d = Double.valueOf((double)1); return d} rtn()"));
+    }
+    
+    public void testReturnToCharacterBoxedCasts() {
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return (byte)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return (short)1} rtn()"));
+        assertEquals((char)1, exec("Character rtn() {return (char)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return (int)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return (long)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return (float)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return (double)1} rtn()"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return Byte.valueOf((byte)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return Short.valueOf((short)1)} rtn()"));
+        assertEquals((char)1, exec("Character rtn() {return Character.valueOf((char)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return Integer.valueOf((int)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return Long.valueOf((long)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return Float.valueOf((float)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {return Double.valueOf((double)1)} rtn()"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = (byte)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = (short)1; return d} rtn()"));
+        assertEquals((char)1, exec("Character rtn() {def d = (char)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = (int)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = (long)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = (float)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = (double)1; return d} rtn()"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = Byte.valueOf((byte)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = Short.valueOf((short)1); return d} rtn()"));
+        assertEquals((char)1, exec("Character rtn() {def d = Character.valueOf((char)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = Integer.valueOf((int)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = Long.valueOf((long)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = Float.valueOf((float)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Character rtn() {def d = Double.valueOf((double)1); return d} rtn()"));
+    }
+
+    public void testReturnToIntegerBoxedCasts() {
+        assertEquals(1, exec("Integer rtn() {return (byte)1} rtn()"));
+        assertEquals(1, exec("Integer rtn() {return (short)1} rtn()"));
+        assertEquals(1, exec("Integer rtn() {return (char)1} rtn()"));
+        assertEquals(1, exec("Integer rtn() {return (int)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {return (long)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {return (float)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {return (double)1} rtn()"));
+
+        assertEquals(1, exec("Integer rtn() {return Byte.valueOf((byte)1)} rtn()"));
+        assertEquals(1, exec("Integer rtn() {return Short.valueOf((short)1)} rtn()"));
+        assertEquals(1, exec("Integer rtn() {return Character.valueOf((char)1)} rtn()"));
+        assertEquals(1, exec("Integer rtn() {return Integer.valueOf((int)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {return Long.valueOf((long)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {return Float.valueOf((float)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {return Double.valueOf((double)1)} rtn()"));
+
+        assertEquals(1, exec("Integer rtn() {def d = (byte)1; return d} rtn()"));
+        assertEquals(1, exec("Integer rtn() {def d = (short)1; return d} rtn()"));
+        assertEquals(1, exec("Integer rtn() {def d = (char)1; return d} rtn()"));
+        assertEquals(1, exec("Integer rtn() {def d = (int)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {def d = (long)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {def d = (float)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {def d = (double)1; return d} rtn()"));
+
+        assertEquals(1, exec("Integer rtn() {def d = Byte.valueOf((byte)1); return d} rtn()"));
+        assertEquals(1, exec("Integer rtn() {def d = Short.valueOf((short)1); return d} rtn()"));
+        assertEquals(1, exec("Integer rtn() {def d = Character.valueOf((char)1); return d} rtn()"));
+        assertEquals(1, exec("Integer rtn() {def d = Integer.valueOf((int)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {def d = Long.valueOf((long)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {def d = Float.valueOf((float)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Integer rtn() {def d = Double.valueOf((double)1); return d} rtn()"));
+    }
+
+    public void testReturnToLongBoxedCasts() {
+        assertEquals((long)1, exec("Long rtn() {return (byte)1} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {return (short)1} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {return (char)1} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {return (int)1} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {return (long)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Long rtn() {return (float)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Long rtn() {return (double)1} rtn()"));
+
+        assertEquals((long)1, exec("Long rtn() {return Byte.valueOf((byte)1)} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {return Short.valueOf((short)1)} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {return Character.valueOf((char)1)} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {return Integer.valueOf((int)1)} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {return Long.valueOf((long)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Long rtn() {return Float.valueOf((float)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Long rtn() {return Double.valueOf((double)1)} rtn()"));
+
+        assertEquals((long)1, exec("Long rtn() {def d = (byte)1; return d} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {def d = (short)1; return d} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {def d = (char)1; return d} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {def d = (int)1; return d} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {def d = (long)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Long rtn() {def d = (float)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Long rtn() {def d = (double)1; return d} rtn()"));
+
+        assertEquals((long)1, exec("Long rtn() {def d = Byte.valueOf((byte)1); return d} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {def d = Short.valueOf((short)1); return d} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {def d = Character.valueOf((char)1); return d} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {def d = Integer.valueOf((int)1); return d} rtn()"));
+        assertEquals((long)1, exec("Long rtn() {def d = Long.valueOf((long)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Long rtn() {def d = Float.valueOf((float)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Long rtn() {def d = Double.valueOf((double)1); return d} rtn()"));
+    }
+
+    public void testReturnToFloatBoxedCasts() {
+        assertEquals((float)1, exec("Float rtn() {return (byte)1} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {return (short)1} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {return (char)1} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {return (int)1} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {return (long)1} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {return (float)1} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Float rtn() {return (double)1} rtn()"));
+
+        assertEquals((float)1, exec("Float rtn() {return Byte.valueOf((byte)1)} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {return Short.valueOf((short)1)} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {return Character.valueOf((char)1)} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {return Integer.valueOf((int)1)} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {return Long.valueOf((long)1)} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {return Float.valueOf((float)1)} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Float rtn() {return Double.valueOf((double)1)} rtn()"));
+
+        assertEquals((float)1, exec("Float rtn() {def d = (byte)1; return d} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {def d = (short)1; return d} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {def d = (char)1; return d} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {def d = (int)1; return d} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {def d = (long)1; return d} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {def d = (float)1; return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Float rtn() {def d = (double)1; return d} rtn()"));
+
+        assertEquals((float)1, exec("Float rtn() {def d = Byte.valueOf((byte)1); return d} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {def d = Short.valueOf((short)1); return d} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {def d = Character.valueOf((char)1); return d} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {def d = Integer.valueOf((int)1); return d} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {def d = Long.valueOf((long)1); return d} rtn()"));
+        assertEquals((float)1, exec("Float rtn() {def d = Float.valueOf((float)1); return d} rtn()"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Float rtn() {def d = Double.valueOf((double)1); return d} rtn()"));
+    }
+
+    public void testReturnToDoubleBoxedCasts() {
+        assertEquals((double)1, exec("Double rtn() {return (byte)1} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return (short)1} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return (char)1} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return (int)1} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return (long)1} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return (float)1} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return (double)1} rtn()"));
+
+        assertEquals((double)1, exec("Double rtn() {return Byte.valueOf((byte)1)} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return Short.valueOf((short)1)} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return Character.valueOf((char)1)} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return Integer.valueOf((int)1)} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return Long.valueOf((long)1)} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return Float.valueOf((float)1)} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {return Double.valueOf((double)1)} rtn()"));
+
+        assertEquals((double)1, exec("Double rtn() {def d = (byte)1; return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = (short)1; return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = (char)1; return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = (int)1; return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = (long)1; return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = (float)1; return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = (double)1; return d} rtn()"));
+
+        assertEquals((double)1, exec("Double rtn() {def d = Byte.valueOf((byte)1); return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = Short.valueOf((short)1); return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = Character.valueOf((char)1); return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = Integer.valueOf((int)1); return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = Long.valueOf((long)1); return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = Float.valueOf((float)1); return d} rtn()"));
+        assertEquals((double)1, exec("Double rtn() {def d = Double.valueOf((double)1); return d} rtn()"));
+    }
 }

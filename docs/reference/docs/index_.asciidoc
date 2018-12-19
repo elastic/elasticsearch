@@ -3,9 +3,9 @@
 
 IMPORTANT: See <<removal-of-types>>.
 
-The index API adds or updates a typed JSON document in a specific index,
+The index API adds or updates a JSON document in a specific index,
 making it searchable. The following example inserts the JSON document
-into the "twitter" index, under a type called `_doc` with an id of 1:
+into the "twitter" index with an id of 1:
 
 [source,js]
 --------------------------------------------------
@@ -60,13 +60,13 @@ The index operation automatically creates an index if it has not been
 created before (check out the
 <<indices-create-index,create index API>> for manually
 creating an index), and also automatically creates a
-dynamic type mapping for the specific type if one has not yet been
+dynamic mapping if one has not yet been
 created (check out the <<indices-put-mapping,put mapping>>
-API for manually creating a type mapping).
+API for manually creating a mapping).
 
 The mapping itself is very flexible and is schema-free. New fields and
-objects will automatically be added to the mapping definition of the
-type specified. Check out the <<mapping,mapping>>
+objects will automatically be added to the mapping definition.
+Check out the <<mapping,mapping>>
 section for more information on mapping definitions.
 
 Automatic index creation can be disabled by setting

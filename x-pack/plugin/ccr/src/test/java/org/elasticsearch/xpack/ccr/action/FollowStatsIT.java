@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -13,11 +14,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -31,6 +34,7 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
  * Test scope is important to ensure that other tests added to this suite do not interfere with the expectation in
  * testStatsWhenNoPersistentTasksMetaDataExists that the cluster state does not contain any persistent tasks metadata.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36764")
 public class FollowStatsIT extends CcrSingleNodeTestCase {
 
     /**
@@ -106,6 +110,12 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
 
         assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
         assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower2")).actionGet());
+
+        assertBusy(() -> {
+            List<FollowStatsAction.StatsResponse> responseList =
+                client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet().getFollowStats().getStatsResponses();
+            assertThat(responseList.size(), equalTo(0));
+        });
     }
 
 }

@@ -1,9 +1,9 @@
 [[docs-get]]
 == Get API
 
-The get API allows to get a typed JSON document from the index based on
+The get API allows to get a JSON document from the index based on
 its id. The following example gets a JSON document from an index called
-twitter, under a type called `_doc`, with id valued 0:
+twitter with id valued 0:
 
 [source,js]
 --------------------------------------------------
@@ -34,7 +34,7 @@ The result of the above get operation is:
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
-The above result includes the `_index`, `_type`, `_id` and `_version`
+The above result includes the `_index`, `_id` and `_version`
 of the document we wish to retrieve, including the actual `_source`
 of the document if it could be found (as indicated by the `found`
 field in the response).
@@ -223,13 +223,13 @@ will fail.
 [[_source]]
 === Getting the +_source+ directly
 
-Use the `/{index}/{type}/{id}/_source` endpoint to get
+Use the `/{index}/_source/{id}` endpoint to get
 just the `_source` field of the document,
 without any additional content around it. For example:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/1/_source
+GET twitter/_source/1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -238,7 +238,7 @@ You can also use the same source filtering parameters to control which parts of 
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/1/_source?_source_includes=*.id&_source_excludes=entities'
+GET twitter/_source/1/?_source_includes=*.id&_source_excludes=entities'
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -248,7 +248,7 @@ An existing document will not have a _source if it is disabled in the <<mapping-
 
 [source,js]
 --------------------------------------------------
-HEAD twitter/_doc/1/_source
+HEAD twitter/_source/1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

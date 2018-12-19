@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.common.joda.JodaDateFormatter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -204,6 +203,6 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(formatter, instanceOf(DateFormatters.MergedDateFormatter.class));
         DateFormatters.MergedDateFormatter mergedFormatter = (DateFormatters.MergedDateFormatter) formatter;
         assertThat(mergedFormatter.formatters.get(0), instanceOf(JavaDateFormatter.class));
-        assertThat(mergedFormatter.formatters.get(1), instanceOf(JodaDateFormatter.class));
+        assertThat(mergedFormatter.formatters.get(1), instanceOf(JavaDateFormatter.class));
     }
 }

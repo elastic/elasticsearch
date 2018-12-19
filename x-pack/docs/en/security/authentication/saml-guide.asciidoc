@@ -863,7 +863,7 @@ instances use basic authentication against another realm type (e.g.
 
 The SAML 2.0 specification offers a lot of options and flexibility for the implementers
 of the standard which in turn adds to the complexity and the number of configuration options
-that is available both at the Service Provider (Elastic Stack) and at the Identity Provider.
+that are available both at the Service Provider (Elastic Stack) and at the Identity Provider.
 Additionally, different security domains have different security requirements that need
 specific configuration to be satisfied.
 A conscious effort has been made to mask this complexity with sane defaults and the detailed

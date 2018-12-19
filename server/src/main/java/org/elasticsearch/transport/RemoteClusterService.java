@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -491,7 +492,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      *
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public RemoteClient getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new IllegalArgumentException("unknown cluster alias [" + clusterAlias + "]");
         }

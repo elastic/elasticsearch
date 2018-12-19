@@ -67,7 +67,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.RemoteClient;
 
 import java.util.Map;
 
@@ -457,7 +456,7 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      * @throws UnsupportedOperationException if this functionality is not available on this client.
      */
-    default RemoteClient getRemoteClusterClient(String clusterAlias) {
+    default Client getRemoteClusterClient(String clusterAlias) {
         throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
     }
 }

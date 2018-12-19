@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -22,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.RemoteClient;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -59,7 +59,7 @@ import static org.mockito.Mockito.when;
 public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testAutoFollower() {
-        RemoteClient client = mock(RemoteClient.class);
+        Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
         ClusterState remoteState = createRemoteClusterState("logs-20190101");
@@ -130,7 +130,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testAutoFollowerClusterStateApiFailure() {
-        RemoteClient client = mock(RemoteClient.class);
+        Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
@@ -181,7 +181,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testAutoFollowerUpdateClusterStateFailure() {
-        RemoteClient client = mock(RemoteClient.class);
+        Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
         ClusterState remoteState = createRemoteClusterState("logs-20190101");
 
@@ -238,7 +238,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testAutoFollowerCreateAndFollowApiCallFailure() {
-        RemoteClient client = mock(RemoteClient.class);
+        Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
         ClusterState remoteState = createRemoteClusterState("logs-20190101");
 
@@ -672,7 +672,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testWaitForMetadataVersion() {
-        RemoteClient client = mock(RemoteClient.class);
+        Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
@@ -732,7 +732,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testWaitForTimeOut() {
-        RemoteClient client = mock(RemoteClient.class);
+        Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),

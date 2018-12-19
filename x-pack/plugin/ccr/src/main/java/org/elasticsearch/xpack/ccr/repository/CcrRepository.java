@@ -35,7 +35,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.transport.RemoteClient;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
@@ -255,13 +254,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
         ShardId leaderShardId = new ShardId(shardId.getIndexName(), leaderUUID, shardId.getId());
 
-        RemoteClient remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
+        Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         String sessionUUID = UUIDs.randomBase64UUID();
         PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
             new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId, recoveryMetadata)).actionGet();
         DiscoveryNode node = response.getNode();
         // TODO: Implement file restore
-        closeSession(remoteClient.routedToNode(node), sessionUUID);
+        closeSession(remoteClient, node, sessionUUID);
     }
 
     @Override
@@ -269,8 +268,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
-    private void closeSession(RemoteClient remoteClient, String sessionUUID) {
-        ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(sessionUUID);
+    private void closeSession(Client remoteClient, DiscoveryNode node, String sessionUUID) {
+        ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(sessionUUID, node);
         ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse response =
             remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet();
     }

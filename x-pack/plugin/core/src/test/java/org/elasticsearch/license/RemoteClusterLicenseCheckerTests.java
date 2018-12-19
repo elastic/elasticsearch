@@ -16,7 +16,6 @@ import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClient;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 
 import java.util.ArrayList;
@@ -380,11 +379,11 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         return threadPool;
     }
 
-    private RemoteClient createMockClient(final ThreadPool threadPool) {
+    private Client createMockClient(final ThreadPool threadPool) {
         return createMockClient(threadPool, client -> when(client.getRemoteClusterClient(anyString())).thenReturn(client));
     }
 
-    private RemoteClient createMockClientThatThrowsOnGetRemoteClusterClient(final ThreadPool threadPool, final String clusterAlias) {
+    private Client createMockClientThatThrowsOnGetRemoteClusterClient(final ThreadPool threadPool, final String clusterAlias) {
         return createMockClient(
                 threadPool,
                 client -> {
@@ -393,8 +392,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                 });
     }
 
-    private RemoteClient createMockClient(final ThreadPool threadPool, final Consumer<RemoteClient> finish) {
-        final RemoteClient client = mock(RemoteClient.class);
+    private Client createMockClient(final ThreadPool threadPool, final Consumer<Client> finish) {
+        final Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         finish.accept(client);
         return client;

@@ -16,18 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.transport;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-public interface RemoteClient extends Client {
+public interface RemoteClusterAwareRequest {
 
-    /**
-     * Returns a remote client instance that will send requests to the specified node.
-     *
-     * @param node to route request to
-     * @return remote client
-     */
-    RemoteClient routedToNode(DiscoveryNode node);
+    DiscoveryNode getPreferredTargetNode();
+
 }

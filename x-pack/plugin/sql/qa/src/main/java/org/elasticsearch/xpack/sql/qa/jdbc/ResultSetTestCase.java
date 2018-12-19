@@ -58,6 +58,7 @@ import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
 
 public class ResultSetTestCase extends JdbcIntegrationTestCase {
     
@@ -200,10 +201,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Byte]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Byte]", of(randomDate)),
                     sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Byte.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Byte]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Byte]", of(randomDate)),
                     sqle.getMessage());
         });
     }
@@ -323,10 +324,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getShort("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Short]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Short]", of(randomDate)),
                     sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Short.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Short]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Short]", of(randomDate)),
                     sqle.getMessage());
         });
     }
@@ -438,10 +439,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getInt("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Integer]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Integer]", of(randomDate)),
                     sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Integer.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Integer]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Integer]", of(randomDate)),
                     sqle.getMessage());
         });
     }
@@ -540,10 +541,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getLong("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Long]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Long]", of(randomDate)),
                     sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Long.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Long]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Long]", of(randomDate)),
                     sqle.getMessage());
         });
     }
@@ -623,10 +624,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getDouble("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Double]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Double]", of(randomDate)),
                     sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Double.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Double]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Double]", of(randomDate)),
                     sqle.getMessage());
         });
     }
@@ -706,10 +707,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getFloat("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Float]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Float]", of(randomDate)),
                     sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Float.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Float]", randomDate),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Float]", of(randomDate)),
                     sqle.getMessage());
         });
     }
@@ -767,7 +768,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                 assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getObject(fld, Boolean.class));
             }
             SQLException sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Boolean]", randomDate1),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Boolean]", of(randomDate1)),
                     sqle.getMessage());
             
             results.next();
@@ -777,11 +778,11 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                 assertEquals("Expected: <false> but was: <true> for field " + fld, false, results.getObject(fld, Boolean.class));
             }
             sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Boolean]", randomDate2),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Boolean]", of(randomDate2)),
                     sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Boolean.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Boolean]", randomDate2),
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATE] to [Boolean]", of(randomDate2)),
                     sqle.getMessage());
             
             results.next();

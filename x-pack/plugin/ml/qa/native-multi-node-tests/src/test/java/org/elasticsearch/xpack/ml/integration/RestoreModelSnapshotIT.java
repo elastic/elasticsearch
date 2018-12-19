@@ -46,6 +46,7 @@ public class RestoreModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36849")
     public void test() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
         int bucketCount = 72;

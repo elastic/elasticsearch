@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -57,11 +58,19 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 
+    @Before
+    public void waitForTrialLicenseToBeGenerated() throws Exception {
+        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metaData().custom(LicensesMetaData.TYPE)));
+    }
+
     @After
-    public void remoteLocalRemote() throws Exception {
+    public void purgeCCRMetadata() throws Exception {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         removeCCRRelatedMetadataFromClusterState(clusterService);
+    }
 
+    @After
+    public void removeLocalRemote() {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
@@ -70,8 +79,8 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     protected ResumeFollowAction.Request getResumeFollowRequest(String followerIndex) {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
         request.setFollowerIndex(followerIndex);
-        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
-        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.setMaxRetryDelay(TimeValue.timeValueMillis(1));
+        request.setReadPollTimeout(TimeValue.timeValueMillis(1));
         return request;
     }
 

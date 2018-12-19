@@ -171,15 +171,8 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public static XContentBuilder value(XContentBuilder builder, Mode mode, Object value) throws IOException {
         if (value instanceof ZonedDateTime) {
             ZonedDateTime zdt = (ZonedDateTime) value;
-            if (Mode.isDriver(mode)) {
-                // JDBC cannot parse dates in string format and ODBC can have issues with it
-                // so instead, use the millis since epoch (in UTC)
-                builder.value(zdt.toInstant().toEpochMilli());
-            }
-            // otherwise use the ISO format
-            else {
-                builder.value(StringUtils.toString(zdt));
-            }
+            // use the ISO format
+            builder.value(StringUtils.toString(zdt));
         } else {
             builder.value(value);
         }

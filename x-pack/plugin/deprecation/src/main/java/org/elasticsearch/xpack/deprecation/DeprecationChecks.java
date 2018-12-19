@@ -41,9 +41,11 @@ public class DeprecationChecks {
             NodeDeprecationChecks::httpEnabledSettingRemoved,
             NodeDeprecationChecks::auditLogPrefixSettingsCheck,
             NodeDeprecationChecks::indexThreadPoolCheck,
+            NodeDeprecationChecks::bulkThreadPoolCheck,
             NodeDeprecationChecks::tribeNodeCheck,
             NodeDeprecationChecks::authRealmsTypeCheck,
             NodeDeprecationChecks::httpPipeliningCheck,
+            NodeDeprecationChecks::discoveryConfigurationCheck,
             NodeDeprecationChecks::azureRepositoryChanges,
             NodeDeprecationChecks::gcsRepositoryChanges,
             NodeDeprecationChecks::fileDiscoveryPluginRemoved
@@ -56,7 +58,9 @@ public class DeprecationChecks {
             IndexDeprecationChecks::percolatorUnmappedFieldsAsStringCheck,
             IndexDeprecationChecks::indexNameCheck,
 			IndexDeprecationChecks::nodeLeftDelayedTimeCheck,
-            IndexDeprecationChecks::shardOnStartupCheck
+            IndexDeprecationChecks::shardOnStartupCheck,
+            IndexDeprecationChecks::classicSimilarityMappingCheck,
+            IndexDeprecationChecks::classicSimilaritySettingsCheck
             ));
 
     /**

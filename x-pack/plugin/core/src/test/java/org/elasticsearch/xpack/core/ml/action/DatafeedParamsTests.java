@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class DatafeedParamsTests extends AbstractSerializingTestCase<StartDatafeedAction.DatafeedParams> {
     @Override
@@ -28,6 +29,13 @@ public class DatafeedParamsTests extends AbstractSerializingTestCase<StartDatafe
         if (randomBoolean()) {
             params.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
+        if (randomBoolean()) {
+            params.setJobId(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            params.setDatafeedIndices(Arrays.asList(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+        }
+
         return params;
     }
 

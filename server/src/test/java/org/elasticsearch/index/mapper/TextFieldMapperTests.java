@@ -31,10 +31,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -71,10 +69,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
 public class TextFieldMapperTests extends ESSingleNodeTestCase {
@@ -817,18 +813,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testIndexPrefixMapping() throws IOException {
 
-        QueryShardContext queryShardContext = indexService.newQueryShardContext(
-            randomInt(20), null, () -> {
-                throw new UnsupportedOperationException();
-            }, null);
-
         {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "standard")
                 .startObject("index_prefixes")
-                .field("min_chars", 1)
+                .field("min_chars", 2)
                 .field("max_chars", 10)
                 .endObject()
                 .endObject().endObject()
@@ -837,16 +828,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
             assertEquals(mapping, mapper.mappingSource().toString());
 
-            assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=1:10"));
-
-            FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-            MappedFieldType fieldType = fieldMapper.fieldType;
-
-            Query q = fieldType.prefixQuery("goin", CONSTANT_SCORE_REWRITE, queryShardContext);
-
-            assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field._index_prefix", "goin"))), q);
-            q = fieldType.prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, queryShardContext);
-            assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
+            assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=2:10"));
 
             ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                     .bytes(XContentFactory.jsonBuilder()
@@ -870,17 +852,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             CompressedXContent json = new CompressedXContent(mapping);
             DocumentMapper mapper = parser.parse("type", json);
 
-            FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-            MappedFieldType fieldType = fieldMapper.fieldType;
+            assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=2:5"));
 
-            Query q1 = fieldType.prefixQuery("g", CONSTANT_SCORE_REWRITE, queryShardContext);
-            assertThat(q1, instanceOf(PrefixQuery.class));
-            Query q2 = fieldType.prefixQuery("go", CONSTANT_SCORE_REWRITE, queryShardContext);
-            assertThat(q2, instanceOf(ConstantScoreQuery.class));
-            Query q5 = fieldType.prefixQuery("going", CONSTANT_SCORE_REWRITE, queryShardContext);
-            assertThat(q5, instanceOf(ConstantScoreQuery.class));
-            Query q6 = fieldType.prefixQuery("goings", CONSTANT_SCORE_REWRITE, queryShardContext);
-            assertThat(q6, instanceOf(PrefixQuery.class));
         }
 
         {
@@ -898,10 +871,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-                indexService.mapperService()
-                    .merge("type", new CompressedXContent(illegalMapping), MergeReason.MAPPING_UPDATE);
-            });
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+                indexService.mapperService().merge("type", new CompressedXContent(illegalMapping), MergeReason.MAPPING_UPDATE));
             assertThat(e.getMessage(), containsString("Field [field._index_prefix] is defined twice in [type]"));
 
         }

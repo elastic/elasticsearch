@@ -3363,12 +3363,6 @@ class SqlBaseParser extends Parser {
       return getRuleContext(ValueExpressionContext.class,i);
     }
     public TerminalNode NOT() { return getToken(SqlBaseParser.NOT, 0); }
-    public List<ExpressionContext> expression() {
-      return getRuleContexts(ExpressionContext.class);
-    }
-    public ExpressionContext expression(int i) {
-      return getRuleContext(ExpressionContext.class,i);
-    }
     public TerminalNode IN() { return getToken(SqlBaseParser.IN, 0); }
     public QueryContext query() {
       return getRuleContext(QueryContext.class,0);
@@ -3449,7 +3443,7 @@ class SqlBaseParser extends Parser {
         setState(502);
         match(T__0);
         setState(503);
-        expression();
+        valueExpression(0);
         setState(508);
         _errHandler.sync(this);
         _la = _input.LA(1);
@@ -3459,7 +3453,7 @@ class SqlBaseParser extends Parser {
           setState(504);
           match(T__2);
           setState(505);
-          expression();
+          valueExpression(0);
           }
           }
           setState(510);
@@ -6616,7 +6610,7 @@ class SqlBaseParser extends Parser {
     "\u01f0\7\16\2\2\u01f0\u01f1\5<\37\2\u01f1\u01f2\7\n\2\2\u01f2\u01f3\5"+
     "<\37\2\u01f3\u021b\3\2\2\2\u01f4\u01f6\7=\2\2\u01f5\u01f4\3\2\2\2\u01f5"+
     "\u01f6\3\2\2\2\u01f6\u01f7\3\2\2\2\u01f7\u01f8\7-\2\2\u01f8\u01f9\7\3"+
-    "\2\2\u01f9\u01fe\5,\27\2\u01fa\u01fb\7\5\2\2\u01fb\u01fd\5,\27\2\u01fc"+
+    "\2\2\u01f9\u01fe\5<\37\2\u01fa\u01fb\7\5\2\2\u01fb\u01fd\5<\37\2\u01fc"+
     "\u01fa\3\2\2\2\u01fd\u0200\3\2\2\2\u01fe\u01fc\3\2\2\2\u01fe\u01ff\3\2"+
     "\2\2\u01ff\u0201\3\2\2\2\u0200\u01fe\3\2\2\2\u0201\u0202\7\4\2\2\u0202"+
     "\u021b\3\2\2\2\u0203\u0205\7=\2\2\u0204\u0203\3\2\2\2\u0204\u0205\3\2"+

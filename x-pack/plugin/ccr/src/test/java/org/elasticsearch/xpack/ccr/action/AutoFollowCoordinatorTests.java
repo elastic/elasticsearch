@@ -849,7 +849,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     private ClusterService mockClusterService() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings =
-            new ClusterSettings(Settings.EMPTY, Collections.singleton(CcrSettings.CCR_AUTO_FOLLOW_COORDINATOR_WAIT_FOR_TIMEOUT));
+            new ClusterSettings(Settings.EMPTY, Collections.singleton(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
     }

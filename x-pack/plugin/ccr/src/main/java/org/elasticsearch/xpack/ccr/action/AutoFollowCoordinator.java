@@ -74,7 +74,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     private final CcrLicenseChecker ccrLicenseChecker;
     private final LongSupplier relativeMillisTimeProvider;
 
-    private volatile TimeValue waitForTimeOut;
+    private volatile TimeValue waitForMetadataTimeOut;
     private volatile Map<String, AutoFollower> autoFollowers = Collections.emptyMap();
 
     // The following fields are read and updated under a lock:
@@ -103,13 +103,13 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         };
 
         Consumer<TimeValue> updater = newWaitForTimeOut -> {
-            if (newWaitForTimeOut.equals(waitForTimeOut) == false) {
-                LOGGER.info("changing wait_for_timeout from [{}] to [{}]", waitForTimeOut, newWaitForTimeOut);
-                waitForTimeOut = newWaitForTimeOut;
+            if (newWaitForTimeOut.equals(waitForMetadataTimeOut) == false) {
+                LOGGER.info("changing wait_for_metadata_timeout from [{}] to [{}]", waitForMetadataTimeOut, newWaitForTimeOut);
+                waitForMetadataTimeOut = newWaitForTimeOut;
             }
         };
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_AUTO_FOLLOW_COORDINATOR_WAIT_FOR_TIMEOUT, updater);
-        waitForTimeOut = CcrSettings.CCR_AUTO_FOLLOW_COORDINATOR_WAIT_FOR_TIMEOUT.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT, updater);
+        waitForMetadataTimeOut = CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT.get(settings);
     }
 
     public synchronized AutoFollowStats getStats() {
@@ -193,7 +193,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     request.metaData(true);
                     request.routingTable(true);
                     request.waitForMetaDataVersion(metadataVersion);
-                    request.waitForTimeout(waitForTimeOut);
+                    request.waitForTimeout(waitForMetadataTimeOut);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                     ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,

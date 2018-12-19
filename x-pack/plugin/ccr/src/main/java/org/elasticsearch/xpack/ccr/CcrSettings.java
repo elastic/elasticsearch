@@ -32,8 +32,8 @@ public final class CcrSettings {
     /**
      * Dynamic node setting for specifying the wait_for_timeout that the auto follow coordinator should be using.
      */
-    public static final Setting<TimeValue> CCR_AUTO_FOLLOW_COORDINATOR_WAIT_FOR_TIMEOUT = Setting.timeSetting(
-        "ccr.auto_follow_coordinator.wait_for_timeout", TimeValue.timeValueSeconds(60), Property.NodeScope, Property.Dynamic);
+    public static final Setting<TimeValue> CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT = Setting.timeSetting(
+        "ccr.auto_follow.wait_for_metadata_timeout", TimeValue.timeValueSeconds(60), Property.NodeScope, Property.Dynamic);
 
     /**
      * The settings defined by CCR.
@@ -44,7 +44,7 @@ public final class CcrSettings {
         return Arrays.asList(
                 XPackSettings.CCR_ENABLED_SETTING,
                 CCR_FOLLOWING_INDEX_SETTING,
-                CCR_AUTO_FOLLOW_COORDINATOR_WAIT_FOR_TIMEOUT);
+            CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT);
     }
 
 }

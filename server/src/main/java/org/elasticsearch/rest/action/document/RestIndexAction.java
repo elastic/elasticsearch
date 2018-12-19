@@ -42,15 +42,19 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestIndexAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestDeleteAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
-        "document index requests is deprecated, use the /{index}/_doc/{id} or /{index}/_doc endpoints instead.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document " +
+        "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, " +
+        "or /{index}/_create/{id}).";
 
     public RestIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}", this);
+
         CreateHandler createHandler = new CreateHandler(settings);
+        controller.registerHandler(PUT, "/{index}/_create/{id}", createHandler);
+        controller.registerHandler(POST, "/{index}/_create/{id}/", createHandler);
         controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
@@ -88,7 +92,7 @@ public class RestIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndexRequest indexRequest;
         final String type = request.param("type");
-        if (type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
+        if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
             deprecationLogger.deprecatedAndMaybeLog("index_with_types", TYPES_DEPRECATION_MESSAGE);
             indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
         } else {

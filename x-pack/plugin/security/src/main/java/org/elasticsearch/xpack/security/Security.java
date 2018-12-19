@@ -306,6 +306,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
             checks.addAll(Arrays.asList(
+                new ApiKeySSLBootstrapCheck(),
                 new TokenSSLBootstrapCheck(),
                 new PkiRealmBootstrapCheck(getSslService()),
                 new TLSLicenseBootstrapCheck(),

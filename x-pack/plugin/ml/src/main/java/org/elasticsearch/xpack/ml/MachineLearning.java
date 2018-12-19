@@ -293,7 +293,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     public static boolean isMlNode(DiscoveryNode node) {
         Map<String, String> nodeAttributes = node.getAttributes();
-        boolean enabled;
         try {
             return Integer.parseInt(nodeAttributes.get(MAX_OPEN_JOBS_NODE_ATTR)) > 0;
         } catch (NumberFormatException e) {

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class NodeIdListener implements ClusterStateListener {
@@ -46,7 +47,7 @@ public class NodeIdListener implements ClusterStateListener {
     }
 
     private static String formatIds(String clusterUUID, String nodeId) {
-        return String.format("\"cluster_uuid\": \"%s\", \"node_id2\": \"%s\", ",clusterUUID,nodeId);
+        return String.format(Locale.ROOT,"\"cluster_uuid\": \"%s\", \"node_id2\": \"%s\", ",clusterUUID,nodeId);
     }
 
     public AtomicReference<String> getNodeId() {

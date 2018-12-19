@@ -27,13 +27,14 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.util.LazyInitializable;
 
 import java.util.concurrent.atomic.AtomicReference;
 
 
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeIdPatternConverter")
-@ConverterKeys({"node_id_raw", "node_id_es"})
+@ConverterKeys({"node_id_from_plugin"})
 public final class NodeIdPatternConverter extends LogEventPatternConverter implements ClusterStateListener {
 
     AtomicReference<String> nodeId = new AtomicReference<>();
@@ -53,7 +54,7 @@ public final class NodeIdPatternConverter extends LogEventPatternConverter imple
     }
 
     public NodeIdPatternConverter() {
-        super("NodeName", "node_id_raw");
+        super("NodeName", "node_id_from_plugin");
     }
 
     @Override
@@ -62,11 +63,15 @@ public final class NodeIdPatternConverter extends LogEventPatternConverter imple
     }
 
     @Override
+    @SuppressForbidden(reason = "sets system property for logging variable propagation")
     public void clusterChanged(ClusterChangedEvent event) {
         DiscoveryNode localNode = event.state().getNodes().getLocalNode();
         String id = localNode.getId();
+        //option 2
         boolean wasSet = nodeId.compareAndSet(null, id);
+
         if (wasSet) {
+            //option1
             System.setProperty("node_id_sys_prop", id);
             //TODO deregister as no longer the id will change ?
         }

@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.sql.jdbc.EsDataSource;
 import org.junit.After;
@@ -31,6 +30,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertNoSearchContexts;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
+    
     @After
     public void checkSearchContent() throws Exception {
         // Some context might linger due to fire and forget nature of scroll cleanup
@@ -84,9 +84,8 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     }
 
     public static void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
-        Request request = new Request("PUT", "/" + index + "/doc/" + documentId);
+        Request request = new Request("PUT", "/" + index + "/_doc/" + documentId);
         request.addParameter("refresh", "true");
-        request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
         builder.endObject();

@@ -73,6 +73,15 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
+/**
+ * This class implements CRUD operation for the
+ * datafeed configuration document
+ *
+ * The number of datafeeds returned in a search it limited to
+ * {@link AnomalyDetectorsIndex#CONFIG_INDEX_MAX_RESULTS_WINDOW}.
+ * In most cases we expect 10s or 100s of datafeeds to be defined and
+ * a search for all datafeeds should return all.
+ */
 public class DatafeedConfigProvider {
 
     private static final Logger logger = LogManager.getLogger(DatafeedConfigProvider.class);
@@ -86,13 +95,6 @@ public class DatafeedConfigProvider {
         modifiable.put(ToXContentParams.INCLUDE_TYPE, "true");
         TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
     }
-
-    /**
-     * In most cases we expect 10s or 100s of datafeeds to be defined and
-     * a search for all datafeeds should return all.
-     * TODO this is a temporary fix
-     */
-    public int searchSize = 1000;
 
     public DatafeedConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;
@@ -368,7 +370,9 @@ public class DatafeedConfigProvider {
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder).request();
+                .setSource(sourceBuilder)
+                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+                .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);
 
@@ -407,7 +411,6 @@ public class DatafeedConfigProvider {
      *                     wildcard then setting this true will not suppress the exception
      * @param listener The expanded datafeed config listener
      */
-    // NORELEASE datafeed configs should be paged or have a mechanism to return all jobs if there are many of them
     public void expandDatafeedConfigs(String expression, boolean allowNoDatafeeds, ActionListener<List<DatafeedConfig.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
@@ -416,7 +419,7 @@ public class DatafeedConfigProvider {
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(searchSize)
+                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);

@@ -53,15 +53,15 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
      * Serialisation names
      */
     public static final ParseField ANALYSIS_CONFIG = new ParseField("analysis_config");
-    private static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
-    private static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorization_field_name");
-    static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
-    private static final ParseField CATEGORIZATION_ANALYZER = CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER;
-    private static final ParseField LATENCY = new ParseField("latency");
-    private static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
-    private static final ParseField DETECTORS = new ParseField("detectors");
-    private static final ParseField INFLUENCERS = new ParseField("influencers");
-    private static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
+    public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
+    public static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorization_field_name");
+    public static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
+    public static final ParseField CATEGORIZATION_ANALYZER = CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER;
+    public static final ParseField LATENCY = new ParseField("latency");
+    public static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
+    public static final ParseField DETECTORS = new ParseField("detectors");
+    public static final ParseField INFLUENCERS = new ParseField("influencers");
+    public static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
 
     public static final String ML_CATEGORY_FIELD = "mlcategory";
     public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Collections.singletonList(ML_CATEGORY_FIELD));

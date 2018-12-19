@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -148,11 +149,19 @@ public class AutoFollowIT extends CcrIntegTestCase {
             createLeaderIndex("logs-" + i, leaderIndexSettings);
         }
         int expectedVal2 = numIndices;
-        assertBusy(() -> {
-            MetaData metaData = followerClient().admin().cluster().prepareState().get().getState().metaData();
-            int count = (int) Arrays.stream(metaData.getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
-            assertThat(count, equalTo(expectedVal2));
-        });
+
+        MetaData[] metaData = new MetaData[1];
+        try {
+            assertBusy(() -> {
+                metaData[0] = followerClient().admin().cluster().prepareState().get().getState().metaData();
+                int count = (int) Arrays.stream(metaData[0].getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
+                assertThat(count, equalTo(expectedVal2));
+            });
+        } catch (AssertionError ae) {
+            logger.warn("metadata={}", Strings.toString(metaData[0]));
+            logger.warn("auto follow stats={}", Strings.toString(getAutoFollowStats()));
+            throw ae;
+        }
     }
 
     public void testAutoFollowParameterAreDelegated() throws Exception {

@@ -29,9 +29,9 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
         final String json = "{ \"name\" : \"my-api-key\", "
                 + ((withExpiration) ? " \"expiration\": \"1d\", " : "")
                 +" \"role_descriptors\": { \"role-a\": {\"cluster\":[\"a-1\", \"a-2\"],"
-                + " \"index\": [{\"names\": [\"indx-a\"], \"privileges\": [\"p1\"] }] }, "
+                + " \"index\": [{\"names\": [\"indx-a\"], \"privileges\": [\"read\"] }] }, "
                 + " \"role-b\": {\"cluster\":[\"b\"],"
-                + " \"index\": [{\"names\": [\"indx-b\"], \"privileges\": [\"p1\"] }] } "
+                + " \"index\": [{\"names\": [\"indx-b\"], \"privileges\": [\"read\"] }] } "
                 + "} }";
         final BytesArray source = new BytesArray(json);
         final NodeClient mockClient = mock(NodeClient.class);
@@ -44,10 +44,10 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
             IndicesPrivileges indicesPrivileges = null;
             if (rd.getName().equals("role-a")) {
                 clusters = new String[] { "a-1", "a-2" };
-                indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder().indices("indx-a").privileges("p1").build();
+                indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder().indices("indx-a").privileges("read").build();
             } else if (rd.getName().equals("role-b")){
                 clusters = new String[] { "b" };
-                indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder().indices("indx-b").privileges("p1").build();
+                indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder().indices("indx-b").privileges("read").build();
             } else {
                 fail("unexpected role name");
             }

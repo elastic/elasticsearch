@@ -31,8 +31,8 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<CreateApiKeyRequest, CreateApiKeyResponse> {
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<CreateApiKeyRequest, ElasticsearchClient> PARSER = new ConstructingObjectParser<>(
-            "api_key_request", false, (args, client) -> {
+    static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
+            "api_key_request", false, (args, v) -> {
                 return new CreateApiKeyRequest((String) args[0], (List<RoleDescriptor>) args[1],
                         TimeValue.parseTimeValue((String) args[2], null, "expiration"));
             });

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Booleans;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
@@ -30,6 +31,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 import java.io.IOException;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36831")
 public class ScriptDocValuesMissingV7BehaviourTests extends ESTestCase {
 
     public void testExceptionForMissingValueLong() throws IOException {

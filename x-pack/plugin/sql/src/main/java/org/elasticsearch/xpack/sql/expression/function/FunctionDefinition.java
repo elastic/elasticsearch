@@ -27,7 +27,7 @@ public class FunctionDefinition {
     /**
      * Is this a datetime function compatible with {@code EXTRACT}.
      */
-    private final boolean datetime;
+    private final boolean extractViable;
     private final Builder builder;
     private final FunctionType type;
 
@@ -36,7 +36,7 @@ public class FunctionDefinition {
         this.name = name;
         this.aliases = aliases;
         this.clazz = clazz;
-        this.datetime = datetime;
+        this.extractViable = datetime;
         this.builder = builder;
         this.type = FunctionType.of(clazz);
     }
@@ -64,8 +64,8 @@ public class FunctionDefinition {
     /**
      * Is this a datetime function compatible with {@code EXTRACT}.
      */
-    boolean datetime() {
-        return datetime;
+    boolean extractViable() {
+        return extractViable;
     }
 
     @Override

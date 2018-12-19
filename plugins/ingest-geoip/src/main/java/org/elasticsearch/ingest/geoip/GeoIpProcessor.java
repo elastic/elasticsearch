@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
@@ -38,6 +37,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -64,18 +64,34 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private final String field;
     private final String targetField;
-    private final DatabaseReader dbReader;
+    private final DatabaseReaderLazyLoader lazyLoader;
     private final Set<Property> properties;
     private final boolean ignoreMissing;
     private final GeoIpCache cache;
 
-
-    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties, boolean ignoreMissing,
-                   GeoIpCache cache) {
+    /**
+     * Construct a geo-IP processor.
+     *
+     * @param tag           the processor tag
+     * @param field         the source field to geo-IP map
+     * @param lazyLoader    a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
+     * @param targetField   the target field
+     * @param properties    the properties; ideally this is lazily-loaded once on first use
+     * @param ignoreMissing true if documents with a missing value for the field should be ignored
+     * @param cache         a geo-IP cache
+     */
+    GeoIpProcessor(
+            final String tag,
+            final String field,
+            final DatabaseReaderLazyLoader lazyLoader,
+            final String targetField,
+            final Set<Property> properties,
+            final boolean ignoreMissing,
+            final GeoIpCache cache) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
-        this.dbReader = dbReader;
+        this.lazyLoader = lazyLoader;
         this.properties = properties;
         this.ignoreMissing = ignoreMissing;
         this.cache = cache;
@@ -86,7 +102,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) {
+    public IngestDocument execute(IngestDocument ingestDocument) throws IOException {
         String ip = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
 
         if (ip == null && ignoreMissing) {
@@ -98,7 +114,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final InetAddress ipAddress = InetAddresses.forString(ip);
 
         Map<String, Object> geoData;
-        String databaseType = dbReader.getMetadata().getDatabaseType();
+        String databaseType = lazyLoader.getDatabaseType();
 
         if (databaseType.endsWith(CITY_DB_SUFFIX)) {
             try {
@@ -119,7 +135,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 geoData = Collections.emptyMap();
             }
         } else {
-            throw new ElasticsearchParseException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType()
+            throw new ElasticsearchParseException("Unsupported database type [" + lazyLoader.getDatabaseType()
                     + "]", new IllegalStateException());
         }
         if (geoData.isEmpty() == false) {
@@ -141,8 +157,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    DatabaseReader getDbReader() {
-        return dbReader;
+    String getDatabaseType() throws IOException {
+        return lazyLoader.getDatabaseType();
     }
 
     Set<Property> getProperties() {
@@ -154,7 +170,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         CityResponse response = AccessController.doPrivileged((PrivilegedAction<CityResponse>) () ->
             cache.putIfAbsent(ipAddress, CityResponse.class, ip -> {
                 try {
-                    return dbReader.city(ip);
+                    return lazyLoader.get().city(ip);
                 } catch (AddressNotFoundException e) {
                     throw new AddressNotFoundRuntimeException(e);
                 } catch (Exception e) {
@@ -240,7 +256,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         CountryResponse response = AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () ->
             cache.putIfAbsent(ipAddress, CountryResponse.class, ip -> {
                 try {
-                    return dbReader.country(ip);
+                    return lazyLoader.get().country(ip);
                 } catch (AddressNotFoundException e) {
                     throw new AddressNotFoundRuntimeException(e);
                 } catch (Exception e) {
@@ -285,7 +301,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         AsnResponse response = AccessController.doPrivileged((PrivilegedAction<AsnResponse>) () ->
             cache.putIfAbsent(ipAddress, AsnResponse.class, ip -> {
                 try {
-                    return dbReader.asn(ip);
+                    return lazyLoader.get().asn(ip);
                 } catch (AddressNotFoundException e) {
                     throw new AddressNotFoundRuntimeException(e);
                 } catch (Exception e) {
@@ -318,18 +334,23 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
-        static final Set<Property> DEFAULT_CITY_PROPERTIES = EnumSet.of(
+        static final Set<Property> DEFAULT_CITY_PROPERTIES = Collections.unmodifiableSet(EnumSet.of(
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_ISO_CODE,
             Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION
-        );
-        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = EnumSet.of(
+        ));
+        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Collections.unmodifiableSet(EnumSet.of(
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE
-        );
-        static final Set<Property> DEFAULT_ASN_PROPERTIES = EnumSet.of(
+        ));
+        static final Set<Property> DEFAULT_ASN_PROPERTIES = Collections.unmodifiableSet(EnumSet.of(
             Property.IP, Property.ASN, Property.ORGANIZATION_NAME
-        );
+        ));
 
         private final Map<String, DatabaseReaderLazyLoader> databaseReaders;
+
+        Map<String, DatabaseReaderLazyLoader> databaseReaders() {
+            return Collections.unmodifiableMap(databaseReaders);
+        }
+
         private final GeoIpCache cache;
 
         public Factory(Map<String, DatabaseReaderLazyLoader> databaseReaders, GeoIpCache cache) {
@@ -338,8 +359,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
 
         @Override
-        public GeoIpProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                       Map<String, Object> config) throws Exception {
+        public GeoIpProcessor create(
+                final Map<String, Processor.Factory> registry,
+                final String processorTag,
+                final Map<String, Object> config) throws IOException {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
             String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
@@ -352,19 +375,19 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
 
-            DatabaseReader databaseReader = lazyLoader.get();
-            String databaseType = databaseReader.getMetadata().getDatabaseType();
+            final String databaseType = lazyLoader.getDatabaseType();
 
             final Set<Property> properties;
             if (propertyNames != null) {
-                properties = EnumSet.noneOf(Property.class);
+                Set<Property> modifiableProperties = EnumSet.noneOf(Property.class);
                 for (String fieldName : propertyNames) {
                     try {
-                        properties.add(Property.parseProperty(databaseType, fieldName));
+                        modifiableProperties.add(Property.parseProperty(databaseType, fieldName));
                     } catch (IllegalArgumentException e) {
                         throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
                     }
                 }
+                properties = Collections.unmodifiableSet(modifiableProperties);
             } else {
                 if (databaseType.endsWith(CITY_DB_SUFFIX)) {
                     properties = DEFAULT_CITY_PROPERTIES;
@@ -378,7 +401,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
             }
 
-            return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, properties, ignoreMissing, cache);
+            return new GeoIpProcessor(processorTag, ipField, lazyLoader, targetField, properties, ignoreMissing, cache);
         }
     }
 

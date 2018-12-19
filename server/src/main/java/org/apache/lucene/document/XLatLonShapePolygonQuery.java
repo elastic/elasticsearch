@@ -31,7 +31,6 @@ import java.util.Arrays;
  * <p>The field must be indexed using
  * {@link XLatLonShape#createIndexableFields} added per document.
  *
- *  @lucene.experimental
  **/
 final class XLatLonShapePolygonQuery extends XLatLonShapeQuery {
   final Polygon[] polygons;

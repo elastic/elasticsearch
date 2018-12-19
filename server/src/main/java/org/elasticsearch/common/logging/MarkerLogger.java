@@ -23,10 +23,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.message.Message;
-import org.apache.logging.log4j.message.MessageFactory;
-import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.apache.logging.log4j.util.StringBuilderFormattable;
 import org.apache.logging.log4j.util.Strings;
 
@@ -123,7 +120,7 @@ public class MarkerLogger extends Logger {
         /**
          * Constructs a new Marker.
          */
-        public AtomicRefMarker(AtomicReference<NodeIdListener> nodeId) {
+        AtomicRefMarker(AtomicReference<NodeIdListener> nodeId) {
             this.nodeId = nodeId;
         }
 

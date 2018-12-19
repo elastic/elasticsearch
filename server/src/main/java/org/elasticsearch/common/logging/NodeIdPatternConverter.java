@@ -24,7 +24,6 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,13 +35,11 @@ import java.util.concurrent.atomic.AtomicReference;
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeIdPatternConverter")
 @ConverterKeys({"node_id_raw", "node_id_es"})
 public final class NodeIdPatternConverter extends LogEventPatternConverter implements ClusterStateListener {
-    /**
-     * The name of this node.
-     */
-    private static final SetOnce<String> NODE_ID = new SetOnce<>();
+
     AtomicReference<String> nodeId = new AtomicReference<>();
 
-    private static LazyInitializable<NodeIdPatternConverter, Exception> INSTANCE = new LazyInitializable(() -> new NodeIdPatternConverter());
+    private static LazyInitializable<NodeIdPatternConverter, Exception> INSTANCE =
+        new LazyInitializable(() -> new NodeIdPatternConverter());
 
     /**
      * Called by log4j2 to initialize this converter.

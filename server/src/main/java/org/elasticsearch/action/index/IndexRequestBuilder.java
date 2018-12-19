@@ -200,11 +200,26 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * only performs this indexing request if the document was last modification was assigned the given
-     * sequence number and primary term
+     * only perform this indexing request if the document was last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
-    public IndexRequestBuilder setIfMatch(long seqNo, long term) {
-        request.ifMatch(seqNo, term);
+    public IndexRequestBuilder setIfSeqNo(long seqNo) {
+        request.setIfSeqNo(seqNo);
+        return this;
+    }
+
+    /**
+     * only perform this indexing request if the document was last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public IndexRequestBuilder setIfPrimaryTerm(long term) {
+        request.setIfPrimaryTerm(term);
         return this;
     }
 

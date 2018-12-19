@@ -89,7 +89,7 @@ public class NodeDeprecationChecks {
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Security realm settings structure changed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#include-realm-type-in-setting",
                 "nodes have authentication realm configuration which must be updated at time of upgrade to 7.0: " + nodesFound);
         }

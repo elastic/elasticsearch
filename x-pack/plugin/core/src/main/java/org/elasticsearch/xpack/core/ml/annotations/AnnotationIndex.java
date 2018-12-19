@@ -38,12 +38,12 @@ public class AnnotationIndex {
     public static final String INDEX_NAME = ".ml-annotations-6";
 
     /**
-     * Create the .ml-annotations index with correct mappings.
-     * This index is read and written by the UI results views,
-     * so needs to exist when there might be ML results to view.
+     * Create the .ml-annotations index with correct mappings if it does not already
+     * exist. This index is read and written by the UI results views, so needs to
+     * exist when there might be ML results to view.
      */
-    public static void createAnnotationsIndex(Settings settings, Client client, ClusterState state,
-                                              final ActionListener<Boolean> finalListener) {
+    public static void createAnnotationsIndexIfNecessary(Settings settings, Client client, ClusterState state,
+                                                         final ActionListener<Boolean> finalListener) {
 
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
             final IndicesAliasesRequest request = client.admin().indices().prepareAliases()

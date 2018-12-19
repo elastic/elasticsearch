@@ -45,13 +45,12 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -62,6 +61,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -408,7 +408,6 @@ public class AutodetectProcessManager {
         logger.info("Opening job [{}]", jobId);
 
         jobManager.getJob(jobId, ActionListener.wrap(
-                // NORELEASE JIndex. Should not be doing this work on the network thread
                 job -> {
                     if (job.getJobVersion() == null) {
                         closeHandler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId

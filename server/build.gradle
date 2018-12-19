@@ -123,6 +123,10 @@ dependencies {
   // repackaged jna with native bits linked against all elastic supported platforms
   compile "org.elasticsearch:jna:${versions.jna}"
 
+  compile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  compile("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+
+
   if (!isEclipse && !isIdea) {
     java9Compile sourceSets.main.output
   }

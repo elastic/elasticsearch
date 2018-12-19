@@ -67,6 +67,9 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.MarkerLoggerContextFactory;
+import org.elasticsearch.common.logging.NodeIdListener;
+import org.elasticsearch.common.logging.NodeIdPatternConverter;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -184,6 +187,7 @@ import static java.util.stream.Collectors.toList;
  * in order to use a {@link Client} to perform actions/operations against the cluster.
  */
 public class Node implements Closeable {
+
     public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
@@ -436,6 +440,14 @@ public class Node implements Closeable {
                                                  scriptModule.getScriptService(), xContentRegistry, environment, nodeEnvironment,
                                                  namedWriteableRegistry).stream())
                 .collect(Collectors.toList());
+
+            NodeIdPatternConverter nodeIdPatternConverter = NodeIdPatternConverter.newInstance(new String[]{});
+            clusterService.addListener(nodeIdPatternConverter);
+
+            NodeIdListener nodeIdListener = new NodeIdListener();
+            clusterService.addListener(nodeIdListener);
+            //TODO any other way to pass cluster state listener to context factory?
+            ((MarkerLoggerContextFactory)LogManager.getFactory()).setNodeIdListener(nodeIdListener);
 
             ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),

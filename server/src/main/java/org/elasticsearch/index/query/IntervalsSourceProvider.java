@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.intervals.FilteredIntervalsSource;
+import org.apache.lucene.search.intervals.IntervalIterator;
 import org.apache.lucene.search.intervals.Intervals;
 import org.apache.lucene.search.intervals.IntervalsSource;
 import org.elasticsearch.common.ParseField;
@@ -34,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -387,24 +390,59 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    static class ScriptFilterSource extends FilteredIntervalsSource {
+
+        final IntervalFilterScript script;
+        IntervalFilterScript.Interval interval = new IntervalFilterScript.Interval();
+
+        ScriptFilterSource(IntervalsSource in, String name, IntervalFilterScript script) {
+            super("FILTER(" + name + ")", in);
+            this.script = script;
+        }
+
+        @Override
+        protected boolean accept(IntervalIterator it) {
+            interval.setIterator(it);
+            return script.execute(interval);
+        }
+    }
+
     public static class IntervalFilter implements ToXContent, Writeable {
 
         public static final String NAME = "filter";
 
         private final String type;
         private final IntervalsSourceProvider filter;
+        private final Script script;
 
         public IntervalFilter(IntervalsSourceProvider filter, String type) {
             this.filter = filter;
             this.type = type.toLowerCase(Locale.ROOT);
+            this.script = null;
+        }
+
+        IntervalFilter(Script script) {
+            this.script = script;
+            this.type = "script";
+            this.filter = null;
         }
 
         public IntervalFilter(StreamInput in) throws IOException {
             this.type = in.readString();
-            this.filter = in.readNamedWriteable(IntervalsSourceProvider.class);
+            this.filter = in.readOptionalNamedWriteable(IntervalsSourceProvider.class);
+            if (in.readBoolean()) {
+                this.script = new Script(in);
+            }
+            else {
+                this.script = null;
+            }
         }
 
         public IntervalsSource filter(IntervalsSource input, QueryShardContext context, MappedFieldType fieldType) throws IOException {
+            if (script != null) {
+                IntervalFilterScript ifs = context.getScriptService().compile(script, IntervalFilterScript.CONTEXT).newInstance();
+                return new ScriptFilterSource(input, script.getIdOrCode(), ifs);
+            }
             IntervalsSource filterSource = filter.getSource(context, fieldType);
             switch (type) {
                 case "containing":
@@ -439,7 +477,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(type);
-            out.writeNamedWriteable(filter);
+            out.writeOptionalNamedWriteable(filter);
+            if (script == null) {
+                out.writeBoolean(false);
+            }
+            else {
+                out.writeBoolean(true);
+                script.writeTo(out);
+            }
         }
 
         @Override
@@ -458,6 +503,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 throw new ParsingException(parser.getTokenLocation(), "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
             }
             String type = parser.currentName();
+            if (Script.SCRIPT_PARSE_FIELD.match(type, parser.getDeprecationHandler())) {
+                Script script = Script.parse(parser);
+                if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    throw new ParsingException(parser.getTokenLocation(), "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
+                }
+                return new IntervalFilter(script);
+            }
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "Expected [START_OBJECT] but got [" + parser.currentToken() + "]");
             }
@@ -474,5 +526,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             return new IntervalFilter(intervals, type);
         }
     }
+
+
 
 }

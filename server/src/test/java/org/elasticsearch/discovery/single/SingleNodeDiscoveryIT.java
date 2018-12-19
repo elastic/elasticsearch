@@ -130,7 +130,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                          * We align the port ranges of the two as then with zen discovery these two
                          * nodes would find each other.
                          */
-                        .put("transport.tcp.port", port + "-" + (port + 5 - 1))
+                        .put("transport.port", port + "-" + (port + 5 - 1))
                         .build();
             }
 
@@ -165,6 +165,12 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                     first.metaData().clusterUUID(),
                     not(equalTo(second.metaData().clusterUUID())));
         }
+    }
+
+    public void testStatePersistence() throws Exception {
+        createIndex("test");
+        internalCluster().fullRestart();
+        assertTrue(client().admin().indices().prepareExists("test").get().isExists());
     }
 
 }

@@ -858,3 +858,15 @@ xpack.security.authc.realms.saml.saml_eng:
 It is possible to have one or more {kib} instances that use SAML, while other
 instances use basic authentication against another realm type (e.g.
 <<native-realm, Native>> or <<ldap-realm, LDAP>>).
+
+=== Troubleshooting SAML Realm Configuration
+
+The SAML 2.0 specification offers a lot of options and flexibility for the implementers
+of the standard which in turn adds to the complexity and the number of configuration options
+that are available both at the Service Provider (Elastic Stack) and at the Identity Provider.
+Additionally, different security domains have different security requirements that need
+specific configuration to be satisfied.
+A conscious effort has been made to mask this complexity with sane defaults and the detailed
+documentation above but in case you encounter issues while configuring a SAML realm, you can
+look through our {stack-ov}/trb-security-saml.html[SAML troubleshooting documentation] that has
+suggestions and resolutions for common issues.

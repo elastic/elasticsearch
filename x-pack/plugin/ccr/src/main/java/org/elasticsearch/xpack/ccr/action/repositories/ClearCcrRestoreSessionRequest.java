@@ -6,68 +6,44 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class ClearCcrRestoreSessionRequest extends BaseNodesRequest<ClearCcrRestoreSessionRequest> {
+public class ClearCcrRestoreSessionRequest extends ActionRequest {
 
-    private Request request;
+    private String sessionUUID;
 
-    ClearCcrRestoreSessionRequest() {
+    ClearCcrRestoreSessionRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
+        sessionUUID = in.readString();
     }
 
-    public ClearCcrRestoreSessionRequest(String nodeId, Request request) {
-        super(nodeId);
-        this.request = request;
-    }
-
-    @Override
-    public void readFrom(StreamInput streamInput) throws IOException {
-        super.readFrom(streamInput);
-        request = new Request();
-        request.readFrom(streamInput);
+    public ClearCcrRestoreSessionRequest(String sessionUUID) {
+        this.sessionUUID = sessionUUID;
     }
 
     @Override
-    public void writeTo(StreamOutput streamOutput) throws IOException {
-        super.writeTo(streamOutput);
-        request.writeTo(streamOutput);
+    public ActionRequestValidationException validate() {
+        return null;
     }
 
-    public Request getRequest() {
-        return request;
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        sessionUUID = in.readString();
     }
 
-    public static class Request extends BaseNodeRequest {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(sessionUUID);
+    }
 
-        private String sessionUUID;
-
-        Request() {
-        }
-
-        public Request(String nodeId, String sessionUUID) {
-            super(nodeId);
-            this.sessionUUID = sessionUUID;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            sessionUUID = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(sessionUUID);
-        }
-
-        public String getSessionUUID() {
-            return sessionUUID;
-        }
+    public String getSessionUUID() {
+        return sessionUUID;
     }
 }

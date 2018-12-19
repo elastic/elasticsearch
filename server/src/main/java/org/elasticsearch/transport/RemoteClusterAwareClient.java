@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -76,7 +75,7 @@ final class RemoteClusterAwareClient extends AbstractClient implements RemoteCli
     }
 
     @Override
-    public Client preferredNode(DiscoveryNode node) {
+    public RemoteClient routedToNode(DiscoveryNode node) {
         return new RemoteClusterAwareClient(settings, threadPool(), service, clusterAlias, node);
     }
 }

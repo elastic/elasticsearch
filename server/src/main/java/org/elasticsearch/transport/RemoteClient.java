@@ -23,5 +23,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 
 public interface RemoteClient extends Client {
 
-    Client preferredNode(DiscoveryNode node);
+    /**
+     * Returns a remote client instance that will send requests to the specified node.
+     *
+     * @param node to route request to
+     * @return remote client
+     */
+    RemoteClient routedToNode(DiscoveryNode node);
 }

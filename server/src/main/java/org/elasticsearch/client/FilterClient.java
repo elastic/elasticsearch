@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClient;
 
 /**
  * A {@link Client} that contains another {@link Client} which it
@@ -73,7 +74,7 @@ public abstract class FilterClient extends AbstractClient {
     }
 
     @Override
-    public Client getRemoteClusterClient(String clusterAlias) {
+    public RemoteClient getRemoteClusterClient(String clusterAlias) {
         return in.getRemoteClusterClient(clusterAlias);
     }
 }

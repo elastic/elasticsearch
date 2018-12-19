@@ -407,7 +407,6 @@ public class AutodetectProcessManager extends AbstractComponent {
         logger.info("Opening job [{}]", jobId);
 
         jobManager.getJob(jobId, ActionListener.wrap(
-                // NORELEASE JIndex. Should not be doing this work on the network thread
                 job -> {
                     if (job.getJobVersion() == null) {
                         closeHandler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId

@@ -93,7 +93,7 @@ public class TransportActivateWatchActionTests extends ESTestCase {
             GetRequest request = (GetRequest) invocation.getArguments()[0];
             ActionListener<GetResponse> listener = (ActionListener) invocation.getArguments()[1];
 
-            GetResult getResult = new GetResult(request.index(), request.type(), request.id(), request.version(), true, null,
+            GetResult getResult = new GetResult(request.index(), request.type(), request.id(), 20, 1, request.version(), true, null,
                 Collections.emptyMap());
             listener.onResponse(new GetResponse(getResult));
 

@@ -24,11 +24,11 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -388,13 +388,7 @@ public class IngestService implements ClusterStateApplier {
             @Override
             protected void doRun() {
                 for (DocWriteRequest<?> actionRequest : actionRequests) {
-                    IndexRequest indexRequest = null;
-                    if (actionRequest instanceof IndexRequest) {
-                        indexRequest = (IndexRequest) actionRequest;
-                    } else if (actionRequest instanceof UpdateRequest) {
-                        UpdateRequest updateRequest = (UpdateRequest) actionRequest;
-                        indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
-                    }
+                    IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
                     if (indexRequest == null) {
                         continue;
                     }

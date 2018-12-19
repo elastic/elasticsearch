@@ -65,9 +65,10 @@ A {dfeed} resource has the following properties:
   releases earlier than 6.0.0. For more information, see <<removal-of-types>>.  
 
 `delayed_data_check_config`::
-  (object) Specifies if and with how large a window should the data feed check
-  for missing data. See <<ml-datafeed-delayed-data-check-config>>.
-  For example: `{"enabled": true, "check_window": "1h"}`
+  (object) Specifies whether the data feed checks for missing data and 
+  and the size of the window. For example:
+  `{"enabled": true, "check_window": "1h"}` See
+  <<ml-datafeed-delayed-data-check-config>>.
 
 [[ml-datafeed-chunking-config]]
 ==== Chunking Configuration Objects
@@ -97,7 +98,8 @@ A chunking configuration object has the following properties:
 The {dfeed} can optionally search over indices that have already been read in
 an effort to find if any data has since been added to the index. If missing data
 is found, it is a good indication that the `query_delay` option is set too low and
-the data is being indexed after the {dfeed} has passed that moment in time.
+the data is being indexed after the {dfeed} has passed that moment in time. See 
+{stack-ov}/ml-delayed-data-detection.html[Working with delayed data].
 
 This check only runs on real-time {dfeeds}
 

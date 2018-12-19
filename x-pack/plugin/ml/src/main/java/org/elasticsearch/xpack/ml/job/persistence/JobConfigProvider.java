@@ -89,6 +89,11 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 /**
  * This class implements CRUD operation for the
  * anomaly detector job configuration document
+ *
+ * The number of jobs returned in a search it limited to
+ * {@link AnomalyDetectorsIndex#CONFIG_INDEX_MAX_RESULTS_WINDOW}.
+ * In most cases we expect 10s or 100s of jobs to be defined and
+ * a search for all jobs should return all.
  */
 public class JobConfigProvider {
 
@@ -100,13 +105,6 @@ public class JobConfigProvider {
         modifiable.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
         TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
     }
-
-    /**
-     * In most cases we expect 10s or 100s of jobs to be defined and
-     * a search for all jobs should return all.
-     * TODO this is a temporary fix
-     */
-    private int searchSize = 1000;
 
     private final Client client;
 
@@ -669,7 +667,7 @@ public class JobConfigProvider {
         return client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(searchSize)
+                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
     }
 
@@ -686,7 +684,6 @@ public class JobConfigProvider {
      * @param excludeDeleting If true exclude jobs marked as deleting
      * @param listener The expanded jobs listener
      */
-    // NORELEASE jobs should be paged or have a mechanism to return all jobs if there are many of them
     public void expandJobs(String expression, boolean allowNoJobs, boolean excludeDeleting, ActionListener<List<Job.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
@@ -695,7 +692,7 @@ public class JobConfigProvider {
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(searchSize)
+                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoJobs);
@@ -745,7 +742,6 @@ public class JobConfigProvider {
      * @param excludeDeleting If true exclude jobs marked as deleting
      * @param listener The expanded jobs listener
      */
-    // NORELEASE jobs should be paged or have a mechanism to return all jobs if there are many of them
     public void expandJobsWithoutMissingcheck(String expression, boolean excludeDeleting, ActionListener<List<Job.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
@@ -754,7 +750,7 @@ public class JobConfigProvider {
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(searchSize)
+                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -800,7 +796,7 @@ public class JobConfigProvider {
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(searchSize)
+                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -862,7 +858,7 @@ public class JobConfigProvider {
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(searchSize)
+                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,

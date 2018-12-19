@@ -142,7 +142,8 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         return builder;
     }
 
-    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(), true, RestoreInfo::new);
+    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(),
+        true, RestoreInfo::new);
 
     static {
         ObjectParser<RestoreInfo, Void> shardsParser = new ObjectParser<>("shards", true, null);

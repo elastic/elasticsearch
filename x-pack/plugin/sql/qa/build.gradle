@@ -21,7 +21,7 @@ dependencies {
 
 /* disable unit tests because these are all integration tests used
  * other qa projects. */
-test.enabled = false
+unitTest.enabled = false
 
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false

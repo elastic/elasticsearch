@@ -60,7 +60,7 @@ node${attr}.dummy:  everyone_has_me
 node${attr}.number: ${node:1}
 node${attr}.array:  [${node:0:1}, ${node:1}]
 http.port:          ${http_port}
-transport.port:     ${transport_port}
+transport.tcp.port: ${transport_port}
 discovery.zen.minimum_master_nodes: 3
 discovery.zen.ping.unicast.hosts: ['localhost:9300','localhost:9301','localhost:9302']
 __ES_YML

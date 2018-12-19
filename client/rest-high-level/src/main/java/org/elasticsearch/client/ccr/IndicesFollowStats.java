@@ -41,6 +41,7 @@ public final class IndicesFollowStats {
     private static final ConstructingObjectParser<Tuple<String, List<ShardFollowStats>>, Void> ENTRY_PARSER =
         new ConstructingObjectParser<>(
             "entry",
+            true,
             args -> {
                 String index = (String) args[0];
                 @SuppressWarnings("unchecked")
@@ -54,7 +55,9 @@ public final class IndicesFollowStats {
         ENTRY_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ShardFollowStats.PARSER, SHARDS_FIELD);
     }
 
-    static final ConstructingObjectParser<IndicesFollowStats, Void> PARSER = new ConstructingObjectParser<>("indices",
+    static final ConstructingObjectParser<IndicesFollowStats, Void> PARSER = new ConstructingObjectParser<>(
+        "indices",
+        true,
         args -> {
             @SuppressWarnings("unchecked")
             List<Tuple<String, List<ShardFollowStats>>> entries = (List<Tuple<String, List<ShardFollowStats>>>) args[0];

@@ -301,7 +301,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metaData().indices().get(indexName).getState(), is(IndexMetaData.State.CLOSE));
         assertThat(clusterState.routingTable().index(indexName), nullValue());
-        assertThat(clusterState.blocks().hasIndexBlock(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(true));
+        assertThat(clusterState.blocks().hasIndexBlockWithId(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(true));
         assertThat("Index " + indexName + " must have only 1 block with [id=" + MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
             clusterState.blocks().indices().getOrDefault(indexName, emptySet()).stream()
                 .filter(clusterBlock -> clusterBlock.id() == MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID).count(), equalTo(1L));
@@ -311,7 +311,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metaData().indices().get(indexName).getState(), is(IndexMetaData.State.OPEN));
         assertThat(clusterState.routingTable().index(indexName), notNullValue());
-        assertThat(clusterState.blocks().hasIndexBlock(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(false));
+        assertThat(clusterState.blocks().hasIndexBlockWithId(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(false));
     }
 
     static void assertException(final Throwable throwable, final String indexName) {

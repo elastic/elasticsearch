@@ -294,7 +294,7 @@ public class MetaDataIndexStateService {
             }
             final IndexRoutingTable indexRoutingTable = state.routingTable().index(index);
             if (indexRoutingTable == null || indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                assert state.blocks().hasIndexBlock(index.getName(), INDEX_CLOSED_BLOCK_ID);
+                assert state.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
                 logger.debug("index {} has been blocked before closing and is already closed, ignoring", index);
                 onResponse.accept(new AcknowledgedResponse(true));
                 return;
@@ -459,7 +459,7 @@ public class MetaDataIndexStateService {
                     }
 
                     mdBuilder.put(indexMetaData, true);
-                    blocksBuilder.removeIndexBlock(indexName, INDEX_CLOSED_BLOCK_ID);
+                    blocksBuilder.removeIndexBlockWithId(indexName, INDEX_CLOSED_BLOCK_ID);
                 }
 
                 ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();

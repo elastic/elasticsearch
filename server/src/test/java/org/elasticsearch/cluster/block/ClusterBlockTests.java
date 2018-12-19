@@ -38,6 +38,8 @@ import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterBlockTests extends ESTestCase {
 
@@ -109,6 +111,43 @@ public class ClusterBlockTests extends ESTestCase {
         ClusterBlockException exception = clusterBlocks.indicesBlockedException(randomFrom(globalBlock.levels()), new String[0]);
         assertNotNull(exception);
         assertEquals(exception.blocks(), Collections.singleton(globalBlock));
+    }
+
+    public void testRemoveIndexBlockWithId() {
+        final ClusterBlocks.Builder builder = ClusterBlocks.builder();
+        builder.addIndexBlock("index-1",
+            new ClusterBlock(1, "uuid", "", true, true, true, RestStatus.OK, EnumSet.copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-1",
+            new ClusterBlock(2, "uuid", "", true, true, true, RestStatus.OK, EnumSet.copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-1",
+            new ClusterBlock(3, "uuid", "", true, true, true, RestStatus.OK, EnumSet.copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-1",
+            new ClusterBlock(3, "other uuid", "", true, true, true, RestStatus.OK, EnumSet.copyOf(ClusterBlockLevel.ALL)));
+
+        builder.addIndexBlock("index-2",
+            new ClusterBlock(3, "uuid3", "", true, true, true, RestStatus.OK, EnumSet.copyOf(ClusterBlockLevel.ALL)));
+
+        ClusterBlocks clusterBlocks = builder.build();
+        assertThat(clusterBlocks.indices().get("index-1").size(), equalTo(4));
+        assertThat(clusterBlocks.indices().get("index-2").size(), equalTo(1));
+
+        builder.removeIndexBlockWithId("index-1", 3);
+        clusterBlocks = builder.build();
+
+        assertThat(clusterBlocks.indices().get("index-1").size(), equalTo(2));
+        assertThat(clusterBlocks.hasIndexBlockWithId("index-1", 1), is(true));
+        assertThat(clusterBlocks.hasIndexBlockWithId("index-1", 2), is(true));
+        assertThat(clusterBlocks.indices().get("index-2").size(), equalTo(1));
+        assertThat(clusterBlocks.hasIndexBlockWithId("index-2", 3), is(true));
+
+        builder.removeIndexBlockWithId("index-2", 3);
+        clusterBlocks = builder.build();
+
+        assertThat(clusterBlocks.indices().get("index-1").size(), equalTo(2));
+        assertThat(clusterBlocks.hasIndexBlockWithId("index-1", 1), is(true));
+        assertThat(clusterBlocks.hasIndexBlockWithId("index-1", 2), is(true));
+        assertThat(clusterBlocks.indices().get("index-2"), nullValue());
+        assertThat(clusterBlocks.hasIndexBlockWithId("index-2", 3), is(false));
     }
 
     private ClusterBlock randomClusterBlock() {

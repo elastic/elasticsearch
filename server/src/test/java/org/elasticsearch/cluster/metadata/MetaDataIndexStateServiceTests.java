@@ -345,6 +345,6 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
     }
 
     private static void assertNotBlocked(final String indexName, final ClusterState clusterState) {
-        assertThat(clusterState.blocks().hasIndexBlock(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(false));
+        assertThat(clusterState.blocks().hasIndexBlockWithId(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(false));
     }
 }

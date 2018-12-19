@@ -156,6 +156,4 @@ org.apache.lucene.document.LatLonShapeLineQuery
 org.apache.lucene.document.LatLonShapePolygonQuery
 org.apache.lucene.document.LatLonShapeQuery
 
-org.apache.lucene.geo.Rectangle2D @ use @org.apache.lucene.geo.XRectangle2D instead
-
 org.apache.lucene.geo.Tessellator @ use @org.apache.lucene.geo.XTessellator instead

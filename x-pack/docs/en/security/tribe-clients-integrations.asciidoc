@@ -15,10 +15,10 @@ secured cluster:
 * <<http-clients, HTTP Clients>>
 
 
-{security} enables you to secure your {es} cluster. But {es} itself is only one
-product within the Elastic Stack. It is often the case that other products in
-the stack are connected to the cluster and therefore need to be secured as well,
-or at least communicate with the cluster in a secured way:
+The {es} {security-features} enable you to secure your {es} cluster. But
+{es} itself is only one product within the {stack}. It is often the case that
+other products in the stack are connected to the cluster and therefore need to
+be secured as well, or at least communicate with the cluster in a secured way:
 
 * <<hadoop, Apache Hadoop>>
 * {auditbeat-ref}/securing-beats.html[Auditbeat]

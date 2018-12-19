@@ -29,7 +29,7 @@ The following is a list of the events that can be generated:
 | `run_as_denied`                   | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>>
                                           another user action they do not have the necessary
                                           <<security-reference, privilege>> to do so.
-| `tampered_request`                | | | Logged when {security} detects that the request has
+| `tampered_request`                | | | Logged when the {security-features} detect that the request has
                                           been tampered with. Typically relates to `search/scroll`
                                           requests when the scroll ID is believed to have been
                                           tampered with.

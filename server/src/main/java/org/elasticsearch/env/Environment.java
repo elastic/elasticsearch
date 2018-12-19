@@ -130,7 +130,6 @@ public class Environment {
                 throw new IllegalStateException("node does not require local storage yet path.data is set to [" + paths + "]");
             }
         }
-
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).normalize();
         } else {

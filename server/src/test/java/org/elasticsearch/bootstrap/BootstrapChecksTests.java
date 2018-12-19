@@ -694,4 +694,5 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             () -> BootstrapChecks.check(emptyContext, randomBoolean(), Collections.singletonList(check)));
         assertThat(alwaysEnforced, hasToString(containsString("error")));
     }
+
 }

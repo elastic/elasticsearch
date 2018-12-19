@@ -92,7 +92,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         return new ReplicaResult();
     }
 
-    private void executeShardOperation(final ShardRequest request,final IndexShard indexShard) {
+    private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) {
         final ShardId shardId = indexShard.shardId();
         if (indexShard.getActiveOperationsCount() != 0) {
             throw new IllegalStateException("On-going operations in progress while checking index shard " + shardId + " before closing");

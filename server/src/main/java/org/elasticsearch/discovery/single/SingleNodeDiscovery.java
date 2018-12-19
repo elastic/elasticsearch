@@ -31,12 +31,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Objects;
@@ -55,12 +57,17 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     private volatile ClusterState clusterState;
 
     public SingleNodeDiscovery(final Settings settings, final TransportService transportService,
-                               final MasterService masterService, final ClusterApplier clusterApplier) {
+                               final MasterService masterService, final ClusterApplier clusterApplier,
+                               final GatewayMetaState gatewayMetaState) {
         super(Objects.requireNonNull(settings));
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = Objects.requireNonNull(transportService);
         masterService.setClusterStateSupplier(() -> clusterState);
         this.clusterApplier = clusterApplier;
+
+        if (clusterApplier instanceof ClusterApplierService) {
+            ((ClusterApplierService) clusterApplier).addLowPriorityApplier(gatewayMetaState);
+        }
     }
 
     @Override

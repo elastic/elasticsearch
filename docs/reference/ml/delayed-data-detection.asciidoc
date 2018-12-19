@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-delayed-data-detection]]
-=== Working with delayed data
+=== Handling delayed data
 
 Delayed data are documents that are indexed late. That is to say, it is data
 related to a time that the {dfeed} has already processed.

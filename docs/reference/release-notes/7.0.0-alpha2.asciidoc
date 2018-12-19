@@ -1,5 +1,5 @@
 [[release-notes-7.0.0-alpha2]]
-== 7.0.0-alpha2 Release Notes
+== {es} version 7.0.0-alpha2
 
 [[breaking-7.0.0-alpha2]]
 [float]

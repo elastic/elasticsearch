@@ -74,7 +74,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSINGED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
 public class ShardStateAction {
 
@@ -605,7 +605,7 @@ public class ShardStateAction {
             allocationId = in.readString();
             if (in.getVersion().before(Version.V_6_3_0)) {
                 final long primaryTerm = in.readVLong();
-                assert primaryTerm == UNASSINGED_PRIMARY_TERM : "shard is only started by itself: primary term [" + primaryTerm + "]";
+                assert primaryTerm == UNASSIGNED_PRIMARY_TERM : "shard is only started by itself: primary term [" + primaryTerm + "]";
             }
             this.message = in.readString();
             if (in.getVersion().before(Version.V_6_3_0)) {

@@ -87,7 +87,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSINGED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
 /**
  * Base class for requests that should be executed on a primary copy followed by replica copies.
@@ -1250,7 +1250,7 @@ public abstract class TransportReplicationAction<
             request = requestSupplier.get();
             // null now, but will be populated by reading from the streams
             targetAllocationID = null;
-            primaryTerm = UNASSINGED_PRIMARY_TERM;
+            primaryTerm = UNASSIGNED_PRIMARY_TERM;
         }
 
         public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm) {

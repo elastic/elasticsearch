@@ -36,8 +36,8 @@ import org.elasticsearch.index.mapper.VersionFieldMapper;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSINGED_PRIMARY_TERM;
 
 
 /** Utility class to do efficient primary-key (only 1 doc contains the
@@ -124,12 +124,12 @@ final class PerThreadIDVersionAndSeqNoLookup {
                 if (terms != null && terms.advanceExact(docID)) {
                     term = terms.longValue();
                 } else {
-                    term = UNASSINGED_PRIMARY_TERM;
+                    term = UNASSIGNED_PRIMARY_TERM;
                 }
 
             } else {
                 seqNo = UNASSIGNED_SEQ_NO;
-                term = UNASSINGED_PRIMARY_TERM;
+                term = UNASSIGNED_PRIMARY_TERM;
             }
             return new DocIdAndVersion(docID, versions.longValue(), seqNo, term, context.reader(), context.docBase);
         } else {

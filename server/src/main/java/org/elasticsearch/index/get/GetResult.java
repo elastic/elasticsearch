@@ -47,8 +47,8 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSINGED_PRIMARY_TERM;
 
 public class GetResult implements Streamable, Iterable<DocumentField>, ToXContentObject {
 
@@ -83,9 +83,9 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         this.id = id;
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
-        assert (seqNo == UNASSIGNED_SEQ_NO && primaryTerm == UNASSINGED_PRIMARY_TERM) || (seqNo >= 0 && primaryTerm >= 1) :
+        assert (seqNo == UNASSIGNED_SEQ_NO && primaryTerm == UNASSIGNED_PRIMARY_TERM) || (seqNo >= 0 && primaryTerm >= 1) :
             "seqNo: " + seqNo + " primaryTerm: " + primaryTerm;
-        assert exists || (seqNo == UNASSIGNED_SEQ_NO && primaryTerm == UNASSINGED_PRIMARY_TERM) :
+        assert exists || (seqNo == UNASSIGNED_SEQ_NO && primaryTerm == UNASSIGNED_PRIMARY_TERM) :
             "doc not found but seqNo/primaryTerm are set";
         this.version = version;
         this.exists = exists;
@@ -315,7 +315,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         String currentFieldName = parser.currentName();
         long version = -1;
         long seqNo = UNASSIGNED_SEQ_NO;
-        long primaryTerm = UNASSINGED_PRIMARY_TERM;
+        long primaryTerm = UNASSIGNED_PRIMARY_TERM;
         Boolean found = null;
         BytesReference source = null;
         Map<String, DocumentField> fields = new HashMap<>();
@@ -390,7 +390,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
             primaryTerm = in.readVLong();
         } else {
             seqNo = UNASSIGNED_SEQ_NO;
-            primaryTerm = UNASSINGED_PRIMARY_TERM;
+            primaryTerm = UNASSIGNED_PRIMARY_TERM;
         }
         version = in.readLong();
         exists = in.readBoolean();

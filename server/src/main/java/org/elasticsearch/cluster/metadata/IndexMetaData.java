@@ -1080,7 +1080,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 throw new IllegalStateException("you must set the number of shards before setting/reading primary terms");
             }
             primaryTerms = new long[numberOfShards()];
-            Arrays.fill(primaryTerms, SequenceNumbers.UNASSINGED_PRIMARY_TERM);
+            Arrays.fill(primaryTerms, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
         }
 
 

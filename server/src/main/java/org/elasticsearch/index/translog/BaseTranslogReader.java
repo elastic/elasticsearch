@@ -114,7 +114,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
 
     protected Translog.Operation read(BufferedChecksumStreamInput inStream) throws IOException {
         final Translog.Operation op = Translog.readOperation(inStream);
-        if (op.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != SequenceNumbers.UNASSINGED_PRIMARY_TERM) {
+        if (op.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
             throw new TranslogCorruptedException(
                     path.toString(),
                     "operation's term is newer than translog header term; " +

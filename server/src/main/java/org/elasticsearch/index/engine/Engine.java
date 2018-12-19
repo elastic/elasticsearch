@@ -105,8 +105,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSINGED_PRIMARY_TERM;
 
 public abstract class Engine implements Closeable {
 
@@ -428,7 +428,7 @@ public abstract class Engine implements Closeable {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = UNASSIGNED_SEQ_NO;
-            this.term = UNASSINGED_PRIMARY_TERM;
+            this.term = UNASSIGNED_PRIMARY_TERM;
             this.failure = null;
             this.requiredMappingUpdate = requiredMappingUpdate;
             this.resultType = Type.MAPPING_UPDATE_REQUIRED;
@@ -1357,7 +1357,7 @@ public abstract class Engine implements Closeable {
             assert ifPrimaryTerm >= 0 : "ifPrimaryTerm [" + ifPrimaryTerm + "] must be non negative";
             assert ifSeqNo == UNASSIGNED_SEQ_NO || ifSeqNo >=0 :
                 "ifSeqNo [" + ifSeqNo + "] must be non negative or unset";
-            assert (origin == Origin.PRIMARY) || (ifSeqNo == UNASSIGNED_SEQ_NO && ifPrimaryTerm == UNASSINGED_PRIMARY_TERM) :
+            assert (origin == Origin.PRIMARY) || (ifSeqNo == UNASSIGNED_SEQ_NO && ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM) :
                 "cas operations are only allowed if origin is primary. get [" + origin + "]";
             this.doc = doc;
             this.isRetry = isRetry;
@@ -1451,7 +1451,7 @@ public abstract class Engine implements Closeable {
             assert ifPrimaryTerm >= 0 : "ifPrimaryTerm [" + ifPrimaryTerm + "] must be non negative";
             assert ifSeqNo == UNASSIGNED_SEQ_NO || ifSeqNo >=0 :
                 "ifSeqNo [" + ifSeqNo + "] must be non negative or unset";
-            assert (origin == Origin.PRIMARY) || (ifSeqNo == UNASSIGNED_SEQ_NO && ifPrimaryTerm == UNASSINGED_PRIMARY_TERM) :
+            assert (origin == Origin.PRIMARY) || (ifSeqNo == UNASSIGNED_SEQ_NO && ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM) :
                 "cas operations are only allowed if origin is primary. get [" + origin + "]";
             this.type = Objects.requireNonNull(type);
             this.id = Objects.requireNonNull(id);

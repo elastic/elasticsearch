@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSINGED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
 /**
  * Each translog file is started with a translog header then followed by translog operations.
@@ -146,7 +146,7 @@ final class TranslogHeader {
             primaryTerm = in.readLong();
         } else {
             assert version == VERSION_CHECKPOINTS : "Unknown header version [" + version + "]";
-            primaryTerm = UNASSINGED_PRIMARY_TERM;
+            primaryTerm = UNASSIGNED_PRIMARY_TERM;
         }
         // Verify the checksum
         if (version >= VERSION_PRIMARY_TERM) {

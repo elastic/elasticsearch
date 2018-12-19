@@ -37,6 +37,6 @@ due to their ingest delay, the end user is notified.
 The most common course of action is to simply to do nothing. For many functions and situations ignoring the data is
 acceptable. However, if the amount of delayed data is too great or the situation calls for it, the next course
 of action to consider is to increase the `query_delay` of the datafeed. This increased delay allows more time for data to be
-indexed. However, that may not be desirable depending on what real-time constraints there are in the system.
+indexed. If you have real-time constraints, however, an increased delay might not be desirable.
 In which case, you would have to {ref}/tune-for-indexing-speed.html[tune for better indexing speed.]
 

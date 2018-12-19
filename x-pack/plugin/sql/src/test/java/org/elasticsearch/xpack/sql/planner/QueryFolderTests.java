@@ -101,6 +101,16 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(2).toString(), startsWith("ABS(10){c}#"));
     }
 
+    public void testLocalExecWithoutFromClauseWithPrunedFilter() {
+        PhysicalPlan p = plan("SELECT E() WHERE PI() = 5");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
+    }
+
     public void testFoldingOfIsNull() {
         PhysicalPlan p = plan("SELECT keyword FROM test WHERE (keyword IS NOT NULL) IS NULL");
         assertEquals(LocalExec.class, p.getClass());

@@ -18,8 +18,7 @@ public class SingletonExecutable implements Executable {
     private final Object[] values;
 
     public SingletonExecutable() {
-        output = Collections.emptyList();
-        values = new Object[]{};
+        this(Collections.emptyList());
     }
 
     public SingletonExecutable(List<Attribute> output, Object... values) {

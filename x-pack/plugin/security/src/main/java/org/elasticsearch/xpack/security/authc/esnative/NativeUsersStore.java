@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.User.Fields;
@@ -67,6 +66,7 @@ import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
+import static org.elasticsearch.xpack.core.security.index.SystemIndicesNames.SECURITY_INDEX_NAME;
 
 /**
  * NativeUsersStore is a store for users that reads from an Elasticsearch index. This store is responsible for fetching the full
@@ -147,7 +147,7 @@ public class NativeUsersStore {
                 }
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
-                    SearchRequest request = client.prepareSearch(SystemIndicesNames.SECURITY_INDEX_NAME)
+                    SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                             .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                             .setQuery(query)
                             .setSize(1000)
@@ -172,7 +172,7 @@ public class NativeUsersStore {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareSearch(SystemIndicesNames.SECURITY_INDEX_NAME)
+                    client.prepareSearch(SECURITY_INDEX_NAME)
                         .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE))
                         .setSize(0)
                         .request(),
@@ -205,7 +205,7 @@ public class NativeUsersStore {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                            client.prepareGet(SystemIndicesNames.SECURITY_INDEX_NAME,
+                            client.prepareGet(SECURITY_INDEX_NAME,
                                     INDEX_TYPE, getIdForUser(USER_DOC_TYPE, user)).request(),
                             new ActionListener<GetResponse>() {
                                 @Override
@@ -246,7 +246,7 @@ public class NativeUsersStore {
 
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SystemIndicesNames.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(docType, username))
+                    client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(docType, username))
                             .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(),
                                     String.valueOf(request.passwordHash()))
                             .setRefreshPolicy(request.getRefreshPolicy()).request(),
@@ -284,7 +284,7 @@ public class NativeUsersStore {
     private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SystemIndicesNames.SECURITY_INDEX_NAME, INDEX_TYPE,
+                    client.prepareIndex(SECURITY_INDEX_NAME, INDEX_TYPE,
                             getIdForUser(RESERVED_USER_TYPE, username))
                             .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash),
                                     Fields.ENABLED.getPreferredName(), true,
@@ -326,7 +326,7 @@ public class NativeUsersStore {
         // We must have an existing document
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SystemIndicesNames.SECURITY_INDEX_NAME, INDEX_TYPE,
+                    client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE,
                             getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
                             .setDoc(Requests.INDEX_CONTENT_TYPE,
                                     Fields.USERNAME.getPreferredName(), putUserRequest.username(),
@@ -371,7 +371,7 @@ public class NativeUsersStore {
         assert putUserRequest.passwordHash() != null;
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SystemIndicesNames.SECURITY_INDEX_NAME, INDEX_TYPE,
+                    client.prepareIndex(SECURITY_INDEX_NAME, INDEX_TYPE,
                             getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
                             .setSource(Fields.USERNAME.getPreferredName(), putUserRequest.username(),
                                     Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
@@ -415,7 +415,7 @@ public class NativeUsersStore {
                             final ActionListener<Void> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SystemIndicesNames.SECURITY_INDEX_NAME, INDEX_TYPE,
+                    client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE,
                             getIdForUser(USER_DOC_TYPE, username))
                             .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
                             .setRefreshPolicy(refreshPolicy)
@@ -450,7 +450,7 @@ public class NativeUsersStore {
                                         boolean clearCache, final ActionListener<Void> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SystemIndicesNames.SECURITY_INDEX_NAME, INDEX_TYPE,
+                    client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE,
                             getIdForUser(RESERVED_USER_TYPE, username))
                             .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
                             .setUpsert(XContentType.JSON,
@@ -485,7 +485,7 @@ public class NativeUsersStore {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                DeleteRequest request = client.prepareDelete(SystemIndicesNames.SECURITY_INDEX_NAME,
+                DeleteRequest request = client.prepareDelete(SECURITY_INDEX_NAME,
                     INDEX_TYPE, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username())).request();
                 request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
@@ -532,7 +532,7 @@ public class NativeUsersStore {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                            client.prepareGet(SystemIndicesNames.SECURITY_INDEX_NAME, INDEX_TYPE,
+                            client.prepareGet(SECURITY_INDEX_NAME, INDEX_TYPE,
                                     getIdForUser(RESERVED_USER_TYPE, username)).request(),
                             new ActionListener<GetResponse>() {
                                 @Override
@@ -577,7 +577,7 @@ public class NativeUsersStore {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareSearch(SystemIndicesNames.SECURITY_INDEX_NAME)
+                    client.prepareSearch(SECURITY_INDEX_NAME)
                         .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE))
                         .setFetchSource(true).request(),
                     new ActionListener<SearchResponse>() {

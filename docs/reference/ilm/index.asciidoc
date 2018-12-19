@@ -3,9 +3,6 @@
 [[index-lifecycle-management]]
 = Managing the index lifecycle
 
-:ilm:             index lifecycle management
-:Ilm:             Index lifecycle management
-:ILM:             ILM
 [partintro]
 --
 beta[]

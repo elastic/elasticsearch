@@ -161,7 +161,7 @@ task testScriptDocValuesMissingV7Behaviour(type: RandomizedTestingTask) {
 }
 check.dependsOn(testScriptDocValuesMissingV7Behaviour)
 
-test {
+unitTest {
   // these are tested explicitly in separate test tasks
   exclude '**/*ScriptDocValuesMissingV7BehaviourTests.class'
 }

@@ -56,6 +56,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s, {@link DeleteRequest}s and {@link UpdateRequest}s
@@ -351,7 +352,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
                 long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                long ifPrimaryTerm = 0;
+                long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
                 int retryOnConflict = 0;
                 String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
 

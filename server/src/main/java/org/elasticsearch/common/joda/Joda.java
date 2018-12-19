@@ -232,6 +232,27 @@ public class Joda {
             formatter = StrictISODateTimeFormat.yearMonth();
         } else if ("strictYearMonthDay".equals(input) || "strict_year_month_day".equals(input)) {
             formatter = StrictISODateTimeFormat.yearMonthDay();
+        } else if (Strings.hasLength(input) && input.contains("||")) {
+            String[] formats = Strings.delimitedListToStringArray(input, "||");
+            DateTimeParser[] parsers = new DateTimeParser[formats.length];
+
+            if (formats.length == 1) {
+                formatter = forPattern(input).parser;
+            } else {
+                DateTimeFormatter dateTimeFormatter = null;
+                for (int i = 0; i < formats.length; i++) {
+                    JodaDateFormatter currentFormatter = forPattern(formats[i]);
+                    DateTimeFormatter currentParser = currentFormatter.parser;
+                    if (dateTimeFormatter == null) {
+                        dateTimeFormatter = currentFormatter.printer;
+                    }
+                    parsers[i] = currentParser.getParser();
+                }
+
+                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder()
+                    .append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);
+                formatter = builder.toFormatter();
+            }
         } else {
             try {
                 maybeLogJodaDeprecation(input);

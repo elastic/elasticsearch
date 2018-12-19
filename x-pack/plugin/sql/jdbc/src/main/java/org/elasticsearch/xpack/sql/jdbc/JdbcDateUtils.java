@@ -21,7 +21,11 @@ import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
 import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
-final class DateUtils {
+/**
+ * JDBC specific datetime specific utility methods. Because of lack of visibility, this class borrows code
+ * from {@code org.elasticsearch.xpack.sql.util.DateUtils} and {@code org.elasticsearch.xpack.sql.proto.StringUtils}.
+ */
+final class JdbcDateUtils {
     
     private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
     

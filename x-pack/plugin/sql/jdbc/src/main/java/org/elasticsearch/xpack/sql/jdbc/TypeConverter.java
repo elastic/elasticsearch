@@ -214,7 +214,7 @@ final class TypeConverter {
             case FLOAT:
                 return floatValue(v); // Float might be represented as string for infinity and NaN values
             case DATE:
-                return DateUtils.asDateTimeField(v, DateUtils::asTimestamp, Timestamp::new);
+                return JdbcDateUtils.asDateTimeField(v, JdbcDateUtils::asTimestamp, Timestamp::new);
             case INTERVAL_YEAR:
             case INTERVAL_MONTH:
             case INTERVAL_YEAR_TO_MONTH:
@@ -468,21 +468,21 @@ final class TypeConverter {
 
     private static Date asDate(Object val, EsType columnType, String typeString) throws SQLException {
         if (columnType == EsType.DATE) {
-            return DateUtils.asDateTimeField(val, DateUtils::asDate, Date::new);
+            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asDate, Date::new);
         }
         return failConversion(val, columnType, typeString, Date.class);
     }
 
     private static Time asTime(Object val, EsType columnType, String typeString) throws SQLException {
         if (columnType == EsType.DATE) {
-            return DateUtils.asDateTimeField(val, DateUtils::asTime, Time::new);
+            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTime, Time::new);
         }
         return failConversion(val, columnType, typeString, Time.class);
     }
 
     private static Timestamp asTimestamp(Object val, EsType columnType, String typeString) throws SQLException {
         if (columnType == EsType.DATE) {
-            return DateUtils.asDateTimeField(val, DateUtils::asTimestamp, Timestamp::new);
+            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTimestamp, Timestamp::new);
         }
         return failConversion(val, columnType, typeString, Timestamp.class);
     }

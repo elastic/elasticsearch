@@ -30,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.lang.String.format;
 
@@ -251,7 +252,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
                 if (val == null) {
                     return null;
                 }
-                return DateUtils.asDateTimeField(val, DateUtils::asMillisSinceEpoch, (longValue) -> longValue);
+                return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asMillisSinceEpoch, Function.identity());
             };
             return val == null ? null : (Long) val;
         } catch (ClassCastException cce) {

@@ -47,11 +47,10 @@ cluster.initial_master_nodes:
    - 192.168.1.13:9301 <5>
 --------------------------------------------------
 <1> The port will default to `transport.profiles.default.port` and fallback to
-    `transport.tcp.port` if not specified.
+    `transport.port` if not specified.
 <2> If a hostname resolves to multiple IP addresses then the node will attempt to
     discover other nodes at all resolved addresses.
 <3> Initial master nodes can be identified by their <<node.name,node name>>.
 <4> Initial master nodes can also be identified by their IP address.
 <5> If multiple master nodes share an IP address then the port must be used to
     disambiguate them.
-

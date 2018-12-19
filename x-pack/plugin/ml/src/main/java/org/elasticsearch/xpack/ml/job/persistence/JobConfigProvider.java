@@ -684,7 +684,6 @@ public class JobConfigProvider {
      * @param excludeDeleting If true exclude jobs marked as deleting
      * @param listener The expanded jobs listener
      */
-    // NORELEASE jobs should be paged or have a mechanism to return all jobs if there are many of them
     public void expandJobs(String expression, boolean allowNoJobs, boolean excludeDeleting, ActionListener<List<Job.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
@@ -743,7 +742,6 @@ public class JobConfigProvider {
      * @param excludeDeleting If true exclude jobs marked as deleting
      * @param listener The expanded jobs listener
      */
-    // NORELEASE jobs should be paged or have a mechanism to return all jobs if there are many of them
     public void expandJobsWithoutMissingcheck(String expression, boolean excludeDeleting, ActionListener<List<Job.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));

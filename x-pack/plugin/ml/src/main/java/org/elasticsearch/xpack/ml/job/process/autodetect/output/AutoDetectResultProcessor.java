@@ -432,18 +432,18 @@ public class AutoDetectResultProcessor {
         // We need to make all results written up to and including these stats available for the established memory calculation
         persister.commitResultWrites(jobId);
 
+        try {
+            jobUpdateSemaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.info("[{}] Interrupted acquiring update established model memory semaphore", jobId);
+            return;
+        }
+
         jobResultsProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStatsForCalc, establishedModelMemory -> {
             if (latestEstablishedModelMemory != establishedModelMemory) {
-
+                
                 client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME).submit(() -> {
-                    try {
-                        jobUpdateSemaphore.acquire();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        LOGGER.info("[{}] Interrupted acquiring update established model memory semaphore", jobId);
-                        return;
-                    }
-
                     JobUpdate update = new JobUpdate.Builder(jobId).setEstablishedModelMemory(establishedModelMemory).build();
                     UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
                     updateRequest.setWaitForAck(false);
@@ -465,8 +465,13 @@ public class AutoDetectResultProcessor {
                                 }
                             });
                 });
+            } else {
+                jobUpdateSemaphore.release();
             }
-        }, e -> LOGGER.error("[" + jobId + "] Failed to calculate established model memory", e));
+        }, e -> {
+            jobUpdateSemaphore.release();
+            LOGGER.error("[" + jobId + "] Failed to calculate established model memory", e);
+        });
     }
 
     public void awaitCompletion() throws TimeoutException {

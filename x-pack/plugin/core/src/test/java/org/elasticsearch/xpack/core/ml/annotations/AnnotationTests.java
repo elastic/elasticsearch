@@ -11,6 +11,8 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.Date;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
 
     @Override
@@ -34,5 +36,12 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
     @Override
     protected Writeable.Reader<Annotation> instanceReader() {
         return Annotation::new;
+    }
+
+    public void testCopyConstructor() {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            Annotation testAnnotation = createTestInstance();
+            assertThat(testAnnotation, equalTo(new Annotation(testAnnotation)));
+        }
     }
 }

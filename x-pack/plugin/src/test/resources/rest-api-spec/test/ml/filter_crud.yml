@@ -246,7 +246,7 @@ setup:
             }
           }
   - do:
-      catch: conflict
+      catch: /Cannot delete filter \[filter-foo\] currently used by jobs \[filter-crud\]/
       ml.delete_filter:
         filter_id: "filter-foo"
 

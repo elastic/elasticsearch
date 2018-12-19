@@ -19,7 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.document.XLatLonShape;
 import org.apache.lucene.geo.Line;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.geo.Rectangle;
@@ -35,7 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 /**
- * FieldMapper for indexing {@link org.apache.lucene.document.LatLonShape}s.
+ * FieldMapper for indexing {@link XLatLonShape}s.
  * <p>
  * Currently Shapes can only be indexed and can only be queried using
  * {@link org.elasticsearch.index.query.GeoShapeQueryBuilder}, consequently
@@ -97,7 +97,7 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         return (GeoShapeFieldType) super.fieldType();
     }
 
-    /** parsing logic for {@link LatLonShape} indexing */
+    /** parsing logic for {@link XLatLonShape} indexing */
     @Override
     public void parse(ParseContext context) throws IOException {
         try {
@@ -122,35 +122,35 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
     private void indexShape(ParseContext context, Object luceneShape) {
         if (luceneShape instanceof GeoPoint) {
             GeoPoint pt = (GeoPoint) luceneShape;
-            indexFields(context, LatLonShape.createIndexableFields(name(), pt.lat(), pt.lon()));
+            indexFields(context, XLatLonShape.createIndexableFields(name(), pt.lat(), pt.lon()));
         } else if (luceneShape instanceof double[]) {
             double[] pt = (double[]) luceneShape;
-            indexFields(context, LatLonShape.createIndexableFields(name(), pt[1], pt[0]));
+            indexFields(context, XLatLonShape.createIndexableFields(name(), pt[1], pt[0]));
         } else if (luceneShape instanceof Line) {
-            indexFields(context, LatLonShape.createIndexableFields(name(), (Line)luceneShape));
+            indexFields(context, XLatLonShape.createIndexableFields(name(), (Line)luceneShape));
         } else if (luceneShape instanceof Polygon) {
-            indexFields(context, LatLonShape.createIndexableFields(name(), (Polygon) luceneShape));
+            indexFields(context, XLatLonShape.createIndexableFields(name(), (Polygon) luceneShape));
         } else if (luceneShape instanceof double[][]) {
             double[][] pts = (double[][])luceneShape;
             for (int i = 0; i < pts.length; ++i) {
-                indexFields(context, LatLonShape.createIndexableFields(name(), pts[i][1], pts[i][0]));
+                indexFields(context, XLatLonShape.createIndexableFields(name(), pts[i][1], pts[i][0]));
             }
         } else if (luceneShape instanceof Line[]) {
             Line[] lines = (Line[]) luceneShape;
             for (int i = 0; i < lines.length; ++i) {
-                indexFields(context, LatLonShape.createIndexableFields(name(), lines[i]));
+                indexFields(context, XLatLonShape.createIndexableFields(name(), lines[i]));
             }
         } else if (luceneShape instanceof Polygon[]) {
             Polygon[] polys = (Polygon[]) luceneShape;
             for (int i = 0; i < polys.length; ++i) {
-                indexFields(context, LatLonShape.createIndexableFields(name(), polys[i]));
+                indexFields(context, XLatLonShape.createIndexableFields(name(), polys[i]));
             }
         } else if (luceneShape instanceof Rectangle) {
             // index rectangle as a polygon
             Rectangle r = (Rectangle) luceneShape;
             Polygon p = new Polygon(new double[]{r.minLat, r.minLat, r.maxLat, r.maxLat, r.minLat},
                 new double[]{r.minLon, r.maxLon, r.maxLon, r.minLon, r.minLon});
-            indexFields(context, LatLonShape.createIndexableFields(name(), p));
+            indexFields(context, XLatLonShape.createIndexableFields(name(), p));
         } else if (luceneShape instanceof Object[]) {
             // recurse to index geometry collection
             for (Object o : (Object[])luceneShape) {

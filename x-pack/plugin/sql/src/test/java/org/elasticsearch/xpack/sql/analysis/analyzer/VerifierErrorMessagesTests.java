@@ -227,7 +227,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByHavingNonGrouped() {
-        assertEquals("1:48: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
+        assertEquals("1:48: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
                 error("SELECT AVG(int) FROM test GROUP BY text HAVING int > 10"));
     }
 
@@ -296,12 +296,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testHavingOnColumn() {
-        assertEquals("1:42: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
+        assertEquals("1:42: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
                 error("SELECT int FROM test GROUP BY int HAVING int > 2"));
     }
 
     public void testHavingOnScalar() {
-        assertEquals("1:42: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
+        assertEquals("1:42: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
                 error("SELECT int FROM test GROUP BY int HAVING 2 < ABS(int)"));
     }
 
@@ -473,5 +473,16 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:" + (46 + arbirtraryArgsfunction.length()) +
                 ": expected data type [KEYWORD], value provided is of type [INTEGER]",
             error("SELECT * FROM test WHERE " + arbirtraryArgsfunction + "(null, null, 'foo', 4) > 1"));
+    }
+
+    public void testAggsInWhere() {
+        assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
+                error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+    }
+
+    public void testHistogramInFilter() {
+        assertEquals("1:63: Cannot use WHERE filtering on grouping function [HISTOGRAM(date)], use HAVING instead",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test WHERE "
+                        + "HISTOGRAM(date, INTERVAL 1 MONTH) > CAST('2000-01-01' AS DATE) GROUP BY h"));
     }
 }

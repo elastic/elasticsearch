@@ -11,10 +11,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,11 +26,14 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Response> {
 
     public static final StopDataFrameJobAction INSTANCE = new StopDataFrameJobAction();
     public static final String NAME = "cluster:admin/data_frame/stop";
+
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopDataFrameJobAction() {
         super(NAME);
@@ -42,23 +46,24 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContent {
         private String id;
+        private final boolean waitForCompletion;
 
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-
-        static {
-            PARSER.declareString(Request::setId, DataFrameField.ID);
-        }
-
-        public Request(String id) {
+        public Request(String id, boolean waitForCompletion, @Nullable TimeValue timeout) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
+            this.waitForCompletion = waitForCompletion;
+
+            // use the timeout value already present in BaseTasksRequest
+            this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
         }
 
         public Request() {
+            this(null, false, null);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
+            waitForCompletion = in.readBoolean();
         }
 
         public String getId() {
@@ -69,10 +74,15 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
             this.id = id;
         }
 
+        public boolean waitForCompletion() {
+            return waitForCompletion;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            out.writeBoolean(waitForCompletion);
         }
 
         @Override
@@ -83,12 +93,17 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(DataFrameField.ID.getPreferredName(), id);
+            builder.field(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), waitForCompletion);
+            if (this.getTimeout() != null) {
+                builder.field(DataFrameField.TIMEOUT.getPreferredName(), this.getTimeout());
+            }
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(id, waitForCompletion, this.getTimeout());
         }
 
         @Override
@@ -101,7 +116,13 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id);
+
+            // the base class does not implement equals, therefore we need to compare timeout ourselves
+            if (Objects.equals(this.getTimeout(), other.getTimeout()) == false) {
+                return false;
+            }
+
+            return Objects.equals(id, other.id) && Objects.equals(waitForCompletion, other.waitForCompletion);
         }
 
         @Override

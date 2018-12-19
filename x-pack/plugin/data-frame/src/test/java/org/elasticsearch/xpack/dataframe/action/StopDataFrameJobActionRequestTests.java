@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.dataframe.action.StopDataFrameJobAction.Request;
 
@@ -14,11 +15,23 @@ public class StopDataFrameJobActionRequestTests extends AbstractWireSerializingT
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLengthBetween(1, 10));
+        TimeValue timeout = randomBoolean() ? TimeValue.timeValueMinutes(randomIntBetween(1, 10)) : null;
+        return new Request(randomAlphaOfLengthBetween(1, 10), randomBoolean(), timeout);
     }
 
     @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
+    }
+
+    public void testSameButDifferentTimeout() {
+        String id = randomAlphaOfLengthBetween(1, 10);
+        boolean waitForCompletion = randomBoolean();
+
+        Request r1 = new Request(id, waitForCompletion, TimeValue.timeValueSeconds(10));
+        Request r2 = new Request(id, waitForCompletion, TimeValue.timeValueSeconds(20));
+
+        assertNotEquals(r1,r2);
+        assertNotEquals(r1.hashCode(),r2.hashCode());
     }
 }

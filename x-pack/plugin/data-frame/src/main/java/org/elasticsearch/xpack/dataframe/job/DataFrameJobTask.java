@@ -101,6 +101,10 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
         return generation.get();
     }
 
+    public boolean isStopped() {
+        return indexer.getState().equals(IndexerState.STOPPED);
+    }
+
     public synchronized void start(ActionListener<Response> listener) {
         final IndexerState prevState = indexer.getState();
         if (prevState != IndexerState.STOPPED) {

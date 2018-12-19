@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.dataframe.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.junit.AfterClass;
 import org.junit.Before;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -175,11 +173,18 @@ public class DataframePivotRestIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    private int getDataFrameGeneration(String jobId) throws IOException {
+    private static int getDataFrameGeneration(String jobId) throws IOException {
         Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + jobId + "/_stats"));
 
         Map<?, ?> jobStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("jobs")).get(0);
         return (int) XContentMapValues.extractValue("state.generation", jobStatsAsMap);
+    }
+
+    private static String getDataFrameIndexerState(String jobId) throws IOException {
+        Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + jobId + "/_stats"));
+
+        Map<?, ?> jobStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("jobs")).get(0);
+        return (String) XContentMapValues.extractValue("state.job_state", jobStatsAsMap);
     }
 
     private void refreshIndex(String index) throws IOException {
@@ -208,24 +213,12 @@ public class DataframePivotRestIT extends ESRestTestCase {
         for (Map<String, Object> jobConfig : jobConfigs) {
             String jobId = (String) jobConfig.get("id");
             Request request = new Request("POST", DATAFRAME_ENDPOINT + jobId + "/_stop");
+            request.addParameter("wait_for_completion", "true");
+            request.addParameter("timeout", "10s");
             request.addParameter("ignore", "404");
             adminClient().performRequest(request);
+            assertEquals("stopped", getDataFrameIndexerState(jobId));
         }
-
-        // TODO this is temporary until the StopDataFrameJob API gains the ability to block until stopped
-        boolean stopped = awaitBusy(() -> {
-            Request request = new Request("GET", DATAFRAME_ENDPOINT + "_all");
-            try {
-                Response jobsResponse = adminClient().performRequest(request);
-                String body = EntityUtils.toString(jobsResponse.getEntity());
-                // If the body contains any of the non-stopped states, at least one job is not finished yet
-                return Arrays.stream(new String[]{"started", "aborting", "stopping", "indexing"}).noneMatch(body::contains);
-            } catch (IOException e) {
-                return false;
-            }
-        }, 10, TimeUnit.SECONDS);
-
-        assertTrue("Timed out waiting for data frame job(s) to stop", stopped);
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             String jobId = (String) jobConfig.get("id");

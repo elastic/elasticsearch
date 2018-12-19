@@ -22,7 +22,7 @@ setup:
                   "index": [
                     {
                       "names": ["index-a"],
-                      "privileges": ["p1"]
+                      "privileges": ["read"]
                     }
                   ]
                 },
@@ -31,7 +31,7 @@ setup:
                   "index": [
                     {
                       "names": ["index-b"],
-                      "privileges": ["p1"]
+                      "privileges": ["all"]
                     }
                   ]
                 }

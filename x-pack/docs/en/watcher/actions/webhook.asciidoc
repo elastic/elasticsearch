@@ -70,13 +70,13 @@ For example, the following `webhook` action creates a new issue in GitHub:
 <1> The username and password for the user creating the issue
 
 NOTE: By default, both the username and the password are stored in the `.watches`
-      index in plain text. When {security} is enabled, {watcher} can encrypt the
-      password before storing it.
+      index in plain text. When the {es} {security-features} are enabled,
+      {watcher} can encrypt the password before storing it.
 
 You can also use PKI-based authentication when submitting requests to a cluster
-secured with {security}. When you use PKI-based authentication instead of HTTP
-basic auth, you don't need to store any authentication information in the watch
-itself. To use PKI-based authentication, you {ref}/notification-settings.html#ssl-notification-settings
+that has {es} {security-features} enabled. When you use PKI-based authentication
+instead of HTTP basic auth, you don't need to store any authentication
+information in the watch itself. To use PKI-based authentication, you {ref}/notification-settings.html#ssl-notification-settings
 [configure the SSL key settings] for {watcher} in `elasticsearch.yml`.
 
 

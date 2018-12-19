@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -14,7 +13,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
@@ -39,15 +37,9 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         return pluginList(LocalStateMachineLearning.class);
     }
 
-    // TODO remove this when the jindex feature branches are merged, as this is in the base class then
     @Before
-    public void waitForMlTemplates() throws Exception {
-        // Block until the templates are installed
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the ML templates to be installed",
-                MachineLearning.allTemplatesInstalled(state));
-        });
+    public void createComponents() throws Exception {
+        waitForMlTemplates();
     }
 
     public void testNotCreatedWhenNoOtherMlIndices() {

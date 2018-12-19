@@ -88,7 +88,8 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             List<String> templates = new ArrayList<>();
             templates.addAll(Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
                     AnomalyDetectorsIndex.jobStateIndexName(),
-                    AnomalyDetectorsIndex.jobResultsIndexPrefix()));
+                    AnomalyDetectorsIndex.jobResultsIndexPrefix(),
+                    AnomalyDetectorsIndex.configIndexName()));
 
             for (String template : templates) {
                 awaitCallApi("indices.exists_template", singletonMap("name", template), emptyList(),

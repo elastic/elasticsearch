@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
@@ -48,6 +49,7 @@ public class IndexingIT extends ESRestTestCase {
             final int id = idStart + i;
             Request request = new Request("PUT", index + "/doc/" + id);
             request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\"}");
+            request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             assertOK(client().performRequest(request));
         }
         return numDocs;

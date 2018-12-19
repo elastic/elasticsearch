@@ -8,13 +8,21 @@ package org.elasticsearch.xpack.ml.job;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -25,7 +33,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -448,9 +458,29 @@ public class JobManagerTests extends ESTestCase {
 
     public void testUpdateJob_notAllowedPreMigration() {
         MlMetadata.Builder mlmetadata = new MlMetadata.Builder().putJob(buildJobBuilder("closed-job-not-migrated").build(), false);
+
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder(AnomalyDetectorsIndex.configIndexName());
+        indexMetaData.settings(Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+        );
+        metaData.put(indexMetaData);
+        Index index = new Index(AnomalyDetectorsIndex.configIndexName(), "_uuid");
+        ShardId shardId = new ShardId(index, 0);
+        ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+        shardRouting = shardRouting.initialize("node_id", null, 0L);
+        shardRouting = shardRouting.moveToStarted();
+        routingTable.add(IndexRoutingTable.builder(index)
+                .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder()
-                .putCustom(MlMetadata.TYPE, mlmetadata.build()))
+                .metaData(metaData.putCustom(MlMetadata.TYPE, mlmetadata.build()))
+                .routingTable(routingTable.build())
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 

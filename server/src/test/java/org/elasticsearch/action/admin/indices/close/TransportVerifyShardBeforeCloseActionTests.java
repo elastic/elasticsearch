@@ -205,7 +205,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         assertThat(replicationGroup.getUnavailableInSyncShards().size(), greaterThan(0));
 
         final PlainActionFuture<PrimaryResult> listener = new PlainActionFuture<>();
-        TransportVerifyShardBeforeCloseAction.ShardRequest request = new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId);
+        TransportVerifyShardBeforeCloseAction.ShardRequest request =
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, new TaskId(clusterService.localNode().getId(), 0L));
         ReplicationOperation.Replicas<TransportVerifyShardBeforeCloseAction.ShardRequest> proxy = action.newReplicasProxy(primaryTerm);
         ReplicationOperation<TransportVerifyShardBeforeCloseAction.ShardRequest,
             TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult> operation =

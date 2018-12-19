@@ -460,4 +460,5 @@ include-tagged::{doc-tests-file}[{api}-request-profiling-aggs]
 <4> Retrieve the time in millis spent executing the Lucene collector
 <5> Retrieve the profile results for the sub-aggregations (if any)
 
-The Rest API documentation contains more information about {ref}/_profiling_aggregations.html[Profiling Aggregations]
+The Rest API documentation contains more information about
+{ref}/search-profile-aggregations.html[Profiling aggregations].

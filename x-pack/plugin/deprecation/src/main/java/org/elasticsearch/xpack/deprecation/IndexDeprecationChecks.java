@@ -144,7 +144,7 @@ public class IndexDeprecationChecks {
         if (issues.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Classic similarity has been removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_the_literal_classic_literal_similarity_has_been_removed",
                 "Fields which use classic similarity: " + issues.toString());
         }
@@ -160,7 +160,7 @@ public class IndexDeprecationChecks {
         if (classicSimilarities.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Classic similarity has been removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_the_literal_classic_literal_similarity_has_been_removed",
                 "Custom similarities defined using classic similarity: " + classicSimilarities.toString());
         }

@@ -154,8 +154,8 @@ public final class IndicesPermission {
     }
 
     /**
-     * @return A predicate that will match all the indices that this permission
-     * has the privilege for executing the given action on.
+     * @return A predicate that will match all the indices that this permission has the privilege for executing the given action on. The
+     *         predicate is lazily built and cached.
      */
     public Predicate<String> allowedIndicesMatcher(String action) {
         return allowedIndicesMatchersForAction.computeIfAbsent(action, (theAction) -> {
@@ -207,6 +207,7 @@ public final class IndicesPermission {
         final Automaton checkIndexAutomaton = indexMatcherAutomaton(checkIndex);
         final List<Automaton> privilegeAutomatons = new ArrayList<>();
         for (IndicesPermission.Group group : groups) {
+            // caches the index match automaton for each group
             final Automaton groupIndexAutomaton = indexGroupAutomatonCache.computeIfAbsent(group,
                     theGroup -> indexMatcherAutomaton(theGroup.indices()));
             if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {

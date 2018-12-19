@@ -132,7 +132,8 @@ public class DiscoveryModule {
             transportService, namedWriteableRegistry, allocationService, masterService,
             () -> gatewayMetaState.getPersistedState(settings, (ClusterApplierService) clusterApplier), hostsProvider, clusterApplier,
             Randomness.get()));
-        discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, transportService, masterService, clusterApplier));
+        discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, transportService, masterService, clusterApplier,
+            gatewayMetaState));
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getDiscoveryTypes(threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier, clusterSettings,
                 hostsProvider, allocationService, gatewayMetaState).forEach((key, value) -> {

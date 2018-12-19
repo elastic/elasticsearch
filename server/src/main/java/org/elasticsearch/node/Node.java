@@ -238,7 +238,6 @@ public class Node implements Closeable {
     private final Logger logger;
     private final Injector injector;
     private final Settings settings;
-    private final Settings originalSettings;
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
@@ -265,7 +264,6 @@ public class Node implements Closeable {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
         try {
-            originalSettings = environment.settings();
             Settings tmpSettings = Settings.builder().put(environment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
@@ -593,13 +591,6 @@ public class Node implements Closeable {
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
         // Noop in production, overridden by tests
-    }
-
-    /**
-     * The original settings that were used to create the node
-     */
-    public Settings originalSettings() {
-        return originalSettings;
     }
 
     /**

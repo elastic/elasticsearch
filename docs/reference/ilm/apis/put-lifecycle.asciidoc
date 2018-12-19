@@ -33,7 +33,11 @@ include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
 ==== Authorization
 
-include::ilm-cluster-mgt-privilege.asciidoc[]
+You must have the `manage_ilm` cluster privilege to use this API. You must
+also have the `manage` index privilege on all indices being managed by `policy`.
+All operations executed by {Ilm} for a policy are executed as the user that
+put the latest version of a policy.
+For more information, see {stack-ov}/security-privileges.html[Security Privileges].
 
 ==== Examples
 

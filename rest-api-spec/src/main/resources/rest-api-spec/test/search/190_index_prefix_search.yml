@@ -62,6 +62,21 @@ setup:
       search:
         rest_total_hits_as_int: true
         index: test
+        body:
+          query:
+            query_string:
+              default_field: text
+              query: s*
+              boost: 2
+
+  - match: {hits.total: 1}
+  - match: {hits.max_score: 2}
+  - match: {hits.hits.0._score: 2}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
         q: stupendousl*
         df: text
 

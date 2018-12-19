@@ -548,13 +548,10 @@ public final class Verifier {
             Filter filter = (Filter) p;
             if ((filter.child() instanceof Aggregate) == false) {
                 filter.condition().forEachDown(f -> {
-                    if (Functions.isAggregate(f)) {
+                    if (Functions.isAggregate(f) || Functions.isGrouping(f)) {
+                        String type = Functions.isAggregate(f) ? "aggregate" : "grouping";
                         localFailures.add(fail(f,
-                                "Cannot use WHERE filtering on aggregate function [%s], use HAVING instead", Expressions.name(f)));
-                    }
-                    else if (Functions.isGrouping(f)) {
-                        localFailures.add(fail(f,
-                                "Cannot use WHERE filtering on grouping function [%s], use HAVING instead", Expressions.name(f)));
+                                "Cannot use WHERE filtering on %s function [%s], use HAVING instead", type, Expressions.name(f)));
                     }
 
                 }, Function.class);

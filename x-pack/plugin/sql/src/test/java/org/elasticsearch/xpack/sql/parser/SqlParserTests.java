@@ -15,10 +15,19 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryPrimaryDefaultContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryTermContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementDefaultContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.plan.logical.With;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +37,7 @@ import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SqlParserTests extends ESTestCase {
 
@@ -252,6 +262,51 @@ public class SqlParserTests extends ESTestCase {
                 .concat("t").concat(Joiner.on("").join(nCopies(19, ")")))));
         assertEquals("line 1:1628: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
             e.getMessage());
+    }
+
+    public void testLimitStackOverflowForInAndLiteralsIsNotApplied() {
+        int noChildren = 100_000;
+        LogicalPlan plan = parseStatement("SELECT * FROM t WHERE a IN(" +
+            Joiner.on(",").join(nCopies(noChildren, "a + b")) + ")");
+
+        assertEquals(With.class, plan.getClass());
+        assertEquals(Project.class, ((With) plan).child().getClass());
+        assertEquals(Filter.class, ((Project) ((With) plan).child()).child().getClass());
+        Filter filter = (Filter) ((Project) ((With) plan).child()).child();
+        assertEquals(In.class, filter.condition().getClass());
+        In in = (In) filter.condition();
+        assertEquals("?a", in.value().toString());
+        assertEquals(noChildren, in.list().size());
+        assertThat(in.list().get(0).toString(), startsWith("(a) + (b)#"));
+    }
+
+    public void testDecrementOfDepthCounter() {
+        SqlParser.CircuitBreakerListener cbl = new SqlParser.CircuitBreakerListener();
+        StatementContext sc = new StatementContext();
+        QueryTermContext qtc = new QueryTermContext();
+        ValueExpressionContext vec = new ValueExpressionContext();
+        BooleanExpressionContext bec = new BooleanExpressionContext();
+
+        cbl.enterEveryRule(sc);
+        cbl.enterEveryRule(sc);
+        cbl.enterEveryRule(qtc);
+        cbl.enterEveryRule(qtc);
+        cbl.enterEveryRule(qtc);
+        cbl.enterEveryRule(vec);
+        cbl.enterEveryRule(bec);
+        cbl.enterEveryRule(bec);
+
+        cbl.exitEveryRule(new StatementDefaultContext(sc));
+        cbl.exitEveryRule(new StatementDefaultContext(sc));
+        cbl.exitEveryRule(new QueryPrimaryDefaultContext(qtc));
+        cbl.exitEveryRule(new QueryPrimaryDefaultContext(qtc));
+        cbl.exitEveryRule(new ValueExpressionDefaultContext(vec));
+        cbl.exitEveryRule(new SqlBaseParser.BooleanDefaultContext(bec));
+
+        assertEquals(0, cbl.depthCounts().get(SqlBaseParser.StatementContext.class.getSimpleName()));
+        assertEquals(1, cbl.depthCounts().get(SqlBaseParser.QueryTermContext.class.getSimpleName()));
+        assertEquals(0, cbl.depthCounts().get(SqlBaseParser.ValueExpressionContext.class.getSimpleName()));
+        assertEquals(1, cbl.depthCounts().get(SqlBaseParser.BooleanExpressionContext.class.getSimpleName()));
     }
 
     private LogicalPlan parseStatement(String sql) {

@@ -6,9 +6,12 @@
 package org.elasticsearch.xpack.watcher.common.http;
 
 import org.apache.http.Header;
+import org.apache.http.HttpException;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
+import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.NameValuePair;
+import org.apache.http.ProtocolException;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.Credentials;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -19,6 +22,7 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.methods.HttpRequestWrapper;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIUtils;
 import org.apache.http.client.utils.URLEncodedUtils;
@@ -31,11 +35,20 @@ import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultRedirectStrategy;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.protocol.HttpContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -56,9 +69,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class HttpClient implements Closeable {
 
@@ -69,20 +84,32 @@ public class HttpClient implements Closeable {
     private static final int MAX_CONNECTIONS = 500;
     private static final Logger logger = LogManager.getLogger(HttpClient.class);
 
+    private static final List<String> ALWAYS_WHITELISTED_HOSTS =
+        Arrays.asList("events.pagerduty.com", "hooks.slack.com", "api.hipchat.com");
+
+    private final AtomicReference<CharacterRunAutomaton> whitelistAutomaton = new AtomicReference<>();
     private final CloseableHttpClient client;
     private final HttpProxy settingsProxy;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
     private final ByteSizeValue maxResponseSize;
     private final CryptoService cryptoService;
+    private final SSLService sslService;
 
-    public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService) {
+    public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService, ClusterService clusterService) {
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
         this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
         this.settingsProxy = getProxyFromSettings(settings);
         this.cryptoService = cryptoService;
+        this.sslService = sslService;
 
+        setWhitelistAutomaton(HttpSettings.HOSTS_WHITELIST.get(settings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(HttpSettings.HOSTS_WHITELIST, this::setWhitelistAutomaton);
+        this.client = createHttpClient();
+    }
+
+    private CloseableHttpClient createHttpClient() {
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
         // ssl setup
@@ -95,8 +122,55 @@ public class HttpClient implements Closeable {
         clientBuilder.evictExpiredConnections();
         clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
         clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
+        clientBuilder.setRedirectStrategy(new DefaultRedirectStrategy() {
+            @Override
+            public boolean isRedirected(org.apache.http.HttpRequest request, org.apache.http.HttpResponse response,
+                                        HttpContext context) throws ProtocolException {
+                boolean isRedirected = super.isRedirected(request, response, context);
+                if (isRedirected) {
+                    try {
+                        String host = new URI(response.getHeaders("Location")[0].getValue()).getHost();
+                        if (whitelistAutomaton.get().run(host) == false) {
+                            throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
+                                HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
+                        }
+                    } catch (URISyntaxException e) {
+                        return false;
+                    }
+                }
 
-        client = clientBuilder.build();
+                return isRedirected;
+            }
+        });
+
+        clientBuilder.addInterceptorFirst(new HttpRequestInterceptor() {
+            @Override
+            public void process(org.apache.http.HttpRequest request, HttpContext context) throws HttpException, IOException {
+                // TODO do proper casting check
+                HttpRequestWrapper wrapper = ((HttpRequestWrapper) request);
+                final String host;
+                if (wrapper.getTarget() != null) {
+                    host = ((HttpRequestWrapper) request).getTarget().getHostName();
+                } else {
+                    try {
+                        host = new URI(((HttpRequestWrapper) request).getOriginal().getRequestLine().getUri()).getHost();
+                    } catch (URISyntaxException e) {
+                        throw new IOException(e);
+                    }
+                }
+
+                if (whitelistAutomaton.get().run(host) == false) {
+                    throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
+                        HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
+                }
+            }
+        });
+
+        return clientBuilder.build();
+    }
+
+    private void setWhitelistAutomaton(List<String> whiteListedHosts) {
+        whitelistAutomaton.set(createAutomaton(whiteListedHosts));
     }
 
     public HttpResponse execute(HttpRequest request) throws IOException {
@@ -285,6 +359,23 @@ public class HttpClient implements Closeable {
         public String getMethod() {
             return methodName;
         }
+
     }
 
+    // visible for testing
+    static CharacterRunAutomaton createAutomaton(List<String> whiteListedHosts) {
+        Automaton whiteListAutomaton;
+        if (whiteListedHosts.isEmpty()) {
+            // the default is to accept everything, this should change in the next major version, being 8.0
+            // we could emit depreciation warning here, if the whitelist are empty
+            whiteListAutomaton = Regex.simpleMatchToAutomaton("*");
+        } else {
+            List<String> hosts = new ArrayList<>(whiteListedHosts);
+            hosts.addAll(ALWAYS_WHITELISTED_HOSTS);
+            whiteListAutomaton = Regex.simpleMatchToAutomaton(hosts.toArray(new String[]{}));
+        }
+
+        whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        return new CharacterRunAutomaton(whiteListAutomaton);
+    }
 }

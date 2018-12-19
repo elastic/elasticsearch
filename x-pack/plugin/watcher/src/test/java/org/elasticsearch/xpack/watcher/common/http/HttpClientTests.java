@@ -11,6 +11,10 @@ import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -40,6 +44,8 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,6 +61,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.Is.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class HttpClientTests extends ESTestCase {
 
@@ -65,7 +73,10 @@ public class HttpClientTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null);
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(HttpSettings.getSettings()));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null, clusterService);
     }
 
     @After
@@ -179,7 +190,7 @@ public class HttpClientTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         }
-        try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+        try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null, mockClusterService())) {
             secureSettings = new MockSecureSettings();
             // We can't use the client created above for the server since it is only a truststore
             secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
@@ -220,7 +231,7 @@ public class HttpClientTests extends ESTestCase {
             }
             settings = builder.build();
         }
-        try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+        try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null, mockClusterService())) {
             MockSecureSettings secureSettings = new MockSecureSettings();
             // We can't use the client created above for the server since it only defines a truststore
             secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode-no-subjaltname");
@@ -247,7 +258,7 @@ public class HttpClientTests extends ESTestCase {
             .build();
 
         TestsSSLService sslService = new TestsSSLService(settings, environment);
-        try (HttpClient client = new HttpClient(settings, sslService, null)) {
+        try (HttpClient client = new HttpClient(settings, sslService, null, mockClusterService())) {
             testSslMockWebserver(client, sslService.sslContext(), true);
         }
     }
@@ -295,7 +306,7 @@ public class HttpClientTests extends ESTestCase {
 
     @Network
     public void testHttpsWithoutTruststore() throws Exception {
-        try (HttpClient client = new HttpClient(Settings.EMPTY, new SSLService(Settings.EMPTY, environment), null)) {
+        try (HttpClient client = new HttpClient(Settings.EMPTY, new SSLService(Settings.EMPTY, environment), null, mockClusterService())) {
             // Known server with a valid cert from a commercial CA
             HttpRequest.Builder request = HttpRequest.builder("www.elastic.co", 443).scheme(Scheme.HTTPS);
             HttpResponse response = client.execute(request.build());
@@ -319,7 +330,7 @@ public class HttpClientTests extends ESTestCase {
                     .method(HttpMethod.GET)
                     .path("/");
 
-            try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+            try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null, mockClusterService())) {
                 HttpResponse response = client.execute(requestBuilder.build());
                 assertThat(response.status(), equalTo(200));
                 assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
@@ -400,7 +411,7 @@ public class HttpClientTests extends ESTestCase {
                     .scheme(Scheme.HTTP)
                     .path("/");
 
-            try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+            try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null, mockClusterService())) {
                 HttpResponse response = client.execute(requestBuilder.build());
                 assertThat(response.status(), equalTo(200));
                 assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
@@ -428,7 +439,7 @@ public class HttpClientTests extends ESTestCase {
                     .proxy(new HttpProxy("localhost", proxyServer.getPort(), Scheme.HTTP))
                     .path("/");
 
-            try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+            try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null, mockClusterService())) {
                 HttpResponse response = client.execute(requestBuilder.build());
                 assertThat(response.status(), equalTo(200));
                 assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
@@ -449,7 +460,7 @@ public class HttpClientTests extends ESTestCase {
         }
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new HttpClient(settings.build(), new SSLService(settings.build(), environment), null));
+                () -> new HttpClient(settings.build(), new SSLService(settings.build(), environment), null, mockClusterService()));
         assertThat(e.getMessage(),
                 containsString("HTTP proxy requires both settings: [xpack.http.proxy.host] and [xpack.http.proxy.port]"));
     }
@@ -548,7 +559,8 @@ public class HttpClientTests extends ESTestCase {
 
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET).path("/");
 
-        try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null)) {
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null,
+            mockClusterService())) {
             IOException e = expectThrows(IOException.class, () -> client.execute(requestBuilder.build()));
             assertThat(e.getMessage(), startsWith("Maximum limit of"));
         }
@@ -616,5 +628,138 @@ public class HttpClientTests extends ESTestCase {
         httpClient.execute(request);
         assertThat(webServer.requests(), hasSize(1));
         assertThat(webServer.requests().get(0).getUri().getRawPath(), is("/foo"));
+    }
+
+    public void testThatWhiteListingWorks() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
+        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), webServer.getHostName()).build();
+
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null,
+            mockClusterService())) {
+            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort()).path("foo").build();
+            client.execute(request);
+        }
+    }
+
+    public void testThatWhiteListBlocksRequests() throws Exception {
+        Settings settings = Settings.builder()
+            .put(HttpSettings.HOSTS_WHITELIST.getKey(), webServer.getHostName())
+            .build();
+
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null,
+            mockClusterService())) {
+            HttpRequest request = HttpRequest.builder("blocked.domain.org", webServer.getPort())
+                .path("foo")
+                .build();
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
+            assertThat(e.getMessage(), is("host [blocked.domain.org] is not whitelisted in setting [xpack.http.hosts.whitelist]" +
+                ", will not redirect"));
+        }
+    }
+
+    public void testThatWhiteListBlocksRedirects() throws Exception {
+        String redirectUrl = "http://blocked.domain.org:" + webServer.getPort() + "/foo";
+        webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
+        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.HEAD);
+
+        if (method == HttpMethod.GET) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldBeRead"));
+        } else if (method == HttpMethod.HEAD) {
+            webServer.enqueue(new MockResponse().setResponseCode(200));
+        }
+
+        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), webServer.getHostName()).build();
+
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null,
+            mockClusterService())) {
+            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort()).path("/")
+                .method(method)
+                .build();
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
+            assertThat(e.getMessage(), is("host [blocked.domain.org] is not whitelisted in setting [xpack.http.hosts.whitelist], " +
+                "will not redirect"));
+        }
+    }
+
+    public void testThatWhiteListingWorksForRedirects() throws Exception {
+        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
+        webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
+        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.HEAD);
+
+        if (method == HttpMethod.GET) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldBeRead"));
+        } else if (method == HttpMethod.HEAD) {
+            webServer.enqueue(new MockResponse().setResponseCode(200));
+        }
+
+        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), webServer.getHostName()).build();
+
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null,
+            mockClusterService())) {
+            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort()).path("/")
+                .method(method)
+                .build();
+            HttpResponse response = client.execute(request);
+
+            assertThat(webServer.requests(), hasSize(2));
+            if (method == HttpMethod.GET) {
+                assertThat(response.body().utf8ToString(), is("shouldBeRead"));
+            } else if (method == HttpMethod.HEAD) {
+                assertThat(response.body(), is(nullValue()));
+            }
+        }
+    }
+
+    public void testThatWhiteListReloadingWorks() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
+        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), "example.org").build();
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(HttpSettings.getSettings()));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        try (HttpClient client =
+                 new HttpClient(settings, new SSLService(environment.settings(), environment), null, clusterService)) {
+
+            // blacklisted
+            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort()).path("/")
+                .method(HttpMethod.GET)
+                .build();
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
+            assertThat(e.getMessage(), containsString("is not whitelisted"));
+
+            Settings newSettings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), webServer.getHostName()).build();
+            clusterSettings.applySettings(newSettings);
+
+            HttpResponse response = client.execute(request);
+            assertThat(response.status(), is(200));
+        }
+    }
+
+    public void testThatStandardWebHooksAreAlwaysWhiteListed() {
+        CharacterRunAutomaton automaton = HttpClient.createAutomaton(Collections.singletonList("example*"));
+        assertThat(automaton.run("example.org"), is(true));
+        assertThat(automaton.run("example.com"), is(true));
+        assertThat(automaton.run("noexample.com"), is(false));
+
+        assertThat(automaton.run("events.pagerduty.com"), is(true));
+        assertThat(automaton.run("www.events.pagerduty.com"), is(false));
+        assertThat(automaton.run("events2.pagerduty.com"), is(false));
+        assertThat(automaton.run("pagerduty.com"), is(false));
+
+        assertThat(automaton.run("api.hipchat.com"), is(true));
+        assertThat(automaton.run("hooks.slack.com"), is(true));
+        assertThat(automaton.run("www.slack.com"), is(false));
+    }
+
+    public void testWhitelistEverythingByDefault() {
+        CharacterRunAutomaton automaton = HttpClient.createAutomaton(Collections.emptyList());
+        assertThat(automaton.run(randomAlphaOfLength(10)), is(true));
+    }
+
+    public static ClusterService mockClusterService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(HttpSettings.getSettings()));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return clusterService;
     }
 }

@@ -28,10 +28,8 @@ import java.nio.ByteBuffer;
  * This is a {@link BytesReference} backed by a {@link ByteBuffer}. The byte buffer can either be a heap or
  * direct byte buffer. The reference is composed of the space between the {@link ByteBuffer#position()} and
  * {@link ByteBuffer#limit()} at construction time. If the position or limit of the underlying byte buffer is
- * changed, those changes will not be reflected in this reference. However, modifying the limit or position
- * of the underlying byte buffer is not recommended as those can be used during {@link ByteBuffer#get()}
- * bounds checks. Use {@link ByteBuffer#duplicate()} at creation time if you plan on modifying the markers of
- * the underlying byte buffer. Any changes to the underlying data in the byte buffer will be reflected.
+ * changed, those changes will not be reflected in this reference. Any changes to the underlying data in the
+ * byte buffer will be reflected in this reference.
  */
 public class ByteBufferReference extends BytesReference {
 

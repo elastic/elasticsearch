@@ -19,9 +19,9 @@ Deletes an existing anomaly detection job.
 All job configuration, model state and results are deleted.
 
 IMPORTANT:  Deleting a job must be done via this API only. Do not delete the
-            job directly from the `.ml-*` indices using the Elasticsearch
-            DELETE Document API. When {security} is enabled, make sure no `write`
-            privileges are granted to anyone over the `.ml-*` indices.
+job directly from the `.ml-*` indices using the Elasticsearch delete document
+API. When {es} {security-features} are enabled, make sure no `write` privileges
+are granted to anyone over the `.ml-*` indices.
 
 Before you can delete a job, you must delete the {dfeeds} that are associated
 with it. See <<ml-delete-datafeed,Delete {dfeeds-cap}>>. Unless the `force` parameter
@@ -47,8 +47,9 @@ separated list.
 
 ==== Authorization
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
+cluster privileges to use this API.
+For more information, see {stack-ov}/security-privileges.html[Security Privileges].
 
 
 ==== Examples

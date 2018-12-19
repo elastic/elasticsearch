@@ -333,6 +333,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     String.valueOf(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings)));
             addMlNodeAttribute(additionalSettings, machineMemoryAttrName,
                     Long.toString(machineMemoryFromStats(OsProbe.getInstance().osStats())));
+            // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
+            disallowMlNodeAttributes(mlEnabledNodeAttrName);
         } else {
             disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
         }

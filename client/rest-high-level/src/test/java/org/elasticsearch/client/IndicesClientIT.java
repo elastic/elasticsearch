@@ -909,8 +909,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
 
-        highLevelClient().index(new IndexRequest("test", "type", "1").source("field", "value"), RequestOptions.DEFAULT);
-        highLevelClient().index(new IndexRequest("test", "type", "2").source("field", "value")
+        highLevelClient().index(new IndexRequest("test").id("1").source("field", "value"), RequestOptions.DEFAULT);
+        highLevelClient().index(new IndexRequest("test").id("2").source("field", "value")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
         //without the refresh the rollover may not happen as the number of docs seen may be off
 
@@ -1303,7 +1303,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String index = "shakespeare";
 
         createIndex(index, Settings.EMPTY);
-        Request postDoc = new Request(HttpPost.METHOD_NAME, "/" + index + "/1");
+        Request postDoc = new Request(HttpPost.METHOD_NAME, "/" + index + "/_doc");
         postDoc.setJsonEntity(
             "{\"type\":\"act\",\"line_id\":1,\"play_name\":\"Henry IV\", \"speech_number\":\"\"," +
                 "\"line_number\":\"\",\"speaker\":\"\",\"text_entry\":\"ACT I\"}");

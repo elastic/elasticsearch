@@ -8,7 +8,7 @@ import java.util.regex.Matcher
 
 // Apply the java plugin to this project so the sources can be edited in an IDE
 apply plugin: 'elasticsearch.build'
-test.enabled = false
+unitTest.enabled = false
 
 dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
@@ -243,8 +243,8 @@ subprojects {
       bwcTest.dependsOn(versionBwcTest)
     }
   }
-
-  test.enabled = false // no unit tests for full cluster restarts, only the rest integration test
+    
+  unitTest.enabled = false // no unit tests for full cluster restarts, only the rest integration test
 
   // basic integ tests includes testing bwc against the most recent version
   task integTest {

@@ -72,6 +72,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
             .build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36779")
     public void testDisruptionOnSnapshotInitialization() throws Exception {
         final String idxName = "test";
         final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(3);

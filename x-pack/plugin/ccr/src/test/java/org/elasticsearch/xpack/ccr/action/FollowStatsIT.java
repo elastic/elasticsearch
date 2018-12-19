@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -33,6 +34,7 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
  * Test scope is important to ensure that other tests added to this suite do not interfere with the expectation in
  * testStatsWhenNoPersistentTasksMetaDataExists that the cluster state does not contain any persistent tasks metadata.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36764")
 public class FollowStatsIT extends CcrSingleNodeTestCase {
 
     /**

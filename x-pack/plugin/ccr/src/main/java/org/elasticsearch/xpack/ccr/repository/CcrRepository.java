@@ -8,10 +8,14 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -20,6 +24,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -261,11 +266,28 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         String nodeId = response.getNodeId();
         // TODO: Implement file restore
         closeSession(remoteClient, nodeId, sessionUUID);
+
     }
 
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId leaderShardId) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
+    }
+
+    private void updateMapping(Client localClient, Client remoteClient, Index leaderIndex, Index followerIndex) {
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.clear();
+        clusterStateRequest.metaData(true);
+        clusterStateRequest.indices(leaderIndex.getName());
+        ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest).actionGet();
+        IndexMetaData leaderIndexMetadata = clusterState.getState().metaData().getIndexSafe(leaderIndex);
+        long mappingVersion = leaderIndexMetadata.getMappingVersion();
+
+        MappingMetaData mappingMetaData = leaderIndexMetadata.mapping();
+        PutMappingRequest putMappingRequest = new PutMappingRequest(followerIndex.getName());
+        putMappingRequest.type(mappingMetaData.type());
+        putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
+        localClient.admin().indices().putMapping(putMappingRequest).actionGet();
     }
 
     private void closeSession(Client remoteClient, String nodeId, String sessionUUID) {

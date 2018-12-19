@@ -1849,14 +1849,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 List<Object> values = extractConstants(p.projections());
-                if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation)) {
+                if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation) &&
+                    (!(p.child() instanceof LocalRelation) || (p.child() instanceof LocalRelation &&
+                        !(((LocalRelation) p.child()).executable() instanceof EmptyExecutable)))) {
                     return new LocalRelation(p.location(), new SingletonExecutable(p.output(), values.toArray()));
                 }
             }
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
                 List<Object> values = extractConstants(a.aggregates());
-                if (values.size() == a.aggregates().size()) {
+                if (values.size() == a.aggregates().size() &&
+                    (!(a.child() instanceof LocalRelation) || (a.child() instanceof LocalRelation &&
+                        !(((LocalRelation) a.child()).executable() instanceof EmptyExecutable)))) {
                     return new LocalRelation(a.location(), new SingletonExecutable(a.output(), values.toArray()));
                 }
             }

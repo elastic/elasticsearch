@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -31,23 +32,36 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Base64;
 
 public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSortValues> {
 
     public static SearchSortValues createTestItem(XContentType xContentType, boolean transportSerialization) {
         int size = randomIntBetween(1, 20);
         Object[] values = new Object[size];
-        DocValueFormat[] sortValueFormats = new DocValueFormat[size];
-        for (int i = 0; i < size; i++) {
-            Object sortValue = randomSortValue(xContentType, transportSerialization);
-            values[i] = sortValue;
-            //make sure that for BytesRef, we provide a specific doc value format that overrides format(BytesRef)
-            sortValueFormats[i] = sortValue instanceof BytesRef ? DocValueFormat.RAW : randomDocValueFormat();
+        if (transportSerialization) {
+            DocValueFormat[] sortValueFormats = new DocValueFormat[size];
+            for (int i = 0; i < size; i++) {
+                Object sortValue = randomSortValue(xContentType, transportSerialization);
+                values[i] = sortValue;
+                //make sure that for BytesRef, we provide a specific doc value format that overrides format(BytesRef)
+                sortValueFormats[i] = sortValue instanceof BytesRef ? DocValueFormat.RAW : randomDocValueFormat();
+            }
+            return new SearchSortValues(values, sortValueFormats);
+        } else {
+            //xcontent serialization doesn't write/parse the raw sort values, only the formatted ones
+            for (int i = 0; i < size; i++) {
+                Object sortValue = randomSortValue(xContentType, transportSerialization);
+                //make sure that BytesRef are not provided as formatted values
+                sortValue = sortValue instanceof BytesRef ? DocValueFormat.RAW.format((BytesRef)sortValue) : sortValue;
+                values[i] = sortValue;
+            }
+            return new SearchSortValues(values);
         }
-        return new SearchSortValues(values, sortValueFormats);
     }
 
     private static Object randomSortValue(XContentType xContentType, boolean transportSerialization) {
@@ -79,7 +93,7 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
 
     @Override
     protected SearchSortValues createTestInstance() {
-        return createTestItem(randomFrom(XContentType.values()), true);
+        return createTestItem(randomFrom(XContentType.values()), randomBoolean());
     }
 
     @Override
@@ -113,20 +127,30 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
 
     @Override
     protected SearchSortValues mutateInstance(SearchSortValues instance) {
-        Object[] sortValues = instance.sortValues();
-        if (sortValues.length == 0) {
-            return createTestInstance();
-        }
+        Object[] sortValues = instance.getFormattedSortValues();
         if (randomBoolean()) {
             return new SearchSortValues(new Object[0]);
         }
         Object[] values = Arrays.copyOf(sortValues, sortValues.length + 1);
-        values[sortValues.length] = randomSortValue(randomFrom(XContentType.values()), true);
+        values[sortValues.length] = randomSortValue(randomFrom(XContentType.values()), randomBoolean());
         return new SearchSortValues(values);
     }
 
-    @Override
-    protected SearchSortValues copyInstance(SearchSortValues instance, Version version) {
-        return new SearchSortValues(Arrays.copyOf(instance.sortValues(), instance.sortValues().length));
+    public void testSerializationPre6_6_0() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0));
+        SearchSortValues original = createTestInstance();
+        SearchSortValues deserialized = copyInstance(original, version);
+        assertArrayEquals(original.getFormattedSortValues(), deserialized.getFormattedSortValues());
+        assertEquals(0, deserialized.getRawSortValues().length);
+    }
+
+    public void testReadFromPre6_6_0() throws IOException {
+        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode("AwIAAAABAQEyBUAIAAAAAAAAAAAAAAAA"))) {
+            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0)));
+            SearchSortValues deserialized = new SearchSortValues(in);
+            SearchSortValues expected = new SearchSortValues(new Object[]{1, "2", 3d});
+            assertEquals(expected, deserialized);
+            assertEquals(0, deserialized.getRawSortValues().length);
+        }
     }
 }

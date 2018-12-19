@@ -34,7 +34,7 @@ public class Iterables {
 
     public static <T> Iterable<T> concat(Iterable<T>... inputs) {
         Objects.requireNonNull(inputs);
-        return new ConcatenatedIterable(inputs);
+        return new ConcatenatedIterable<>(inputs);
     }
 
     static class ConcatenatedIterable<T> implements Iterable<T> {

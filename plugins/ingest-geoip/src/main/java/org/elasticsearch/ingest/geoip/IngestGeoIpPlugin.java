@@ -90,16 +90,17 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
                 Path databasePath = iterator.next();
                 if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
                     String databaseFileName = databasePath.getFileName().toString();
-                    DatabaseReaderLazyLoader holder = new DatabaseReaderLazyLoader(databaseFileName,
-                        () -> {
-                            DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(NoCache.getInstance());
-                            if (loadDatabaseOnHeap) {
-                                builder.fileMode(Reader.FileMode.MEMORY);
-                            } else {
-                                builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
-                            }
-                            return builder.build();
-                        });
+                    DatabaseReaderLazyLoader holder = new DatabaseReaderLazyLoader(
+                            databasePath,
+                            () -> {
+                                DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(NoCache.getInstance());
+                                if (loadDatabaseOnHeap) {
+                                    builder.fileMode(Reader.FileMode.MEMORY);
+                                } else {
+                                    builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
+                                }
+                                return builder.build();
+                            });
                     databaseReaders.put(databaseFileName, holder);
                 }
             }

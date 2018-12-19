@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -48,6 +47,8 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class GetResult implements Streamable, Iterable<DocumentField>, ToXContentObject {
 
@@ -85,7 +86,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         // Note: pre 6.0 will not have seq# nor primary terms stored in their indices. When a replica
         // is on a 6.x node while the primary is on 5.x, the documents will not have a sequence number but
         // will have a primary term. We therefore can't assert on consistency between the two.
-        assert exists || (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO && primaryTerm == 0) :
+        assert exists || (seqNo == UNASSIGNED_SEQ_NO && primaryTerm == UNASSIGNED_PRIMARY_TERM) :
             "doc not found but seqNo/primaryTerm are set";
         this.version = version;
         this.exists = exists;
@@ -241,7 +242,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
-        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) { // seqNo may not be assigned if read from an old node
+        if (seqNo != UNASSIGNED_SEQ_NO) { // seqNo may not be assigned if read from an old node
             builder.field(_SEQ_NO, seqNo);
             builder.field(_PRIMARY_TERM, primaryTerm);
         }
@@ -315,8 +316,8 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
 
         String currentFieldName = parser.currentName();
         long version = -1;
-        long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        long primaryTerm = 0;
+        long seqNo = UNASSIGNED_SEQ_NO;
+        long primaryTerm = UNASSIGNED_PRIMARY_TERM;
         Boolean found = null;
         BytesReference source = null;
         Map<String, DocumentField> fields = new HashMap<>();
@@ -390,8 +391,8 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
             seqNo = in.readZLong();
             primaryTerm = in.readVLong();
         } else {
-            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            primaryTerm = 0L;
+            seqNo = UNASSIGNED_SEQ_NO;
+            primaryTerm = UNASSIGNED_PRIMARY_TERM;
         }
         version = in.readLong();
         exists = in.readBoolean();

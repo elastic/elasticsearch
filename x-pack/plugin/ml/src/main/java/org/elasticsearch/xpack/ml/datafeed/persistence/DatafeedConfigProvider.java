@@ -451,7 +451,6 @@ public class DatafeedConfigProvider {
      *                     wildcard then setting this true will not suppress the exception
      * @param listener The expanded datafeed config listener
      */
-    // NORELEASE datafeed configs should be paged or have a mechanism to return all configs if there are many of them
     public void expandDatafeedConfigs(String expression, boolean allowNoDatafeeds, ActionListener<List<DatafeedConfig.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
@@ -507,7 +506,6 @@ public class DatafeedConfigProvider {
      * @param expression the expression to resolve
      * @param listener The expanded datafeed config listener
      */
-    // NORELEASE datafeed configs should be paged or have a mechanism to return all configs if there are many of them
     public void expandDatafeedConfigsWithoutMissingCheck(String expression, ActionListener<List<DatafeedConfig.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));

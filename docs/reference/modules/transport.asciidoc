@@ -107,8 +107,8 @@ keepalives cannot be configured.
 
 By default Elasticsearch network-level compression is disabled. This default
 normally makes sense for local cluster communication as compression has a
-noticeable CPU cost and local cluster nodes tend to have fast network connections
-within a single data center. If compression is desired for remote cluster
+noticeable CPU cost and local clusters tend to be setup with fast network
+connections between nodes. If compression is necessary for remote cluster
 connections only, this can be configured on a per-cluster basis using the
 `cluster.remote.${cluster_alias}.transport.compress` setting.
 

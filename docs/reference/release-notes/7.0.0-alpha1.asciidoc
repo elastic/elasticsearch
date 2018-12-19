@@ -1,5 +1,5 @@
 [[release-notes-7.0.0-alpha1]]
-== 7.0.0-alpha1 release notes
+== {es} version 7.0.0-alpha1
 
 The changes listed below have been released for the first time in Elasticsearch 7.0.0-alpha1.
 
@@ -30,3 +30,10 @@ Suggesters::
   explicitly indicate the type of suggestion that they produce. Existing plugins will
   require changes to their plugin registration. See the `custom-suggester` example
   plugin {pull}30284[#30284]
+  
+[float]
+[[enhancement-7.0.0-alpha1]]
+=== Enhancements
+
+Machine learning::
+* Adds categorical filter type to detector rules. {ml-pull}27[#27]

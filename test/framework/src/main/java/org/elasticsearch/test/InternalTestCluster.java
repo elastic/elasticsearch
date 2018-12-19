@@ -109,9 +109,8 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.Assert;
 
 import java.io.Closeable;
@@ -361,7 +360,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve("custom"));
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
-        builder.put(TcpTransport.PORT.getKey(), 0);
+        builder.put(TransportSettings.PORT.getKey(), 0);
         builder.put("http.port", 0);
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
             builder.put("logger.level", System.getProperty("tests.es.logger.level"));
@@ -438,7 +437,7 @@ public final class InternalTestCluster extends TestCluster {
     private Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.builder();
-        builder.put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), rarely(random));
+        builder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), rarely(random));
         if (random.nextBoolean()) {
             builder.put("cache.recycler.page.type", RandomPicks.randomFrom(random, PageCacheRecycler.Type.values()));
         }
@@ -460,9 +459,9 @@ public final class InternalTestCluster extends TestCluster {
 
         // randomize tcp settings
         if (random.nextBoolean()) {
-            builder.put(TransportService.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
-            builder.put(TransportService.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
-            builder.put(TransportService.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
+            builder.put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
+            builder.put(TransportSettings.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
+            builder.put(TransportSettings.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
         }
 
         if (random.nextBoolean()) {
@@ -490,7 +489,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(TcpTransport.PING_SCHEDULE.getKey(), RandomNumbers.randomIntBetween(random, 100, 2000) + "ms");
+            builder.put(TransportSettings.PING_SCHEDULE.getKey(), RandomNumbers.randomIntBetween(random, 100, 2000) + "ms");
         }
 
         if (random.nextBoolean()) {
@@ -661,8 +660,9 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
+        final Settings nodeSettings = finalSettings.build();
         MockNode node = new MockNode(
-                finalSettings.build(),
+                nodeSettings,
                 plugins,
                 nodeConfigurationSource.nodeConfigPath(nodeId),
                 forbidPrivateIndexSettings);
@@ -677,7 +677,7 @@ public final class InternalTestCluster extends TestCluster {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new NodeAndClient(name, node, nodeId);
+        return new NodeAndClient(name, node, nodeSettings, nodeId);
     }
 
     private String buildNodeName(int id, Settings settings) {
@@ -821,15 +821,17 @@ public final class InternalTestCluster extends TestCluster {
 
     private final class NodeAndClient implements Closeable {
         private MockNode node;
+        private final Settings originalNodeSettings;
         private Client nodeClient;
         private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
         private final int nodeAndClientId;
 
-        NodeAndClient(String name, MockNode node, int nodeAndClientId) {
+        NodeAndClient(String name, MockNode node, Settings originalNodeSettings, int nodeAndClientId) {
             this.node = node;
             this.name = name;
+            this.originalNodeSettings = originalNodeSettings;
             this.nodeAndClientId = nodeAndClientId;
             markNodeDataDirsAsNotEligableForWipe(node);
         }
@@ -955,11 +957,12 @@ public final class InternalTestCluster extends TestCluster {
             // use a new seed to make sure we have new node id
             final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1;
             Settings finalSettings = Settings.builder()
-                    .put(node.originalSettings())
+                    .put(originalNodeSettings)
                     .put(newSettings)
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                     .build();
-            if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings) == false) {
+            final boolean usingSingleNodeDiscovery = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(finalSettings).equals("single-node");
+            if (usingSingleNodeDiscovery == false && DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings) == false) {
                 throw new IllegalStateException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
                     " is not configured after restart of [" + name + "]");
             }
@@ -1641,35 +1644,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized void stopNodesAndClients(Collection<NodeAndClient> nodeAndClients) throws IOException {
-        final Set<String> excludedNodeIds = new HashSet<>();
-
-        if (autoManageMinMasterNodes && nodeAndClients.size() > 0) {
-
-            final long currentMasters = nodes.values().stream().filter(NodeAndClient::isMasterEligible).count();
-            final long stoppingMasters = nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
-
-            assert stoppingMasters <= currentMasters : currentMasters + " < " + stoppingMasters;
-            if (stoppingMasters != currentMasters && stoppingMasters > 0) {
-                // If stopping few enough master-nodes that there's still a majority left, there is no need to withdraw their votes first.
-                // However, we do not yet have a way to be sure there's a majority left, because the voting configuration may not yet have
-                // been updated when the previous nodes shut down, so we must always explicitly withdraw votes.
-                // TODO add cluster health API to check that voting configuration is optimal so this isn't always needed
-                nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(excludedNodeIds::add);
-                assert excludedNodeIds.size() == stoppingMasters;
-
-                logger.info("adding voting config exclusions {} prior to shutdown", excludedNodeIds);
-                try {
-                    client().execute(AddVotingConfigExclusionsAction.INSTANCE,
-                        new AddVotingConfigExclusionsRequest(excludedNodeIds.toArray(new String[0]))).get();
-                } catch (InterruptedException | ExecutionException e) {
-                    throw new AssertionError("unexpected", e);
-                }
-            }
-
-            if (stoppingMasters > 0) {
-                updateMinMasterNodes(getMasterNodesCount() - Math.toIntExact(stoppingMasters));
-            }
-        }
+        final Set<String> excludedNodeIds = excludeMasters(nodeAndClients);
 
         for (NodeAndClient nodeAndClient: nodeAndClients) {
             removeDisruptionSchemeFromNode(nodeAndClient);
@@ -1678,14 +1653,7 @@ public final class InternalTestCluster extends TestCluster {
             nodeAndClient.close();
         }
 
-        if (excludedNodeIds.isEmpty() == false) {
-            logger.info("removing voting config exclusions for {} after shutdown", excludedNodeIds);
-            try {
-                client().execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
-            } catch (InterruptedException | ExecutionException e) {
-                throw new AssertionError("unexpected", e);
-            }
-        }
+        removeExclusions(excludedNodeIds);
     }
 
     /**
@@ -1751,31 +1719,78 @@ public final class InternalTestCluster extends TestCluster {
 
     private void restartNode(NodeAndClient nodeAndClient, RestartCallback callback) throws Exception {
         logger.info("Restarting node [{}] ", nodeAndClient.name);
+
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
         }
-        final int masterNodesCount = getMasterNodesCount();
-        // special case to allow stopping one node in a two node cluster and keep it functional
-        final boolean updateMinMaster = nodeAndClient.isMasterEligible() && masterNodesCount == 2 && autoManageMinMasterNodes;
-        if (updateMinMaster) {
-            updateMinMasterNodes(masterNodesCount - 1);
-        }
+
+        Set<String> excludedNodeIds = excludeMasters(Collections.singleton(nodeAndClient));
+
         final Settings newSettings = nodeAndClient.closeForRestart(callback,
-            autoManageMinMasterNodes ? getMinMasterNodes(masterNodesCount) : -1);
+                autoManageMinMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1);
+
+        removeExclusions(excludedNodeIds);
+
         nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(emptyList()));
         nodeAndClient.startNode();
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
         }
-        if (callback.validateClusterForming() || updateMinMaster) {
+
+        if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
             // we have to validate cluster size if updateMinMaster == true, because we need the
             // second node to join in order to increment min_master_nodes back to 2.
             // we also have to do via the node that was just restarted as it may be that the master didn't yet process
             // the fact it left
             validateClusterFormed(nodeAndClient.name);
         }
-        if (updateMinMaster) {
-            updateMinMasterNodes(masterNodesCount);
+
+        if (excludedNodeIds.isEmpty() == false) {
+            updateMinMasterNodes(getMasterNodesCount());
+        }
+    }
+
+    private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {
+        final Set<String> excludedNodeIds = new HashSet<>();
+        if (autoManageMinMasterNodes && nodeAndClients.size() > 0) {
+
+            final long currentMasters = nodes.values().stream().filter(NodeAndClient::isMasterEligible).count();
+            final long stoppingMasters = nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
+
+            assert stoppingMasters <= currentMasters : currentMasters + " < " + stoppingMasters;
+            if (stoppingMasters != currentMasters && stoppingMasters > 0) {
+                // If stopping few enough master-nodes that there's still a majority left, there is no need to withdraw their votes first.
+                // However, we do not yet have a way to be sure there's a majority left, because the voting configuration may not yet have
+                // been updated when the previous nodes shut down, so we must always explicitly withdraw votes.
+                // TODO add cluster health API to check that voting configuration is optimal so this isn't always needed
+                nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(excludedNodeIds::add);
+                assert excludedNodeIds.size() == stoppingMasters;
+
+                logger.info("adding voting config exclusions {} prior to restart/shutdown", excludedNodeIds);
+                try {
+                    client().execute(AddVotingConfigExclusionsAction.INSTANCE,
+                            new AddVotingConfigExclusionsRequest(excludedNodeIds.toArray(new String[0]))).get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            }
+
+            if (stoppingMasters > 0) {
+                updateMinMasterNodes(getMasterNodesCount() - Math.toIntExact(stoppingMasters));
+            }
+        }
+        return excludedNodeIds;
+    }
+
+    private void removeExclusions(Set<String> excludedNodeIds) {
+        if (excludedNodeIds.isEmpty() == false) {
+            logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
+            try {
+                Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client(random);
+                client.execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
+            } catch (InterruptedException | ExecutionException e) {
+                throw new AssertionError("unexpected", e);
+            }
         }
     }
 
@@ -1832,7 +1847,6 @@ public final class InternalTestCluster extends TestCluster {
             validateClusterFormed();
         }
     }
-
 
     /**
      * Returns the name of the current master node in the cluster.

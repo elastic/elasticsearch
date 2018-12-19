@@ -21,12 +21,13 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.PointBuilder;
+import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.locationtech.jts.geom.Coordinate;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -118,7 +119,8 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         assertThat(response.getHits().getTotalHits().value, equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", new PointBuilder(-100, 45)).relation(ShapeRelation.WITHIN))
+                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape",
+                    new EnvelopeBuilder(new Coordinate(-101, 46), new Coordinate(-99, 44))).relation(ShapeRelation.WITHIN))
                         .execute().actionGet();
 
         assertThat(response.getHits().getTotalHits().value, equalTo((long) 1));

@@ -30,6 +30,10 @@ public class ExceptionsHelper {
         return new ResourceNotFoundException(Messages.getMessage(Messages.DATAFEED_NOT_FOUND, datafeedId));
     }
 
+    public static ResourceAlreadyExistsException datafeedAlreadyExists(String datafeedId) {
+        return new ResourceAlreadyExistsException(Messages.getMessage(Messages.DATAFEED_ID_ALREADY_TAKEN, datafeedId));
+    }
+
     public static ElasticsearchException serverError(String msg) {
         return new ElasticsearchException(msg);
     }
@@ -52,6 +56,11 @@ public class ExceptionsHelper {
 
     public static ElasticsearchStatusException badRequestException(String msg, Object... args) {
         return new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, args);
+    }
+
+    public static ElasticsearchStatusException configHasNotBeenMigrated(String verb, String id) {
+        return new ElasticsearchStatusException("cannot {} as the configuration [{}] is temporarily pending migration",
+                RestStatus.SERVICE_UNAVAILABLE, verb, id);
     }
 
     /**

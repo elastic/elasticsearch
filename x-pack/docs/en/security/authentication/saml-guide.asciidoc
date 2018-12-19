@@ -630,7 +630,7 @@ to any user who authenticates against the `saml1` realm:
 
 [source,js]
 --------------------------------------------------
-PUT /_xpack/security/role_mapping/saml-kibana
+PUT /_security/role_mapping/saml-kibana
 {
   "roles": [ "kibana_user" ],
   "enabled": true,
@@ -667,7 +667,7 @@ via the `saml1` realm with the `finance-team` group.
 
 [source,js]
 --------------------------------------------------
-PUT /_xpack/security/role_mapping/saml-finance
+PUT /_security/role_mapping/saml-finance
 {
   "roles": [ "finance_data" ],
   "enabled": true,

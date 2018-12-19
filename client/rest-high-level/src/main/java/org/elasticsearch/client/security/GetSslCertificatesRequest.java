@@ -26,15 +26,15 @@ import org.elasticsearch.client.Validatable;
 /**
  * Request object to retrieve the X.509 certificates that are used to encrypt communications in an Elasticsearch cluster.
  */
-public final class GetSslCertificatesRequest implements Validatable{
+public final class GetSslCertificatesRequest implements Validatable {
 
     public static final GetSslCertificatesRequest INSTANCE = new GetSslCertificatesRequest();
 
-    private GetSslCertificatesRequest(){
+    private GetSslCertificatesRequest() {
     }
 
     public Request getRequest() {
-        return new Request(HttpGet.METHOD_NAME, "/_xpack/ssl/certificates");
+        return new Request(HttpGet.METHOD_NAME, "/_ssl/certificates");
     }
 
 }

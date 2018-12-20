@@ -161,6 +161,8 @@ public final class TokenService {
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.token.delete.timeout",
             TimeValue.MINUS_ONE, Property.NodeScope);
 
+    private static final String TOKEN_DOC_TYPE = "token";
+    private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     private static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
     private static final int MAX_RETRY_ATTEMPTS = 5;
@@ -240,7 +242,7 @@ public final class TokenService {
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
-                builder.field("doc_type", "token");
+                builder.field("doc_type", TOKEN_DOC_TYPE);
                 builder.field("creation_time", created.toEpochMilli());
                 if (includeRefreshToken) {
                     builder.startObject("refresh_token")
@@ -667,7 +669,7 @@ public final class TokenService {
         } else {
             SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                 .setQuery(QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery("doc_type", "token"))
+                    .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
                     .filter(QueryBuilders.termQuery("refresh_token.token", refreshToken)))
                 .setVersion(true)
                 .request();
@@ -855,7 +857,7 @@ public final class TokenService {
         } else {
             final Instant now = clock.instant();
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("doc_type", "token"))
+                .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
                 .filter(QueryBuilders.termQuery("access_token.realm", realmName))
                 .filter(QueryBuilders.boolQuery()
                     .should(QueryBuilders.boolQuery()
@@ -900,7 +902,7 @@ public final class TokenService {
         } else {
             final Instant now = clock.instant();
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("doc_type", "token"))
+                .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
                 .filter(QueryBuilders.boolQuery()
                     .should(QueryBuilders.boolQuery()
                         .must(QueryBuilders.termQuery("access_token.invalidated", false))
@@ -991,14 +993,14 @@ public final class TokenService {
     }
 
     private static String getTokenDocumentId(String id) {
-        return "token_" + id;
+        return TOKEN_DOC_ID_PREFIX + id;
     }
 
     private static String getTokenIdFromDocumentId(String docId) {
-        if (docId.startsWith("token_") == false) {
+        if (docId.startsWith(TOKEN_DOC_ID_PREFIX) == false) {
             throw new IllegalStateException("TokenDocument ID [" + docId + "] has unexpected value");
         } else {
-            return docId.substring("token_".length());
+            return docId.substring(TOKEN_DOC_ID_PREFIX.length());
         }
     }
 

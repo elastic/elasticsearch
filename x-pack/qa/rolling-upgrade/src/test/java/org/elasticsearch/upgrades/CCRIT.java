@@ -34,7 +34,8 @@ public class CCRIT extends AbstractUpgradeTestCase {
     }
 
     public void testIndexFollowing() throws Exception {
-        assumeTrue("CCR became available in 6.5", UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_5_0));
+        assumeTrue("CCR became available in 6.5 and test relies on a fix that was shipped with 6.5.4",
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_5_4));
         setupRemoteCluster();
 
         final String leaderIndex = "my-leader-index";
@@ -80,7 +81,8 @@ public class CCRIT extends AbstractUpgradeTestCase {
     }
 
     public void testAutoFollowing() throws Exception {
-        assumeTrue("CCR became available in 6.5", UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_5_0));
+        assumeTrue("CCR became available in 6.5 and test relies on a fix that was shipped with 6.5.4",
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_5_4));
         setupRemoteCluster();
 
         final Settings indexSettings = Settings.builder()

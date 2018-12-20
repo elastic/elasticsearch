@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRecoveryException;
@@ -257,7 +257,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         Map<String, String> ccrMetaData = indexShard.indexSettings().getIndexMetaData().getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
-        ShardId leaderShardId = new ShardId(shardId.getIndexName(), leaderUUID, shardId.getId());
+        Index leaderIndex = new Index(shardId.getIndexName(), leaderUUID);
+        ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
 
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         String sessionUUID = UUIDs.randomBase64UUID();
@@ -266,7 +267,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         String nodeId = response.getNodeId();
         // TODO: Implement file restore
         closeSession(remoteClient, nodeId, sessionUUID);
-
+        maybeUpdateMappings(client, remoteClient, leaderIndex, indexShard.indexSettings());
     }
 
     @Override
@@ -274,20 +275,23 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
-    private void updateMapping(Client localClient, Client remoteClient, Index leaderIndex, Index followerIndex) {
+    private void maybeUpdateMappings(Client localClient, Client remoteClient, Index leaderIndex, IndexSettings followerIndexSettings) {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
         clusterStateRequest.indices(leaderIndex.getName());
         ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest).actionGet();
         IndexMetaData leaderIndexMetadata = clusterState.getState().metaData().getIndexSafe(leaderIndex);
-        long mappingVersion = leaderIndexMetadata.getMappingVersion();
+        long leaderMappingVersion = leaderIndexMetadata.getMappingVersion();
 
-        MappingMetaData mappingMetaData = leaderIndexMetadata.mapping();
-        PutMappingRequest putMappingRequest = new PutMappingRequest(followerIndex.getName());
-        putMappingRequest.type(mappingMetaData.type());
-        putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
-        localClient.admin().indices().putMapping(putMappingRequest).actionGet();
+        if (leaderMappingVersion > followerIndexSettings.getIndexMetaData().getMappingVersion()) {
+            Index followerIndex = followerIndexSettings.getIndex();
+            MappingMetaData mappingMetaData = leaderIndexMetadata.mapping();
+            PutMappingRequest putMappingRequest = new PutMappingRequest(followerIndex.getName());
+            putMappingRequest.type(mappingMetaData.type());
+            putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
+            localClient.admin().indices().putMapping(putMappingRequest).actionGet();
+        }
     }
 
     private void closeSession(Client remoteClient, String nodeId, String sessionUUID) {

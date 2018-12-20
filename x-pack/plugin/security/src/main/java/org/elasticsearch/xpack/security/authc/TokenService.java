@@ -288,15 +288,13 @@ public final class TokenService {
                 listener.onResponse(null);
             } else {
                 try {
-                    decodeAndValidateToken(token, ActionListener.wrap(listener::onResponse, e -> {
-                        if (e instanceof IOException) {
-                            // could happen with a token that is not ours
-                            logger.debug("invalid token", e);
-                            listener.onResponse(null);
+                    decodeToken(token, ActionListener.wrap(userToken -> {
+                        if (userToken != null) {
+                            checkIfTokenIsValid(userToken, listener);
                         } else {
-                            listener.onFailure(e);
+                            listener.onResponse(null);
                         }
-                    }));
+                    }, listener::onFailure));
                 } catch (IOException e) {
                     // could happen with a token that is not ours
                     logger.debug("invalid token", e);
@@ -324,22 +322,6 @@ public final class TokenService {
                 },
                 listener::onFailure
         ));
-    }
-
-    private void decodeAndValidateToken(String token, ActionListener<UserToken> listener) throws IOException {
-        decodeToken(token, ActionListener.wrap(userToken -> {
-            if (userToken != null) {
-                Instant currentTime = clock.instant();
-                if (currentTime.isAfter(userToken.getExpirationTime())) {
-                    // token expired
-                    listener.onFailure(traceLog("decode token", token, expiredTokenException()));
-                } else {
-                    checkIfTokenIsInvalidated(userToken, listener);
-                }
-            } else {
-                listener.onResponse(null);
-            }
-        }, listener::onFailure));
     }
 
     /*
@@ -1029,7 +1011,11 @@ public final class TokenService {
     /**
      * Checks if the access token has been explicitly invalidated
      */
-    private void checkIfTokenIsInvalidated(UserToken userToken, ActionListener<UserToken> listener) {
+    private void checkIfTokenIsValid(UserToken userToken, ActionListener<UserToken> listener) {
+        Instant currentTime = clock.instant();
+        if (currentTime.isAfter(userToken.getExpirationTime())) {
+            listener.onFailure(traceLog("validate token", userToken.getId(), expiredTokenException()));
+        }
         if (securityIndex.indexExists() == false) {
             // index doesn't exist so the token is considered invalid as we cannot verify its validity
             logger.warn("failed to validate token [{}] since the security index doesn't exist", userToken.getId());

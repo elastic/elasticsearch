@@ -2,7 +2,7 @@
 [[security-api]]
 == Security APIs
 
-You can use the following APIs to perform {security} activities.
+You can use the following APIs to perform security activities.
 
 * <<security-api-authenticate>>
 * <<security-api-clear-cache>>

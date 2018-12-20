@@ -47,7 +47,7 @@ xpack.monitoring.exporters:
 uniquely defines the exporter but is otherwise unused. 
 <3> `host` is a required setting for `http` exporters. It must specify the HTTP 
 port rather than the transport port. The default port value is `9200`. 
-<4> User authentication for those using {security} or some other
+<4> User authentication for those using {stack} {security-features} or some other
     form of user authentication protecting the cluster.
 <5> See <<http-exporter-settings>> for all TLS/SSL settings. If not supplied, 
 the default node-level TLS/SSL settings are used.

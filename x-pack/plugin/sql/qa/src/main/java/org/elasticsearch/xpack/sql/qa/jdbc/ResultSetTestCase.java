@@ -1273,7 +1273,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         createIndex.endObject();
         createIndex.startObject("mappings");
         {
-            createIndex.startObject("doc");
+            createIndex.startObject("_doc");
             {
                 createIndex.startObject("properties");
                 {}
@@ -1287,7 +1287,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws Exception {
-        Request request = new Request("PUT", "/" + index + "/_mapping/doc");
+        Request request = new Request("PUT", "/" + index + "/_mapping/_doc");
         XContentBuilder updateMapping = JsonXContent.contentBuilder().startObject();
         updateMapping.startObject("properties");
         {

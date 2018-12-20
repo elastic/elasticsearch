@@ -10,7 +10,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.SecurityConfig;
 import org.junit.After;
@@ -58,9 +57,8 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
     }
 
     protected void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
-        Request request = new Request("PUT", "/" + index + "/doc/1");
+        Request request = new Request("PUT", "/" + index + "/_doc/1");
         request.addParameter("refresh", "true");
-        request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
         builder.endObject();

@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -186,6 +187,7 @@ public class TcpTransportTests extends ESTestCase {
             + version.minimumCompatibilityVersion() + "]", ise.getMessage());
     }
 
+    @SuppressForbidden(reason = "Allow accessing localhost")
     public void testCompressRequestAndResponse() throws IOException {
         final boolean compressed = randomBoolean();
         Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));

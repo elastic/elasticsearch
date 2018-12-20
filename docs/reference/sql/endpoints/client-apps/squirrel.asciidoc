@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[sql-client-apps-squirrel]]
-=== SQquirreL SQL
+=== SQuirreL SQL
 
 beta[]
 

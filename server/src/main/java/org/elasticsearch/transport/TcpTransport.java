@@ -72,7 +72,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.StreamCorruptedException;
 import java.io.UncheckedIOException;
@@ -101,7 +100,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -650,7 +648,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 // elasticsearch binary message. We are just serializing an exception here. Not formatting it
                 // as an elasticsearch transport message.
                 try {
-                    channel.sendMessage(message, new SendListener(channel, message.length(), listener));
+                    CheckedSupplier<BytesReference, IOException> messageSupplier =
+                        () -> new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
+                    SendContext sendContext = new SendContext(channel, messageSupplier, listener);
+                    channel.sendMessage(sendContext, sendContext);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
                 }
@@ -707,49 +708,65 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     protected abstract void stopInternal();
 
-    private boolean canCompress(TransportRequest request) {
-        return request instanceof BytesTransportRequest == false;
-    }
-
     private void sendRequestToChannel(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                                       final TransportRequest request, TransportRequestOptions options, Version channelVersion,
                                       boolean compressRequest, byte status) throws IOException, TransportException {
         Version version = Version.min(this.version, channelVersion);
-        NetworkMessage.Request message1 = new NetworkMessage.Request(threadPool, features, status, request, version, action, requestId, compressRequest);
-        new SendContext(channel, message1, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                messageListener.onRequestSent(node, requestId, action, request, options);
-            }
+        NetworkMessage.Request message = new NetworkMessage.Request(threadPool, features, status, request, version, action, requestId, compressRequest);
+        MessageCreator messageSerializer = new MessageCreator(message);
+        ActionListener<Void> listener = ActionListener.wrap(() ->
+            messageListener.onRequestSent(node, requestId, action, request, options));
+        internalSendMessage(channel, messageSerializer, listener);
+    }
 
-            @Override
-            public void onFailure(Exception e) {
-                messageListener.onRequestSent(node, requestId, action, request, options);
-            }
-        });
+    private class MessageCreator implements CheckedSupplier<BytesReference, IOException>, Releasable {
 
-        internalSendMessage(channel, null, null);
+        private final NetworkMessage message;
+        private ReleasableBytesStreamOutput bytesStreamOutput;
+
+        private MessageCreator(NetworkMessage message) {
+            this.message = message;
+        }
+
+        @Override
+        public BytesReference get() throws IOException {
+            bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
+            BytesReference bytesReference = message.serialize(bytesStreamOutput);
+            return message.serialize(bytesStreamOutput);
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(bytesStreamOutput);
+        }
     }
 
     private class SendContext extends NotifyOnceListener<Void> implements CheckedSupplier<BytesReference, IOException> {
 
         private final TcpChannel channel;
-        private final NetworkMessage message;
+        private final CheckedSupplier<BytesReference, IOException> messageSupplier;
         private final ActionListener<Void> listener;
-        private ReleasableBytesStreamOutput bytesStreamOutput;
+        private final Releasable optionalReleasable;
         private long messageSize = -1;
 
-        private SendContext(TcpChannel channel, NetworkMessage message, ActionListener<Void> listener) {
+        private SendContext(TcpChannel channel, CheckedSupplier<BytesReference, IOException> messageSupplier,
+                            ActionListener<Void> listener) {
+            this(channel, messageSupplier, listener, null);
+        }
+
+        private SendContext(TcpChannel channel, CheckedSupplier<BytesReference, IOException> messageSupplier,
+                            ActionListener<Void> listener, Releasable optionalReleasable) {
             this.channel = channel;
-            this.message = message;
+            this.messageSupplier = messageSupplier;
             this.listener = listener;
+            this.optionalReleasable = optionalReleasable;
         }
 
         public BytesReference get() throws IOException {
-            bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
-            BytesReference bytesReference = message.serialize(bytesStreamOutput);
-            messageSize = bytesReference.length();
-            return bytesReference;
+            BytesReference message = messageSupplier.get();
+            messageSize = message.length();
+            transportLogger.logOutboundMessage(channel, message);
+            return message;
         }
 
         @Override
@@ -767,7 +784,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         private void closeAndCallback(final Exception e, Runnable runnable) {
             try {
-                IOUtils.close(bytesStreamOutput, runnable::run);
+                IOUtils.close(optionalReleasable, runnable::run);
             } catch (final IOException inner) {
                 if (e != null) {
                     inner.addSuppressed(e);
@@ -780,15 +797,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * sends a message to the given channel, using the given callbacks.
      */
-    private void internalSendMessage(TcpChannel channel, CheckedSupplier<BytesReference, IOException> messageSupplier,
+    private void internalSendMessage(TcpChannel channel, CheckedSupplier<BytesReference, IOException> messagerSupplier,
                                      ActionListener<Void> listener) {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
-        transportLogger.logOutboundMessage(channel, null);
+        SendContext sendContext = new SendContext(channel, messagerSupplier, listener);
         try {
-            channel.sendMessage(null, listener);
+            channel.sendMessage(sendContext, sendContext);
         } catch (Exception ex) {
             // call listener to ensure that any resources are released
-            listener.onFailure(ex);
+            sendContext.onFailure(ex);
             onException(channel, ex);
         }
     }
@@ -1374,65 +1391,65 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    /**
-     * This listener increments the transmitted bytes metric on success.
-     */
-    private class SendListener extends NotifyOnceListener<Void> {
+//    /**
+//     * This listener increments the transmitted bytes metric on success.
+//     */
+//    private class SendListener extends NotifyOnceListener<Void> {
+//
+//        private final TcpChannel channel;
+//        private final long messageSize;
+//        private final ActionListener<Void> delegateListener;
+//
+//        private SendListener(TcpChannel channel, long messageSize, ActionListener<Void> delegateListener) {
+//            this.channel = channel;
+//            this.messageSize = messageSize;
+//            this.delegateListener = delegateListener;
+//        }
+//
+//        @Override
+//        protected void innerOnResponse(Void v) {
+//            transmittedBytesMetric.inc(messageSize);
+//            delegateListener.onResponse(v);
+//        }
+//
+//        @Override
+//        protected void innerOnFailure(Exception e) {
+//            logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+//            delegateListener.onFailure(e);
+//        }
+//    }
 
-        private final TcpChannel channel;
-        private final long messageSize;
-        private final ActionListener<Void> delegateListener;
-
-        private SendListener(TcpChannel channel, long messageSize, ActionListener<Void> delegateListener) {
-            this.channel = channel;
-            this.messageSize = messageSize;
-            this.delegateListener = delegateListener;
-        }
-
-        @Override
-        protected void innerOnResponse(Void v) {
-            transmittedBytesMetric.inc(messageSize);
-            delegateListener.onResponse(v);
-        }
-
-        @Override
-        protected void innerOnFailure(Exception e) {
-            logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
-            delegateListener.onFailure(e);
-        }
-    }
-
-    private class ReleaseListener implements ActionListener<Void> {
-
-        private final Closeable optionalCloseable;
-        private final Runnable transportAdaptorCallback;
-
-        private ReleaseListener(Closeable optionalCloseable, Runnable transportAdaptorCallback) {
-            this.optionalCloseable = optionalCloseable;
-            this.transportAdaptorCallback = transportAdaptorCallback;
-        }
-
-        @Override
-        public void onResponse(Void aVoid) {
-            closeAndCallback(null);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            closeAndCallback(e);
-        }
-
-        private void closeAndCallback(final Exception e) {
-            try {
-                IOUtils.close(optionalCloseable, transportAdaptorCallback::run);
-            } catch (final IOException inner) {
-                if (e != null) {
-                    inner.addSuppressed(e);
-                }
-                throw new UncheckedIOException(inner);
-            }
-        }
-    }
+//    private class ReleaseListener implements ActionListener<Void> {
+//
+//        private final Closeable optionalCloseable;
+//        private final Runnable transportAdaptorCallback;
+//
+//        private ReleaseListener(Closeable optionalCloseable, Runnable transportAdaptorCallback) {
+//            this.optionalCloseable = optionalCloseable;
+//            this.transportAdaptorCallback = transportAdaptorCallback;
+//        }
+//
+//        @Override
+//        public void onResponse(Void aVoid) {
+//            closeAndCallback(null);
+//        }
+//
+//        @Override
+//        public void onFailure(Exception e) {
+//            closeAndCallback(e);
+//        }
+//
+//        private void closeAndCallback(final Exception e) {
+//            try {
+//                IOUtils.close(optionalCloseable, transportAdaptorCallback::run);
+//            } catch (final IOException inner) {
+//                if (e != null) {
+//                    inner.addSuppressed(e);
+//                }
+//                throw new UncheckedIOException(inner);
+//            }
+//        }
+//    }
 
     @Override
     public final TransportStats getStats() {

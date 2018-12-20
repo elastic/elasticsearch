@@ -20,10 +20,12 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 
 
@@ -62,10 +64,10 @@ public interface TcpChannel extends CloseableChannel {
      * Sends a tcp message to the channel. The listener will be executed once the send process has been
      * completed.
      *
-     * @param reference to send to channel
+     * @param messageSupplier to send to channel
      * @param listener to execute upon send completion
      */
-    void sendMessage(BytesReference reference, ActionListener<Void> listener);
+    void sendMessage(CheckedSupplier<BytesReference, IOException> messageSupplier, ActionListener<Void> listener);
 
     /**
      * Adds a listener that will be executed when the channel is connected. If the channel is still

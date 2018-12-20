@@ -19,9 +19,11 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.concurrent.CompletableContext;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -73,8 +75,8 @@ public class FakeTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        messageCaptor.set(reference);
+    public void sendMessage(CheckedSupplier<BytesReference, IOException> messageSupplier, ActionListener<Void> listener) {
+        messageCaptor.set(null);
     }
 
     @Override

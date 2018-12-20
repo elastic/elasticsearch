@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -36,12 +37,17 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.FlushOperation;
+import org.elasticsearch.nio.FlushReadyWrite;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.ServerChannelContext;
+import org.elasticsearch.nio.SocketChannelContext;
+import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
@@ -56,9 +62,12 @@ import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -220,7 +229,8 @@ public class MockNioTransport extends TcpTransport {
         }
     }
 
-    private static class MockTcpReadWriteHandler extends BytesWriteHandler {
+    @SuppressWarnings("unchecked")
+    private static class MockTcpReadWriteHandler implements ReadWriteHandler {
 
         private final MockSocketChannel channel;
         private final TcpTransport transport;
@@ -231,9 +241,53 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
+        public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {
+            return new WriteOperation() {
+                @Override
+                public BiConsumer<Void, Exception> getListener() {
+                    return listener;
+                }
+
+                @Override
+                public SocketChannelContext getChannel() {
+                    return context;
+                }
+
+                @Override
+                public CheckedSupplier<ByteBuffer[], IOException> getObject() {
+                    CheckedSupplier<BytesReference, IOException> messageSupplier =
+                        (CheckedSupplier<BytesReference, IOException>) message;
+                    return () -> BytesReference.toByteBuffers(messageSupplier.get());
+                }
+            };
+        }
+
+        @Override
+        public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
+            CheckedSupplier<ByteBuffer[], IOException> messageSupplier =
+                (CheckedSupplier<ByteBuffer[], IOException>) writeOperation.getObject();
+            try {
+                return Collections.singletonList(new FlushOperation(messageSupplier.get(), writeOperation.getListener()));
+            } catch (IOException e) {
+                writeOperation.getListener().accept(null, e);
+                return Collections.emptyList();
+            }
+        }
+
+        @Override
+        public List<FlushOperation> pollFlushOperations() {
+            return Collections.emptyList();
+        }
+
+        @Override
         public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
             BytesReference bytesReference = BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
             return transport.consumeNetworkReads(channel, bytesReference);
+        }
+
+        @Override
+        public void close() throws IOException {
+
         }
     }
 
@@ -305,8 +359,8 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-            getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+        public void sendMessage(CheckedSupplier<BytesReference, IOException> messageSupplier, ActionListener<Void> listener) {
+            getContext().sendMessage(BytesReference.toByteBuffers(null), ActionListener.toBiConsumer(listener));
         }
     }
 }

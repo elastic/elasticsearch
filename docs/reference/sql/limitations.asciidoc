@@ -1,0 +1,71 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-limitations]]
+== SQL Limitations
+
+beta[]
+
+[float]
+=== Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE`
+
+{es} has a special type of relationship fields called `nested` fields. In {es-sql} they can be used by referencing their inner
+sub-fields. These being said, though, `SYS COLUMNS` and `DESCRIBE TABLE` will still display them having the type `NESTED`
+but they cannot actually be used in a query. One can only reference its sub-fields in the form
+
+[source, sql]
+--------------------------------------------------
+[nested_field_name].[sub_field_name]
+--------------------------------------------------
+
+For example:
+
+[source, sql]
+--------------------------------------------------
+SELECT dep.dep_name.keyword FROM test_emp GROUP BY languages;
+--------------------------------------------------
+
+[float]
+=== Multi-nested fields
+
+{es-sql} doesn't support multi-nested documents. This refers to queries that make reference to more than one nested field in an index.
+This applies to multi-level nested fields, but also multiple nested fields defined on the same level. For example, for this index:
+
+[source, sql]
+--------------------------------------------------
+       column        |     type      |    mapping
+---------------------+---------------+---------------
+nested1              |STRUCT         |NESTED
+nested1.nested11     |STRUCT         |NESTED
+nested1.nested11.text|VARCHAR        |KEYWORD
+nested1.text         |VARCHAR        |KEYWORD
+nested2              |STRUCT         |NESTED
+nested2.text         |VARCHAR        |KEYWORD
+--------------------------------------------------
+
+`nested1` and `nested2` cannot be used at the same time, nor `nested1`/`nested2` and `nested1.nested11` combination.
+For such situations, {es-sql} will display an error message.
+
+[float]
+=== Paginating nested inner hits
+
+When SELECTing a nested field, pagination will not work as expected {es-sql} returning __at least__ the page size records. This is like
+this because the way nested queries work in {es}: the root nested field will be returned and it's matching inner nested fields as well,
+pagination taking place on the **root nested document and not on its inner hits**.
+
+[float]
+=== Normalized `keyword` fields
+
+`keyword` fields in {es} can be normalized by defining a `normalizer`. Such fields are not supported in {es-sql}.
+
+[float]
+=== Array type of fields
+
+Array fields are not supported due to the "invisible" way in which {es} handles an array of values: the mapping doesn't indicate whether
+a field is an array (has multiple values) or not, so without reading all the data, {es-sql} cannot know whether a field is a single or multi value.
+
+[float]
+=== Sorting by aggregation
+
+When doing aggregations (`GROUP BY`) {es-sql} relies on {es}'s `composite` aggregation for its support for paginating results.
+But this type of aggregation does come with a limitation: sorting can only be applied on the key used for the aggregation's buckets. This
+means that queries like `SELECT * FROM test GROUP BY age ORDER BY COUNT(*)` are not possible.

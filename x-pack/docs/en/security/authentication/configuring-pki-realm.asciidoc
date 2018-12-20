@@ -2,15 +2,14 @@
 [[configuring-pki-realm]]
 === Configuring a PKI realm
 
-You can configure {security} to use Public Key Infrastructure (PKI) certificates
-to authenticate users in {es}. This requires clients to present X.509
-certificates.
+You can configure {es} to use Public Key Infrastructure (PKI) certificates
+to authenticate users. This requires clients to present X.509 certificates.
 
 NOTE: You cannot use PKI certificates to authenticate users in {kib}.
 
 To use PKI in {es}, you configure a PKI realm, enable client authentication on
 the desired network layers (transport or http), and map the Distinguished Names
-(DNs) from the user certificates to {security} roles in the 
+(DNs) from the user certificates to roles in the 
 <<security-api-role-mapping,role-mapping API>> or role-mapping file.
 
 You can also use a combination of PKI and username/password authentication. For
@@ -22,7 +21,7 @@ allow clients without certificates to authenticate with other credentials.
 
 IMPORTANT:  You must enable SSL/TLS and enable client authentication to use PKI.
 
-For more information, see {xpack-ref}/pki-realm.html[PKI User Authentication].
+For more information, see {stack-ov}/pki-realm.html[PKI User Authentication].
 
 . Add a realm configuration for a `pki` realm to `elasticsearch.yml` under the
 `xpack.security.authc.realms.pki` namespace.
@@ -75,8 +74,7 @@ xpack:
 . Enable client authentication on the desired network layers (transport or http).
 +
 --
-//TBD: This step might need to be split into a separate topic with additional details
-//about setting up client authentication. 
+
 The PKI realm relies on the TLS settings of the node's network interface. The 
 realm can be configured to be more restrictive than the underlying network 
 connection - that is, it is possible to configure the node such that some 
@@ -174,7 +172,7 @@ the result. The user's distinguished name will be populated under the `pki_dn`
 key. You can also use the authenticate API to validate your role mapping.
 
 For more information, see 
-{xpack-ref}/mapping-roles.html[Mapping Users and Groups to Roles].
+{stack-ov}/mapping-roles.html[Mapping Users and Groups to Roles].
 
 NOTE: The PKI realm supports
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an

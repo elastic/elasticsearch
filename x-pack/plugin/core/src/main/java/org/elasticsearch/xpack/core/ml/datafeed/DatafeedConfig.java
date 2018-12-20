@@ -130,7 +130,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
     public static final ParseField AGGS = new ParseField("aggs");
     public static final ParseField SCRIPT_FIELDS = new ParseField("script_fields");
-    public static final ParseField SOURCE = new ParseField("_source");
     public static final ParseField CHUNKING_CONFIG = new ParseField("chunking_config");
     public static final ParseField HEADERS = new ParseField("headers");
     public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
@@ -185,9 +184,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return parsedScriptFields;
         }, SCRIPT_FIELDS);
         parser.declareInt(Builder::setScrollSize, SCROLL_SIZE);
-        // TODO this is to read former _source field. Remove in v7.0.0
-        parser.declareBoolean((builder, value) -> {
-        }, SOURCE);
         parser.declareObject(Builder::setChunkingConfig, ignoreUnknownFields ? ChunkingConfig.LENIENT_PARSER : ChunkingConfig.STRICT_PARSER,
             CHUNKING_CONFIG);
 

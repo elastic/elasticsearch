@@ -108,8 +108,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
     public void testSelectLeastLoadedMlNode_byCount() {
         Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
-        // MachineLearning.MACHINE_MEMORY_NODE_ATTR not set, so this will fall back to allocating by count
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "-1");
+        // MachineLearning.MACHINE_MEMORY_NODE_ATTR negative, so this will fall back to allocating by count
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         nodeAttr, Collections.emptySet(), Version.CURRENT))
@@ -135,7 +136,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         jobBuilder.setJobVersion(Version.CURRENT);
 
         Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id4", jobBuilder.build(),
-                cs.build(), 2, 10, 30, memoryTracker, logger);
+                cs.build(), 2, 30, memoryTracker, logger);
         assertEquals("", result.getExplanation());
         assertEquals("_node_id3", result.getExecutorNode());
     }
@@ -146,7 +147,8 @@ public class TransportOpenJobActionTests extends ESTestCase {
         int maxRunningJobsPerNode = randomIntBetween(1, 100);
 
         Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(maxRunningJobsPerNode));
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         String[] jobIds = new String[numNodes * maxRunningJobsPerNode];
@@ -171,7 +173,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id0", new ByteSizeValue(150, ByteSizeUnit.MB)).build(new Date());
 
         Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id0", job, cs.build(), 2,
-                maxRunningJobsPerNode, 30, memoryTracker, logger);
+                30, memoryTracker, logger);
         assertNull(result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because this node is full. Number of opened jobs [" + maxRunningJobsPerNode
                 + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
@@ -197,14 +199,15 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id2", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
 
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id2", job, cs.build(), 2, 10, 30, memoryTracker, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id2", job, cs.build(), 2, 30, memoryTracker, logger);
         assertTrue(result.getExplanation().contains("because this node isn't a ml node"));
         assertNull(result.getExecutorNode());
     }
 
     public void testSelectLeastLoadedMlNode_maxConcurrentOpeningJobs() {
         Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         nodeAttr, Collections.emptySet(), Version.CURRENT))
@@ -231,7 +234,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id6", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
 
         ClusterState cs = csBuilder.build();
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id6", job, cs, 2, 10, 30, memoryTracker, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id6", job, cs, 2, 30, memoryTracker, logger);
         assertEquals("_node_id3", result.getExecutorNode());
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
@@ -241,7 +244,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 10, 30, memoryTracker, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 30, memoryTracker, logger);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -252,7 +255,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 10, 30, memoryTracker, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 30, memoryTracker, logger);
         assertNull("no node selected, because stale task", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -263,14 +266,15 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 10, 30, memoryTracker, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 30, memoryTracker, logger);
         assertNull("no node selected, because null state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
 
     public void testSelectLeastLoadedMlNode_concurrentOpeningJobsAndStaleFailedJob() {
         Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                 nodeAttr, Collections.emptySet(), Version.CURRENT))
@@ -301,7 +305,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id7", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
 
         // Allocation won't be possible if the stale failed job is treated as opening
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 10, 30, memoryTracker, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id7", job, cs, 2, 30, memoryTracker, logger);
         assertEquals("_node_id1", result.getExecutorNode());
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
@@ -311,14 +315,15 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id8", job, cs, 2, 10, 30, memoryTracker, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("job_id8", job, cs, 2, 30, memoryTracker, logger);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
 
     public void testSelectLeastLoadedMlNode_noCompatibleJobTypeNodes() {
         Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         nodeAttr, Collections.emptySet(), Version.CURRENT))
@@ -342,7 +347,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", job, cs.build(), 2, 10, 30,
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", job, cs.build(), 2, 30,
             memoryTracker, logger);
         assertThat(result.getExplanation(), containsString("because this node does not support jobs of type [incompatible_type]"));
         assertNull(result.getExecutorNode());
@@ -350,7 +355,8 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
     public void testSelectLeastLoadedMlNode_noNodesMatchingModelSnapshotMinVersion() {
         Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         nodeAttr, Collections.emptySet(), Version.V_6_2_0))
@@ -373,7 +379,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_incompatible_model_snapshot", job, cs.build(),
-                2, 10, 30, memoryTracker, logger);
+                2, 30, memoryTracker, logger);
         assertThat(result.getExplanation(), containsString(
                 "because the job's model snapshot requires a node of version [6.3.0] or higher"));
         assertNull(result.getExecutorNode());
@@ -381,7 +387,8 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
     public void testSelectLeastLoadedMlNode_jobWithRulesButNoNodeMeetsRequiredVersion() {
         Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         nodeAttr, Collections.emptySet(), Version.V_6_2_0))
@@ -400,7 +407,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         cs.metaData(metaData);
 
         Job job = jobWithRules("job_with_rules");
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, cs.build(), 2, 10, 30, memoryTracker,
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, cs.build(), 2, 30, memoryTracker,
             logger);
         assertThat(result.getExplanation(), containsString(
                 "because jobs using custom_rules require a node of version [6.4.0] or higher"));
@@ -409,7 +416,8 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
     public void testSelectLeastLoadedMlNode_jobWithRulesAndNodeMeetsRequiredVersion() {
         Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         nodeAttr, Collections.emptySet(), Version.V_6_2_0))
@@ -428,7 +436,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         cs.metaData(metaData);
 
         Job job = jobWithRules("job_with_rules");
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, cs.build(), 2, 10, 30, memoryTracker,
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, cs.build(), 2, 30, memoryTracker,
             logger);
         assertNotNull(result.getExecutorNode());
     }

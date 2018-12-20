@@ -372,10 +372,14 @@ public class Joda {
             int factor = hasMilliSecondPrecision ? 1 : 1000;
             try {
                 long millis = new BigDecimal(text).longValue() * factor;
-                // check for deprecation, but after it has parsed correctly so the "e" isn't from something else
+                // check for deprecations, but after it has parsed correctly so invalid values aren't counted as deprecated
+                if (millis < 0) {
+                    deprecationLogger.deprecatedAndMaybeLog("epoch-negative", "Use of negative values" +
+                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+                }
                 if (scientificNotation.matcher(text).find()) {
                     deprecationLogger.deprecatedAndMaybeLog("epoch-scientific-notation", "Use of scientific notation" +
-                        "in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);
                 bucket.saveField(DateTimeFieldType.year(), dt.getYear());

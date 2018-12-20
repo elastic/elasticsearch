@@ -951,7 +951,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         index("library", "2", builder -> {
             builder.field("name", "1984");
             builder.field("page_count", 328);
-            builder.field("release_date", -649036800000L);
+            builder.field("release_date", 649036800000L);
             builder.field("republish_date", 599616000000L);
         });
 
@@ -970,7 +970,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
 
             assertTrue(results.next());
             assertEquals(599616000000L, results.getTimestamp("republish_date").getTime());
-            assertEquals(-649036800000L, ((Timestamp) results.getObject(2)).getTime());
+            assertEquals(649036800000L, ((Timestamp) results.getObject(2)).getTime());
 
             assertFalse(results.next());
         });

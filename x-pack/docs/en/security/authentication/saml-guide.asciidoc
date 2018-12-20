@@ -151,7 +151,7 @@ order::
 idp.metadata.path::
     This is the path to the metadata file that you saved for your Identity Provider.
     The path that you enter here is relative to your `config/` directory.
-    {security} will automatically monitor this file for changes and will
+    {es} will automatically monitor this file for changes and will
     reload the configuration whenever it is updated.
 
 idp.entity_id::
@@ -207,14 +207,14 @@ Attributes in SAML are named using a URI such as
 more values associated with them.
 
 These attribute identifiers vary between IdPs, and most IdPs offer ways to
-customise the URIs and their associated value.
+customize the URIs and their associated value.
 
 {es} uses these attributes to infer information about the user who has
 logged in, and they can be used for role mapping (below).
 
 In order for these attributes to be useful, {es} and the IdP need to have a
 common value for the names of the attributes. This is done manually, by
-configuring the IdP and the {security} SAML realm to use the same URI name for
+configuring the IdP and the SAML realm to use the same URI name for
 each logical user attribute.
 
 The recommended steps for configuring these SAML attributes are as follows:
@@ -469,7 +469,7 @@ or separate keys used for each of those.
 
 The Elastic Stack uses X.509 certificates with RSA private keys for SAML
 cryptography. These keys can be generated using any standard SSL tool, including
-the `elasticsearch-certutil` tool that ships with {xpack}.
+the `elasticsearch-certutil` tool.
 
 Your IdP may require that the Elastic Stack have a cryptographic key for signing
 SAML messages, and that you provide the corresponding signing certificate within
@@ -518,7 +518,7 @@ Encryption certificates can be generated with the same process.
 
 ===== Configuring {es} for signing
 
-By default, {security} will sign _all_ outgoing SAML messages if a signing
+By default, {es} will sign _all_ outgoing SAML messages if a signing
 key has been configured.
 
 If you wish to use *PEM formatted* keys and certificates for signing, then
@@ -559,17 +559,17 @@ are: `AuthnRequest`, `LogoutRequest` and `LogoutResponse`.
 
 ===== Configuring {es} for encrypted messages
 
-{security} supports a single key for message decryption. If a key is
-configured, then {security} will attempt to use it to decrypt
+The {es} {security-features} support a single key for message decryption. If a
+key is configured, then {es} attempts to use it to decrypt
 `EncryptedAssertion` and `EncryptedAttribute` elements in Authentication
 responses, and `EncryptedID` elements in Logout requests.
 
-{security} will reject any SAML message that contains an `EncryptedAssertion`
+{es} rejects any SAML message that contains an `EncryptedAssertion`
 that cannot be decrypted.
 
 If an `Assertion` contains both encrypted and plain-text attributes, then
 failure to decrypt the encrypted attributes will not cause an automatic
-rejection. Rather, {security} will process the available plain-text attributes
+rejection. Rather, {es} processes the available plain-text attributes
 (and any `EncryptedAttributes` that could be decrypted).
 
 If you wish to use *PEM formatted* keys and certificates for SAML encryption,
@@ -620,8 +620,8 @@ When a user authenticates using SAML, they are identified to the Elastic Stack,
 but this does not automatically grant them access to perform any actions or
 access any data.
 
-Your SAML users cannot do anything until they are assigned {security}
-roles. This is done through either the
+Your SAML users cannot do anything until they are assigned roles. This is done
+through either the
 {ref}/security-api-put-role-mapping.html[add role mapping API], or with
 <<authorization_realms, authorization realms>>.
 
@@ -680,7 +680,7 @@ PUT /_security/role_mapping/saml-finance
 // CONSOLE
 // TEST
 
-If your users also exist in a repository that can be directly accessed by {security}
+If your users also exist in a repository that can be directly accessed by {es}
 (such as an LDAP directory) then you can use
 <<authorization_realms, authorization realms>> instead of role mappings.
 
@@ -858,3 +858,15 @@ xpack.security.authc.realms.saml.saml_eng:
 It is possible to have one or more {kib} instances that use SAML, while other
 instances use basic authentication against another realm type (e.g.
 <<native-realm, Native>> or <<ldap-realm, LDAP>>).
+
+=== Troubleshooting SAML Realm Configuration
+
+The SAML 2.0 specification offers a lot of options and flexibility for the implementers
+of the standard which in turn adds to the complexity and the number of configuration options
+that are available both at the Service Provider (Elastic Stack) and at the Identity Provider.
+Additionally, different security domains have different security requirements that need
+specific configuration to be satisfied.
+A conscious effort has been made to mask this complexity with sane defaults and the detailed
+documentation above but in case you encounter issues while configuring a SAML realm, you can
+look through our {stack-ov}/trb-security-saml.html[SAML troubleshooting documentation] that has
+suggestions and resolutions for common issues.

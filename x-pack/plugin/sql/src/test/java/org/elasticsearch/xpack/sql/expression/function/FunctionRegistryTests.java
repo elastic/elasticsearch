@@ -20,9 +20,9 @@ import org.elasticsearch.xpack.sql.tree.LocationTests;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
-import java.util.TimeZone;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.sql.expression.function.FunctionRegistry.def;
@@ -59,7 +59,7 @@ public class FunctionRegistryTests extends ESTestCase {
             return new DummyFunction(l);
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertFalse(def.datetime());
+        assertFalse(def.extractViable());
         assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
 
         // Distinct isn't supported
@@ -88,7 +88,7 @@ public class FunctionRegistryTests extends ESTestCase {
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
-        assertFalse(def.datetime());
+        assertFalse(def.extractViable());
 
         // No children aren't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
@@ -104,16 +104,16 @@ public class FunctionRegistryTests extends ESTestCase {
     public void testDateTimeFunction() {
         boolean urIsExtract = randomBoolean();
         UnresolvedFunction ur = uf(urIsExtract ? EXTRACT : STANDARD, mock(Expression.class));
-        TimeZone providedTimeZone = randomTimeZone();
+        ZoneId providedTimeZone = randomZone().normalized();
         Configuration providedConfiguration = randomConfiguration(providedTimeZone);
-        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression e, TimeZone tz) -> {
-                    assertEquals(providedTimeZone, tz);
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression e, ZoneId zi) -> {
+                    assertEquals(providedTimeZone, zi);
                     assertSame(e, ur.children().get(0));
                     return new DummyFunction(l);
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(providedConfiguration, def).location());
-        assertTrue(def.datetime());
+        assertTrue(def.extractViable());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
@@ -140,7 +140,7 @@ public class FunctionRegistryTests extends ESTestCase {
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
-        assertFalse(def.datetime());
+        assertFalse(def.extractViable());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
@@ -232,7 +232,7 @@ public class FunctionRegistryTests extends ESTestCase {
     }
     
     private Configuration randomConfiguration() {
-        return new Configuration(randomTimeZone(),
+        return new Configuration(randomZone(),
                 randomIntBetween(0,  1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
@@ -242,8 +242,8 @@ public class FunctionRegistryTests extends ESTestCase {
                 randomAlphaOfLength(10));
     }
     
-    private Configuration randomConfiguration(TimeZone providedTimeZone) {
-        return new Configuration(providedTimeZone,
+    private Configuration randomConfiguration(ZoneId providedZoneId) {
+        return new Configuration(providedZoneId,
                 randomIntBetween(0,  1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),

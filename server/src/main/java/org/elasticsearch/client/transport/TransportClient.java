@@ -57,9 +57,9 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -102,7 +102,7 @@ public abstract class TransportClient extends AbstractClient {
 
     private static PluginsService newPluginService(final Settings settings, Collection<Class<? extends Plugin>> plugins) {
         final Settings.Builder settingsBuilder = Settings.builder()
-                .put(TcpTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
+                .put(TransportSettings.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
                 .put(InternalSettingsPreparer.prepareSettings(settings))
                 .put(NetworkService.NETWORK_SERVER.getKey(), false)
                 .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
@@ -136,7 +136,7 @@ public abstract class TransportClient extends AbstractClient {
                 Settings.builder()
                         .put(defaultSettings)
                         .put(pluginsService.updatedSettings())
-                        .put(TcpTransport.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
+                        .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
                         .build();
         final List<Closeable> resourcesToClose = new ArrayList<>();
         final ThreadPool threadPool = new ThreadPool(settings);

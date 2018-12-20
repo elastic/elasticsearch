@@ -41,7 +41,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -100,7 +100,13 @@ public class PluginsService {
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
+    public PluginsService(
+        Settings settings,
+        Path configPath,
+        Path modulesDirectory,
+        Path pluginsDirectory,
+        Collection<Class<? extends Plugin>> classpathPlugins
+    ) {
         this.settings = settings;
         this.configPath = configPath;
 
@@ -226,7 +232,7 @@ public class PluginsService {
             }
         }
         for (final String feature : features.keySet()) {
-            builder.put(TcpTransport.FEATURE_PREFIX + "." + feature, true);
+            builder.put(TransportSettings.FEATURE_PREFIX + "." + feature, true);
         }
         return builder.put(this.settings).build();
     }

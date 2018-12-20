@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -16,8 +17,8 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
@@ -43,7 +44,7 @@ public class QueryFolderTests extends ESTestCase {
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(Configuration.DEFAULT, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         optimizer = new Optimizer();
         planner = new Planner();
     }
@@ -66,6 +67,48 @@ public class QueryFolderTests extends ESTestCase {
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(1, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
+    public void testLocalExecWithPrunedFilterWithFunction() {
+        PhysicalPlan p = plan("SELECT E() FROM test WHERE PI() = 5");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
+    }
+
+    public void testLocalExecWithPrunedFilterWithFunctionAndAggregation() {
+        PhysicalPlan p = plan("SELECT E() FROM test WHERE PI() = 5 GROUP BY 1");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
+    }
+
+    public void testLocalExecWithoutFromClause() {
+        PhysicalPlan p = plan("SELECT E(), 'foo', abs(10)");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(3, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
+        assertThat(ee.output().get(1).toString(), startsWith("foo{c}#"));
+        assertThat(ee.output().get(2).toString(), startsWith("ABS(10){c}#"));
+    }
+
+    public void testLocalExecWithoutFromClauseWithPrunedFilter() {
+        PhysicalPlan p = plan("SELECT E() WHERE PI() = 5");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
     }
 
     public void testFoldingOfIsNull() {
@@ -240,10 +283,10 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("{\"script\":{" +
-                "\"source\":\"InternalSqlScriptUtils.docValue(doc,params.v0)\",\"lang\":\"painless\"," +
-                "\"params\":{\"v0\":\"keyword\"}},\"missing_bucket\":true," +
-                "\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"));
+            endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.cast(" +
+                    "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\",\"v1\":\"IP\"}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
@@ -262,5 +305,15 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
+    }
+
+    public void testConcatIsNotFoldedForNull() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE CONCAT(keyword, null) IS NULL");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
     }
 }

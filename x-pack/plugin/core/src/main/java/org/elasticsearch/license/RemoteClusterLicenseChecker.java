@@ -7,6 +7,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
@@ -159,6 +160,10 @@ public final class RemoteClusterLicenseChecker {
             @Override
             public void onResponse(final XPackInfoResponse xPackInfoResponse) {
                 final XPackInfoResponse.LicenseInfo licenseInfo = xPackInfoResponse.getLicenseInfo();
+                if (licenseInfo == null) {
+                    listener.onFailure(new ResourceNotFoundException("license info is missing for cluster [" + clusterAlias.get() + "]"));
+                    return;
+                }
                 if ((licenseInfo.getStatus() == LicenseStatus.ACTIVE) == false
                         || predicate.test(License.OperationMode.resolve(licenseInfo.getMode())) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));

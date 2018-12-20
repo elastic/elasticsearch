@@ -1134,6 +1134,32 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertIndexNotManagedByILM(newClusterState, index);
     }
 
+    public void testRemovePolicyWithIndexingComplete() {
+        String indexName = randomAlphaOfLength(10);
+        String oldPolicyName = "old_policy";
+        StepKey currentStep = new StepKey(randomAlphaOfLength(10), MockAction.NAME, randomAlphaOfLength(10));
+        LifecyclePolicy oldPolicy = createPolicy(oldPolicyName, null, currentStep);
+        Settings.Builder indexSettingsBuilder = Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
+            .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true);
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(currentStep.getPhase());
+        lifecycleState.setAction(currentStep.getAction());
+        lifecycleState.setStep(currentStep.getName());
+        List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
+        policyMetadatas.add(new LifecyclePolicyMetadata(oldPolicy, Collections.emptyMap(),
+            randomNonNegativeLong(), randomNonNegativeLong()));
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
+        Index index = clusterState.metaData().index(indexName).getIndex();
+        Index[] indices = new Index[] { index };
+        List<String> failedIndexes = new ArrayList<>();
+
+        ClusterState newClusterState = IndexLifecycleRunner.removePolicyForIndexes(indices, clusterState, failedIndexes);
+
+        assertTrue(failedIndexes.isEmpty());
+        assertIndexNotManagedByILM(newClusterState, index);
+    }
+
     public void testIsReadyToTransition() {
         String policyName = "async_action_policy";
         StepKey stepKey = new StepKey("phase", MockAction.NAME, MockAction.NAME);
@@ -1186,6 +1212,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertNotNull(indexSettings);
         assertFalse(LifecycleSettings.LIFECYCLE_NAME_SETTING.exists(indexSettings));
         assertFalse(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.exists(indexSettings));
+        assertFalse(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.exists(indexSettings));
     }
 
     public static void assertClusterStateOnPolicy(ClusterState oldClusterState, Index index, String expectedPolicy, StepKey previousStep,

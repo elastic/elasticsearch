@@ -49,7 +49,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .put("index.analysis.filter.my_delimited_payload_filter.encoding", "identity").build();
         IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING, "Use of 'delimited_payload_filter'.",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_analysis_changes.html",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_literal_delimited_payload_filter_literal_renaming",
             "[The filter [my_delimited_payload_filter] is of deprecated 'delimited_payload_filter' type. "
                 + "The filter type should be changed to 'delimited_payload'.]");
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
@@ -131,7 +132,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Classic similarity has been removed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_the_literal_classic_literal_similarity_has_been_removed",
             "Fields which use classic similarity: [[type: _doc, field: classic_sim_field]]");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(index));
@@ -150,7 +151,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Classic similarity has been removed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_the_literal_classic_literal_similarity_has_been_removed",
             "Custom similarities defined using classic similarity: [my_classic_similarity]");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(index));

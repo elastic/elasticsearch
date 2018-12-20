@@ -44,7 +44,7 @@ public final class CcrSettings {
         return Arrays.asList(
                 XPackSettings.CCR_ENABLED_SETTING,
                 CCR_FOLLOWING_INDEX_SETTING,
-            CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT);
+                CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT);
     }
 
 }

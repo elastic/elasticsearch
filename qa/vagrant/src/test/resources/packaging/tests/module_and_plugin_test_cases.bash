@@ -240,7 +240,7 @@ fi
 }
 
 @test "[$GROUP] check ingest-geoip module" {
-    check_module ingest-geoip geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
+    check_module ingest-geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
 }
 
 @test "[$GROUP] check lang-expression module" {

@@ -65,7 +65,6 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         from = in.readVInt();
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
-        assert topDocs != null;
         searchHits = SearchHits.readSearchHits(in);
     }
 

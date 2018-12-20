@@ -240,12 +240,12 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
             for (int i = 1; i <= numDocs; i++) {
                 if (randomBoolean()) {
                     testDocs++;
-                    processor.add(new IndexRequest("test", "_doc", Integer.toString(testDocs))
+                    processor.add(new IndexRequest("test").id(Integer.toString(testDocs))
                             .source(XContentType.JSON, "field", "value"));
                     multiGetRequest.add("test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
-                    processor.add(new IndexRequest("test-ro", "_doc", Integer.toString(testReadOnlyDocs))
+                    processor.add(new IndexRequest("test-ro").id(Integer.toString(testReadOnlyDocs))
                             .source(XContentType.JSON, "field", "value"));
                 }
             }
@@ -300,7 +300,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
             processor.add(new IndexRequest() // <1>
                 .source(XContentType.JSON, "user", "some user"));
-            processor.add(new IndexRequest("blogs", "post_type", "1") // <2>
+            processor.add(new IndexRequest("blogs").id("1") // <2>
                 .source(XContentType.JSON, "title", "some title"));
         }
         // end::bulk-processor-mix-parameters
@@ -364,7 +364,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
             if (randomBoolean()) {
-                processor.add(new IndexRequest(localIndex, "_doc", Integer.toString(i))
+                processor.add(new IndexRequest(localIndex).id(Integer.toString(i))
                     .source(XContentType.JSON, "field", randomRealisticUnicodeOfLengthBetween(1, 30)));
             } else {
                 BytesArray data = bytesBulkRequest(localIndex, "_doc", i);

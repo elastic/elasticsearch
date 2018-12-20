@@ -19,9 +19,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -65,7 +65,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         authcService = mock(AuthenticationService.class);
         authzService = mock(AuthorizationService.class);
         channel = mock(TransportChannel.class);
-        when(channel.getProfileName()).thenReturn(TcpTransport.DEFAULT_PROFILE);
+        when(channel.getProfileName()).thenReturn(TransportSettings.DEFAULT_PROFILE);
         when(channel.getVersion()).thenReturn(Version.CURRENT);
         failDestructiveOperations = randomBoolean();
         Settings settings = Settings.builder()

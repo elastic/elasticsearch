@@ -150,7 +150,7 @@ public class ClusterFormationFailureHelper {
 
                 if (INITIAL_MASTER_NODE_COUNT_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODE_COUNT_SETTING.get(settings))
                     && INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
-                    bootstrappingDescription = "cluster bootstrapping is disabled on this node";
+                    bootstrappingDescription = "[" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is empty on this node";
                 } else if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
                     bootstrappingDescription = String.format(Locale.ROOT,
                         "this node must discover at least [%d] master-eligible nodes to bootstrap a cluster",

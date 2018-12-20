@@ -32,6 +32,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -39,6 +40,10 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +53,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -358,7 +364,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         boolean accept(int length) {
-            return length >= minChars && length <= maxChars;
+            return length >= minChars - 1 && length <= maxChars;
         }
 
         void doXContent(XContentBuilder builder) throws IOException {
@@ -366,6 +372,22 @@ public class TextFieldMapper extends FieldMapper {
             builder.field("min_chars", minChars);
             builder.field("max_chars", maxChars);
             builder.endObject();
+        }
+
+        @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            if (value.length() >= minChars) {
+                return super.termQuery(value, context);
+            }
+            List<Automaton> automata = new ArrayList<>();
+            automata.add(Automata.makeString(value));
+            for (int i = value.length(); i < minChars; i++) {
+                automata.add(Automata.makeAnyChar());
+            }
+            Automaton automaton = Operations.concatenate(automata);
+            AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
+            query.setRewriteMethod(method);
+            return query;
         }
 
         @Override
@@ -400,7 +422,6 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public int hashCode() {
-
             return Objects.hash(super.hashCode(), minChars, maxChars);
         }
     }
@@ -562,7 +583,7 @@ public class TextFieldMapper extends FieldMapper {
             if (prefixFieldType == null || prefixFieldType.accept(value.length()) == false) {
                 return super.prefixQuery(value, method, context);
             }
-            Query tq = prefixFieldType.termQuery(value, context);
+            Query tq = prefixFieldType.prefixQuery(value, method, context);
             if (method == null || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
                 || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
                 return new ConstantScoreQuery(tq);
@@ -577,6 +598,15 @@ public class TextFieldMapper extends FieldMapper {
             } else {
                 return new NormsFieldExistsQuery(name());
             }
+        }
+
+        @Override
+        public IntervalsSource intervals(String text, int maxGaps, boolean ordered, NamedAnalyzer analyzer) throws IOException {
+            if (indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                throw new IllegalArgumentException("Cannot create intervals against field [" + name() + "] with no positions indexed");
+            }
+            IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? searchAnalyzer() : analyzer);
+            return builder.analyzeText(text, maxGaps, ordered);
         }
 
         @Override

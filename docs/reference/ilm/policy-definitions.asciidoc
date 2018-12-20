@@ -2,7 +2,7 @@ beta[]
 [role="xpack"]
 [testenv="basic"]
 [[ilm-policy-definition]]
-== Policy Phases and Actions
+== Policy phases and actions
 
 beta[]
 

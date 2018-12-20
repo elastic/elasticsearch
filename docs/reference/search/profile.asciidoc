@@ -221,6 +221,7 @@ NOTE: As with other statistics apis, the Profile API supports human readable out
 `?human=true` to the query string. In this case, the output contains the additional `time` field containing rounded,
 human readable timing information (e.g. `"time": "391,9ms"`, `"time": "123.3micros"`).
 
+[[search-profile-queries]]
 === Profiling Queries
 
 [NOTE]
@@ -678,6 +679,7 @@ ignore its children if you find the details too tricky to interpret.
 
 Hopefully this will be fixed in future iterations, but it is a tricky problem to solve and still in-progress :)
 
+[[search-profile-aggregations]]
 === Profiling Aggregations
 
 ==== `aggregations` Section
@@ -851,6 +853,7 @@ The meaning of the stats are as follows:
     Records the number of invocations of the particular method.  For example, `"collect_count": 2,`
     means the `collect()` method was called on two different documents.
 
+[[search-profile-considerations]]
 === Profiling Considerations
 
 ==== Performance Notes

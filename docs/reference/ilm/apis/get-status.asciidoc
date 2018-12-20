@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-get-status]]
-=== Get {ILM} Status API
+=== Get {ILM} status API
 ++++
-<titleabbrev>Get {ILM} Status</titleabbrev>
+<titleabbrev>Get {ILM} status</titleabbrev>
 ++++
 
 beta[]
@@ -27,7 +27,8 @@ include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
 ==== Authorization
 
-include::ilm-cluster-mgt-privilege.asciidoc[]
+You must have the `manage_ilm` or `read_ilm` or both cluster privileges to use this API.
+For more information, see {stack-ov}/security-privileges.html[Security Privileges].
 
 ==== Examples
 

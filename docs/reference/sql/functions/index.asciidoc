@@ -9,6 +9,7 @@ beta[]
 
 * <<sql-operators, Operators>>
 * <<sql-functions-aggs, Aggregate>>
+* <<sql-functions-grouping, Grouping>>
 * <<sql-functions-datetime, Date-Time>>
 * <<sql-functions-search, Full-Text Search>>
 * <<sql-functions-math, Mathematical>>
@@ -19,6 +20,7 @@ beta[]
 
 include::operators.asciidoc[]
 include::aggs.asciidoc[]
+include::grouping.asciidoc[]
 include::date-time.asciidoc[]
 include::search.asciidoc[]
 include::math.asciidoc[]

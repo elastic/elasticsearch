@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[migration-api-deprecation]]
-=== Deprecation Info APIs
+=== Deprecation info APIs
+++++
+<titleabbrev>Deprecation info</titleabbrev>
+++++
 
 IMPORTANT: Before performing a major version upgrade, make sure you have checked
 this API using the most recent minor version of the major version you are

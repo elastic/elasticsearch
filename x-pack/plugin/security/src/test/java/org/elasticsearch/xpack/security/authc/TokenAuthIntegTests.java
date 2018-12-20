@@ -184,7 +184,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource()
                         .query(QueryBuilders.termQuery("doc_type", "token")))
-                    .setSize(0)
                     .setTerminateAfter(1)
                     .get();
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));

@@ -15,6 +15,8 @@ import java.util.Map;
  * A script to determine whether a watch should be run.
  */
 public abstract class WatcherConditionScript {
+    
+    public static final String[] PARAMETERS = {};
 
     private final Map<String, Object> params;
     // TODO: ctx should have its members extracted into execute parameters, but it needs to be a member for bwc access in params

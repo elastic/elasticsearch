@@ -86,15 +86,9 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("1522332219.0", "epoch_second");
         assertSameDate("0", "epoch_second");
         assertSameDate("1", "epoch_second");
-        assertSameDate("-1", "epoch_second");
-        assertSameDate("-1522332219", "epoch_second");
-        assertSameDate("1.0e3", "epoch_second");
         assertSameDate("1522332219321", "epoch_millis");
         assertSameDate("0", "epoch_millis");
         assertSameDate("1", "epoch_millis");
-        assertSameDate("-1", "epoch_millis");
-        assertSameDate("-1522332219321", "epoch_millis");
-        assertSameDate("1.0e3", "epoch_millis");
 
         assertSameDate("20181126", "basic_date");
         assertSameDate("20181126T121212.123Z", "basic_date_time");
@@ -486,35 +480,10 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     public void testSeveralTimeFormats() {
-        assertSameDate("2018-12-12", "year_month_day||ordinal_date");
-        assertSameDate("2018-128", "year_month_day||ordinal_date");
-        assertSameDate("2018-08-20T10:57:45.427Z", "strict_date_optional_time||epoch_millis");
-        assertSameDate("2017-02-01T08:02:00.000-01", "strict_date_optional_time||epoch_millis");
-        assertSameDate("2017-02-01T08:02:00.000-01:00", "strict_date_optional_time||epoch_millis");
-    }
-
-    public void testSamePrinterOutputWithTimeZone() {
-        String format = "strict_date_optional_time||date_time";
-        String dateInput = "2017-02-01T08:02:00.000-01:00";
-        DateFormatter javaFormatter = DateFormatters.forPattern(format);
-        TemporalAccessor javaDate = javaFormatter.parse(dateInput);
-
-        DateFormatter jodaFormatter = DateFormatter.forPattern(format, Locale.ROOT);
-        DateTime dateTime = jodaFormatter.parseJoda(dateInput);
-
-        String javaDateString = javaFormatter.withZone(ZoneOffset.ofHours(-1)).format(javaDate);
-        String jodaDateString = jodaFormatter.withZone(ZoneOffset.ofHours(-1)).formatJoda(dateTime);
-        String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
-            format, jodaDateString, javaDateString);
-        assertThat(message, javaDateString, is(jodaDateString));
-    }
-
-    public void testDateFormatterWithLocale() {
-        Locale locale = randomLocale(random());
-        String pattern = randomBoolean() ? "strict_date_optional_time||date_time" : "date_time||strict_date_optional_time";
-        DateFormatter formatter = DateFormatters.forPattern(pattern).withLocale(locale);
-        assertThat(formatter.pattern(), is(pattern));
-        assertThat(formatter.locale(), is(locale));
+        DateFormatter jodaFormatter = DateFormatter.forPattern("year_month_day||ordinal_date");
+        DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||ordinal_date");
+        assertSameDate("2018-12-12", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
+        assertSameDate("2018-128", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
     }
 
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {
@@ -527,7 +496,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertSameDate(String input, String format) {
-        DateFormatter jodaFormatter = DateFormatter.forPattern(format, Locale.ROOT);
+        DateFormatter jodaFormatter = Joda.forPattern(format);
         DateFormatter javaFormatter = DateFormatters.forPattern(format);
 
         assertSameDate(input, format, jodaFormatter, javaFormatter);
@@ -551,7 +520,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJodaParseException(String input, String format, String expectedMessage) {
-        DateFormatter jodaFormatter = Joda.forPattern(format, Locale.ROOT);
+        DateFormatter jodaFormatter = Joda.forPattern(format);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> jodaFormatter.parseJoda(input));
         assertThat(e.getMessage(), containsString(expectedMessage));
     }

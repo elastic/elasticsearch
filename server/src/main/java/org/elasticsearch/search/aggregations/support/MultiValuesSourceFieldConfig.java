@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
@@ -33,9 +33,10 @@ import org.elasticsearch.script.Script;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Objects;
 import java.util.function.BiFunction;
 
-public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragment {
+public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject {
     private String fieldName;
     private Object missing;
     private Script script;
@@ -111,6 +112,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         if (missing != null) {
             builder.field(ParseField.CommonFields.MISSING.getPreferredName(), missing);
         }
@@ -123,7 +125,29 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
         if (timeZone != null) {
             builder.field(ParseField.CommonFields.TIME_ZONE.getPreferredName(), timeZone);
         }
+        builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MultiValuesSourceFieldConfig that = (MultiValuesSourceFieldConfig) o;
+        return Objects.equals(fieldName, that.fieldName)
+            && Objects.equals(missing, that.missing)
+            && Objects.equals(script, that.script)
+            && Objects.equals(timeZone, that.timeZone);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(fieldName, missing, script, timeZone);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public static class Builder {

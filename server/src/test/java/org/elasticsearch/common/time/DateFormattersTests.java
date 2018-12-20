@@ -20,7 +20,6 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -31,6 +30,7 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -194,34 +194,15 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(epochMillisFormatter, equalTo(DateFormatters.forPattern("epoch_millis")));
     }
 
-    public void testThatRootObjectParsingIsStrict() {
-        String[] datesThatWork = new String[] { "2014/10/10", "2014/10/10 12:12:12", "2014-05-05",  "2014-05-05T12:12:12.123Z" };
-        String[] datesThatShouldNotWork = new String[]{ "5-05-05", "2014-5-05", "2014-05-5",
-                "2014-05-05T1:12:12.123Z", "2014-05-05T12:1:12.123Z", "2014-05-05T12:12:1.123Z",
-                "4/10/10", "2014/1/10", "2014/10/1",
-                "2014/10/10 1:12:12", "2014/10/10 12:1:12", "2014/10/10 12:12:1"
-        };
-
-        // good case
-        for (String date : datesThatWork) {
-            boolean dateParsingSuccessful = false;
-            for (DateFormatter dateTimeFormatter : RootObjectMapper.Defaults.DYNAMIC_DATE_TIME_FORMATTERS) {
-                try {
-                    dateTimeFormatter.parse(date);
-                    dateParsingSuccessful = true;
-                    break;
-                } catch (Exception e) {}
-            }
-            if (!dateParsingSuccessful) {
-                fail("Parsing for date " + date + " in root object mapper failed, but shouldnt");
-            }
-        }
-
-        // bad case
-        for (String date : datesThatShouldNotWork) {
-            for (DateFormatter dateTimeFormatter : RootObjectMapper.Defaults.DYNAMIC_DATE_TIME_FORMATTERS) {
-                expectThrows(Exception.class, () -> dateTimeFormatter.parse(date));
-            }
-        }
+    public void testForceJava8() {
+        assertThat(DateFormatter.forPattern("8yyyy-MM-dd"), instanceOf(JavaDateFormatter.class));
+        // named formats too
+        assertThat(DateFormatter.forPattern("8date_optional_time"), instanceOf(JavaDateFormatter.class));
+        // named formats too
+        DateFormatter formatter = DateFormatter.forPattern("8date_optional_time||ww-MM-dd");
+        assertThat(formatter, instanceOf(DateFormatters.MergedDateFormatter.class));
+        DateFormatters.MergedDateFormatter mergedFormatter = (DateFormatters.MergedDateFormatter) formatter;
+        assertThat(mergedFormatter.formatters.get(0), instanceOf(JavaDateFormatter.class));
+        assertThat(mergedFormatter.formatters.get(1), instanceOf(JavaDateFormatter.class));
     }
 }

@@ -1948,6 +1948,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             @Override
+            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+                return ESIntegTestCase.this.addExtraClusterBootstrapSettings(allNodesSettings);
+            }
+
+            @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return ESIntegTestCase.this.nodeConfigPath(nodeOrdinal);
             }
@@ -1973,6 +1978,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 return Collections.unmodifiableCollection(plugins);
             }
         };
+    }
+
+    /**
+     * This method is called before starting a collection of nodes.
+     * At this point the test has a holistic view on all nodes settings and might perform settings adjustments as needed.
+     * For instance, the test could retrieve master node names and fill in
+     * {@link org.elasticsearch.cluster.coordination.ClusterBootstrapService#INITIAL_MASTER_NODES_SETTING} setting.
+     *
+     * @param allNodesSettings list of node settings before update
+     * @return list of node settings after update
+     */
+    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+        return allNodesSettings;
     }
 
     /**

@@ -176,8 +176,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(),
-            containsString("failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]"));
+        assertThat(e.getCause().getMessage(), containsString("Cannot parse \"2016-03-99\""));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date")
@@ -219,6 +218,32 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
         assertEquals(1457654400000L, pointField.numericValue().longValue());
+    }
+
+    public void testFloatEpochFormat() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "date")
+                .field("format", "epoch_millis").endObject().endObject()
+                .endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        long epochMillis = randomNonNegativeLong();
+        String epochFloatValue = epochMillis + "." + randomIntBetween(0, 999);
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", epochFloatValue)
+                        .endObject()),
+                XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        IndexableField pointField = fields[0];
+        assertEquals(epochMillis, pointField.numericValue().longValue());
     }
 
     public void testChangeLocale() throws IOException {

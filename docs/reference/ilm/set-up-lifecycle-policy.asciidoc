@@ -42,6 +42,7 @@ PUT _ilm/policy/my_policy
 settings for a particular index {ilm} will not manage that index.
 
 To set the policy for an index there are two options:
+
 1. Apply the policy to an index template and bootstrap creating the first index
 2. Apply the policy to a new index in a create index request
 

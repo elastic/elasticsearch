@@ -23,7 +23,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
@@ -42,6 +41,7 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
@@ -116,15 +116,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
-        ClusterStateResponse response = remoteClient
-            .admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setMetaData(true)
-            .setIndices("dummy_index_name") // We set a single dummy index name to avoid fetching all the index data
-            .get();
-        return response.getState().metaData();
+        ClusterStateRequest clusterStateRequest = CcrRequests.clusterStateRequest("dummy_index_name");
+        ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest).actionGet();
+        return clusterState.getState().metaData();
     }
 
     @Override
@@ -133,18 +127,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         String leaderIndex = index.getName();
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
 
-        ClusterStateResponse response = remoteClient
-            .admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setMetaData(true)
-            .setIndices(leaderIndex)
-            .get();
+        ClusterStateRequest clusterStateRequest = CcrRequests.clusterStateRequest(leaderIndex);
+        ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest).actionGet();
 
         // Validates whether the leader cluster has been configured properly:
         PlainActionFuture<String[]> future = PlainActionFuture.newFuture();
-        IndexMetaData leaderIndexMetaData = response.getState().metaData().index(leaderIndex);
+        IndexMetaData leaderIndexMetaData = clusterState.getState().metaData().index(leaderIndex);
         ccrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetaData, future::onFailure, future::onResponse);
         String[] leaderHistoryUUIDs = future.actionGet();
 
@@ -276,10 +264,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     private void maybeUpdateMappings(Client localClient, Client remoteClient, Index leaderIndex, IndexSettings followerIndexSettings) {
-        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.clear();
-        clusterStateRequest.metaData(true);
-        clusterStateRequest.indices(leaderIndex.getName());
+        ClusterStateRequest clusterStateRequest = CcrRequests.clusterStateRequest(leaderIndex.getName());
         ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest).actionGet();
         IndexMetaData leaderIndexMetadata = clusterState.getState().metaData().getIndexSafe(leaderIndex);
         long leaderMappingVersion = leaderIndexMetadata.getMappingVersion();
@@ -287,9 +272,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         if (leaderMappingVersion > followerIndexSettings.getIndexMetaData().getMappingVersion()) {
             Index followerIndex = followerIndexSettings.getIndex();
             MappingMetaData mappingMetaData = leaderIndexMetadata.mapping();
-            PutMappingRequest putMappingRequest = new PutMappingRequest(followerIndex.getName());
-            putMappingRequest.type(mappingMetaData.type());
-            putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
+            PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
             localClient.admin().indices().putMapping(putMappingRequest).actionGet();
         }
     }

@@ -90,9 +90,10 @@ access. Defaults to `true`.
 [float]
 [[security-automata-settings]]
 ==== Automata Settings
-In places where {security} accepts wildcard patterns (e.g. index patterns in
-roles, group matches in the role mapping API), each pattern is compiled into
-an Automaton. The follow settings are available to control this behaviour.
+In places where the {security-features} accept wildcard patterns (e.g. index
+patterns in roles, group matches in the role mapping API), each pattern is
+compiled into an Automaton. The follow settings are available to control this
+behaviour.
 
 `xpack.security.automata.max_determinized_states`::
 The upper limit on how many automaton states may be created by a single pattern.
@@ -357,7 +358,7 @@ Defaults to `60s`.
 
 `group_search.base_dn`::
 The container DN to search for groups in which the user has membership. When
-this element is absent, {security} searches for the attribute specified by
+this element is absent, {es} searches for the attribute specified by
 `user_group_attribute` set on the user in order to determine group membership.
 
 `group_search.scope`::
@@ -391,7 +392,7 @@ YAML role mapping configuration file]. Defaults to
 `ES_PATH_CONF/role_mapping.yml`.
 
 `follow_referrals`::
-Specifies whether {security} should follow referrals returned
+Specifies whether {es} should follow referrals returned
 by the LDAP server. Referrals are URLs returned by the server that are to be
 used to continue the LDAP operation (for example, search). Defaults to `true`.
 
@@ -517,7 +518,7 @@ The `type` setting must be set to `active_directory`. In addition to the
 the following settings: 
 
 `url`::
-An LDAP URL of the form `ldap[s]://<server>:<port>`. {security} attempts to 
+An LDAP URL of the form `ldap[s]://<server>:<port>`. {es} attempts to 
 authenticate against this URL. If the URL is not specified, it is derived from 
 the `domain_name` setting and assumes an unencrypted connection to port 389. 
 Defaults to `ldap://<domain_name>:389`. This setting is required when connecting 
@@ -756,7 +757,7 @@ this realm, so that it only supports user lookups.
 Defaults to `true`.
 
 `follow_referrals`::
-If set to `true` {security} follows referrals returned by the LDAP server. 
+If set to `true`, {es} follows referrals returned by the LDAP server. 
 Referrals are URLs returned by the server that are to be used to continue the 
 LDAP operation (such as `search`). Defaults to `true`.
 
@@ -832,7 +833,7 @@ capabilities and configuration of the Identity Provider.
 If a path is provided, then it is resolved relative to the {es} config
 directory.
 If a URL is provided, then it must be either a `file` URL or a `https` URL.
-{security} automatically polls this metadata resource and reloads 
+{es} automatically polls this metadata resource and reloads 
 the IdP configuration when changes are detected.
 File based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
@@ -864,24 +865,20 @@ The URL of the Single Logout service within {kib}. Typically this is the
 `https://kibana.example.com/logout`.
 
 `attributes.principal`::
-The Name of the SAML attribute that should be used as the {security} user's
-principal (username).
+The Name of the SAML attribute that contains the user's principal (username).
 
 `attributes.groups`::
-The Name of the SAML attribute that should be used to populate {security}
-user's groups. 
+The Name of the SAML attribute that contains the user's groups. 
 
 `attributes.name`::
-The Name of the SAML attribute that should be used to populate {security}
-user's full name. 
+The Name of the SAML attribute that contains the user's full name. 
 
 `attributes.mail`::
-The Name of the SAML attribute that should be used to populate {security}
-user's email address. 
+The Name of the SAML attribute that contains the user's email address. 
 
 `attributes.dn`::
-The Name of the SAML attribute that should be used to populate {security}
-user's X.500 _Distinguished Name_. 
+The Name of the SAML attribute that contains the user's X.50
+_Distinguished Name_. 
 
 `attribute_patterns.principal`::
 A Java regular expression that is matched against the SAML attribute specified
@@ -950,7 +947,7 @@ For more information, see
 ===== SAML realm signing settings
 
 If a signing key is configured (that is, either `signing.key` or 
-`signing.keystore.path` is set), then {security} signs outgoing SAML messages. 
+`signing.keystore.path` is set), then {es} signs outgoing SAML messages. 
 Signing can be configured using the following settings:
 
 `signing.saml_messages`::
@@ -1001,7 +998,7 @@ Defaults to the keystore password.
 ===== SAML realm encryption settings
 
 If an encryption key is configured (that is, either `encryption.key` or 
-`encryption.keystore.path` is set), then {security} publishes an encryption 
+`encryption.keystore.path` is set), then {es} publishes an encryption 
 certificate when generating metadata and attempts to decrypt incoming SAML 
 content. Encryption can be configured using the following settings:
 
@@ -1210,8 +1207,8 @@ through the list of URLs will continue until a successful connection is made.
 ==== Default TLS/SSL settings
 You can configure the following TLS/SSL settings in
 `elasticsearch.yml`. For more information, see
-{stack-ov}/encrypting-communications.html[Encrypting communications]. These settings will be used
-for all of {xpack} unless they have been overridden by more specific
+{stack-ov}/encrypting-communications.html[Encrypting communications]. These
+settings are used unless they have been overridden by more specific
 settings such as those for HTTP or Transport.
 
 `xpack.ssl.supported_protocols`::
@@ -1262,8 +1259,8 @@ Jurisdiction Policy Files_ has been installed, the default value also includes `
 
 The following settings are used to specify a private key, certificate, and the
 trusted certificates that should be used when communicating over an SSL/TLS connection.
-If none of the settings below are specified, this will default to the <<ssl-tls-settings, {xpack}
-defaults>>. If no trusted certificates are configured, the default certificates that are trusted by the JVM will be
+If none of the settings below are specified, the 
+<<ssl-tls-settings,default settings>> are used. If no trusted certificates are configured, the default certificates that are trusted by the JVM will be
 trusted along with the certificate(s) from the <<tls-ssl-key-settings, key settings>>. The key and certificate must be in place
 for connections that require client authentication or when acting as a SSL enabled server.
 

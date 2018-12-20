@@ -59,7 +59,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(), 4)
-            .put(PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             .build();
     }
 
@@ -292,6 +291,17 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         client().admin().indices().prepareSyncedFlush().get();
 
         disrupt.run();
+
+        PersistentTasksClusterService persistentTasksClusterService =
+            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
+        // Speed up rechecks to a rate that is quicker than what settings would allow.
+        // The tests would work eventually without doing this, but the assertBusy() below
+        // would need to wait 30 seconds, which would make the suite run very slowly.
+        // The 1 second refresh puts a greater burden on the master node to recheck
+        // persistent tasks, but it will cope in these tests as it's not doing anything
+        // else.
+        persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueSeconds(1));
+
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);

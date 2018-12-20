@@ -188,23 +188,6 @@ public class ScriptTransformTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
     }
 
-    public void testParamsCtxDeprecated() throws Exception {
-        WatchExecutionContext watcherContext = mock(WatchExecutionContext.class);
-        when(watcherContext.id()).thenReturn(mock(Wid.class));
-        when(watcherContext.watch()).thenReturn(mock(Watch.class));
-        when(watcherContext.triggerEvent()).thenReturn(mock(TriggerEvent.class));
-        DateTime now = DateTime.now(DateTimeZone.UTC);
-        when(watcherContext.executionTime()).thenReturn(now);
-        Payload payload = mock(Payload.class);
-        WatcherTransformScript watcherScript = new WatcherTransformScript(Collections.emptyMap(), watcherContext, payload) {
-            @Override
-            public Object execute() {
-                return getParams().get("ctx");
-            }
-        };
-        assertNull(watcherScript.execute());
-    }
-
     static String scriptTypeField(ScriptType type) {
         switch (type) {
             case INLINE: return "source";

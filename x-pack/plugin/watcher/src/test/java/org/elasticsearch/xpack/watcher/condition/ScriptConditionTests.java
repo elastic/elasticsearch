@@ -206,23 +206,6 @@ public class ScriptConditionTests extends ESTestCase {
         assertThat(condition.execute(ctx).met(), is(true));
     }
 
-    public void testParamsCtxNull() throws Exception {
-        WatchExecutionContext watcherContext = mock(WatchExecutionContext.class);
-        when(watcherContext.id()).thenReturn(mock(Wid.class));
-        when(watcherContext.watch()).thenReturn(mock(Watch.class));
-        when(watcherContext.triggerEvent()).thenReturn(mock(TriggerEvent.class));
-        DateTime now = DateTime.now(DateTimeZone.UTC);
-        when(watcherContext.executionTime()).thenReturn(now);
-        WatcherConditionScript watcherScript = new WatcherConditionScript(Collections.emptyMap(), watcherContext) {
-            @Override
-            public boolean execute() {
-                assertNull(getParams().get("ctx"));
-                return true;
-            }
-        };
-        assertTrue(watcherScript.execute());
-    }
-
     private static XContentBuilder createConditionContent(String script, String scriptLang, ScriptType scriptType) throws IOException {
         XContentBuilder builder = jsonBuilder();
         if (scriptType == null) {

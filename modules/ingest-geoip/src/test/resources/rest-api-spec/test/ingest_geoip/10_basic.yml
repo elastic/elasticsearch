@@ -1,4 +1,4 @@
-"Ingest Geoip installed":
+"ingest-geoip installed":
     - skip:
         reason: "contains is a newly added assertion"
         features: contains

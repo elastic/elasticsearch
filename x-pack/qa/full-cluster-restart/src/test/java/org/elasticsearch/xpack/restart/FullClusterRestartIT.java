@@ -23,14 +23,12 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -58,11 +56,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
-
-    @Before
-    public void waitForMlTemplates() throws Exception {
-        XPackRestTestHelper.waitForMlTemplates(client());
-    }
 
     @Override
     protected Settings restClientSettings() {

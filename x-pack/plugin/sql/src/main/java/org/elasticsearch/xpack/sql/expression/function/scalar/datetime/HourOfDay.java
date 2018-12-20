@@ -10,24 +10,24 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * Extract the hour of the day from a datetime.
  */
 public class HourOfDay extends DateTimeFunction {
-    public HourOfDay(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone, DateTimeExtractor.HOUR_OF_DAY);
+    public HourOfDay(Location location, Expression field, ZoneId zoneId) {
+        super(location, field, zoneId, DateTimeExtractor.HOUR_OF_DAY);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return HourOfDay::new;
     }
 
     @Override
     protected HourOfDay replaceChild(Expression newChild) {
-        return new HourOfDay(location(), newChild, timeZone());
+        return new HourOfDay(location(), newChild, zoneId());
     }
 
     @Override

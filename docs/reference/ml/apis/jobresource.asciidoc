@@ -42,11 +42,6 @@ so do not set the `background_persist_interval` value too low.
 `description`::
   (string) An optional description of the job.
 
-`established_model_memory`::
-  (long) The approximate amount of memory resources that have been used for
-  analytical processing. This field is present only when the analytics have used
-  a stable amount of memory for several consecutive buckets.
-
 `finished_time`::
   (string) If the job closed or failed, this is the time the job finished,
   otherwise it is `null`. This property is informational; you cannot change its

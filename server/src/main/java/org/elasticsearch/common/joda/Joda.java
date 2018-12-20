@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.math.BigDecimal;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 public class Joda {
 
@@ -231,6 +232,27 @@ public class Joda {
             formatter = StrictISODateTimeFormat.yearMonth();
         } else if ("strictYearMonthDay".equals(input) || "strict_year_month_day".equals(input)) {
             formatter = StrictISODateTimeFormat.yearMonthDay();
+        } else if (Strings.hasLength(input) && input.contains("||")) {
+            String[] formats = Strings.delimitedListToStringArray(input, "||");
+            DateTimeParser[] parsers = new DateTimeParser[formats.length];
+
+            if (formats.length == 1) {
+                formatter = forPattern(input).parser;
+            } else {
+                DateTimeFormatter dateTimeFormatter = null;
+                for (int i = 0; i < formats.length; i++) {
+                    JodaDateFormatter currentFormatter = forPattern(formats[i]);
+                    DateTimeFormatter currentParser = currentFormatter.parser;
+                    if (dateTimeFormatter == null) {
+                        dateTimeFormatter = currentFormatter.printer;
+                    }
+                    parsers[i] = currentParser.getParser();
+                }
+
+                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder()
+                    .append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);
+                formatter = builder.toFormatter();
+            }
         } else {
             try {
                 maybeLogJodaDeprecation(input);
@@ -321,6 +343,8 @@ public class Joda {
 
     public static class EpochTimeParser implements DateTimeParser {
 
+        private static final Pattern scientificNotation = Pattern.compile("[Ee]");
+
         private final boolean hasMilliSecondPrecision;
 
         public EpochTimeParser(boolean hasMilliSecondPrecision) {
@@ -348,6 +372,11 @@ public class Joda {
             int factor = hasMilliSecondPrecision ? 1 : 1000;
             try {
                 long millis = new BigDecimal(text).longValue() * factor;
+                // check for deprecation, but after it has parsed correctly so the "e" isn't from something else
+                if (scientificNotation.matcher(text).find()) {
+                    deprecationLogger.deprecatedAndMaybeLog("epoch-scientific-notation", "Use of scientific notation" +
+                        "in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+                }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);
                 bucket.saveField(DateTimeFieldType.year(), dt.getYear());
                 bucket.saveField(DateTimeFieldType.monthOfYear(), dt.getMonthOfYear());

@@ -27,6 +27,7 @@ A `percentiles_bucket` aggregation looks like this in isolation:
  details)|Optional | `skip`
 |`format` |format to apply to the output value of this aggregation |Optional | `null`
 |`percents` |The list of percentiles to calculate |Optional | `[ 1, 5, 25, 50, 75, 95, 99 ]`
+|`keyed` |Flag which returns the range as an hash instead of an array of key-value pairs |Optional | `true`
 |===
 
 The following snippet calculates the percentiles for the total monthly `sales` buckets:

@@ -753,6 +753,15 @@ public class SimpleJodaTests extends ESTestCase {
             " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
     }
 
+    public void testDeprecatedScientificNotation() {
+        assertValidDateFormatParsing("epoch_second", "1.234e5", "123400");
+        assertWarnings("Use of scientific notation" +
+            "in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+        assertValidDateFormatParsing("epoch_millis", "1.234e5", "123400");
+        assertWarnings("Use of scientific notation" +
+            "in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+    }
+
     private void assertValidDateFormatParsing(String pattern, String dateToParse) {
         assertValidDateFormatParsing(pattern, dateToParse, dateToParse);
     }

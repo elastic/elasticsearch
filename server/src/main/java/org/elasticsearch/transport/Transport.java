@@ -26,8 +26,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -43,8 +41,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 public interface Transport extends LifecycleComponent {
-
-    Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, Property.NodeScope);
 
     /**
      * Registers a new request handler

@@ -13,10 +13,6 @@ The core ingest plugins are:
 The ingest attachment plugin lets Elasticsearch extract file attachments in common formats (such as PPT, XLS, and PDF) by
 using the Apache text extraction library http://lucene.apache.org/tika/[Tika].
 
-<<ingest-user-agent>>::
-
-A processor that extracts details from the User-Agent header value.
-
 [float]
 === Community contributed ingest plugins
 
@@ -25,5 +21,3 @@ The following plugin has been contributed by our community:
 * https://github.com/johtani/elasticsearch-ingest-csv[Ingest CSV Processor Plugin] (by Jun Ohtani)
 
 include::ingest-attachment.asciidoc[]
-
-include::ingest-user-agent.asciidoc[]

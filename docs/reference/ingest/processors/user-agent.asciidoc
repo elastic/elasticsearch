@@ -1,13 +1,10 @@
 [[ingest-user-agent]]
-=== Ingest user agent processor plugin
+=== Ingest user agent processor
 
 The `user_agent` processor extracts details from the user agent string a browser sends with its web requests.
 This processor adds this information by default under the `user_agent` field.
 
-The ingest-user-agent plugin ships by default with the regexes.yaml made available by uap-java with an Apache 2.0 license. For more details see https://github.com/ua-parser/uap-core.
-
-:plugin_name: ingest-user-agent
-include::install_remove.asciidoc[]
+The ingest-user-agent module ships by default with the regexes.yaml made available by uap-java with an Apache 2.0 license. For more details see https://github.com/ua-parser/uap-core.
 
 [[using-ingest-user-agent]]
 ==== Using the user_agent Processor in a Pipeline

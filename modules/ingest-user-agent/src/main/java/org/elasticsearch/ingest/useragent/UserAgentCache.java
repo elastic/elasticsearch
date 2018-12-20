@@ -27,28 +27,28 @@ import java.util.Objects;
 
 class UserAgentCache {
     private final Cache<CompositeCacheKey, Details> cache;
-    
+
     UserAgentCache(long cacheSize) {
         cache = CacheBuilder.<CompositeCacheKey, Details>builder().setMaximumWeight(cacheSize).build();
     }
-    
+
     public Details get(String parserName, String userAgent) {
         return cache.get(new CompositeCacheKey(parserName, userAgent));
     }
-    
+
     public void put(String parserName, String userAgent, Details details) {
         cache.put(new CompositeCacheKey(parserName, userAgent), details);
     }
-    
+
     private static final class CompositeCacheKey {
         private final String parserName;
         private final String userAgent;
-        
+
         CompositeCacheKey(String parserName, String userAgent) {
             this.parserName = parserName;
             this.userAgent = userAgent;
         }
-        
+
         @Override
         public boolean equals(Object obj) {
             if(obj != null && obj instanceof CompositeCacheKey) {

@@ -24,7 +24,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -862,7 +861,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
-        ClusterState remoteState = createRemoteClusterState("logs-20190101");
+        ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
             null, null, null, null, null, null, null, null, null, null, null);
@@ -890,7 +889,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = results -> {
             resultHolder[0] = results;
         };
-        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState)) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L) {
             @Override
             void getRemoteClusterState(String remoteCluster,
                                        long metadataVersion,

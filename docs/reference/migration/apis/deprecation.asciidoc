@@ -4,9 +4,9 @@
 === Deprecation Info APIs
 
 IMPORTANT: Before performing a major version upgrade, make sure you have checked
-this API using the most recent minor version of the previous major version. In
-earlier minor versions, this API may be missing information required for the
-major version upgrade.
+this API using the most recent minor version of the major version you are
+upgrading from. In earlier minor versions, this API may be missing information
+required for the major version upgrade.
 
 The deprecation API is to be used to retrieve information about different
 cluster, node, and index level settings that use deprecated features that will

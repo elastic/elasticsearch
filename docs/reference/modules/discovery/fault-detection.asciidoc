@@ -8,7 +8,7 @@ are known respectively as _follower checks_ and _leader checks_.
 Elasticsearch allows these checks to occasionally fail or timeout without
 taking any action. It considers a node to be faulty only after a number of
 consecutive checks have failed. You can control fault detection behavior with
-<<fault-detection-settings,`cluster.fault_detection.*` settings>>.
+<<modules-discovery-settings,`cluster.fault_detection.*` settings>>.
 
 If the elected master detects that a node has disconnected, however, this
 situation is treated as an immediate failure. The master bypasses the timeout

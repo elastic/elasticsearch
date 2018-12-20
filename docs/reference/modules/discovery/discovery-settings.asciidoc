@@ -6,32 +6,31 @@
 
 Discovery and cluster formation are affected by the following settings:
 
-[[master-election-settings]]
+[[master-election-settings]]`cluster.election.back_off_time`::
+
+    Sets the amount to increase the upper bound on the wait before an election
+    on each election failure. Note that this is _linear_ backoff. This defaults
+    to `100ms`
+
+`cluster.election.duration`::
+
+    Sets how long each election is allowed to take before a node considers it to
+    have failed and schedules a retry. This defaults to `500ms`.
+    
 `cluster.election.initial_timeout`::
 
     Sets the upper bound on how long a node will wait initially, or after the
     elected master fails, before attempting its first election. This defaults
     to `100ms`.
 
-`cluster.election.back_off_time`::
-
-    Sets the amount to increase the upper bound on the wait before an election
-    on each election failure. Note that this is _linear_ backoff. This defaults
-    to `100ms`
-
+    
 `cluster.election.max_timeout`::
 
     Sets the maximum upper bound on how long a node will wait before attempting
     an first election, so that an network partition that lasts for a long time
     does not result in excessively sparse elections. This defaults to `10s`
-
-`cluster.election.duration`::
-
-    Sets how long each election is allowed to take before a node considers it to
-    have failed and schedules a retry. This defaults to `500ms`.
-
-[[fault-detection-settings]]
-`cluster.fault_detection.follower_check.interval`::
+        
+[[fault-detection-settings]]`cluster.fault_detection.follower_check.interval`::
 
     Sets how long the elected master waits between follower checks to each
     other node in the cluster. Defaults to `1s`.
@@ -102,8 +101,7 @@ Discovery and cluster formation are affected by the following settings:
     Sets how long a node will wait after asking its peers again before
     considering the request to have failed. Defaults to `3s`.    
 
-[[no-master-block]]
-`discovery.zen.no_master_block`::
+[[no-master-block]]`discovery.zen.no_master_block`::
 Specifies which operations are rejected when there is no active master in a
 cluster. This setting has two valid values:
 +

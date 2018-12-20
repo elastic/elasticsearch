@@ -45,11 +45,10 @@ module. This module is divided into the following sections:
     This section describes the detailed design behind the master election and
     auto-reconfiguration logic.
     
-<<modules-discovery-settings,Advanced settings>>::
+<<modules-discovery-settings,Settings>>::
 
-    There are settings that allow advanced users to influence the
-    <<master-election-settings,master election>> and
-    <<fault-detection-settings,fault detection>> processes.    
+    There are settings that enable users to influence the discover, cluster
+    formation, master election and fault detection processes.    
 
 include::discovery/discovery.asciidoc[]
 

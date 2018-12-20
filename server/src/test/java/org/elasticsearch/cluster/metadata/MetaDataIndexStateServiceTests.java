@@ -56,11 +56,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID;
 import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.createIndexClosedBlock;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
@@ -204,26 +202,6 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
         }
     }
 
-    public void testLastIndexClosedBlockIsApplied() {
-        ClusterState state = ClusterState.builder(new ClusterName("testAddIndexClosedBlocks")).build();
-        state = addOpenedIndex("index", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
-
-        ClusterState previousState = null;
-        ClusterBlock closingBlock = null;
-        for (int i = 0; i < randomIntBetween(2, 10); i++) {
-            previousState = state;
-            closingBlock = MetaDataIndexStateService.createIndexClosedBlock();
-
-            Set<Index> blockedIndices = new HashSet<>();
-            Index[] indices = new Index[]{previousState.metaData().index("index").getIndex()};
-            state = MetaDataIndexStateService.addIndexClosedBlocks(indices, closingBlock, previousState, blockedIndices);
-
-            assertNotSame(previousState, state);
-            assertTrue(blockedIndices.contains(state.metaData().index("index").getIndex()));
-        }
-        assertBlocked("index", state, closingBlock);
-    }
-
     public void testValidateShardLimit() {
         int nodesInCluster = randomIntBetween(2,100);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
@@ -362,19 +340,11 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
         assertBlocked(indexName, clusterState, closingBlock);
     }
 
-    private static void assertBlocked(final String indexName, final ClusterState clusterState, final ClusterBlock... closingBlocks) {
-        assertThat(clusterState.blocks().hasIndexBlockWithId(indexName, INDEX_CLOSED_BLOCK_ID), is(true));
-        if (closingBlocks != null) {
-            for (ClusterBlock closingBlock : closingBlocks) {
-                assertThat(clusterState.blocks().hasIndexBlock(indexName, closingBlock), is(true));
-            }
-            assertThat("Index " + indexName + " must have only 1 block with [id=" + INDEX_CLOSED_BLOCK_ID + "]",
-                clusterState.blocks().indices().getOrDefault(indexName, emptySet()).stream()
-                    .filter(clusterBlock -> clusterBlock.id() == INDEX_CLOSED_BLOCK_ID).count(), equalTo((long) closingBlocks.length));
-        }
+    private static void assertBlocked(final String indexName, final ClusterState clusterState, final ClusterBlock closingBlock) {
+        assertThat(clusterState.blocks().hasIndexBlock(indexName, closingBlock), is(true));
     }
 
     private static void assertNotBlocked(final String indexName, final ClusterState clusterState) {
-        assertThat(clusterState.blocks().hasIndexBlockWithId(indexName, INDEX_CLOSED_BLOCK_ID), is(false));
+        assertThat(clusterState.blocks().hasIndexBlockWithId(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(false));
     }
 }

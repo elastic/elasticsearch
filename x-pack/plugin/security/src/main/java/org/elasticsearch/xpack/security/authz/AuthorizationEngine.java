@@ -29,8 +29,7 @@ public interface AuthorizationEngine {
     void authorizeClusterAction(Authentication authentication, TransportRequest request, String action, AuthorizationInfo authorizationInfo,
                                 ActionListener<AuthorizationResult> listener);
 
-    void checkSameUserPermissions(Authentication authentication, TransportRequest request, String action,
-                                  AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener);
+    boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication);
 
     boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request);
 

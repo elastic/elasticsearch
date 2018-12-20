@@ -179,6 +179,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             .build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         auditTrail = mock(AuditTrailService.class);
         threadContext = new ThreadContext(settings);
         threadPool = mock(ThreadPool.class);

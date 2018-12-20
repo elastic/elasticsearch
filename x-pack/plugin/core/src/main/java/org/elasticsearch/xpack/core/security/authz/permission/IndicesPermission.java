@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -151,7 +150,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
      * Authorizes the provided action against the provided indices, given the current cluster metadata
      */
     public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases,
-                                                                          SortedMap<String, AliasOrIndex> allAliasesAndIndices,
+                                                                          Function<String, AliasOrIndex> allAliasesAndIndices,
                                                                           FieldPermissionsCache fieldPermissionsCache) {
         // now... every index that is associated with the request, must be granted
         // by at least one indices permission group
@@ -162,7 +161,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         for (String indexOrAlias : requestedIndicesOrAliases) {
             boolean granted = false;
             Set<String> concreteIndices = new HashSet<>();
-            AliasOrIndex aliasOrIndex = allAliasesAndIndices.get(indexOrAlias);
+            AliasOrIndex aliasOrIndex = allAliasesAndIndices.apply(indexOrAlias);
             if (aliasOrIndex != null) {
                 for (IndexMetaData indexMetaData : aliasOrIndex.getIndices()) {
                     concreteIndices.add(indexMetaData.getIndex().getName());

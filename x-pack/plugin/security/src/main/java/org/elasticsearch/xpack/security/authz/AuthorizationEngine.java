@@ -11,12 +11,12 @@ import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
+import java.util.function.Function;
 
 public interface AuthorizationEngine {
 
@@ -32,14 +32,15 @@ public interface AuthorizationEngine {
     boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request);
 
     void authorizeIndexActionName(Authentication authentication, TransportRequest request, String action,
-                                  AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener);
+                                  AuthorizationInfo authorizationInfo, ActionListener<IndexAuthorizationResult> listener);
+
+    void authorizeIndexAction(Authentication authentication, TransportRequest request, String action,
+                              AuthorizationInfo authorizationInfo, AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+                              Function<String, AliasOrIndex> aliasOrIndexFunction,
+                              ActionListener<IndexAuthorizationResult> listener);
 
     List<String> loadAuthorizedIndices(Authentication authentication, String action, AuthorizationInfo info,
                                        Map<String, AliasOrIndex> aliasAndIndexLookup);
-
-    void buildIndicesAccessControl(Authentication authentication, TransportRequest request, String action,
-                                   AuthorizationInfo authorizationInfo, Set<String> indices,
-                                   SortedMap<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<IndexAuthorizationResult> listener);
 
     interface AuthorizationInfo {
 
@@ -105,5 +106,11 @@ public interface AuthorizationEngine {
         public IndicesAccessControl getIndicesAccessControl() {
             return indicesAccessControl;
         }
+    }
+
+    @FunctionalInterface
+    interface AsyncSupplier<V> {
+
+        void get(ActionListener<V> listener);
     }
 }

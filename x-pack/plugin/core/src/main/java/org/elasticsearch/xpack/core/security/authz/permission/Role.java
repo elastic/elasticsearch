@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.function.Function;
 
 public final class Role {
 
@@ -79,7 +80,7 @@ public final class Role {
      * is configured for any group also the allowed fields and role queries are resolved.
      */
     public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
-                                          SortedMap<String, AliasOrIndex> aliasAndIndexLookup,
+                                          Function<String, AliasOrIndex> aliasAndIndexLookup,
                                           FieldPermissionsCache fieldPermissionsCache) {
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
             action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache

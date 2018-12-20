@@ -256,9 +256,9 @@ public class BucketSortIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch(INDEX)
             .setSize(0)
             .addAggregation(terms("foos").field(TERM_FIELD)
-                .subAggregation(bucketSort("bucketSort", Arrays.asList(new FieldSortBuilder("_key"))))
+                .subAggregation(bucketSort("keyBucketSort", Arrays.asList(new FieldSortBuilder("_key"))))
                 .subAggregation(max("max").field("missingValue").missing(1))
-                .subAggregation(bucketSort("bucketSort", Arrays.asList(new FieldSortBuilder("max")))))
+                .subAggregation(bucketSort("maxBucketSort", Arrays.asList(new FieldSortBuilder("max")))))
             .get();
 
         assertSearchResponse(response);
@@ -267,7 +267,7 @@ public class BucketSortIT extends ESIntegTestCase {
         assertThat(terms, notNullValue());
         List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
 
-        // Since all max values are equal, we expect the order fo the first bucketSort to have been preserved
+        // Since all max values are equal, we expect the order of keyBucketSort to have been preserved
         String previousKey = (String) termsBuckets.get(0).getKey();
         for (Terms.Bucket termBucket : termsBuckets) {
             assertThat(previousKey, lessThanOrEqualTo((String) termBucket.getKey()));

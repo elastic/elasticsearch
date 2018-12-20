@@ -97,11 +97,11 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             ComparableBucket comparableBucket = new ComparableBucket(originalAgg, bucket);
             if (comparableBucket.skip() == false) {
-                ordered.add(new ComparableBucket(originalAgg, bucket));
+                ordered.add(comparableBucket);
             }
         }
 
-        Collections.sort(ordered, Collections.reverseOrder());
+        Collections.sort(ordered);
 
         // We just have to get as many elements as we expect in results and store them in the same order starting from
         // the specified offset and taking currentSize into consideration.
@@ -158,11 +158,11 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
                 if (thisValue == null && thatValue == null) {
                     continue;
                 } else if (thisValue == null) {
-                    return -1;
-                } else if (thatValue == null) {
                     return 1;
+                } else if (thatValue == null) {
+                    return -1;
                 } else {
-                    compareResult = sort.order() == SortOrder.DESC ? thisValue.compareTo(thatValue) : -thisValue.compareTo(thatValue);
+                    compareResult = sort.order() == SortOrder.DESC ? -thisValue.compareTo(thatValue) : thisValue.compareTo(thatValue);
                 }
                 if (compareResult != 0) {
                     break;

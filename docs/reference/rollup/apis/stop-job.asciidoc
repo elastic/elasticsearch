@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-stop-job]]
-=== Stop Job API
+=== Stop rollup job API
 ++++
-<titleabbrev>Stop Job</titleabbrev>
+<titleabbrev>Stop job</titleabbrev>
 ++++
 
 experimental[]

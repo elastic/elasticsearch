@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-put-user]]
 === Create or update users API
+++++
+<titleabbrev>Create or update users</titleabbrev>
+++++
 
 Adds and updates users in the native realm. These users are commonly referred 
 to as _native users_.

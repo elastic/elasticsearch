@@ -1,15 +1,7 @@
-[[master-election]]
+[[master-election-settings]]
 === Master election settings
 
-Elasticsearch uses an election process to agree on an elected master node, both
-at startup and if the existing elected master fails. Any master-eligible node
-can start an election, and normally the first election that takes place will
-succeed. Elections only usually fail when two nodes both happen to start their
-elections at about the same time, so elections are scheduled randomly on each
-node to avoid this happening. Nodes will retry elections until a master is
-elected, backing off on failure, so that eventually an election will succeed
-(with arbitrarily high probability). The following settings control the
-scheduling of elections.
+The following settings control the scheduling of elections.
 
 `cluster.election.initial_timeout`::
 

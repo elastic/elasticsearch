@@ -50,12 +50,15 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.GatewayMetaStateUT;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -79,7 +82,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setValue;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
@@ -122,6 +124,16 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CoordinatorTests extends ESTestCase {
+
+    private final List<NodeEnvironment> nodeEnvironments = new ArrayList<>();
+
+    @After
+    public void closeNodeEnvironmentsAfterEachTest() {
+        for (NodeEnvironment nodeEnvironment : nodeEnvironments) {
+            nodeEnvironment.close();
+        }
+        nodeEnvironments.clear();
+    }
 
     @Before
     public void resetPortCounterBeforeEachTest() {
@@ -1358,35 +1370,42 @@ public class CoordinatorTests extends ESTestCase {
             return getAnyNode();
         }
 
-        class MockPersistedState extends InMemoryPersistedState {
-            MockPersistedState(long term, ClusterState acceptedState) {
-                super(term, acceptedState);
+        class MockPersistedState implements PersistedState {
+            private PersistedState delegate;
+
+            MockPersistedState(PersistedState delegate) {
+                this.delegate = delegate;
             }
 
             private void possiblyFail(String description) {
                 if (disruptStorage && rarely()) {
-                    // TODO revisit this when we've decided how PersistedState should throw exceptions
                     logger.trace("simulating IO exception [{}]", description);
-                    if (randomBoolean()) {
-                        throw new UncheckedIOException(new IOException("simulated IO exception [" + description + ']'));
-                    } else {
-                        throw new CoordinationStateRejectedException("simulated IO exception [" + description + ']');
-                    }
+                    // In the real-life IOError might be thrown, for example if state fsync fails.
+                    // This will require node restart and we're not emulating it here.
+                    throw new UncheckedIOException(new IOException("simulated IO exception [" + description + ']'));
                 }
+            }
+
+            @Override
+            public long getCurrentTerm() {
+                return delegate.getCurrentTerm();
+            }
+
+            @Override
+            public ClusterState getLastAcceptedState() {
+                return delegate.getLastAcceptedState();
             }
 
             @Override
             public void setCurrentTerm(long currentTerm) {
                 possiblyFail("before writing term of " + currentTerm);
-                super.setCurrentTerm(currentTerm);
-                // TODO possiblyFail() here if that's a failure mode of the storage layer
+                delegate.setCurrentTerm(currentTerm);
             }
 
             @Override
             public void setLastAcceptedState(ClusterState clusterState) {
                 possiblyFail("before writing last-accepted state of term=" + clusterState.term() + ", version=" + clusterState.version());
-                super.setLastAcceptedState(clusterState);
-                // TODO possiblyFail() here if that's a failure mode of the storage layer
+                delegate.setLastAcceptedState(clusterState);
             }
         }
 
@@ -1396,7 +1415,7 @@ public class CoordinatorTests extends ESTestCase {
             private final int nodeIndex;
             private Coordinator coordinator;
             private DiscoveryNode localNode;
-            private final PersistedState persistedState;
+            private PersistedState persistedState;
             private FakeClusterApplier clusterApplier;
             private AckedFakeThreadPoolMasterService masterService;
             private TransportService transportService;
@@ -1406,8 +1425,6 @@ public class CoordinatorTests extends ESTestCase {
             ClusterNode(int nodeIndex, boolean masterEligible) {
                 this.nodeIndex = nodeIndex;
                 localNode = createDiscoveryNode(masterEligible);
-                persistedState = new MockPersistedState(0L,
-                    clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L));
                 onNode(localNode, this::setUp).run();
             }
 
@@ -1479,6 +1496,15 @@ public class CoordinatorTests extends ESTestCase {
                     ESAllocationTestCase.createAllocationService(Settings.EMPTY), masterService, this::getPersistedState,
                     Cluster.this::provideUnicastHosts, clusterApplier, Randomness.get());
                 masterService.setClusterStatePublisher(coordinator);
+
+                try {
+                    NodeEnvironment nodeEnvironment = newNodeEnvironment();
+                    nodeEnvironments.add(nodeEnvironment);
+                    persistedState = new MockPersistedState(new GatewayMetaStateUT(settings, nodeEnvironment, xContentRegistry(),
+                            localNode).getPersistedState(settings, null));
+                } catch (IOException e) {
+                    fail("Unable to create node environment");
+                }
 
                 transportService.start();
                 transportService.acceptIncomingRequests();

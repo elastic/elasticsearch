@@ -1,5 +1,8 @@
 [[discovery-settings]]
-=== Discovery and cluster formation settings
+=== Important discovery and cluster formation settings
+++++
+<titleabbrev>Discovery and cluster formation settings</titleabbrev>
+++++
 
 There are two important discovery and cluster formation settings that should be
 configured before going to production so that nodes in the cluster can discover

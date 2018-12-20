@@ -1,8 +1,5 @@
 [[modules-discovery-settings]]
 === Discovery and cluster formation settings
-++++
-<titleabbrev>Settings</titleabbrev>
-++++
 
 Discovery and cluster formation are affected by the following settings:
 

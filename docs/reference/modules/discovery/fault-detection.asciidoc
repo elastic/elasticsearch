@@ -1,4 +1,4 @@
-[[fault-detection]]
+[[fault-detection-settings]]
 === Cluster fault detection settings
 
 An elected master periodically checks each of the nodes in the cluster in order

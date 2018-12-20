@@ -49,8 +49,8 @@ module. This module is divided into the following sections:
 Advanced settings::
 
     There are settings that allow advanced users to influence the
-    <<master-election,master election>> and <<fault-detection,fault detection>>
-    processes.
+    <<master-election-settings,master election>> and
+    <<fault-detection-settings,fault detection>> processes.
 
 <<modules-discovery-quorums>>::
 

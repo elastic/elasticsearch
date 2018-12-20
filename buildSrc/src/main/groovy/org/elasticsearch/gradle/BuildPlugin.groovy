@@ -293,18 +293,7 @@ class BuildPlugin implements Plugin<Project> {
                                 it.standardOutput = dockerVersionOutput
                             })
                     final String dockerVersion = dockerVersionOutput.toString().trim()
-                    final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-ce)?, build [0-9a-f]{7}/
-                    assert matcher.matches() : dockerVersion
-                    final dockerMajorMinorVersion = matcher.group(1)
-                    final String[] majorMinor = dockerMajorMinorVersion.split("\\.")
-                    if (Integer.parseInt(majorMinor[0]) < 17
-                            || (Integer.parseInt(majorMinor[0]) == 17 && Integer.parseInt(majorMinor[1]) < 5)) {
-                        final String message = String.format(
-                                Locale.ROOT,
-                                "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
-                                dockerVersion)
-                        throwDockerRequiredException(message)
-                    }
+                    checkDockerVersionRecent(dockerVersion)
 
                     final ByteArrayOutputStream dockerImagesErrorOutput = new ByteArrayOutputStream()
                     // the Docker binary executes, check that we can execute a privileged command
@@ -336,6 +325,21 @@ class BuildPlugin implements Plugin<Project> {
             rootProject.requiresDocker.add(task)
         } else {
             task.enabled = false
+        }
+    }
+
+    protected static void checkDockerVersionRecent(String dockerVersion) {
+        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-ce)?, build [0-9a-f]{7,40}/
+        assert matcher.matches(): dockerVersion
+        final dockerMajorMinorVersion = matcher.group(1)
+        final String[] majorMinor = dockerMajorMinorVersion.split("\\.")
+        if (Integer.parseInt(majorMinor[0]) < 17
+                || (Integer.parseInt(majorMinor[0]) == 17 && Integer.parseInt(majorMinor[1]) < 5)) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
+                    dockerVersion)
+            throwDockerRequiredException(message)
         }
     }
 

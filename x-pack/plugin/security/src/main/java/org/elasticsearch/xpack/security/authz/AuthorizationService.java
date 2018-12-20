@@ -174,7 +174,7 @@ public class AuthorizationService {
                         auditTrail.runAsGranted(requestId, authentication, action, unwrappedRequest,
                             authzInfo.getAuthenticatedUserAuthorizationInfo());
                     }
-                    authorizePostRunAs(authentication, action, requestId, unwrappedRequest, authzInfo, listener);
+                    authorizeAction(authentication, action, requestId, unwrappedRequest, authzInfo, listener);
                 } else {
                     listener.onFailure(denyRunAs(requestId, authentication, action, unwrappedRequest,
                         authzInfo.getAuthenticatedUserAuthorizationInfo()));
@@ -185,13 +185,13 @@ public class AuthorizationService {
             }), threadContext);
             authorizeRunAs(authentication, unwrappedRequest, action, requestId, authzInfo, runAsListener);
         } else {
-            authorizePostRunAs(authentication, action, requestId, unwrappedRequest, authzInfo, listener);
+            authorizeAction(authentication, action, requestId, unwrappedRequest, authzInfo, listener);
         }
     }
 
-    private void authorizePostRunAs(final Authentication authentication, final String action, final String requestId,
-                                    final TransportRequest unwrappedRequest, final AuthorizationInfo authzInfo,
-                                    final ActionListener<Void> listener) {
+    private void authorizeAction(final Authentication authentication, final String action, final String requestId,
+                                 final TransportRequest unwrappedRequest, final AuthorizationInfo authzInfo,
+                                 final ActionListener<Void> listener) {
         final AuthorizationEngine authzEngine = getAuthorizationEngine(authentication);
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
             final ActionListener<AuthorizationResult> clusterAuthzListener = wrapPreservingContext(ActionListener.wrap(result -> {

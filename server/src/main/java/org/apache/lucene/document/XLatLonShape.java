@@ -52,7 +52,6 @@ import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
  * @see PointValues
  * @see LatLonDocValuesField
  *
- * @lucene.experimental
  */
 public class XLatLonShape {
   public static final int BYTES = LatLonPoint.BYTES;

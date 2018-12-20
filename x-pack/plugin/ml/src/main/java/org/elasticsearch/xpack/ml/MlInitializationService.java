@@ -19,6 +19,8 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 class MlInitializationService implements LocalNodeMasterListener, ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(MlInitializationService.class);
@@ -27,6 +29,7 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Client client;
+    private final AtomicBoolean isIndexCreationInProgress = new AtomicBoolean(false);
 
     private volatile MlDailyMaintenanceService mlDailyMaintenanceService;
 
@@ -55,14 +58,20 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
             return;
         }
 
-        if (event.localNodeMaster()) {
-            AnnotationIndex.createAnnotationsIndex(settings, client, event.state(), ActionListener.wrap(
+        // The atomic flag prevents multiple simultaneous attempts to create the
+        // index if there is a flurry of cluster state updates in quick succession
+        if (event.localNodeMaster() && isIndexCreationInProgress.compareAndSet(false, true)) {
+            AnnotationIndex.createAnnotationsIndexIfNecessary(settings, client, event.state(), ActionListener.wrap(
                 r -> {
+                    isIndexCreationInProgress.set(false);
                     if (r) {
                         logger.info("Created ML annotations index and aliases");
                     }
                 },
-                e -> logger.error("Error creating ML annotations index or aliases", e)));
+                e -> {
+                    isIndexCreationInProgress.set(false);
+                    logger.error("Error creating ML annotations index or aliases", e);
+                }));
         }
     }
 

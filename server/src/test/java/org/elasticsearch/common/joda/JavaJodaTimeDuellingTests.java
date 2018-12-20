@@ -471,7 +471,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     public void testSeveralTimeFormats() {
         DateFormatter jodaFormatter = DateFormatter.forPattern("year_month_day||ordinal_date");
-        DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||8ordinal_date");
+        DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||ordinal_date");
         assertSameDate("2018-12-12", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
         assertSameDate("2018-128", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
     }

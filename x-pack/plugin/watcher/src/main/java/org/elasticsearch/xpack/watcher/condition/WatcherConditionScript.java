@@ -5,13 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.script.ParameterMap;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**

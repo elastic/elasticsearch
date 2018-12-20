@@ -25,7 +25,7 @@ public abstract class WatcherConditionScript {
 
     public WatcherConditionScript(Map<String, Object> params, WatchExecutionContext watcherContext) {
         this.params = params;
-        this.ctx = Variables.createCtx(watcherContext, watcherContext.payload());;
+        this.ctx = Variables.createCtx(watcherContext, watcherContext.payload());
     }
 
     public abstract boolean execute();

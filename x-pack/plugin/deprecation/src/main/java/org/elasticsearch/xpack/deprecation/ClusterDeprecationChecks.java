@@ -21,7 +21,8 @@ public class ClusterDeprecationChecks {
         if (nodeCount > 0 && currentOpenShards >= maxShardsInCluster) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Number of open shards exceeds cluster soft limit",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#_cluster_wide_shard_soft_limit",
                 "There are [" + currentOpenShards + "] open shards in this cluster, but the cluster is limited to [" +
                     shardsPerNode + "] per data node, for [" + maxShardsInCluster + "] maximum.");
         }

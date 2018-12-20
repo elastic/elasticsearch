@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-get-rollup-caps]]
-=== Get Rollup Job Capabilities
+=== Get rollup job capabilities API
 ++++
-<titleabbrev>Get Rollup Caps</titleabbrev>
+<titleabbrev>Get rollup caps</titleabbrev>
 ++++
 
 experimental[]

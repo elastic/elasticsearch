@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-expired-data]]
-=== Delete Expired Data API
+=== Delete expired data API
 ++++
-<titleabbrev>Delete Expired Data</titleabbrev>
+<titleabbrev>Delete expired data</titleabbrev>
 ++++
 
 Deletes expired and unused machine learning data.
@@ -14,9 +14,9 @@ Deletes expired and unused machine learning data.
 
 ==== Description
 
-Deletes all job results, model snapshots and forecast data that have exceeded their
-`retention days` period.
-Machine Learning state documents that are not associated with any job are also deleted.
+Deletes all job results, model snapshots and forecast data that have exceeded
+their `retention days` period. Machine learning state documents that are not
+associated with any job are also deleted.
 
 ==== Authorization
 

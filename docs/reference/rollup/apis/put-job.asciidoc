@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-put-job]]
-=== Create Job API
+=== Create job API
 ++++
-<titleabbrev>Create Job</titleabbrev>
+<titleabbrev>Create job</titleabbrev>
 ++++
 
 experimental[]

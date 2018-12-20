@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-get-status]]
-=== Get {ILM} Status API
+=== Get {ILM} status API
 ++++
-<titleabbrev>Get {ILM} Status</titleabbrev>
+<titleabbrev>Get {ILM} status</titleabbrev>
 ++++
 
 beta[]

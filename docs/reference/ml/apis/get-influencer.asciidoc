@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-influencer]]
-=== Get Influencers API
+=== Get influencers API
 ++++
-<titleabbrev>Get Influencers</titleabbrev>
+<titleabbrev>Get influencers</titleabbrev>
 ++++
 
 Retrieves job results for one or more influencers.

@@ -113,8 +113,8 @@ connections only, this can be configured on a per-cluster basis using the
 `cluster.remote.${cluster_alias}.transport.compress` setting.
 
 When compression is enabled using either `transport.compress` or for a specific
-remote cluster, only the outbound requests are compressed. Elasticsearch only
-compresses responses if and only-if the inbound request received was compressed.
+remote cluster, only the outbound requests are compressed. Elasticsearch compresses
+responses if and only-if the inbound request received was compressed.
 
 [float]
 === Transport Tracer

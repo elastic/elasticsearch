@@ -259,9 +259,8 @@ via Slack. You can specify the following Slack account attributes:
 
 [[slack-account-attributes]]
 
-  `url`;;
-  The Incoming Webhook URL to use to post
-                                    messages to Slack. Required.
+  `secure_url` (<<secure-settings,Secure>>);;
+  The Incoming Webhook URL to use to post messages to Slack. Required.
 
   `message_defaults.from`;;
   The sender name to display in the

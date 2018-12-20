@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-open-job]]
-=== Open Jobs API
+=== Open jobs API
 ++++
-<titleabbrev>Open Jobs</titleabbrev>
+<titleabbrev>Open jobs</titleabbrev>
 ++++
 
 Opens one or more jobs.

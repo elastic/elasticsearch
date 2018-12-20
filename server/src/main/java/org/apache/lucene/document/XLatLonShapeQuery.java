@@ -45,7 +45,6 @@ import java.util.Objects;
  *
  * Note: this class implements the majority of the INTERSECTS, WITHIN, DISJOINT relation logic
  *
- * @lucene.experimental
  **/
 abstract class XLatLonShapeQuery extends Query {
   /** field name */

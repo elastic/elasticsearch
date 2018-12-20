@@ -199,7 +199,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testBlockIfClosed() {
         permits.close();
         expectThrows(IndexShardClosedException.class, () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES,
-            () -> {}, () -> { throw new IllegalArgumentException("fake error"); }));
+            () -> { throw new IllegalArgumentException("fake error"); }));
         expectThrows(IndexShardClosedException.class,
             () -> permits.asyncBlockOperations(wrap(() -> { throw new IllegalArgumentException("fake error");}),
                 randomInt(10), TimeUnit.MINUTES));
@@ -296,7 +296,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         IndexShardClosedException exception = new IndexShardClosedException(new ShardId("blubb", "id", 0));
         threadPool.generic().execute(() -> {
                 try {
-                    permits.blockOperations(1, TimeUnit.MINUTES, () -> {}, () -> {
+                    permits.blockOperations(1, TimeUnit.MINUTES, () -> {
                         try {
                             blockAcquired.countDown();
                             releaseBlock.await();
@@ -572,7 +572,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
         {
             final TimeoutException e =
-                    expectThrows(TimeoutException.class, () -> permits.blockOperations(1, TimeUnit.MILLISECONDS, () -> {}, () -> {}));
+                    expectThrows(TimeoutException.class, () -> permits.blockOperations(1, TimeUnit.MILLISECONDS, () -> {}));
             assertThat(e, hasToString(containsString("timeout while blocking operations")));
         }
 

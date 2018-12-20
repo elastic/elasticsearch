@@ -91,11 +91,10 @@ final class IndexShardOperationPermits implements Closeable {
      * Wait for in-flight operations to finish and executes {@code onBlocked} under the guarantee that no new operations are started. Queues
      * operations that are occurring in the meanwhile and runs them once {@code onBlocked} has executed.
      *
-     * @param timeout            the maximum time to wait for the in-flight operations block
-     * @param timeUnit           the time unit of the {@code timeout} argument
-     * @param onActiveOperations the action to run before trying to acquire the block if there are active operations
-     * @param onBlocked          the action to run once the block has been acquired
-     * @param <E>                the type of checked exception thrown by {@code onBlocked}
+     * @param timeout   the maximum time to wait for the in-flight operations block
+     * @param timeUnit  the time unit of the {@code timeout} argument
+     * @param onBlocked the action to run once the block has been acquired
+     * @param <E>       the type of checked exception thrown by {@code onBlocked}
      * @throws InterruptedException      if calling thread is interrupted
      * @throws TimeoutException          if timed out waiting for in-flight operations to finish
      * @throws IndexShardClosedException if operation permit has been closed
@@ -103,16 +102,10 @@ final class IndexShardOperationPermits implements Closeable {
     <E extends Exception> void blockOperations(
             final long timeout,
             final TimeUnit timeUnit,
-            final CheckedRunnable<E> onActiveOperations,
             final CheckedRunnable<E> onBlocked) throws InterruptedException, TimeoutException, E {
         delayOperations();
-        try {
-            if (getActiveOperationsCount() > 0) {
-                onActiveOperations.run();
-            }
-            try (Releasable ignored = acquireAll(timeout, timeUnit)) {
-                onBlocked.run();
-            }
+        try (Releasable ignored = acquireAll(timeout, timeUnit)) {
+            onBlocked.run();
         } finally {
             releaseDelayedOperations();
         }
@@ -218,7 +211,7 @@ final class IndexShardOperationPermits implements Closeable {
     /**
      * Acquires a permit whenever permit acquisition is not blocked. If the permit is directly available, the provided
      * {@link ActionListener} will be called on the calling thread. During calls of
-     * {@link #blockOperations(long, TimeUnit, CheckedRunnable, CheckedRunnable)}, permit acquisition can be delayed.
+     * {@link #blockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed.
      * The {@link ActionListener#onResponse(Object)} method will then be called using the provided executor once operations are no
      * longer blocked. Note that the executor will not be used for {@link ActionListener#onFailure(Exception)} calls. Those will run
      * directly on the calling thread, which in case of delays, will be a generic thread. Callers should thus make sure

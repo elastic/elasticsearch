@@ -244,6 +244,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private final RefreshListeners refreshListeners;
 
+    /**
+     * Prevents new refresh listeners from being registered. Used to prevent becoming blocked on operations waiting for refresh
+     * during relocation.
+     */
+    private final AtomicBoolean preventNewRefreshListeners = new AtomicBoolean(false);
+
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
 
@@ -608,42 +614,44 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void relocated(final Consumer<ReplicationTracker.PrimaryContext> consumer)
                                             throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
+        preventNewRefreshListeners.set(true);
         try {
-            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES,
-                () -> refresh("relocation requested"),
-                () -> {
-                    // no shard operation permits are being held here, move state from started to relocated
-                    assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
+            if (refreshListeners.refreshNeeded()) {
+                refresh("relocated");
+            }
+            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                // no shard operation permits are being held here, move state from started to relocated
+                assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
                         "in-flight operations in progress while moving shard state to relocated";
-                    /*
-                     * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context
-                     * via a network operation. Doing this under the mutex can implicitly block the cluster state update thread
-                     * on network operations.
-                     */
-                    verifyRelocatingState();
-                    final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff();
-                    try {
-                        consumer.accept(primaryContext);
-                        synchronized (mutex) {
-                            verifyRelocatingState();
-                            // make changes to primaryMode and relocated flag only under mutex
-                            replicationTracker.completeRelocationHandoff();
-                        }
-                    } catch (final Exception e) {
-                        try {
-                            replicationTracker.abortRelocationHandoff();
-                        } catch (final Exception inner) {
-                            e.addSuppressed(inner);
-                        }
-                        throw e;
+                /*
+                 * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
+                 * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
+                 */
+                verifyRelocatingState();
+                final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff();
+                try {
+                    consumer.accept(primaryContext);
+                    synchronized (mutex) {
+                        verifyRelocatingState();
+                        replicationTracker.completeRelocationHandoff(); // make changes to primaryMode and relocated flag only under mutex
                     }
-                });
+                } catch (final Exception e) {
+                    try {
+                        replicationTracker.abortRelocationHandoff();
+                    } catch (final Exception inner) {
+                        e.addSuppressed(inner);
+                    }
+                    throw e;
+                }
+            });
         } catch (TimeoutException e) {
             logger.warn("timed out waiting for relocation hand-off to complete");
             // This is really bad as ongoing replication operations are preventing this shard from completing relocation hand-off.
             // Fail primary relocation source and target shards.
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+        } finally {
+            preventNewRefreshListeners.set(false);
         }
     }
 
@@ -2667,7 +2675,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private RefreshListeners buildRefreshListeners() {
         return new RefreshListeners(
-            indexSettings::getMaxRefreshListeners,
+            () -> preventNewRefreshListeners.get() ? 0 : indexSettings.getMaxRefreshListeners(),
             () -> refresh("too_many_listeners"),
             threadPool.executor(ThreadPool.Names.LISTENER)::execute,
             logger, threadPool.getThreadContext());

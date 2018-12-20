@@ -12,11 +12,16 @@ cluster, and to scale the cluster up and down by adding and removing
 master-ineligible nodes only. However there are situations in which it may be
 desirable to add or remove some master-eligible nodes to or from a cluster.
 
-==== Adding master-eligible nodes
+==== Adding nodes
 
 If you wish to add some master-eligible nodes to your cluster, simply configure
 the new nodes to find the existing cluster and start them up. Elasticsearch will
 add the new nodes to the voting configuration if it is appropriate to do so.
+
+During master election or when joining an existing formed cluster, a node
+sends a join request to the master in order to be officially added to the
+cluster. You can use the `cluster.join.timeout` setting to configure how long a
+node waits after sending a request to join a cluster. See <<modules-discovery-settings>>.
 
 ==== Removing master-eligible nodes
 

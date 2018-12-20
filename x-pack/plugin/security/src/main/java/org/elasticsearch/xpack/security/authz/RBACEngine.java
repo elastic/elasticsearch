@@ -157,8 +157,8 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
-    @Override
-    public boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
+    // pkg private for testing
+    boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
         final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
         if (actionAllowed) {
             if (request instanceof UserRequest == false) {

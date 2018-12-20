@@ -582,7 +582,7 @@ public final class Verifier {
             filter.condition().forEachDown(e -> {
                 if (Functions.isGrouping(e) || e instanceof GroupingFunctionAttribute) {
                     localFailures
-                            .add(fail(e, "Cannot filter on grouping function [%s], use the grouped field instead", Expressions.name(e)));
+                            .add(fail(e, "Cannot filter on grouping function [%s], use its argument instead", Expressions.name(e)));
                 }
             }, Expression.class);
         }

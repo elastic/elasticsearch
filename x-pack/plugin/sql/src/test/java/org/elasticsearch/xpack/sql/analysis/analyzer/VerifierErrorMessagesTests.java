@@ -481,14 +481,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testHistogramInFilter() {
-        assertEquals("1:63: Cannot filter on grouping function [HISTOGRAM(date)], use the grouped field instead",
+        assertEquals("1:63: Cannot filter on grouping function [HISTOGRAM(date)], use its argument instead",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test WHERE "
                         + "HISTOGRAM(date, INTERVAL 1 MONTH) > CAST('2000-01-01' AS DATE) GROUP BY h"));
     }
 
     // related https://github.com/elastic/elasticsearch/issues/36853
     public void testHistogramInHaving() {
-        assertEquals("1:75: Cannot filter on grouping function [h], use the grouped field instead",
+        assertEquals("1:75: Cannot filter on grouping function [h], use its argument instead",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test GROUP BY h HAVING "
                         + "h > CAST('2000-01-01' AS DATE)"));
     }
@@ -498,5 +498,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 "1:14: Cannot combine [HISTOGRAM(date)] grouping function inside GROUP BY, "
                 + "found [MONTH_OF_YEAR(HISTOGRAM(date) [Z])]; consider moving the expression inside the histogram",
                 error("SELECT MONTH(HISTOGRAM(date, INTERVAL 1 MONTH)) AS h FROM test GROUP BY h"));
+    }
+
+    public void testAggsInHistogram() {
+        assertEquals("1:47: Cannot use an aggregate [MAX] for grouping",
+                error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
     }
 }

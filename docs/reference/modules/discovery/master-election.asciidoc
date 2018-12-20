@@ -1,5 +1,5 @@
 [[master-election]]
-=== Master Election
+=== Master election settings
 
 Elasticsearch uses an election process to agree on an elected master node, both
 at startup and if the existing elected master fails. Any master-eligible node

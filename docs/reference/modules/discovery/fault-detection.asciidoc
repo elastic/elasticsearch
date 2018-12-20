@@ -1,5 +1,5 @@
 [[fault-detection]]
-=== Fault Detection
+=== Cluster fault detection settings
 
 An elected master periodically checks each of the nodes in the cluster in order
 to ensure that they are still connected and healthy, and in turn each node in

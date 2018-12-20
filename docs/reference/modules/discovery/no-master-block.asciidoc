@@ -1,5 +1,5 @@
 [[no-master-block]]
-=== No master block
+=== No master block settings
 
 For the cluster to be fully operational, it must have an active master.  The
 `discovery.zen.no_master_block` settings controls what operations should be

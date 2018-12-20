@@ -1,5 +1,5 @@
 [[cluster-state-publishing]]
-=== Cluster state publishing
+=== Publishing the cluster state
 
 The master node is the only node in a cluster that can make changes to the
 cluster state. The master node processes one batch of cluster state updates at

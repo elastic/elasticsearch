@@ -189,7 +189,7 @@ Another option to specify `create` is to use the following uri:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/_doc/1/_create
+PUT twitter/_create/1
 {
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",

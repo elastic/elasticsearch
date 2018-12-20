@@ -106,7 +106,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimeEscapedLiteralContex
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimestampEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -183,7 +183,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression right = expression(ctx.right);
         TerminalNode op = (TerminalNode) ctx.comparisonOperator().getChild(0);
 
-        Location loc = source(ctx);
+        Source loc = source(ctx);
 
         switch (op.getSymbol().getType()) {
             case SqlBaseParser.EQ:
@@ -215,7 +215,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         PredicateContext pCtx = ctx.predicate();
-        Location loc = source(pCtx);
+        Source loc = source(pCtx);
 
         Expression e = null;
         switch (pCtx.kind.getType()) {
@@ -311,7 +311,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Object visitArithmeticUnary(ArithmeticUnaryContext ctx) {
         Expression value = expression(ctx.valueExpression());
-        Location loc = source(ctx);
+        Source loc = source(ctx);
 
         switch (ctx.operator.getType()) {
             case SqlBaseParser.PLUS:
@@ -331,7 +331,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(ctx.left);
         Expression right = expression(ctx.right);
 
-        Location loc = source(ctx.operator);
+        Source loc = source(ctx.operator);
 
         switch (ctx.operator.getType()) {
             case SqlBaseParser.ASTERISK:
@@ -464,12 +464,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Object visitBuiltinDateTimeFunction(BuiltinDateTimeFunctionContext ctx) {
         // maps current_XXX to their respective functions
         // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
-        Location source = source(ctx);
+        Source source = source(ctx);
         Literal p = null;
 
         if (ctx.precision != null) {
             try {
-                Location pSource = source(ctx.precision);
+                Source pSource = source(ctx.precision);
                 short safeShort = DataTypeConversion.safeToShort(StringUtils.parseLong(ctx.precision.getText()));
                 if (safeShort > 9 || safeShort < 0) {
                     throw new ParsingException(pSource, "Precision needs to be between [0-9], received [{}]", safeShort);
@@ -523,7 +523,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Object visitLogicalBinary(LogicalBinaryContext ctx) {
         int type = ctx.operator.getType();
-        Location loc = source(ctx);
+        Source loc = source(ctx);
         Expression left = expression(ctx.left);
         Expression right = expression(ctx.right);
 
@@ -629,7 +629,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private TemporalAmount of(StringContext valuePattern, boolean negative, DataType intervalType) {
         String valueString = string(valuePattern);
-        Location loc = source(valuePattern);
+        Source loc = source(valuePattern);
         TemporalAmount interval = Intervals.parseInterval(loc, valueString, intervalType);
         if (negative) {
             interval = Intervals.negate(interval);
@@ -722,7 +722,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Literal visitParamLiteral(ParamLiteralContext ctx) {
         SqlTypedParamValue param = param(ctx.PARAM());
         DataType dataType = DataType.fromTypeName(param.type);
-        Location loc = source(ctx);
+        Source loc = source(ctx);
         if (param.value == null) {
             // no conversion is required for null values
             return new Literal(loc, null, dataType);
@@ -783,7 +783,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitDateEscapedLiteral(DateEscapedLiteralContext ctx) {
         String string = string(ctx.string());
-        Location loc = source(ctx);
+        Source loc = source(ctx);
         // parse yyyy-MM-dd
         DateTime dt = null;
         try {
@@ -797,7 +797,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitTimeEscapedLiteral(TimeEscapedLiteralContext ctx) {
         String string = string(ctx.string());
-        Location loc = source(ctx);
+        Source loc = source(ctx);
 
         // parse HH:mm:ss
         DateTime dt = null;
@@ -814,7 +814,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Literal visitTimestampEscapedLiteral(TimestampEscapedLiteralContext ctx) {
         String string = string(ctx.string());
 
-        Location loc = source(ctx);
+        Source loc = source(ctx);
         // parse yyyy-mm-dd hh:mm:ss(.f...)
         DateTime dt = null;
         try {
@@ -834,7 +834,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Literal visitGuidEscapedLiteral(GuidEscapedLiteralContext ctx) {
         String string = string(ctx.string());
 
-        Location loc = source(ctx.string());
+        Source loc = source(ctx.string());
         // basic validation
         String lowerCase = string.toLowerCase(Locale.ROOT);
         // needs to be format nnnnnnnn-nnnn-nnnn-nnnn-nnnnnnnnnnnn

@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class AggNameInput extends CommonNonExecutableInput<String> {
-    public AggNameInput(Location location, Expression expression, String context) {
+    public AggNameInput(Source location, Expression expression, String context) {
         super(location, expression, context);
     }
 

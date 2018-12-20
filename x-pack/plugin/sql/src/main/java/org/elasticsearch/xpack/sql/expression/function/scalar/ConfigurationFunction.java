@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -21,7 +21,7 @@ public abstract class ConfigurationFunction extends ScalarFunction {
     private final Configuration configuration;
     private final DataType dataType;
 
-    protected ConfigurationFunction(Location location, Configuration configuration, DataType dataType) {
+    protected ConfigurationFunction(Source location, Configuration configuration, DataType dataType) {
         super(location);
         this.configuration = configuration;
         this.dataType = dataType;

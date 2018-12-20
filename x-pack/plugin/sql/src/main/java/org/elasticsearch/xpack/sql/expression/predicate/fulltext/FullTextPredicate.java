@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.fulltext;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
@@ -30,7 +30,7 @@ public abstract class FullTextPredicate extends Expression {
     // common properties
     private final String analyzer;
 
-    FullTextPredicate(Location location, String query, String options, List<Expression> children) {
+    FullTextPredicate(Source location, String query, String options, List<Expression> children) {
         super(location, children);
         this.query = query;
         this.options = options;

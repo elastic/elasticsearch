@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 import java.util.Objects;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
 
@@ -16,7 +16,7 @@ public class RegexQuery extends LeafQuery {
 
     private final String field, regex;
 
-    public RegexQuery(Location location, String field, String regex) {
+    public RegexQuery(Source location, String field, String regex) {
         super(location);
         this.field = field;
         this.regex = regex;

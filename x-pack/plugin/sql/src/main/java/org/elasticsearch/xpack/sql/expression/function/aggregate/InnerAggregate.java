@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -22,10 +22,10 @@ public class InnerAggregate extends AggregateFunction {
     private final Expression innerKey;
 
     public InnerAggregate(AggregateFunction inner, CompoundNumericAggregate outer) {
-        this(inner.location(), inner, outer, null);
+        this(inner.source(), inner, outer, null);
     }
 
-    public InnerAggregate(Location location, AggregateFunction inner, CompoundNumericAggregate outer, Expression innerKey) {
+    public InnerAggregate(Source location, AggregateFunction inner, CompoundNumericAggregate outer, Expression innerKey) {
         super(location, outer.field(), outer.arguments());
         this.inner = inner;
         this.outer = outer;
@@ -76,7 +76,7 @@ public class InnerAggregate extends AggregateFunction {
     @Override
     public AggregateFunctionAttribute toAttribute() {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-        return new AggregateFunctionAttribute(location(), name(), dataType(), outer.id(), functionId(),
+        return new AggregateFunctionAttribute(source(), name(), dataType(), outer.id(), functionId(),
                 aggMetricValue(functionId(), innerId));
     }
 

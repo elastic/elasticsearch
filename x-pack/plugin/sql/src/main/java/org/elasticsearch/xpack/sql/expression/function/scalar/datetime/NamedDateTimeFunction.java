@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -28,7 +28,7 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 
     private final NameExtractor nameExtractor;
 
-    NamedDateTimeFunction(Location location, Expression field, ZoneId zoneId, NameExtractor nameExtractor) {
+    NamedDateTimeFunction(Source location, Expression field, ZoneId zoneId, NameExtractor nameExtractor) {
         super(location, field, zoneId);
         this.nameExtractor = nameExtractor;
     }

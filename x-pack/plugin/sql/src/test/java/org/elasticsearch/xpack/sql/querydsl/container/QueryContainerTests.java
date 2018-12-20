@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import java.util.AbstractMap.SimpleImmutableEntry;
-
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
@@ -14,14 +12,16 @@ import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.LocationTests;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.tree.SourceTests;
+
+import java.util.AbstractMap.SimpleImmutableEntry;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 
 public class QueryContainerTests extends ESTestCase {
-    private Location location = LocationTests.randomLocation();
+    private Source location = SourceTests.randomSource();
     private String path = randomAlphaOfLength(5);
     private String name = randomAlphaOfLength(5);
     private String format = DocValueFieldsContext.USE_DEFAULT_FORMAT;

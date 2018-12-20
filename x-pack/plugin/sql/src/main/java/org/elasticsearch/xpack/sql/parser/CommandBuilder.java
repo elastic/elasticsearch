@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTableTypes;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -52,7 +52,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public Command visitDebug(DebugContext ctx) {
-        Location loc = source(ctx);
+        Source loc = source(ctx);
         if (ctx.FORMAT().size() > 1) {
             throw new ParsingException(loc, "Debug FORMAT should be specified at most once");
         }
@@ -79,7 +79,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public Command visitExplain(ExplainContext ctx) {
-        Location loc = source(ctx);
+        Source loc = source(ctx);
         if (ctx.PLAN().size() > 1) {
             throw new ParsingException(loc, "Explain TYPE should be specified at most once");
         }

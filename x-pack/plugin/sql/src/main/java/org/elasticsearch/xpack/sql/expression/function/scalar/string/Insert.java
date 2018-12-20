@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -32,7 +32,7 @@ public class Insert extends ScalarFunction {
 
     private final Expression source, start, length, replacement;
     
-    public Insert(Location location, Expression source, Expression start, Expression length, Expression replacement) {
+    public Insert(Source location, Expression source, Expression start, Expression length, Expression replacement) {
         super(location, Arrays.asList(source, start, length, replacement));
         this.source = source;
         this.start = start;
@@ -79,7 +79,7 @@ public class Insert extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new InsertFunctionPipe(location(), this,
+        return new InsertFunctionPipe(source(), this,
                 Expressions.pipe(source),
                 Expressions.pipe(start),
                 Expressions.pipe(length),
@@ -134,6 +134,6 @@ public class Insert extends ScalarFunction {
             throw new IllegalArgumentException("expected [4] children but received [" + newChildren.size() + "]");
         }
 
-        return new Insert(location(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Insert(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 }

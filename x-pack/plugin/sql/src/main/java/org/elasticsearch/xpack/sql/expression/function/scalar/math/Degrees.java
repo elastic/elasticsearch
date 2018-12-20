@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * to <a href="https://en.wikipedia.org/wiki/Degree_(angle)">degrees</a>.
  */
 public class Degrees extends MathFunction {
-    public Degrees(Location location, Expression field) {
+    public Degrees(Source location, Expression field) {
         super(location, field);
     }
 
@@ -26,7 +26,7 @@ public class Degrees extends MathFunction {
 
     @Override
     protected Degrees replaceChild(Expression newChild) {
-        return new Degrees(location(), newChild);
+        return new Degrees(source(), newChild);
     }
 
     @Override

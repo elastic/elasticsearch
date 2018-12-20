@@ -8,18 +8,18 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
 
 abstract class NumericAggregate extends AggregateFunction {
 
-    NumericAggregate(Location location, Expression field, List<Expression> parameters) {
+    NumericAggregate(Source location, Expression field, List<Expression> parameters) {
         super(location, field, parameters);
     }
 
-    NumericAggregate(Location location, Expression field) {
+    NumericAggregate(Source location, Expression field) {
         super(location, field);
     }
 

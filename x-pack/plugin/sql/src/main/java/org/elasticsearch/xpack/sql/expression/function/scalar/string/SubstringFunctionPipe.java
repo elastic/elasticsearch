@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -19,7 +19,7 @@ public class SubstringFunctionPipe extends Pipe {
 
     private final Pipe source, start, length;
 
-    public SubstringFunctionPipe(Location location, Expression expression, Pipe source,
+    public SubstringFunctionPipe(Source location, Expression expression, Pipe source,
             Pipe start, Pipe length) {
         super(location, expression, Arrays.asList(source, start, length));
         this.source = source;
@@ -58,7 +58,7 @@ public class SubstringFunctionPipe extends Pipe {
 
     protected Pipe replaceChildren(Pipe newSource, Pipe newStart,
             Pipe newLength) {
-        return new SubstringFunctionPipe(location(), expression(), newSource, newStart, newLength);
+        return new SubstringFunctionPipe(source(), expression(), newSource, newStart, newLength);
     }
 
     @Override
@@ -78,7 +78,7 @@ public class SubstringFunctionPipe extends Pipe {
         return new SubstringFunctionProcessor(source.asProcessor(), start.asProcessor(), length.asProcessor());
     }
     
-    public Pipe source() {
+    public Pipe sourcePipe() {
         return source;
     }
     

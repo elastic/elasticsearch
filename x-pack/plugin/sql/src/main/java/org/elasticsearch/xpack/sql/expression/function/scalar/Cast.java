@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
@@ -23,7 +23,7 @@ public class Cast extends UnaryScalarFunction {
 
     private final DataType dataType;
 
-    public Cast(Location location, Expression field, DataType dataType) {
+    public Cast(Source location, Expression field, DataType dataType) {
         super(location, field);
         this.dataType = dataType;
     }
@@ -35,7 +35,7 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     protected UnaryScalarFunction replaceChild(Expression newChild) {
-        return new Cast(location(), newChild, dataType);
+        return new Cast(source(), newChild, dataType);
     }
 
     public DataType from() {

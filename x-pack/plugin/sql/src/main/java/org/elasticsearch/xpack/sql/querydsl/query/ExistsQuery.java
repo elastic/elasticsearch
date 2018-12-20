@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 
@@ -14,7 +14,7 @@ public class ExistsQuery extends LeafQuery {
 
     private final String name;
 
-    public ExistsQuery(Location location, String name) {
+    public ExistsQuery(Source location, String name) {
         super(location);
         this.name = name;
     }

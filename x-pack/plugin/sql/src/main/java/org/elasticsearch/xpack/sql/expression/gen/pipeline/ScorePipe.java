@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.ScoreExtractor;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.HitExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
@@ -18,7 +18,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 
 public class ScorePipe extends Pipe {
-    public ScorePipe(Location location, Expression expression) {
+    public ScorePipe(Source location, Expression expression) {
         super(location, expression, emptyList());
     }
 

@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.rule.RuleExecutor.Transformation;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
@@ -45,7 +45,7 @@ public class Debug extends Command {
     private final Format format;
     private final Type type;
 
-    public Debug(Location location, LogicalPlan plan, Type type, Format format) {
+    public Debug(Source location, LogicalPlan plan, Type type, Format format) {
         super(location);
         this.plan = plan;
         this.format = format == null ? Format.TEXT : format;
@@ -71,7 +71,7 @@ public class Debug extends Command {
 
     @Override
     public List<Attribute> output() {
-        return singletonList(new FieldAttribute(location(), "plan", new KeywordEsField("plan")));
+        return singletonList(new FieldAttribute(source(), "plan", new KeywordEsField("plan")));
     }
 
     @Override

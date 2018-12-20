@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.time.ZoneId;
@@ -22,7 +22,7 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     private final ZoneId zoneId;
     private final String name;
 
-    BaseDateTimeFunction(Location location, Expression field, ZoneId zoneId) {
+    BaseDateTimeFunction(Source location, Expression field, ZoneId zoneId) {
         super(location, field);
         this.zoneId = zoneId;
 

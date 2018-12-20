@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
  * </ul>
  */
 public class Sign extends MathFunction {
-    public Sign(Location location, Expression field) {
+    public Sign(Source location, Expression field) {
         super(location, field);
     }
 
@@ -31,7 +31,7 @@ public class Sign extends MathFunction {
 
     @Override
     protected Sign replaceChild(Expression newChild) {
-        return new Sign(location(), newChild);
+        return new Sign(source(), newChild);
     }
 
     @Override

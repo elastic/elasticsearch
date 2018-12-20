@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
@@ -17,7 +17,7 @@ public abstract class LeafInput<T> extends Pipe {
 
     private T context;
 
-    public LeafInput(Location location, Expression expression, T context) {
+    public LeafInput(Source location, Expression expression, T context) {
         super(location, expression, emptyList());
         this.context = context;
     }

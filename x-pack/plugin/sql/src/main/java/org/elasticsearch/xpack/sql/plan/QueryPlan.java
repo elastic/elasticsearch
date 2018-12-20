@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plan;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -28,7 +28,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     private AttributeSet lazyInputSet;
 
 
-    public QueryPlan(Location location, List<PlanType> children) {
+    public QueryPlan(Source location, List<PlanType> children) {
         super(location, children);
     }
 

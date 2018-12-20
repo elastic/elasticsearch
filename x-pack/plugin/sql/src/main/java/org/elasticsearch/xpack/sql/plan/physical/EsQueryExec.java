@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
@@ -25,7 +25,7 @@ public class EsQueryExec extends LeafExec {
 
     private final QueryContainer queryContainer;
 
-    public EsQueryExec(Location location, String index, List<Attribute> output, QueryContainer queryContainer) {
+    public EsQueryExec(Source location, String index, List<Attribute> output, QueryContainer queryContainer) {
         super(location);
         this.index = index;
         this.output = output;
@@ -38,7 +38,7 @@ public class EsQueryExec extends LeafExec {
     }
 
     public EsQueryExec with(QueryContainer queryContainer) {
-        return new EsQueryExec(location(), index, output, queryContainer);
+        return new EsQueryExec(source(), index, output, queryContainer);
     }
 
     public String index() {

@@ -10,14 +10,14 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public abstract class RegexMatch extends UnaryScalarFunction {
 
     private final String pattern;
 
-    protected RegexMatch(Location location, Expression value, String pattern) {
+    protected RegexMatch(Source location, Expression value, String pattern) {
         super(location, value);
         this.pattern = pattern;
     }

@@ -146,7 +146,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.columns(), aliases,
                         queryC.pseudoFunctions(), processors, queryC.sort(), queryC.limit());
-                return new EsQueryExec(exec.location(), exec.index(), project.output(), clone);
+                return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
             return project;
         }
@@ -164,7 +164,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 Query query = null;
                 if (qContainer.query() != null || qt.query != null) {
-                    query = and(plan.location(), qContainer.query(), qt.query);
+                    query = and(plan.source(), qContainer.query(), qt.query);
                 }
                 Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 
@@ -293,7 +293,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                             action = ((UnaryPipe) p).action();
                                             zi = ((DateTimeFunction) exp).zoneId();
                                         }
-                                        return new AggPathInput(exp.location(), exp, new GroupByRef(matchingGroup.id(), null, zi), action);
+                                        return new AggPathInput(exp.source(), exp, new GroupByRef(matchingGroup.id(), null, zi), action);
                                     }
                                 }
                                 // or found an aggregate expression (which has to work on an attribute used for grouping)
@@ -369,7 +369,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     newAliases.putAll(aliases);
                     queryC = queryC.withAliases(newAliases);
                 }
-                return new EsQueryExec(exec.location(), exec.index(), a.output(), queryC);
+                return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);
             }
             return a;
         }
@@ -530,7 +530,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 PhysicalPlan p = plan.children().get(0);
                 if (p instanceof LocalExec) {
                     if (((LocalExec) p).isEmpty()) {
-                        return new LocalExec(plan.location(), new EmptyExecutable(plan.output()));
+                        return new LocalExec(plan.source(), new EmptyExecutable(plan.output()));
                     } else {
                         throw new SqlIllegalArgumentException("Encountered a bug; {} is a LocalExec but is not empty", p);
                     }

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class LTrim extends UnaryStringFunction {
 
-    public LTrim(Location location, Expression field) {
+    public LTrim(Source location, Expression field) {
         super(location, field);
     }
 
@@ -27,7 +27,7 @@ public class LTrim extends UnaryStringFunction {
 
     @Override
     protected LTrim replaceChild(Expression newChild) {
-        return new LTrim(location(), newChild);
+        return new LTrim(source(), newChild);
     }
 
     @Override

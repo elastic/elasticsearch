@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 /**
  * Intermediate representation of queries that is rewritten to fetch
@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.sql.tree.Location;
  * Elasticsearch {@link QueryBuilder}s.
  */
 public abstract class Query {
-    private final Location location;
+    private final Source location;
 
-    Query(Location location) {
+    Query(Source location) {
         if (location == null) {
             throw new IllegalArgumentException("location must be specified");
         }
@@ -27,7 +27,7 @@ public abstract class Query {
     /**
      * Location in the source statement.
      */
-    public Location location() {
+    public Source location() {
         return location;
     }
 

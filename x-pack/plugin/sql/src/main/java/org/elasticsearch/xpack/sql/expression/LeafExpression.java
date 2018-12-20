@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
 
@@ -13,7 +13,7 @@ import static java.util.Collections.emptyList;
 
 public abstract class LeafExpression extends Expression {
 
-    protected LeafExpression(Location location) {
+    protected LeafExpression(Source location) {
         super(location, emptyList());
     }
 

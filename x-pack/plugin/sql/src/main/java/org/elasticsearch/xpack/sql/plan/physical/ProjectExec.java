@@ -11,14 +11,14 @@ import java.util.Objects;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class ProjectExec extends UnaryExec implements Unexecutable {
 
     private final List<? extends NamedExpression> projections;
 
-    public ProjectExec(Location location, PhysicalPlan child, List<? extends NamedExpression> projections) {
+    public ProjectExec(Source location, PhysicalPlan child, List<? extends NamedExpression> projections) {
         super(location, child);
         this.projections = projections;
     }
@@ -30,7 +30,7 @@ public class ProjectExec extends UnaryExec implements Unexecutable {
 
     @Override
     protected ProjectExec replaceChild(PhysicalPlan newChild) {
-        return new ProjectExec(location(), newChild, projections);
+        return new ProjectExec(source(), newChild, projections);
     }
 
     public List<? extends NamedExpression> projections() {

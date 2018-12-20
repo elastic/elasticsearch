@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
@@ -184,7 +184,7 @@ public class QueryContainer {
 
         String name = aliasName(attr);
         String format = attr.field().getDataType() == DataType.DATE ? "epoch_millis" : DocValueFieldsContext.USE_DEFAULT_FORMAT;
-        Query q = rewriteToContainNestedField(query, attr.location(),
+        Query q = rewriteToContainNestedField(query, attr.source(),
                 attr.nestedParent().name(), name, format, attr.field().isAggregatable());
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(),
@@ -194,7 +194,7 @@ public class QueryContainer {
         return new Tuple<>(new QueryContainer(q, aggs, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit), nestedFieldRef);
     }
 
-    static Query rewriteToContainNestedField(@Nullable Query query, Location location, String path, String name, String format,
+    static Query rewriteToContainNestedField(@Nullable Query query, Source location, String path, String name, String format,
             boolean hasDocValues) {
         if (query == null) {
             /* There is no query so we must add the nested query

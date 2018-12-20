@@ -10,12 +10,12 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.HitExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class HitExtractorInput extends LeafInput<HitExtractor> {
 
-    public HitExtractorInput(Location location, Expression expression, HitExtractor context) {
+    public HitExtractorInput(Source location, Expression expression, HitExtractor context) {
         super(location, expression, context);
     }
 

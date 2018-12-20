@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Locale;
@@ -21,11 +21,11 @@ import static java.lang.String.format;
 
 public abstract class MathFunction extends UnaryScalarFunction {
 
-    protected MathFunction(Location location) {
+    protected MathFunction(Source location) {
         super(location);
     }
 
-    protected MathFunction(Location location, Expression field) {
+    protected MathFunction(Source location, Expression field) {
         super(location, field);
     }
 

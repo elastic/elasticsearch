@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Objects;
@@ -14,11 +14,11 @@ public abstract class TypedAttribute extends Attribute {
 
     private final DataType dataType;
 
-    protected TypedAttribute(Location location, String name, DataType dataType) {
+    protected TypedAttribute(Source location, String name, DataType dataType) {
         this(location, name, dataType, null, true, null, false);
     }
 
-    protected TypedAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable,
+    protected TypedAttribute(Source location, String name, DataType dataType, String qualifier, boolean nullable,
             ExpressionId id, boolean synthetic) {
         super(location, name, qualifier, nullable, id, synthetic);
         this.dataType = dataType;

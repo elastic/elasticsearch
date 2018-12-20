@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.sql.plan.physical;
 import java.util.Collections;
 import java.util.List;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class LeafExec extends PhysicalPlan {
-    LeafExec(Location location) {
+    LeafExec(Source location) {
         super(location, Collections.emptyList());
     }
 

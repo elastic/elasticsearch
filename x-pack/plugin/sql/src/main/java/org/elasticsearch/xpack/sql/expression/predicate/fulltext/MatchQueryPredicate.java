@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.fulltext;
 import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import static java.util.Collections.singletonList;
@@ -19,7 +19,7 @@ public class MatchQueryPredicate extends FullTextPredicate {
 
     private final Expression field;
 
-    public MatchQueryPredicate(Location location, Expression field, String query, String options) {
+    public MatchQueryPredicate(Source location, Expression field, String query, String options) {
         super(location, query, options, singletonList(field));
         this.field = field;
     }
@@ -34,7 +34,7 @@ public class MatchQueryPredicate extends FullTextPredicate {
         if (newChildren.size() != 1) {
             throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
         }
-        return new MatchQueryPredicate(location(), newChildren.get(0), query(), options());
+        return new MatchQueryPredicate(source(), newChildren.get(0), query(), options());
     }
 
     public Expression field() {

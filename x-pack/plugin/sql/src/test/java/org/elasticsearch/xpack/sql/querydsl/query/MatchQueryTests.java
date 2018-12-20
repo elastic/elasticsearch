@@ -10,10 +10,11 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.LocationTests;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.tree.SourceTests;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -21,13 +22,13 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MatchQueryTests extends ESTestCase {
     static MatchQuery randomMatchQuery() {
         return new MatchQuery(
-            LocationTests.randomLocation(),
+                SourceTests.randomSource(),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5));
             // TODO add the predicate
@@ -43,7 +44,7 @@ public class MatchQueryTests extends ESTestCase {
 
     private static MatchQuery mutate(MatchQuery query) {
         List<Function<MatchQuery, MatchQuery>> options = Arrays.asList(
-            q -> new MatchQuery(LocationTests.mutate(q.location()), q.name(), q.text(), q.predicate()),
+            q -> new MatchQuery(SourceTests.mutate(q.location()), q.name(), q.text(), q.predicate()),
             q -> new MatchQuery(q.location(), randomValueOtherThan(q.name(), () -> randomAlphaOfLength(5)), q.text(), q.predicate()),
             q -> new MatchQuery(q.location(), q.name(), randomValueOtherThan(q.text(), () -> randomAlphaOfLength(5)), q.predicate()));
             // TODO mutate the predicate
@@ -66,7 +67,7 @@ public class MatchQueryTests extends ESTestCase {
     }
 
     private static MatchQueryBuilder getBuilder(String options) {
-        final Location location = new Location(1, 1);
+        final Source location = new Source(1, 1, StringUtils.EMPTY);
         FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.KEYWORD, emptyMap(), true));
         final MatchQueryPredicate mmqp = new MatchQueryPredicate(location, fa, "eggplant", options);
         final MatchQuery mmq = new MatchQuery(location, "eggplant", "foo", mmqp);
@@ -74,7 +75,7 @@ public class MatchQueryTests extends ESTestCase {
     }
 
     public void testToString() {
-        final Location location = new Location(1, 1);
+        final Source location = new Source(1, 1, StringUtils.EMPTY);
         FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.KEYWORD, emptyMap(), true));
         final MatchQueryPredicate mmqp = new MatchQueryPredicate(location, fa, "eggplant", "");
         final MatchQuery mmq = new MatchQuery(location, "eggplant", "foo", mmqp);

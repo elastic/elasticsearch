@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptWeaver;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
 
@@ -24,18 +24,18 @@ public abstract class ScalarFunction extends Function implements ScriptWeaver {
 
     private ScalarFunctionAttribute lazyAttribute = null;
 
-    protected ScalarFunction(Location location) {
+    protected ScalarFunction(Source location) {
         super(location, emptyList());
     }
 
-    protected ScalarFunction(Location location, List<Expression> fields) {
+    protected ScalarFunction(Source location, List<Expression> fields) {
         super(location, fields);
     }
 
     @Override
     public final ScalarFunctionAttribute toAttribute() {
         if (lazyAttribute == null) {
-            lazyAttribute = new ScalarFunctionAttribute(location(), name(), dataType(), id(), functionId(), asScript(), orderBy(),
+            lazyAttribute = new ScalarFunctionAttribute(source(), name(), dataType(), id(), functionId(), asScript(), orderBy(),
                 asPipe());
         }
         return lazyAttribute;

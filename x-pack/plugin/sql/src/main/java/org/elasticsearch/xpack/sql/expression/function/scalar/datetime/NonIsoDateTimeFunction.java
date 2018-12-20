@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -28,7 +28,7 @@ abstract class NonIsoDateTimeFunction extends BaseDateTimeFunction {
 
     private final NonIsoDateTimeExtractor extractor;
 
-    NonIsoDateTimeFunction(Location location, Expression field, ZoneId zoneId, NonIsoDateTimeExtractor extractor) {
+    NonIsoDateTimeFunction(Source location, Expression field, ZoneId zoneId, NonIsoDateTimeExtractor extractor) {
         super(location, field, zoneId);
         this.extractor = extractor;
     }

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -28,7 +28,7 @@ public class Order extends Expression {
     private final OrderDirection direction;
     private final NullsPosition nulls;
 
-    public Order(Location location, Expression child, OrderDirection direction, NullsPosition nulls) {
+    public Order(Source location, Expression child, OrderDirection direction, NullsPosition nulls) {
         super(location, singletonList(child));
         this.child = child;
         this.direction = direction;
@@ -55,7 +55,7 @@ public class Order extends Expression {
         if (newChildren.size() != 1) {
             throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
         }
-        return new Order(location(), newChildren.get(0), direction, nulls);
+        return new Order(source(), newChildren.get(0), direction, nulls);
     }
 
     public Expression child() {

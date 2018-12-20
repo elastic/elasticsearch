@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Collections;
 import java.util.List;
@@ -17,11 +17,11 @@ public abstract class SubQueryExpression extends Expression {
     private final LogicalPlan query;
     private final ExpressionId id;
 
-    public SubQueryExpression(Location location, LogicalPlan query) {
+    public SubQueryExpression(Source location, LogicalPlan query) {
         this(location, query, null);
     }
 
-    public SubQueryExpression(Location location, LogicalPlan query, ExpressionId id) {
+    public SubQueryExpression(Source location, LogicalPlan query, ExpressionId id) {
         super(location, Collections.emptyList());
         this.query = query;
         this.id = id == null ? new ExpressionId() : id;

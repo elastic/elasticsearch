@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class ReferenceInput extends NonExecutableInput<FieldExtraction> {
-    public ReferenceInput(Location location, Expression expression, FieldExtraction context) {
+    public ReferenceInput(Source location, Expression expression, FieldExtraction context) {
         super(location, expression, context);
     }
 

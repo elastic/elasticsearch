@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.ScorePipe;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -20,14 +20,14 @@ public class ScoreAttribute extends FunctionAttribute {
     /**
      * Constructor for normal use.
      */
-    public ScoreAttribute(Location location) {
+    public ScoreAttribute(Source location) {
         this(location, "SCORE()", DataType.FLOAT, null, false, null, false);
     }
 
     /**
      * Constructor for {@link #clone()}
      */
-    private ScoreAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id,
+    private ScoreAttribute(Source location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id,
                            boolean synthetic) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, "SCORE");
     }
@@ -38,13 +38,13 @@ public class ScoreAttribute extends FunctionAttribute {
     }
 
     @Override
-    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Source location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         return new ScoreAttribute(location, name, dataType(), qualifier, nullable, id, synthetic);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new ScorePipe(location(), this);
+        return new ScorePipe(source(), this);
     }
 
     @Override

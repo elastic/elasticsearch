@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Objects;
 
@@ -25,7 +25,7 @@ public class BoolQuery extends Query {
     private final Query left;
     private final Query right;
 
-    public BoolQuery(Location location, boolean isAnd, Query left, Query right) {
+    public BoolQuery(Source location, boolean isAnd, Query left, Query right) {
         super(location);
         if (left == null) {
             throw new IllegalArgumentException("left is required");

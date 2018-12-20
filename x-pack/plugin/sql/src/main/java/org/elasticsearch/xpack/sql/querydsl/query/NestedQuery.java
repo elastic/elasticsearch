@@ -20,7 +20,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -40,11 +40,11 @@ public class NestedQuery extends Query {
     private final Map<String, Map.Entry<Boolean, String>> fields; // field -> (useDocValues, format)
     private final Query child;
 
-    public NestedQuery(Location location, String path, Query child) {
+    public NestedQuery(Source location, String path, Query child) {
         this(location, path, emptyMap(), child);
     }
 
-    public NestedQuery(Location location, String path, Map<String, Map.Entry<Boolean, String>> fields, Query child) {
+    public NestedQuery(Source location, String path, Map<String, Map.Entry<Boolean, String>> fields, Query child) {
         super(location);
         if (path == null) {
             throw new IllegalArgumentException("path is required");

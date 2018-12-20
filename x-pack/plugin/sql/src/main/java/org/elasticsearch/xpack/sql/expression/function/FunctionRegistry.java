@@ -96,7 +96,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
 
@@ -305,7 +305,7 @@ public class FunctionRegistry {
      * is not aware of time zone and does not support {@code DISTINCT}.
      */
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            java.util.function.Function<Location, T> ctorRef, String... names) {
+            java.util.function.Function<Source, T> ctorRef, String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
                 throw new IllegalArgumentException("expects no arguments");
@@ -339,7 +339,7 @@ public class FunctionRegistry {
     }
     
     interface ConfigurationAwareFunctionBuilder<T> {
-        T build(Location location, Configuration configuration);
+        T build(Source location, Configuration configuration);
     }
 
     /**
@@ -364,7 +364,7 @@ public class FunctionRegistry {
     }
 
     interface UnaryConfigurationAwareFunctionBuilder<T> {
-        T build(Location location, Expression exp, Configuration configuration);
+        T build(Source location, Expression exp, Configuration configuration);
     }
 
 
@@ -374,7 +374,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            BiFunction<Location, Expression, T> ctorRef, String... names) {
+            BiFunction<Source, Expression, T> ctorRef, String... names) {
         FunctionBuilder builder = (location, children, distinct, cfg) -> {
             if (children.size() != 1) {
                 throw new IllegalArgumentException("expects exactly one argument");
@@ -404,7 +404,7 @@ public class FunctionRegistry {
     }
 
     interface MultiFunctionBuilder<T> {
-        T build(Location location, List<Expression> children);
+        T build(Source location, List<Expression> children);
     }
     
     /**
@@ -424,7 +424,7 @@ public class FunctionRegistry {
     }
 
     interface DistinctAwareUnaryFunctionBuilder<T> {
-        T build(Location location, Expression target, boolean distinct);
+        T build(Source location, Expression target, boolean distinct);
     }
 
     /**
@@ -447,7 +447,7 @@ public class FunctionRegistry {
     }
 
     interface DatetimeUnaryFunctionBuilder<T> {
-        T build(Location location, Expression target, ZoneId zi);
+        T build(Source location, Expression target, ZoneId zi);
     }
 
     /**
@@ -469,7 +469,7 @@ public class FunctionRegistry {
     }
 
     interface DatetimeBinaryFunctionBuilder<T> {
-        T build(Location location, Expression lhs, Expression rhs, ZoneId zi);
+        T build(Source location, Expression lhs, Expression rhs, ZoneId zi);
     }
 
     /**
@@ -496,7 +496,7 @@ public class FunctionRegistry {
     }
 
     interface BinaryFunctionBuilder<T> {
-        T build(Location location, Expression lhs, Expression rhs);
+        T build(Source location, Expression lhs, Expression rhs);
     }
 
     /**
@@ -512,17 +512,16 @@ public class FunctionRegistry {
         List<String> aliases = Arrays.asList(names).subList(1, names.length);
         FunctionDefinition.Builder realBuilder = (uf, distinct, cfg) -> {
             try {
-                return builder.build(uf.location(), uf.children(), distinct, cfg);
+                return builder.build(uf.source(), uf.children(), distinct, cfg);
             } catch (IllegalArgumentException e) {
-                throw new ParsingException("error building [" + primaryName + "]: " + e.getMessage(), e,
-                        uf.location().getLineNumber(), uf.location().getColumnNumber());
+                throw new ParsingException(uf.source(), "error building [" + primaryName + "]: " + e.getMessage(), e);
             }
         };
         return new FunctionDefinition(primaryName, unmodifiableList(aliases), function, datetime, realBuilder);
     }
 
     private interface FunctionBuilder {
-        Function build(Location location, List<Expression> children, boolean distinct, Configuration cfg);
+        Function build(Source location, List<Expression> children, boolean distinct, Configuration cfg);
     }
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
@@ -544,7 +543,7 @@ public class FunctionRegistry {
     }
 
     interface ThreeParametersFunctionBuilder<T> {
-        T build(Location location, Expression source, Expression exp1, Expression exp2);
+        T build(Source location, Expression source, Expression exp1, Expression exp2);
     }
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
@@ -563,7 +562,7 @@ public class FunctionRegistry {
     }
 
     interface FourParametersFunctionBuilder<T> {
-        T build(Location location, Expression source, Expression exp1, Expression exp2, Expression exp3);
+        T build(Source location, Expression source, Expression exp1, Expression exp2, Expression exp3);
     }
 
     /**
@@ -582,6 +581,6 @@ public class FunctionRegistry {
     }
 
     private interface CastFunctionBuilder<T> {
-        T build(Location location, Expression expression, DataType dataType);
+        T build(Source location, Expression expression, DataType dataType);
     }
 }

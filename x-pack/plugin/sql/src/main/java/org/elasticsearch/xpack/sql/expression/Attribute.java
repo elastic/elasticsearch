@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
@@ -44,15 +44,15 @@ public abstract class Attribute extends NamedExpression {
     // can the attr be null - typically used in JOINs
     private final boolean nullable;
 
-    public Attribute(Location location, String name, String qualifier, ExpressionId id) {
+    public Attribute(Source location, String name, String qualifier, ExpressionId id) {
         this(location, name, qualifier, true, id);
     }
 
-    public Attribute(Location location, String name, String qualifier, boolean nullable, ExpressionId id) {
+    public Attribute(Source location, String name, String qualifier, boolean nullable, ExpressionId id) {
         this(location, name, qualifier, nullable, id, false);
     }
 
-    public Attribute(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    public Attribute(Source location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         super(location, name, emptyList(), id, synthetic);
         this.qualifier = qualifier;
         this.nullable = nullable;
@@ -86,19 +86,19 @@ public abstract class Attribute extends NamedExpression {
         return new AttributeSet(this);
     }
 
-    public Attribute withLocation(Location location) {
-        return Objects.equals(location(), location) ? this : clone(location, name(), qualifier(), nullable(), id(), synthetic());
+    public Attribute withLocation(Source location) {
+        return Objects.equals(source(), location) ? this : clone(location, name(), qualifier(), nullable(), id(), synthetic());
     }
 
     public Attribute withQualifier(String qualifier) {
-        return Objects.equals(qualifier(), qualifier) ? this : clone(location(), name(), qualifier, nullable(), id(), synthetic());
+        return Objects.equals(qualifier(), qualifier) ? this : clone(source(), name(), qualifier, nullable(), id(), synthetic());
     }
 
     public Attribute withNullability(boolean nullable) {
-        return Objects.equals(nullable(), nullable) ? this : clone(location(), name(), qualifier(), nullable, id(), synthetic());
+        return Objects.equals(nullable(), nullable) ? this : clone(source(), name(), qualifier(), nullable, id(), synthetic());
     }
 
-    protected abstract Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id,
+    protected abstract Attribute clone(Source location, String name, String qualifier, boolean nullable, ExpressionId id,
                                        boolean synthetic);
 
     @Override

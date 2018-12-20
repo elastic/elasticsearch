@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
@@ -25,19 +25,19 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final boolean customMessage;
     private final Object resolutionMetadata;
 
-    public UnresolvedAttribute(Location location, String name) {
+    public UnresolvedAttribute(Source location, String name) {
         this(location, name, null);
     }
 
-    public UnresolvedAttribute(Location location, String name, String qualifier) {
+    public UnresolvedAttribute(Source location, String name, String qualifier) {
         this(location, name, qualifier, null);
     }
 
-    public UnresolvedAttribute(Location location, String name, String qualifier, String unresolvedMessage) {
+    public UnresolvedAttribute(Source location, String name, String qualifier, String unresolvedMessage) {
         this(location, name, qualifier, null, unresolvedMessage, null);
     }
 
-    public UnresolvedAttribute(Location location, String name, String qualifier, ExpressionId id, String unresolvedMessage,
+    public UnresolvedAttribute(Source location, String name, String qualifier, ExpressionId id, String unresolvedMessage,
             Object resolutionMetadata) {
         super(location, name, qualifier, id);
         this.customMessage = unresolvedMessage != null;
@@ -65,12 +65,12 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Source location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         return this;
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMsg) {
-        return new UnresolvedAttribute(location(), name(), qualifier(), id(), unresolvedMsg, resolutionMetadata());
+        return new UnresolvedAttribute(source(), name(), qualifier(), id(), unresolvedMsg, resolutionMetadata());
     }
 
     @Override

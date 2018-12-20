@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.time.ZoneId;
 
@@ -17,7 +17,7 @@ import java.time.ZoneId;
  */
 public abstract class DateTimeHistogramFunction extends DateTimeFunction {
 
-    DateTimeHistogramFunction(Location location, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
+    DateTimeHistogramFunction(Source location, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
         super(location, field, zoneId, extractor);
     }
 

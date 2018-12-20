@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.EsField;
 
@@ -25,7 +25,7 @@ public class EsRelation extends LeafPlan {
     private final EsIndex index;
     private final List<Attribute> attrs;
 
-    public EsRelation(Location location, EsIndex index) {
+    public EsRelation(Source location, EsIndex index) {
         super(location);
         this.index = index;
         attrs = flatten(location, index.mapping());
@@ -36,11 +36,11 @@ public class EsRelation extends LeafPlan {
         return NodeInfo.create(this, EsRelation::new, index);
     }
 
-    private static List<Attribute> flatten(Location location, Map<String, EsField> mapping) {
+    private static List<Attribute> flatten(Source location, Map<String, EsField> mapping) {
         return flatten(location, mapping, null);
     }
 
-    private static List<Attribute> flatten(Location location, Map<String, EsField> mapping, FieldAttribute parent) {
+    private static List<Attribute> flatten(Source location, Map<String, EsField> mapping, FieldAttribute parent) {
         List<Attribute> list = new ArrayList<>();
 
         for (Entry<String, EsField> entry : mapping.entrySet()) {

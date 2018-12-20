@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.fulltext;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate.Operator;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -21,7 +21,7 @@ abstract class FullTextUtils {
 
     private static final String DELIMITER = ";";
 
-    static Map<String, String> parseSettings(String options, Location location) {
+    static Map<String, String> parseSettings(String options, Source location) {
         if (!Strings.hasText(options)) {
             return emptyMap();
         }
@@ -43,11 +43,11 @@ abstract class FullTextUtils {
         return op;
     }
 
-    static Map<String, Float> parseFields(Map<String, String> options, Location location) {
+    static Map<String, Float> parseFields(Map<String, String> options, Source location) {
         return parseFields(options.get("fields"), location);
     }
 
-    static Map<String, Float> parseFields(String fieldString, Location location) {
+    static Map<String, Float> parseFields(String fieldString, Source location) {
         if (!Strings.hasText(fieldString)) {
             return emptyMap();
         }

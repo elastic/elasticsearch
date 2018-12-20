@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -19,7 +19,7 @@ public class ReplaceFunctionPipe extends Pipe {
 
     private final Pipe source, pattern, replacement;
 
-    public ReplaceFunctionPipe(Location location, Expression expression, Pipe source,
+    public ReplaceFunctionPipe(Source location, Expression expression, Pipe source,
             Pipe pattern, Pipe replacement) {
         super(location, expression, Arrays.asList(source, pattern, replacement));
         this.source = source;
@@ -58,7 +58,7 @@ public class ReplaceFunctionPipe extends Pipe {
     
     protected Pipe replaceChildren(Pipe newSource, Pipe newPattern,
             Pipe newReplacement) {
-        return new ReplaceFunctionPipe(location(), expression(), newSource, newPattern, newReplacement);
+        return new ReplaceFunctionPipe(source(), expression(), newSource, newPattern, newReplacement);
     }
 
     @Override
@@ -78,7 +78,7 @@ public class ReplaceFunctionPipe extends Pipe {
         return new ReplaceFunctionProcessor(source.asProcessor(), pattern.asProcessor(), replacement.asProcessor());
     }
     
-    public Pipe source() {
+    public Pipe sourcePipe() {
         return source;
     }
     

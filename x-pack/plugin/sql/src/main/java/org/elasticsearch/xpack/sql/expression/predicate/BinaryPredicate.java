@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Objects;
 
@@ -24,7 +24,7 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
     private final String name;
     private final F function;
 
-    protected BinaryPredicate(Location location, Expression left, Expression right, F function) {
+    protected BinaryPredicate(Source location, Expression left, Expression right, F function) {
         super(location, left, right);
         this.name = name(left, right, function.symbol());
         this.function = function;

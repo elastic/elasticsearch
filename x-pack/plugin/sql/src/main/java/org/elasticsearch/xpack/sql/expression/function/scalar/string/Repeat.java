@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  */
 public class Repeat extends BinaryStringNumericFunction {
 
-    public Repeat(Location location, Expression left, Expression right) {
+    public Repeat(Source location, Expression left, Expression right) {
         super(location, left, right);
     }
 
@@ -26,7 +26,7 @@ public class Repeat extends BinaryStringNumericFunction {
 
     @Override
     protected Repeat replaceChildren(Expression newLeft, Expression newRight) {
-        return new Repeat(location(), newLeft, newRight);
+        return new Repeat(source(), newLeft, newRight);
     }
 
     @Override

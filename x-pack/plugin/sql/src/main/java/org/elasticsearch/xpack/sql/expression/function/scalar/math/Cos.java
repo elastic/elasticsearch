@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class Cos extends MathFunction {
-    public Cos(Location location, Expression field) {
+    public Cos(Source location, Expression field) {
         super(location, field);
     }
 
@@ -26,7 +26,7 @@ public class Cos extends MathFunction {
 
     @Override
     protected Cos replaceChild(Expression newChild) {
-        return new Cos(location(), newChild);
+        return new Cos(source(), newChild);
     }
 
     @Override

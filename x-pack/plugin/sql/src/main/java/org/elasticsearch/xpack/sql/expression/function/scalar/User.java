@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class User extends ConfigurationFunction {
 
-    public User(Location location, Configuration configuration) {
+    public User(Source location, Configuration configuration) {
         super(location, configuration, DataType.KEYWORD);
     }
 

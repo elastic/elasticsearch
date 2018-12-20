@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.time.ZoneId;
@@ -16,7 +16,7 @@ import java.time.ZoneId;
  * Extract the month of the year from a datetime.
  */
 public class MonthOfYear extends DateTimeFunction {
-    public MonthOfYear(Location location, Expression field, ZoneId zoneId) {
+    public MonthOfYear(Source location, Expression field, ZoneId zoneId) {
         super(location, field, zoneId, DateTimeExtractor.MONTH_OF_YEAR);
     }
 
@@ -27,7 +27,7 @@ public class MonthOfYear extends DateTimeFunction {
 
     @Override
     protected MonthOfYear replaceChild(Expression newChild) {
-        return new MonthOfYear(location(), newChild, zoneId());
+        return new MonthOfYear(source(), newChild, zoneId());
     }
 
     @Override

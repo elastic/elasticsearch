@@ -10,14 +10,14 @@ import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class OrderBy extends UnaryPlan {
 
     private final List<Order> order;
 
-    public OrderBy(Location location, LogicalPlan child, List<Order> order) {
+    public OrderBy(Source location, LogicalPlan child, List<Order> order) {
         super(location, child);
         this.order = order;
     }
@@ -29,7 +29,7 @@ public class OrderBy extends UnaryPlan {
 
     @Override
     protected OrderBy replaceChild(LogicalPlan newChild) {
-        return new OrderBy(location(), newChild, order);
+        return new OrderBy(source(), newChild, order);
     }
 
     public List<Order> order() {

@@ -10,7 +10,7 @@ import java.util.Objects;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 
@@ -21,11 +21,11 @@ public class RangeQuery extends LeafQuery {
     private final boolean includeLower, includeUpper;
     private final String format;
 
-    public RangeQuery(Location location, String field, Object lower, boolean includeLower, Object upper, boolean includeUpper) {
+    public RangeQuery(Source location, String field, Object lower, boolean includeLower, Object upper, boolean includeUpper) {
         this(location, field, lower, includeLower, upper, includeUpper, null);
     }
 
-    public RangeQuery(Location location, String field, Object lower, boolean includeLower, Object upper,
+    public RangeQuery(Source location, String field, Object lower, boolean includeLower, Object upper,
             boolean includeUpper, String format) {
         super(location);
         this.field = field;

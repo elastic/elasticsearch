@@ -121,8 +121,7 @@ setup() {
 @test "[INIT.D] start Elasticsearch with custom JVM options" {
     assert_file_exist $ESENVFILE
     local temp=`mktemp -d`
-    cp "$ESCONFIG"/elasticsearch.yml "$temp"
-    cp "$ESCONFIG"/log4j2.properties "$temp"
+    cp -R "$ESCONFIG" "$temp"
     touch "$temp/jvm.options"
     chown -R elasticsearch:elasticsearch "$temp"
     echo "-Xms512m" >> "$temp/jvm.options"

@@ -65,7 +65,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 .builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.type", "single-node")
-                .put("transport.port", "0")
+                .put("transport.tcp.port", "0")
                 .build();
     }
 
@@ -165,6 +165,12 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                     first.metaData().clusterUUID(),
                     not(equalTo(second.metaData().clusterUUID())));
         }
+    }
+
+    public void testStatePersistence() throws Exception {
+        createIndex("test");
+        internalCluster().fullRestart();
+        assertTrue(client().admin().indices().prepareExists("test").get().isExists());
     }
 
 }

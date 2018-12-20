@@ -28,8 +28,6 @@ security settings>>.
 
 The list of hosts is set using the <<unicast.hosts,`discovery.zen.ping.unicast.hosts`>> static
 setting.  For example:
-if not set). Note that IPv6 hosts must be bracketed. The default for this
-setting is `127.0.0.1, [::1]`
 
 [source,yaml]
 --------------------------------------------------

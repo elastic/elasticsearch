@@ -89,9 +89,10 @@ gives a convenient mechanism for an Elasticsearch instance that is run in a
 Docker container to be dynamically supplied with a list of IP addresses to
 connect to when those IP addresses may not be known at node startup.
 
-To enable file-based discovery, configure the `file` hosts provider as follows:
+To enable file-based discovery, configure the `file` hosts provider as follows
+in the `elasticsearch.yml` file:
 
-[source,txt]
+[source,yml]
 ----------------------------------------------------------------
 discovery.zen.hosts_provider: file
 ----------------------------------------------------------------

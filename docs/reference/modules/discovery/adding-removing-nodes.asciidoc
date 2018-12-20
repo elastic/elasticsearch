@@ -98,12 +98,8 @@ GET /_cluster/state?filter_path=metadata.cluster_coordination.voting_config_excl
 --------------------------------------------------
 // CONSOLE
 
-This list is limited in size by the following setting:
-
-`cluster.max_voting_config_exclusions`::
-
-    Sets a limits on the number of voting configuration exclusions at any one
-    time.  Defaults to `10`.
+This list is limited in size by the `cluster.max_voting_config_exclusions` 
+setting, which defaults to `10`. See <<modules-discovery-settings>>.
 
 Since voting configuration exclusions are persistent and limited in number, they
 must be cleaned up. Normally an exclusion is added when performing some

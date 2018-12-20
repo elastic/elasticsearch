@@ -59,18 +59,39 @@ Discovery and cluster formation are affected by the following settings:
     considers the elected master to be faulty and attempts to find or elect a
     new master. Defaults to `3`.
 
+`cluster.follower_lag.timeout`::
+
+    Sets how long the master node waits to receive acknowledgements for cluster
+    state updates from lagging nodes. The default value is `90s`. If a node does
+    not successfully apply the cluster state update within this period of time,
+    it is considered to have failed and is removed from the cluster. See
+    <<cluster-state-publishing>>.  
+
 `cluster.initial_master_nodes`::
 
     Sets a list of the <<node.name,node names>> or transport addresses of the
     initial set of master-eligible nodes in a brand-new cluster. By default
     this list is empty, meaning that this node expects to join a cluster that
-    has already been bootstrapped.  
+    has already been bootstrapped. See <<initial_master_nodes>>.
 
 `cluster.join.timeout`::
 
     Sets how long a node will wait after sending a request to join a cluster
     before it considers the request to have failed and retries. Defaults to
-    `60s`. 
+    `60s`.
+    
+`cluster.max_voting_config_exclusions`::
+
+    Sets a limit on the number of voting configuration exclusions at any one
+    time. The default value is `10`. See
+    <<modules-discovery-adding-removing-nodes>>.
+    
+`cluster.publish.timeout`:: 
+    
+    Sets how long the master node waits for each cluster state update to be
+    completely published to all nodes. The default value is `30s`. If this
+    period of time elapses, the cluster state change is rejected. See
+    <<cluster-state-publishing>>.   
 
 `discovery.cluster_formation_warning_timeout`::
 
@@ -98,6 +119,11 @@ Discovery and cluster formation are affected by the following settings:
     Sets how long a node will wait after asking its peers again before
     considering the request to have failed. Defaults to `3s`.    
 
+`discovery.zen.hosts_provider`:: 
+    Specifies which type of <<built-in-hosts-providers,hosts provider>> provides
+    the list of seed nodes. By default, it is the 
+    <<settings-based-hosts-provider,settings-based hosts provider>>.
+
 [[no-master-block]]`discovery.zen.no_master_block`::
 Specifies which operations are rejected when there is no active master in a
 cluster. This setting has two valid values:
@@ -121,3 +147,14 @@ APIs are not be blocked and can run on any available node.
 * For the cluster to be fully operational, it must have an active master.
 ===============================
 --
+
+`discovery.zen.ping.unicast.hosts`::
+
+    Provides a list of master-eligible nodes in the cluster. The list contains
+    either an array of hosts or a comma-delimited string. Each value has the
+    format `host:port` or `host`, where `port` defaults to the setting `transport.profiles.default.port`. Note that IPv6 hosts must be bracketed.
+    The default value is `127.0.0.1, [::1]`. See <<unicast.hosts>>.
+
+`discovery.zen.ping.unicast.hosts.resolve_timeout`::
+
+    Sets the amount of time to wait for DNS lookups on each round of discovery. This is specified as a <<time-units, time unit>> and defaults to `5s`.

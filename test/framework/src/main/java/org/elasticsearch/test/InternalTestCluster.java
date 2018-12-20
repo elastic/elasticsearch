@@ -961,7 +961,8 @@ public final class InternalTestCluster extends TestCluster {
                     .put(newSettings)
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                     .build();
-            if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings) == false) {
+            final boolean usingSingleNodeDiscovery = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(finalSettings).equals("single-node");
+            if (usingSingleNodeDiscovery == false && DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings) == false) {
                 throw new IllegalStateException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
                     " is not configured after restart of [" + name + "]");
             }

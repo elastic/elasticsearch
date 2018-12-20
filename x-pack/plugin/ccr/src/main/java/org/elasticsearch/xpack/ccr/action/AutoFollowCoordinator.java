@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
@@ -43,6 +44,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -343,7 +345,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
                     Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result);
                     checkAutoFollowPattern(autoFollowPatternName, remoteCluster, autoFollowPattern, leaderIndicesToFollow, headers,
-                        patternsForTheSameRemoteCluster, resultHandler);
+                        patternsForTheSameRemoteCluster, remoteClusterState.metaData(), resultHandler);
                 }
                 i++;
             }
@@ -356,6 +358,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                                             List<Index> leaderIndicesToFollow,
                                             Map<String, String> headers,
                                             List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster,
+                                            MetaData remoteMetadata,
                                             Consumer<AutoFollowResult> resultHandler) {
 
             final CountDown leaderIndicesCountDown = new CountDown(leaderIndicesToFollow.size());
@@ -375,6 +378,23 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
                     }
                 } else {
+                    final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
+                    if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexSettings) == false) {
+                        String message = String.format(Locale.ROOT, "index [%s] cannot be followed, because soft deletes are not enabled",
+                            indexToFollow.getName());
+                        LOGGER.warn(message);
+                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
+                            ElasticsearchException failure = new ElasticsearchException(message);
+                            if (error != null) {
+                                failure.addSuppressed(error);
+                            }
+                            results.set(slot, new Tuple<>(indexToFollow, failure));
+                            if (leaderIndicesCountDown.countDown()) {
+                                resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
+                            }
+                        });
+                        continue;
+                    }
                     followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers, error -> {
                         results.set(slot, new Tuple<>(indexToFollow, error));
                         if (leaderIndicesCountDown.countDown()) {
@@ -453,9 +473,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         // has a leader index uuid custom metadata entry that matches with uuid of leaderIndexMetaData variable
                         // If so then handle it differently: not follow it, but just add an entry to
                         // AutoFollowMetadata#followedLeaderIndexUUIDs
-                        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)) {
-                            leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
-                        }
+                        leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
                     }
                 }
             }

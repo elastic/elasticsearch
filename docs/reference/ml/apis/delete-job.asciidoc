@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-job]]
-=== Delete Jobs API
+=== Delete jobs API
 ++++
-<titleabbrev>Delete Jobs</titleabbrev>
+<titleabbrev>Delete jobs</titleabbrev>
 ++++
 
 Deletes an existing anomaly detection job.

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-getting-started]]
-== Getting Started with {ccr}
+== Getting started with {ccr}
 
 beta[]
 

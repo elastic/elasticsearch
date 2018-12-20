@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-get-user]]
 === Get users API
+++++
+<titleabbrev>Get users</titleabbrev>
+++++
 
 Retrieves information about users in the native realm. 
 

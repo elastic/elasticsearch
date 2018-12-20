@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -46,6 +45,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -383,7 +383,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     if (leaderIndexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
                         IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexSettings).onOrAfter(Version.V_7_0_0)) == false) {
 
-                        String message = String.format("index [%s] cannot be followed, because soft deletes are not enabled",
+                        String message = String.format(Locale.ROOT, "index [%s] cannot be followed, because soft deletes are not enabled",
                             indexToFollow.getName());
                         LOGGER.warn(message);
                         updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {

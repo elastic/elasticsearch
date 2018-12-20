@@ -695,7 +695,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
                 .build();
             String indexName = "logs-" + i;
-            leaderStates.add(i == 0 ? createRemoteClusterState(indexName, true) : createRemoteClusterState(leaderStates.get(i - 1), indexName));
+            leaderStates.add(i == 0 ? createRemoteClusterState(indexName, true) :
+                createRemoteClusterState(leaderStates.get(i - 1), indexName));
         }
 
         List<AutoFollowCoordinator.AutoFollowResult> allResults = new ArrayList<>();

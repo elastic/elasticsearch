@@ -76,7 +76,7 @@ task testRepositoryCreds(type: RandomizedTestingTask) {
 }
 project.check.dependsOn(testRepositoryCreds)
 
-test {
+unitTest {
   // these are tested explicitly in separate test tasks
   exclude '**/*CredentialsTests.class'
   exclude '**/S3BlobStoreRepositoryTests.class'

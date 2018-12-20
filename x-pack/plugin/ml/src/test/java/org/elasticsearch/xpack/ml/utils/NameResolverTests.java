@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.utils;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
 
@@ -18,7 +17,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -27,45 +25,36 @@ import static org.hamcrest.Matchers.is;
 public class NameResolverTests extends ESTestCase {
 
     public void testNoMatchingNames() {
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
-                () -> newUnaliasedResolver().expand("foo", false));
-        assertThat(e.getMessage(), equalTo("foo"));
+        assertThat(newUnaliasedResolver().expand("foo").isEmpty(), is(true));
     }
 
-    public void testNoMatchingNames_GivenPatternAndAllowNoMatch() {
-        assertThat(newUnaliasedResolver().expand("foo*", true).isEmpty(), is(true));
+    public void testNoMatchingNames_GivenPattern() {
+        assertThat(newUnaliasedResolver().expand("foo*").isEmpty(), is(true));
     }
 
-    public void testNoMatchingNames_GivenPatternAndNotAllowNoMatch() {
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
-                () -> newUnaliasedResolver().expand("foo*", false));
-        assertThat(e.getMessage(), equalTo("foo*"));
-    }
-
-    public void testNoMatchingNames_GivenMatchingNameAndNonMatchingPatternAndNotAllowNoMatch() {
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
-                () ->  newUnaliasedResolver("foo").expand("foo, bar*", false));
-        assertThat(e.getMessage(), equalTo("bar*"));
+    public void testNoMatchingNames_GivenMatchingNameAndNonMatchingPattern() {
+        NameResolver nameResolver = newUnaliasedResolver("foo");
+        assertThat(nameResolver.expand("foo,bar*"), equalTo(newSortedSet("foo")));
     }
 
     public void testUnaliased() {
         NameResolver nameResolver = newUnaliasedResolver("foo-1", "foo-2", "bar-1", "bar-2");
 
-        assertThat(nameResolver.expand("foo-1", false), equalTo(newSortedSet("foo-1")));
-        assertThat(nameResolver.expand("foo-2", false), equalTo(newSortedSet("foo-2")));
-        assertThat(nameResolver.expand("bar-1", false), equalTo(newSortedSet("bar-1")));
-        assertThat(nameResolver.expand("bar-2", false), equalTo(newSortedSet("bar-2")));
-        assertThat(nameResolver.expand("foo-1,foo-2", false), equalTo(newSortedSet("foo-1", "foo-2")));
-        assertThat(nameResolver.expand("foo-*", false), equalTo(newSortedSet("foo-1", "foo-2")));
-        assertThat(nameResolver.expand("bar-*", false), equalTo(newSortedSet("bar-1", "bar-2")));
-        assertThat(nameResolver.expand("*oo-*", false), equalTo(newSortedSet("foo-1", "foo-2")));
-        assertThat(nameResolver.expand("*-1", false), equalTo(newSortedSet("foo-1", "bar-1")));
-        assertThat(nameResolver.expand("*-2", false), equalTo(newSortedSet("foo-2", "bar-2")));
-        assertThat(nameResolver.expand("*", false), equalTo(newSortedSet("foo-1", "foo-2", "bar-1", "bar-2")));
-        assertThat(nameResolver.expand("_all", false), equalTo(newSortedSet("foo-1", "foo-2", "bar-1", "bar-2")));
-        assertThat(nameResolver.expand("foo-1,foo-2", false), equalTo(newSortedSet("foo-1", "foo-2")));
-        assertThat(nameResolver.expand("foo-1,bar-1", false), equalTo(newSortedSet("bar-1", "foo-1")));
-        assertThat(nameResolver.expand("foo-*,bar-1", false), equalTo(newSortedSet("bar-1", "foo-1", "foo-2")));
+        assertThat(nameResolver.expand("foo-1"), equalTo(newSortedSet("foo-1")));
+        assertThat(nameResolver.expand("foo-2"), equalTo(newSortedSet("foo-2")));
+        assertThat(nameResolver.expand("bar-1"), equalTo(newSortedSet("bar-1")));
+        assertThat(nameResolver.expand("bar-2"), equalTo(newSortedSet("bar-2")));
+        assertThat(nameResolver.expand("foo-1,foo-2"), equalTo(newSortedSet("foo-1", "foo-2")));
+        assertThat(nameResolver.expand("foo-*"), equalTo(newSortedSet("foo-1", "foo-2")));
+        assertThat(nameResolver.expand("bar-*"), equalTo(newSortedSet("bar-1", "bar-2")));
+        assertThat(nameResolver.expand("*oo-*"), equalTo(newSortedSet("foo-1", "foo-2")));
+        assertThat(nameResolver.expand("*-1"), equalTo(newSortedSet("foo-1", "bar-1")));
+        assertThat(nameResolver.expand("*-2"), equalTo(newSortedSet("foo-2", "bar-2")));
+        assertThat(nameResolver.expand("*"), equalTo(newSortedSet("foo-1", "foo-2", "bar-1", "bar-2")));
+        assertThat(nameResolver.expand("_all"), equalTo(newSortedSet("foo-1", "foo-2", "bar-1", "bar-2")));
+        assertThat(nameResolver.expand("foo-1,foo-2"), equalTo(newSortedSet("foo-1", "foo-2")));
+        assertThat(nameResolver.expand("foo-1,bar-1"), equalTo(newSortedSet("bar-1", "foo-1")));
+        assertThat(nameResolver.expand("foo-*,bar-1"), equalTo(newSortedSet("bar-1", "foo-1", "foo-2")));
     }
 
     public void testAliased() {
@@ -79,33 +68,33 @@ public class NameResolverTests extends ESTestCase {
         NameResolver nameResolver = new TestAliasNameResolver(namesAndAliasesMap);
 
         // First try same set of assertions as unaliases
-        assertThat(nameResolver.expand("foo-1", false), equalTo(newSortedSet("foo-1")));
-        assertThat(nameResolver.expand("foo-2", false), equalTo(newSortedSet("foo-2")));
-        assertThat(nameResolver.expand("bar-1", false), equalTo(newSortedSet("bar-1")));
-        assertThat(nameResolver.expand("bar-2", false), equalTo(newSortedSet("bar-2")));
-        assertThat(nameResolver.expand("foo-1,foo-2", false), equalTo(newSortedSet("foo-1", "foo-2")));
-        assertThat(nameResolver.expand("foo-*", false), equalTo(newSortedSet("foo-1", "foo-2")));
-        assertThat(nameResolver.expand("bar-*", false), equalTo(newSortedSet("bar-1", "bar-2")));
-        assertThat(nameResolver.expand("*oo-*", false), equalTo(newSortedSet("foo-1", "foo-2")));
-        assertThat(nameResolver.expand("*-1", false), equalTo(newSortedSet("foo-1", "bar-1")));
-        assertThat(nameResolver.expand("*-2", false), equalTo(newSortedSet("foo-2", "bar-2")));
-        assertThat(nameResolver.expand("*", false), equalTo(newSortedSet("foo-1", "foo-2", "bar-1", "bar-2")));
-        assertThat(nameResolver.expand("_all", false), equalTo(newSortedSet("foo-1", "foo-2", "bar-1", "bar-2")));
-        assertThat(nameResolver.expand("foo-1,foo-2", false), equalTo(newSortedSet("foo-1", "foo-2")));
-        assertThat(nameResolver.expand("foo-1,bar-1", false), equalTo(newSortedSet("bar-1", "foo-1")));
-        assertThat(nameResolver.expand("foo-*,bar-1", false), equalTo(newSortedSet("bar-1", "foo-1", "foo-2")));
+        assertThat(nameResolver.expand("foo-1"), equalTo(newSortedSet("foo-1")));
+        assertThat(nameResolver.expand("foo-2"), equalTo(newSortedSet("foo-2")));
+        assertThat(nameResolver.expand("bar-1"), equalTo(newSortedSet("bar-1")));
+        assertThat(nameResolver.expand("bar-2"), equalTo(newSortedSet("bar-2")));
+        assertThat(nameResolver.expand("foo-1,foo-2"), equalTo(newSortedSet("foo-1", "foo-2")));
+        assertThat(nameResolver.expand("foo-*"), equalTo(newSortedSet("foo-1", "foo-2")));
+        assertThat(nameResolver.expand("bar-*"), equalTo(newSortedSet("bar-1", "bar-2")));
+        assertThat(nameResolver.expand("*oo-*"), equalTo(newSortedSet("foo-1", "foo-2")));
+        assertThat(nameResolver.expand("*-1"), equalTo(newSortedSet("foo-1", "bar-1")));
+        assertThat(nameResolver.expand("*-2"), equalTo(newSortedSet("foo-2", "bar-2")));
+        assertThat(nameResolver.expand("*"), equalTo(newSortedSet("foo-1", "foo-2", "bar-1", "bar-2")));
+        assertThat(nameResolver.expand("_all"), equalTo(newSortedSet("foo-1", "foo-2", "bar-1", "bar-2")));
+        assertThat(nameResolver.expand("foo-1,foo-2"), equalTo(newSortedSet("foo-1", "foo-2")));
+        assertThat(nameResolver.expand("foo-1,bar-1"), equalTo(newSortedSet("bar-1", "foo-1")));
+        assertThat(nameResolver.expand("foo-*,bar-1"), equalTo(newSortedSet("bar-1", "foo-1", "foo-2")));
 
         // No let's test the aliases
-        assertThat(nameResolver.expand("foo-group", false), equalTo(newSortedSet("foo-1", "foo-2")));
-        assertThat(nameResolver.expand("bar-group", false), equalTo(newSortedSet("bar-1", "bar-2")));
-        assertThat(nameResolver.expand("foo-group,bar-group", false), equalTo(newSortedSet("bar-1", "bar-2", "foo-1", "foo-2")));
-        assertThat(nameResolver.expand("foo-group,foo-1", false), equalTo(newSortedSet("foo-1", "foo-2")));
-        assertThat(nameResolver.expand("foo-group,bar-1", false), equalTo(newSortedSet("bar-1", "foo-1", "foo-2")));
-        assertThat(nameResolver.expand("foo-group,bar-*", false), equalTo(newSortedSet("bar-1", "bar-2", "foo-1", "foo-2")));
+        assertThat(nameResolver.expand("foo-group"), equalTo(newSortedSet("foo-1", "foo-2")));
+        assertThat(nameResolver.expand("bar-group"), equalTo(newSortedSet("bar-1", "bar-2")));
+        assertThat(nameResolver.expand("foo-group,bar-group"), equalTo(newSortedSet("bar-1", "bar-2", "foo-1", "foo-2")));
+        assertThat(nameResolver.expand("foo-group,foo-1"), equalTo(newSortedSet("foo-1", "foo-2")));
+        assertThat(nameResolver.expand("foo-group,bar-1"), equalTo(newSortedSet("bar-1", "foo-1", "foo-2")));
+        assertThat(nameResolver.expand("foo-group,bar-*"), equalTo(newSortedSet("bar-1", "bar-2", "foo-1", "foo-2")));
     }
 
     private static NameResolver newUnaliasedResolver(String... names) {
-        return NameResolver.newUnaliased(new HashSet<>(Arrays.asList(names)), notFoundExceptionSupplier());
+        return NameResolver.newUnaliased(new HashSet<>(Arrays.asList(names)));
     }
 
     private static SortedSet<String> newSortedSet(String... names) {
@@ -115,17 +104,12 @@ public class NameResolverTests extends ESTestCase {
         }
         return result;
     }
-
-    private static Function<String, ResourceNotFoundException> notFoundExceptionSupplier() {
-        return s -> new ResourceNotFoundException(s);
-    }
-
+    
     private static class TestAliasNameResolver extends NameResolver {
 
         private final Map<String, List<String>> lookup;
 
         TestAliasNameResolver(Map<String, List<String>> lookup) {
-            super(notFoundExceptionSupplier());
             this.lookup = lookup;
         }
 

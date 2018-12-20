@@ -34,15 +34,15 @@ public class JiraService extends NotificationService<JiraAccount> {
 
     private static final Setting.AffixSetting<String> SETTING_URL =
             Setting.affixKeySetting("xpack.notification.jira.account.", "url",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
 
     private static final Setting.AffixSetting<String> SETTING_USER =
             Setting.affixKeySetting("xpack.notification.jira.account.", "user",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
 
     private static final Setting.AffixSetting<String> SETTING_PASSWORD =
             Setting.affixKeySetting("xpack.notification.jira.account.", "password",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
 
     private static final Setting.AffixSetting<SecureString> SETTING_SECURE_USER =
             Setting.affixKeySetting("xpack.notification.jira.account.", "secure_user",

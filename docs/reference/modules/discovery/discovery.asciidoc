@@ -1,19 +1,49 @@
 [[modules-discovery-hosts-providers]]
 === Discovery
 
-The cluster formation module uses a list of _seed_ nodes in order to start off
-the discovery process. When you start an Elasticsearch node, or when a node
-believes the master node failed, that node tries to connect to each
-seed node in its list. After a connection occurs, the two nodes repeatedly share
-information about the other known master-eligible nodes in the cluster in order
-to build a complete picture of the cluster.  By default the cluster formation
-module offers two hosts providers to configure the list of seed nodes: a
-_settings_-based and a _file_-based hosts provider. It can be extended to
-support cloud environments and other forms of hosts providers via
-{plugins}/discovery.html[discovery plugins]. Hosts providers are configured
-using the `discovery.zen.hosts_provider` setting, which defaults to the
-_settings_-based hosts provider. Multiple hosts providers can be specified as a
-list.
+Discovery is the process by which the cluster formation module finds other
+nodes with which to form a cluster. This process runs when you start an
+Elasticsearch node or when a node believes the master node failed and continues
+until the master node is found or a new master node is elected.
+
+Discovery operates in two phases: First, each node probes the addresses of all
+known master-eligible nodes by connecting to each address and attempting to
+identify the node to which it is connected. Secondly it shares with the remote
+node a list of all of its known master-eligible peers and the remote node
+responds with _its_ peers in turn. The node then probes all the new nodes that
+it just discovered, requests their peers, and so on.
+
+This process starts with a list of _seed_ addresses from one or more
+<<built-in-hosts-providers,hosts providers>>, together with the addresses of
+any master-eligible nodes that were in the last known cluster. The process
+operates in two phases: First, each node probes the seed addresses by
+connecting to each address and attempting to identify the node to which it is
+connected. Secondly it shares with the remote node a list of all of its known
+master-eligible peers and the remote node responds with _its_ peers in turn.
+The node then probes all the new nodes that it just discovered, requests their
+peers, and so on.
+
+If the node is not master-eligible then it continues this discovery process
+until it has discovered an elected master node. If no elected master is
+discovered then the node will retry after `discovery.find_peers_interval` which
+defaults to `1s`.
+
+If the node is master-eligible then it continues this discovery process until it
+has either discovered an elected master node or else it has discovered enough
+masterless master-eligible nodes to complete an election. If neither of these
+occur quickly enough then the node will retry after
+`discovery.find_peers_interval` which defaults to `1s`.
+
+[[built-in-hosts-providers]]
+==== Hosts providers
+
+By default the cluster formation module offers two hosts providers to configure
+the list of seed nodes: a _settings_-based and a _file_-based hosts provider.
+It can be extended to support cloud environments and other forms of hosts
+providers via {plugins}/discovery.html[discovery plugins]. Hosts providers are
+configured using the `discovery.zen.hosts_provider` setting, which defaults to
+the _settings_-based hosts provider. Multiple hosts providers can be specified
+as a list.
 
 [float]
 [[settings-based-hosts-provider]]
@@ -130,24 +160,6 @@ that uses the GCE API find a list of seed nodes.
 
 [float]
 ==== Discovery settings
-
-Discovery operates in two phases: First, each node probes the addresses of all
-known master-eligible nodes by connecting to each address and attempting to
-identify the node to which it is connected. Secondly it shares with the remote
-node a list of all of its known master-eligible peers and the remote node
-responds with _its_ peers in turn. The node then probes all the new nodes that
-it just discovered, requests their peers, and so on.
-
-If the node is not master-eligible then it continues this discovery process
-until it has discovered an elected master node. If no elected master is
-discovered then the node will retry after `discovery.find_peers_interval` which
-defaults to `1s`.
-
-If the node is master-eligible then it continues this discovery process until it
-has either discovered an elected master node or else it has discovered enough
-masterless master-eligible nodes to complete an election. If neither of these
-occur quickly enough then the node will retry after
-`discovery.find_peers_interval` which defaults to `1s`.
 
 The discovery process is controlled by the following settings.
 

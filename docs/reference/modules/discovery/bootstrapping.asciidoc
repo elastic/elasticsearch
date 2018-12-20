@@ -2,11 +2,11 @@
 === Bootstrapping a cluster
 
 Starting an Elasticsearch cluster for the very first time requires the initial
-set of master-eligible nodes to be explicitly set on one or more of the
+set of <<master-node,master-eligible nodes>> to be explicitly defined on one or more of the
 master-eligible nodes in the cluster. This is known as _cluster bootstrapping_.
 This is only required the very first time the cluster starts up: nodes that
-have already joined a cluster will store this information in their data folder,
-and freshly-started nodes that are intended to join an existing cluster will
+have already joined a cluster store this information in their data folder
+and freshly-started nodes that are joining an existing cluster
 obtain this information from the cluster's elected master. This information is
 given using this setting:
 
@@ -81,9 +81,9 @@ WARNING: You must put exactly the same set of initial master nodes in each
 [float]
 ==== Choosing a cluster name
 
-The `cluster.name` allows you to create multiple clusters which are separated
+The <<cluster.name,`cluster.name`>> setting enables you to create multiple clusters which are separated
 from each other. Nodes verify that they agree on their cluster name when they
-first connect to each other, and if two nodes have different cluster names then
+first connect to each other. If two nodes have different cluster names, 
 they will not communicate meaningfully and will not belong to the same cluster.
 The default value for the cluster name is `elasticsearch`, but it is
 recommended to change this to reflect the logical name of the cluster.

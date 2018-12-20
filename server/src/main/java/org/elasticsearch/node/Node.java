@@ -67,9 +67,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.MarkerLoggerContextFactory;
-import org.elasticsearch.common.logging.NodeIdListener;
-import org.elasticsearch.common.logging.NodeIdPatternConverter;
+import org.elasticsearch.common.logging.NodeAndClusterIdConverter;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -441,13 +439,8 @@ public class Node implements Closeable {
                                                  namedWriteableRegistry).stream())
                 .collect(Collectors.toList());
 
-            NodeIdPatternConverter nodeIdPatternConverter = NodeIdPatternConverter.newInstance(new String[]{});
-            clusterService.addListener(nodeIdPatternConverter);
-
-            NodeIdListener nodeIdListener = new NodeIdListener();
-            clusterService.addListener(nodeIdListener);
-            //TODO any other way to pass cluster state listener to context factory?
-            ((MarkerLoggerContextFactory)LogManager.getFactory()).setNodeIdListener(nodeIdListener);
+            NodeAndClusterIdConverter nodeAndClusterIdConverter = NodeAndClusterIdConverter.newInstance(new String[]{});
+            clusterService.addListener(nodeAndClusterIdConverter);
 
             ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),

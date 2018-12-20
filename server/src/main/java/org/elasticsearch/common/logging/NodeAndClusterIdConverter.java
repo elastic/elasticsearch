@@ -24,28 +24,30 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.util.LazyInitializable;
 
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
 
-@Plugin(category = PatternConverter.CATEGORY, name = "NodeIdPatternConverter")
-@ConverterKeys({"node_id_from_plugin"})
-public final class NodeIdPatternConverter extends LogEventPatternConverter implements ClusterStateListener {
+@Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
+@ConverterKeys({"node_and_cluster_id"})
+public final class NodeAndClusterIdConverter extends LogEventPatternConverter implements ClusterStateListener {
 
-    AtomicReference<String> nodeId = new AtomicReference<>();
+    private static LazyInitializable<NodeAndClusterIdConverter, Exception> INSTANCE =
+        new LazyInitializable(() -> new NodeAndClusterIdConverter());
 
-    private static LazyInitializable<NodeIdPatternConverter, Exception> INSTANCE =
-        new LazyInitializable(() -> new NodeIdPatternConverter());
+    private AtomicReference<String> nodeAndClusterIdsReference = new AtomicReference<>();
+    private CloseableThreadLocal<String> nodeAndClusterIds = new CloseableThreadLocal();
 
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static NodeIdPatternConverter newInstance(final String[] options) {
+    public static NodeAndClusterIdConverter newInstance(final String[] options) {
         try {
             return INSTANCE.getOrCompute();
         } catch (Exception e) {
@@ -53,33 +55,40 @@ public final class NodeIdPatternConverter extends LogEventPatternConverter imple
         }
     }
 
-    public NodeIdPatternConverter() {
-        super("NodeName", "node_id_from_plugin");
+    public NodeAndClusterIdConverter() {
+        super("NodeName", "node_and_cluster_id");
     }
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        toAppendTo.append(nodeId.get());
-    }
-
-    @Override
-    @SuppressForbidden(reason = "sets system property for logging variable propagation")
-    public void clusterChanged(ClusterChangedEvent event) {
-        DiscoveryNode localNode = event.state().getNodes().getLocalNode();
-        String id = localNode.getId();
-        //option 2
-        boolean wasSet = nodeId.compareAndSet(null, id);
-
-        if (wasSet) {
-            //option1
-            System.setProperty("node_id_sys_prop", id);
-            //TODO deregister as no longer the id will change ?
+        if (nodeAndClusterIds.get() == null && nodeAndClusterIdsReference.get() != null) {
+            //received a value from the listener
+            toAppendTo.append(nodeAndClusterIdsReference.get());
+            nodeAndClusterIds.set(nodeAndClusterIdsReference.get());
+        } else if (nodeAndClusterIds.get() != null) {
+            //using local value
+            toAppendTo.append(nodeAndClusterIds.get());
+        } else {
+            // no value received yet
+            toAppendTo.append("");
         }
     }
 
     @Override
-    public String toString() {
-        return nodeId.get();
+    public void clusterChanged(ClusterChangedEvent event) {
+        DiscoveryNode localNode = event.state().getNodes().getLocalNode();
+        String clusterUUID = event.state().getMetaData().clusterUUID();
+        String nodeId = localNode.getId();
+        boolean wasSet = nodeAndClusterIdsReference.compareAndSet(null, formatIds(clusterUUID,nodeId));
+
+        if (wasSet) {
+            LOGGER.info("received first cluster state update. Setting nodeId={}", nodeId);
+
+        }
     }
 
+    private static String formatIds(String clusterUUID, String nodeId) {
+        return String.format(Locale.ROOT, "\"cluster_uuid\": \"%s\", \"node_id\": \"%s\", ", clusterUUID, nodeId);
+    }
 }
+

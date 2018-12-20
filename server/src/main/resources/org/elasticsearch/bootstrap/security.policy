@@ -78,7 +78,6 @@ grant {
   permission java.util.PropertyPermission "solr.solr.home", "write";
   permission java.util.PropertyPermission "solr.data.dir", "write";
   permission java.util.PropertyPermission "solr.directoryFactory", "write";
-  permission java.util.PropertyPermission "node_id_sys_prop", "write";
 
   // set by ESTestCase to improve test reproducibility
   // TODO: set this with gradle or some other way that repros with seed?

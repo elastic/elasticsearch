@@ -775,7 +775,7 @@ null                |10
 
 expressionOnHistogramNotAllowed-Ignore
 // tag::expressionOnHistogramNotAllowed
-SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM emp GROUP BY h ORDER BY h DESC;
+SELECT MONTH(HISTOGRAM(birth_date), 2)) AS h, COUNT(*) as c FROM emp GROUP BY h ORDER BY h DESC;
 // end::expressionOnHistogramNotAllowed
 
 histogramDateExpression

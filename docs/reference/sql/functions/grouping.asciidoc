@@ -61,14 +61,14 @@ return type is numeric:
 include-tagged::{sql-specs}/docs.csv-spec[histogramNumericExpression]
 ----
 
-Do note that histograms (and grouping functions in general) allow custom expressions but cannot have any functions applied to them in the `GROUP BY`.In other words, the following statement is *NOT* allowed:
+Do note that histograms (and grouping functions in general) allow custom expressions but cannot have any functions applied to them in the `GROUP BY`. In other words, the following statement is *NOT* allowed:
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[expressionOnHistogramNotAllowed]
 ----
 
-as it requires two groupings (one for histogram and then another for apply the function on top of the histogram groups).
+as it requires two groupings (one for histogram followed by a second for applying the function on top of the histogram groups).
 
 Instead one can rewrite the query to move the expression on the histogram _inside_ of it:
 

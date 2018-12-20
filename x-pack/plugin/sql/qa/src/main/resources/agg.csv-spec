@@ -280,7 +280,7 @@ null           |10
 
 histogramDateWithYearOnTop
 schema::h:i|c:l
-SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
+SELECT HISTOGRAM(YEAR(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
        h       |       c       
 ---------------+---------------
 1964           |5              

@@ -1,8 +1,8 @@
 [[discovery]]
 == Discovery Plugins
 
-Discovery plugins extend Elasticsearch by adding new host providers that
-can be used to extend the {ref}/modules-discovery.html[cluster formation module].
+Discovery plugins extend Elasticsearch by adding new hosts providers that can be
+used to extend the {ref}/modules-discovery.html[cluster formation module].
 
 [float]
 ==== Core discovery plugins
@@ -11,15 +11,18 @@ The core discovery plugins are:
 
 <<discovery-ec2,EC2 discovery>>::
 
-The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery.
+The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API]
+for unicast discovery.
 
 <<discovery-azure-classic,Azure Classic discovery>>::
 
-The Azure Classic discovery plugin uses the Azure Classic API for unicast discovery.
+The Azure Classic discovery plugin uses the Azure Classic API for unicast
+discovery.
 
 <<discovery-gce,GCE discovery>>::
 
-The Google Compute Engine discovery plugin uses the GCE API for unicast discovery.
+The Google Compute Engine discovery plugin uses the GCE API for unicast
+discovery.
 
 [float]
 ==== Community contributed discovery plugins

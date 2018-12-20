@@ -442,29 +442,34 @@ public class AutoDetectResultProcessor {
 
         jobResultsProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStatsForCalc, establishedModelMemory -> {
             if (latestEstablishedModelMemory != establishedModelMemory) {
-                
-                client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME).submit(() -> {
-                    JobUpdate update = new JobUpdate.Builder(jobId).setEstablishedModelMemory(establishedModelMemory).build();
-                    UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
-                    updateRequest.setWaitForAck(false);
 
-                    executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
-                            new ActionListener<PutJobAction.Response>() {
-                                @Override
-                                public void onResponse(PutJobAction.Response response) {
-                                    jobUpdateSemaphore.release();
-                                    latestEstablishedModelMemory = establishedModelMemory;
-                                    LOGGER.debug("[{}] Updated job with established model memory [{}]", jobId, establishedModelMemory);
-                                }
+                try {
+                    client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                        JobUpdate update = new JobUpdate.Builder(jobId).setEstablishedModelMemory(establishedModelMemory).build();
+                        UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
+                        updateRequest.setWaitForAck(false);
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    jobUpdateSemaphore.release();
-                                    LOGGER.error("[" + jobId + "] Failed to update job with new established model memory [" +
-                                            establishedModelMemory + "]", e);
-                                }
-                            });
-                });
+                        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
+                                new ActionListener<PutJobAction.Response>() {
+                                    @Override
+                                    public void onResponse(PutJobAction.Response response) {
+                                        jobUpdateSemaphore.release();
+                                        latestEstablishedModelMemory = establishedModelMemory;
+                                        LOGGER.debug("[{}] Updated job with established model memory [{}]", jobId, establishedModelMemory);
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        jobUpdateSemaphore.release();
+                                        LOGGER.error("[" + jobId + "] Failed to update job with new established model memory [" +
+                                                establishedModelMemory + "]", e);
+                                    }
+                                });
+                    });
+                } catch (Exception e) {
+                    jobUpdateSemaphore.release();
+                    LOGGER.error("[" + jobId + "] error submitting established model memory update action", e);
+                }
             } else {
                 jobUpdateSemaphore.release();
             }

@@ -107,3 +107,33 @@ the cluster settings API.
 - `xpack.notification.slack.account.<id>.url`, instead use
 `xpack.notification.slack.account.<id>.secure_url`
 
+[float]
+=== Mappings changes
+
+[float]
+==== Changed default `geo_shape` indexing strategy
+
+`geo_shape` types now default to using a vector indexing approach based on Lucene's new
+`LatLonShape` field type. This indexes shapes as a triangular mesh instead of decomposing
+them into individual grid cells. To index using legacy prefix trees the `tree` parameter
+must be explicitly set to one of `quadtree` or `geohash`. Note that these strategies are
+now deprecated and will be removed in a future version.
+
+The impact of changing the default indexing strategy is as follows:
+
+* `CONTAINS` queries are not yet supported
+* `geo_shape` query does not support querying by `MULTIPOINT` type
+* `LINESTRING` and `MULTILINESTRING` queries do not yet support `WITHIN` relations
+
+*IMPORTANT NOTE*: If you are using any of the features listed above, newly created indexes
+with default `geo_shape` type (e.g., templates) might no longer work. It is recommended
+to update the `geo_shape` field mapping to explicitly define the `tree` parameter to one of
+`geohash` or `quadtree`. This will ensure newly created indexes are feature compatible with
+previously created indexes.
+
+[float]
+==== deprecated `geo_shape` parameters
+
+The following type parameters are deprecated for the `geo_shape` field type: `tree`,
+`precision`, `tree_levels`, `distance_error_pct`, `points_only`, and `strategy`. They
+will be removed in a future version.

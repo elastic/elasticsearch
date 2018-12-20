@@ -12,12 +12,15 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -25,7 +28,8 @@ import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 import java.io.IOException;
 import java.util.List;
 
-public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse> {
+public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionRequest,
+    ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse, ClearCcrRestoreSessionRequestBuilder> {
 
     public static final ClearCcrRestoreSessionAction INSTANCE = new ClearCcrRestoreSessionAction();
     private static final String NAME = "internal:admin/ccr/restore/session/clear";
@@ -39,16 +43,22 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
         return new ClearCcrRestoreSessionResponse();
     }
 
+    @Override
+    public ClearCcrRestoreSessionRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ClearCcrRestoreSessionRequestBuilder(client);
+    }
+
     public static class TransportDeleteCcrRestoreSessionAction extends TransportNodesAction<ClearCcrRestoreSessionRequest,
         ClearCcrRestoreSessionResponse, ClearCcrRestoreSessionRequest.Request, Response> {
 
         private final CcrRestoreSourceService ccrRestoreService;
 
         @Inject
-        public TransportDeleteCcrRestoreSessionAction(ThreadPool threadPool, ClusterService clusterService, ActionFilters actionFilters,
+        public TransportDeleteCcrRestoreSessionAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                                      ActionFilters actionFilters, IndexNameExpressionResolver resolver,
                                                       TransportService transportService, CcrRestoreSourceService ccrRestoreService) {
-            super(NAME, threadPool, clusterService, transportService, actionFilters, ClearCcrRestoreSessionRequest::new,
-                ClearCcrRestoreSessionRequest.Request::new, ThreadPool.Names.GENERIC, Response.class);
+            super(settings, NAME, threadPool, clusterService, transportService, actionFilters, resolver,
+                ClearCcrRestoreSessionRequest::new, ClearCcrRestoreSessionRequest.Request::new, ThreadPool.Names.GENERIC, Response.class);
             this.ccrRestoreService = ccrRestoreService;
         }
 

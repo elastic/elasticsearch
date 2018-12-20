@@ -10,6 +10,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -28,7 +30,8 @@ import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
 import java.io.IOException;
 
-public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> {
+public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionRequest,
+    PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse, PutCcrRestoreSessionRequestBuilder> {
 
     public static final PutCcrRestoreSessionAction INSTANCE = new PutCcrRestoreSessionAction();
     private static final String NAME = "internal:admin/ccr/restore/session/put";
@@ -47,6 +50,11 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
         return PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse::new;
     }
 
+    @Override
+    public PutCcrRestoreSessionRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new PutCcrRestoreSessionRequestBuilder(client);
+    }
+
     public static class TransportPutCcrRestoreSessionAction
         extends TransportSingleShardAction<PutCcrRestoreSessionRequest, PutCcrRestoreSessionResponse> {
 
@@ -54,11 +62,12 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
         private final CcrRestoreSourceService ccrRestoreService;
 
         @Inject
-        public TransportPutCcrRestoreSessionAction(ThreadPool threadPool, ClusterService clusterService, ActionFilters actionFilters,
-                                                   IndexNameExpressionResolver resolver, TransportService transportService,
-                                                   IndicesService indicesService, CcrRestoreSourceService ccrRestoreService) {
-            super(NAME, threadPool, clusterService, transportService, actionFilters, resolver, PutCcrRestoreSessionRequest::new,
-                ThreadPool.Names.GENERIC);
+        public TransportPutCcrRestoreSessionAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                                   ActionFilters actionFilters, IndexNameExpressionResolver resolver,
+                                                   TransportService transportService, IndicesService indicesService,
+                                                   CcrRestoreSourceService ccrRestoreService) {
+            super(settings, NAME, threadPool, clusterService, transportService, actionFilters, resolver,
+                PutCcrRestoreSessionRequest::new, ThreadPool.Names.GENERIC);
             this.indicesService = indicesService;
             this.ccrRestoreService = ccrRestoreService;
         }

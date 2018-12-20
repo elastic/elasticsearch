@@ -670,7 +670,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 // least possible burden on Elasticsearch
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
+                                .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
+                                        AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW))
                         .version(Version.CURRENT.id)
                         .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(configMapping))
                         .build();

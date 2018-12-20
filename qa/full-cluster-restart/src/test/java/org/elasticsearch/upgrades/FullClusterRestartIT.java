@@ -25,10 +25,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.rest.action.document.RestGetAction;
-import org.elasticsearch.rest.action.document.RestUpdateAction;
-import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
@@ -37,6 +33,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestUpdateAction;
+import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -574,8 +573,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         Request explainRequest = new Request("GET", "/" + index + "/" + type + "/" + id + "/_explain");
         explainRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
-        explainRequest.setOptions(
-            expectWarnings(RestExplainAction.TYPES_DEPRECATION_MESSAGE, TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE));
+        explainRequest.setOptions(expectWarnings(RestExplainAction.TYPES_DEPRECATION_MESSAGE));
         String explanation = toStr(client().performRequest(explainRequest));
         assertFalse("Could not find payload boost in explanation\n" + explanation, explanation.contains("payloadBoost"));
 

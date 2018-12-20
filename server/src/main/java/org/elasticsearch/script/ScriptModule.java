@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
@@ -60,7 +61,8 @@ public class ScriptModule {
             ScriptedMetricAggContexts.InitScript.CONTEXT,
             ScriptedMetricAggContexts.MapScript.CONTEXT,
             ScriptedMetricAggContexts.CombineScript.CONTEXT,
-            ScriptedMetricAggContexts.ReduceScript.CONTEXT
+            ScriptedMetricAggContexts.ReduceScript.CONTEXT,
+            IntervalFilterScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 

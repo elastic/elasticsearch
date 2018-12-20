@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[index-lifecycle-and-snapshots]]
-== Restoring Snapshots of Managed Indices
+== Restoring snapshots of managed indices
 
 beta[]
 

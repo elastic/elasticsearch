@@ -310,5 +310,11 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convert(list));
         assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
     }
+
+    public void testTypeField() throws IOException {
+        TermsQueryBuilder builder = QueryBuilders.termsQuery("_type", "value1", "value2");
+        builder.doToQuery(createShardContext());
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+    }
 }
 

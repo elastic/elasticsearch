@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-delete-privilege]]
 === Delete application privileges API
+++++
+<titleabbrev>Delete application privileges</titleabbrev>
+++++
 
 Removes 
 {stack-ov}/security-privileges.html#application-privileges[application privileges].

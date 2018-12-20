@@ -1327,7 +1327,7 @@ See {plugins}/ingest.html[Ingest plugins] for information about the available in
 include::processors/append.asciidoc[]
 include::processors/bytes.asciidoc[]
 include::processors/convert.asciidoc[]
-include::processors/data.asciidoc[]
+include::processors/date.asciidoc[]
 include::processors/date-index-name.asciidoc[]
 include::processors/dissect.asciidoc[]
 include::processors/dot-expand.asciidoc[]

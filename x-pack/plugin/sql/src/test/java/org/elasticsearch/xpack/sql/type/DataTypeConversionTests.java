@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
-import java.time.Clock;
-import java.time.Duration;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
@@ -112,7 +110,7 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(dateTime(18000000L), conversion.convert("1970-01-01T00:00:00-05:00"));
         
         // double check back and forth conversion
-        ZonedDateTime dt = ZonedDateTime.now(Clock.tick(Clock.system(DateUtils.UTC), Duration.ofMillis(1)));
+        ZonedDateTime dt = TestUtils.now();
         Conversion forward = conversionFor(DATE, KEYWORD);
         Conversion back = conversionFor(KEYWORD, DATE);
         assertEquals(dt, back.convert(forward.convert(dt)));

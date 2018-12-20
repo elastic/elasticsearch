@@ -432,41 +432,51 @@ public class AutoDetectResultProcessor {
         // We need to make all results written up to and including these stats available for the established memory calculation
         persister.commitResultWrites(jobId);
 
+        try {
+            jobUpdateSemaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.info("[{}] Interrupted acquiring update established model memory semaphore", jobId);
+            return;
+        }
+
         jobResultsProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStatsForCalc, establishedModelMemory -> {
             if (latestEstablishedModelMemory != establishedModelMemory) {
 
-                client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME).submit(() -> {
-                    try {
-                        jobUpdateSemaphore.acquire();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        LOGGER.info("[{}] Interrupted acquiring update established model memory semaphore", jobId);
-                        return;
-                    }
+                try {
+                    client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                        JobUpdate update = new JobUpdate.Builder(jobId).setEstablishedModelMemory(establishedModelMemory).build();
+                        UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
+                        updateRequest.setWaitForAck(false);
 
-                    JobUpdate update = new JobUpdate.Builder(jobId).setEstablishedModelMemory(establishedModelMemory).build();
-                    UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
-                    updateRequest.setWaitForAck(false);
+                        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
+                                new ActionListener<PutJobAction.Response>() {
+                                    @Override
+                                    public void onResponse(PutJobAction.Response response) {
+                                        jobUpdateSemaphore.release();
+                                        latestEstablishedModelMemory = establishedModelMemory;
+                                        LOGGER.debug("[{}] Updated job with established model memory [{}]", jobId, establishedModelMemory);
+                                    }
 
-                    executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
-                            new ActionListener<PutJobAction.Response>() {
-                                @Override
-                                public void onResponse(PutJobAction.Response response) {
-                                    jobUpdateSemaphore.release();
-                                    latestEstablishedModelMemory = establishedModelMemory;
-                                    LOGGER.debug("[{}] Updated job with established model memory [{}]", jobId, establishedModelMemory);
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    jobUpdateSemaphore.release();
-                                    LOGGER.error("[" + jobId + "] Failed to update job with new established model memory [" +
-                                            establishedModelMemory + "]", e);
-                                }
-                            });
-                });
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        jobUpdateSemaphore.release();
+                                        LOGGER.error("[" + jobId + "] Failed to update job with new established model memory [" +
+                                                establishedModelMemory + "]", e);
+                                    }
+                                });
+                    });
+                } catch (Exception e) {
+                    jobUpdateSemaphore.release();
+                    LOGGER.error("[" + jobId + "] error submitting established model memory update action", e);
+                }
+            } else {
+                jobUpdateSemaphore.release();
             }
-        }, e -> LOGGER.error("[" + jobId + "] Failed to calculate established model memory", e));
+        }, e -> {
+            jobUpdateSemaphore.release();
+            LOGGER.error("[" + jobId + "] Failed to calculate established model memory", e);
+        });
     }
 
     public void awaitCompletion() throws TimeoutException {

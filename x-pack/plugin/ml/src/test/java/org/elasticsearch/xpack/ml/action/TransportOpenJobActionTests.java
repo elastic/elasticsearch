@@ -442,11 +442,12 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         cs.nodes(nodes);
 
-        Job job = jobWithRules("v660-job");
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("v660-job", job, cs.build(), 2, 10, 30, memoryTracker, logger);
+        Job job = jobWithRules("post-v650-job");
+        Assignment result =
+                TransportOpenJobAction.selectLeastLoadedMlNode("post-v650-job", job, cs.build(), 2, 10, 30, memoryTracker, logger);
         assertNull(result.getExecutorNode());
-        assertEquals("Not opening job [v660-job] on node [_node_name1] version [6.5.0], " +
-                "because this node does not support jobs of version [6.6.0]", result.getExplanation());
+        assertThat(result.getExplanation(), containsString("Not opening job [post-v650-job] on node [_node_name1] version [6.5.0], " +
+                "because this node does not support jobs of version "));
 
         nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -454,7 +455,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
                 .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                         nodeAttr, Collections.emptySet(), Version.V_6_6_0));
         cs.nodes(nodes);
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("v660-job", job, cs.build(), 2, 10, 30, memoryTracker, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("post-v650-job", job, cs.build(), 2, 10, 30, memoryTracker, logger);
         assertThat(result.getExplanation(), isEmptyOrNullString());
         assertEquals("_node_id2", result.getExecutorNode());
     }

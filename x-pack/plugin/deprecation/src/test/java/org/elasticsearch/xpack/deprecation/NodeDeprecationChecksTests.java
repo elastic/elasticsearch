@@ -67,7 +67,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testHttpEnabledCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "HTTP Enabled setting removed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#remove-http-enabled",
             "nodes with http.enabled set: [node_check]");
         assertSettingsAndIssue("http.enabled", Boolean.toString(randomBoolean()), expected);
@@ -76,7 +76,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testAuditLoggingPrefixSettingsCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Audit log node info settings renamed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#audit-logfile-local-node-info",
             "nodes with audit log settings that have been renamed: [node_check]");
         assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_host_address", Boolean.toString(randomBoolean()), expected);
@@ -87,7 +87,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testIndexThreadPoolCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Index thread pool removed in favor of combined write thread pool",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_index_thread_pool",
             "nodes with index thread pool settings: [node_check]");
         assertSettingsAndIssue("thread_pool.index.size", Integer.toString(randomIntBetween(1, 20000)), expected);
@@ -97,7 +97,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testBulkThreadPoolCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Bulk thread pool renamed to write thread pool",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#write-thread-pool-fallback",
             "nodes with bulk thread pool settings: [node_check]");
         assertSettingsAndIssue("thread_pool.bulk.size", Integer.toString(randomIntBetween(1, 20000)), expected);
@@ -108,7 +108,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         String tribeSetting = "tribe." + randomAlphaOfLengthBetween(1, 20) + ".cluster.name";
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Tribe Node removed in favor of Cross Cluster Search",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_tribe_node_removed",
             "nodes with tribe node settings: [node_check]");
         assertSettingsAndIssue(tribeSetting, randomAlphaOfLength(5), expected);
@@ -117,7 +117,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testHttpPipeliningCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "HTTP pipelining setting removed as pipelining is now mandatory",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#remove-http-pipelining-setting",
             "nodes with http.pipelining set: [node_check]");
         assertSettingsAndIssue("http.pipelining", Boolean.toString(randomBoolean()), expected);
@@ -165,7 +165,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
             DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Discovery configuration is required in production mode",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_discovery_configuration_is_required_in_production",
                 "nodes which do not have discovery configured: [node_check]");
             List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeInfos, nodeStats));
@@ -183,7 +183,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Azure Repository settings changed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_azure_repository_plugin",
             "nodes with repository-azure installed: [node_check]");
         assertSettingsAndIssue("foo", "bar", expected);
@@ -198,7 +198,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "GCS Repository settings changed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_google_cloud_storage_repository_plugin",
             "nodes with repository-gcs installed: [node_check]");
         assertSettingsAndIssue("foo", "bar", expected);
@@ -213,7 +213,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "File-based discovery is no longer a plugin and uses a different path",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_file_based_discovery_plugin",
             "nodes with discovery-file installed: [node_check]");
         assertSettingsAndIssue("foo", "bar", expected);

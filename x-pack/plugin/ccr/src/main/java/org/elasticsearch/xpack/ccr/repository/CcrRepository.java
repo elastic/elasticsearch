@@ -116,7 +116,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
-        ClusterStateRequest clusterStateRequest = CcrRequests.clusterStateRequest("dummy_index_name");
+        // We set a single dummy index name to avoid fetching all the index data
+        ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest("dummy_index_name");
         ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest).actionGet();
         return clusterState.getState().metaData();
     }
@@ -127,7 +128,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         String leaderIndex = index.getName();
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
 
-        ClusterStateRequest clusterStateRequest = CcrRequests.clusterStateRequest(leaderIndex);
+        ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex);
         ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest).actionGet();
 
         // Validates whether the leader cluster has been configured properly:
@@ -264,7 +265,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     private void maybeUpdateMappings(Client localClient, Client remoteClient, Index leaderIndex, IndexSettings followerIndexSettings) {
-        ClusterStateRequest clusterStateRequest = CcrRequests.clusterStateRequest(leaderIndex.getName());
+        ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
         ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest).actionGet();
         IndexMetaData leaderIndexMetadata = clusterState.getState().metaData().getIndexSafe(leaderIndex);
         long leaderMappingVersion = leaderIndexMetadata.getMappingVersion();

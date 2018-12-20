@@ -14,7 +14,7 @@ public final class CcrRequests {
 
     private CcrRequests() {}
 
-    public static ClusterStateRequest clusterStateRequest(String leaderIndex) {
+    public static ClusterStateRequest metaDataRequest(String leaderIndex) {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);

@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -346,7 +347,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
                     Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result);
                     checkAutoFollowPattern(autoFollowPatternName, remoteCluster, autoFollowPattern, leaderIndicesToFollow, headers,
-                        patternsForTheSameRemoteCluster, clusterState.metaData(), resultHandler);
+                        patternsForTheSameRemoteCluster, remoteClusterState.metaData(), clusterState.metaData(), resultHandler);
                 }
                 i++;
             }
@@ -359,6 +360,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                                             List<Index> leaderIndicesToFollow,
                                             Map<String, String> headers,
                                             List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster,
+                                            MetaData remoteMetadata,
                                             MetaData localMetadata,
                                             Consumer<AutoFollowResult> resultHandler) {
 
@@ -379,21 +381,40 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
                     }
                 } else {
-                    if (leaderIndexAlreadyFollowed(autoFollowPattern, indexToFollow, localMetadata)) {
+                    final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
+                    if (leaderIndexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
+                        IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexSettings).onOrAfter(Version.V_7_0_0)) == false) {
+
+                        String message = String.format(Locale.ROOT, "index [%s] cannot be followed, because soft deletes are not enabled",
+                            indexToFollow.getName());
+                        LOGGER.warn(message);
+                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
+                            ElasticsearchException failure = new ElasticsearchException(message);
+                            if (error != null) {
+                                failure.addSuppressed(error);
+                            }
+                            results.set(slot, new Tuple<>(indexToFollow, failure));
+                            if (leaderIndicesCountDown.countDown()) {
+                                resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
+                            }
+                        });
+                        continue;
+                    } else if (leaderIndexAlreadyFollowed(autoFollowPattern, indexToFollow, localMetadata)) {
                         updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
                             results.set(slot, new Tuple<>(indexToFollow, error));
                             if (leaderIndicesCountDown.countDown()) {
                                 resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
                             }
                         });
-                    } else {
-                        followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers, error -> {
-                            results.set(slot, new Tuple<>(indexToFollow, error));
-                            if (leaderIndicesCountDown.countDown()) {
-                                resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
-                            }
-                        });
+                        continue;
                     }
+
+                    followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers, error -> {
+                        results.set(slot, new Tuple<>(indexToFollow, error));
+                        if (leaderIndicesCountDown.countDown()) {
+                            resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
+                        }
+                    });
                 }
             }
         }
@@ -481,12 +502,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         indexRoutingTable.allPrimaryShardsActive() &&
                         followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
 
-                        final Settings leaderIndexSettings = leaderIndexMetaData.getSettings();
-                        // soft deletes are enabled by default on indices created on 7.0.0 or later
-                        if (leaderIndexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
-                            IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexSettings).onOrAfter(Version.V_7_0_0))) {
-                            leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
-                        }
+                        leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
                     }
                 }
             }

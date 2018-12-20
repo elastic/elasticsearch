@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.LinkedHashMap;
@@ -104,7 +104,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitQuerySpecification(QuerySpecificationContext ctx) {
         LogicalPlan query;
         if (ctx.fromClause() == null) {
-            query = new LocalRelation(source(ctx), new EmptyExecutable(emptyList()));
+            query = new LocalRelation(source(ctx), new SingletonExecutable());
         } else {
             query = plan(ctx.fromClause());
         }

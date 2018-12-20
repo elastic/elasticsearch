@@ -15,12 +15,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -72,7 +74,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32905")
     public void testLoseDedicatedMasterNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");
@@ -290,6 +291,17 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         client().admin().indices().prepareSyncedFlush().get();
 
         disrupt.run();
+
+        PersistentTasksClusterService persistentTasksClusterService =
+            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
+        // Speed up rechecks to a rate that is quicker than what settings would allow.
+        // The tests would work eventually without doing this, but the assertBusy() below
+        // would need to wait 30 seconds, which would make the suite run very slowly.
+        // The 200ms refresh puts a greater burden on the master node to recheck
+        // persistent tasks, but it will cope in these tests as it's not doing anything
+        // else.
+        persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(200));
+
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);

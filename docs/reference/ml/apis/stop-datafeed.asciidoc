@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-stop-datafeed]]
-=== Stop {dfeeds-cap} API
+=== Stop {dfeeds} API
 ++++
-<titleabbrev>Stop {dfeeds-cap}</titleabbrev>
+<titleabbrev>Stop {dfeeds}</titleabbrev>
 ++++
 
 Stops one or more {dfeeds}.

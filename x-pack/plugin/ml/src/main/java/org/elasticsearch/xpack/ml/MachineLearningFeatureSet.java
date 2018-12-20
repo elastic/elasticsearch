@@ -143,8 +143,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
 
         int mlNodeCount = 0;
         for (DiscoveryNode node : clusterState.getNodes()) {
-            String enabled = node.getAttributes().get(MachineLearning.ML_ENABLED_NODE_ATTR);
-            if (Boolean.parseBoolean(enabled)) {
+            if (MachineLearning.isMlNode(node)) {
                 ++mlNodeCount;
             }
         }

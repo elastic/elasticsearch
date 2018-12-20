@@ -39,7 +39,6 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
     public static final OpenJobAction INSTANCE = new OpenJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
 
-
     private OpenJobAction() {
         super(NAME);
     }
@@ -132,15 +131,12 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
 
     public static class JobParams implements XPackPlugin.XPackPersistentTaskParams {
 
-        /** TODO Remove in 7.0.0 */
-        public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField JOB = new ParseField("job");
 
         public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(MlTasks.JOB_TASK_NAME, true, JobParams::new);
         static {
             PARSER.declareString(JobParams::setJobId, Job.ID);
-            PARSER.declareBoolean((p, v) -> {}, IGNORE_DOWNTIME);
             PARSER.declareString((params, val) ->
                     params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareObject(JobParams::setJob, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOB);

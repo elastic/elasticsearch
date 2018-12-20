@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -259,7 +260,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     public static final Setting<Boolean> ML_ENABLED =
             Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Property.NodeScope);
-    public static final String ML_ENABLED_NODE_ATTR = "ml.enabled";
+    // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
+    private static final String PRE_V7_ML_ENABLED_NODE_ATTR = "ml.enabled";
     public static final String MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
@@ -289,6 +291,14 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
+    public static boolean isMlNode(DiscoveryNode node) {
+        Map<String, String> nodeAttributes = node.getAttributes();
+        try {
+            return Integer.parseInt(nodeAttributes.get(MAX_OPEN_JOBS_NODE_ATTR)) > 0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
 
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
@@ -299,16 +309,14 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         MAX_LAZY_ML_NODES,
                         MAX_MACHINE_MEMORY_PERCENT,
                         AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
-                        AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING,
                         AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
-                        AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE,
                         AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE,
                         AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP,
                         MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION));
     }
 
     public Settings additionalSettings() {
-        String mlEnabledNodeAttrName = "node.attr." + ML_ENABLED_NODE_ATTR;
+        String mlEnabledNodeAttrName = "node.attr." + PRE_V7_ML_ENABLED_NODE_ATTR;
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
 
@@ -320,12 +328,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         Settings.Builder additionalSettings = Settings.builder();
         Boolean allocationEnabled = ML_ENABLED.get(settings);
         if (allocationEnabled != null && allocationEnabled) {
-            // TODO: the simple true/false flag will not be required once all supported versions have the number - consider removing in 7.0
-            addMlNodeAttribute(additionalSettings, mlEnabledNodeAttrName, "true");
             addMlNodeAttribute(additionalSettings, maxOpenJobsPerNodeNodeAttrName,
                     String.valueOf(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings)));
             addMlNodeAttribute(additionalSettings, machineMemoryAttrName,
                     Long.toString(machineMemoryFromStats(OsProbe.getInstance().osStats())));
+            // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
+            disallowMlNodeAttributes(mlEnabledNodeAttrName);
         } else {
             disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
         }

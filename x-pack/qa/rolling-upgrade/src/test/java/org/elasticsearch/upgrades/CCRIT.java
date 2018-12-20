@@ -28,6 +28,8 @@ public class CCRIT extends AbstractUpgradeTestCase {
     private static final Version UPGRADE_FROM_VERSION =
         Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
+    private static final boolean SECOND_ROUND = "false".equals(System.getProperty("tests.first_round"));
+
     @Override
     protected boolean preserveClusterSettings() {
         return true;
@@ -57,19 +59,28 @@ public class CCRIT extends AbstractUpgradeTestCase {
                 });
                 break;
             case MIXED:
-                index(leaderIndex, "2");
-                assertDocumentExists(leaderIndex, "2");
-                assertBusy(() -> {
-                    assertFollowerGlobalCheckpoint(followerIndex, 1);
-                    assertDocumentExists(followerIndex, "2");
-                });
+                if (SECOND_ROUND == false) {
+                    index(leaderIndex, "2");
+                    assertDocumentExists(leaderIndex, "2");
+                    assertBusy(() -> {
+                        assertFollowerGlobalCheckpoint(followerIndex, 1);
+                        assertDocumentExists(followerIndex, "2");
+                    });
+                } else {
+                    index(leaderIndex, "3");
+                    assertDocumentExists(leaderIndex, "3");
+                    assertBusy(() -> {
+                        assertFollowerGlobalCheckpoint(followerIndex, 2);
+                        assertDocumentExists(followerIndex, "3");
+                    });
+                }
                 break;
             case UPGRADED:
-                index(leaderIndex, "3");
-                assertDocumentExists(leaderIndex, "3");
+                index(leaderIndex, "4");
+                assertDocumentExists(leaderIndex, "4");
                 assertBusy(() -> {
-                    assertFollowerGlobalCheckpoint(followerIndex, 2);
-                    assertDocumentExists(followerIndex, "3");
+                    assertFollowerGlobalCheckpoint(followerIndex, 3);
+                    assertDocumentExists(followerIndex, "4");
                 });
                 pauseFollow(followerIndex);
                 closeIndex(followerIndex);
@@ -92,6 +103,7 @@ public class CCRIT extends AbstractUpgradeTestCase {
 
         String leaderIndex1 = "logs-20200101";
         String leaderIndex2 = "logs-20200102";
+        String leaderIndex3 = "logs-20200103";
 
         switch (CLUSTER_TYPE) {
             case OLD:
@@ -106,32 +118,62 @@ public class CCRIT extends AbstractUpgradeTestCase {
                 });
                 break;
             case MIXED:
-                index(leaderIndex1, "2");
-                assertBusy(() -> {
-                    String followerIndex = "copy-" + leaderIndex1;
-                    assertFollowerGlobalCheckpoint(followerIndex, 1);
-                    assertDocumentExists(followerIndex, "2");
-                });
+                if (SECOND_ROUND == false) {
+                    index(leaderIndex1, "2");
+                    assertBusy(() -> {
+                        String followerIndex = "copy-" + leaderIndex1;
+                        assertFollowerGlobalCheckpoint(followerIndex, 1);
+                        assertDocumentExists(followerIndex, "2");
+                    });
 
-                createIndex(leaderIndex2, indexSettings);
-                index(leaderIndex2, "1");
-                assertBusy(() -> {
-                    String followerIndex = "copy-" + leaderIndex2;
-                    assertNumberOfSuccessfulFollowedIndices(2);
-                    assertFollowerGlobalCheckpoint(followerIndex, 0);
-                    assertDocumentExists(followerIndex, "1");
-                });
+                    createIndex(leaderIndex2, indexSettings);
+                    index(leaderIndex2, "1");
+                    assertBusy(() -> {
+                        String followerIndex = "copy-" + leaderIndex2;
+                        assertNumberOfSuccessfulFollowedIndices(2);
+                        assertFollowerGlobalCheckpoint(followerIndex, 0);
+                        assertDocumentExists(followerIndex, "1");
+                    });
+                } else {
+                    index(leaderIndex1, "3");
+                    assertBusy(() -> {
+                        String followerIndex = "copy-" + leaderIndex1;
+                        assertFollowerGlobalCheckpoint(followerIndex, 2);
+                        assertDocumentExists(followerIndex, "3");
+                    });
+                    index(leaderIndex2, "2");
+                    assertBusy(() -> {
+                        String followerIndex = "copy-" + leaderIndex2;
+                        assertFollowerGlobalCheckpoint(followerIndex, 1);
+                        assertDocumentExists(followerIndex, "2");
+                    });
+
+                    createIndex(leaderIndex3, indexSettings);
+                    index(leaderIndex3, "1");
+                    assertBusy(() -> {
+                        String followerIndex = "copy-" + leaderIndex3;
+                        assertNumberOfSuccessfulFollowedIndices(3);
+                        assertFollowerGlobalCheckpoint(followerIndex, 0);
+                        assertDocumentExists(followerIndex, "1");
+                    });
+                }
                 break;
             case UPGRADED:
-                index(leaderIndex1, "3");
+                index(leaderIndex1, "4");
                 assertBusy(() -> {
                     String followerIndex = "copy-" + leaderIndex1;
+                    assertFollowerGlobalCheckpoint(followerIndex, 3);
+                    assertDocumentExists(followerIndex, "4");
+                });
+                index(leaderIndex2, "3");
+                assertBusy(() -> {
+                    String followerIndex = "copy-" + leaderIndex2;
                     assertFollowerGlobalCheckpoint(followerIndex, 2);
                     assertDocumentExists(followerIndex, "3");
                 });
-                index(leaderIndex2, "2");
+                index(leaderIndex3, "2");
                 assertBusy(() -> {
-                    String followerIndex = "copy-" + leaderIndex2;
+                    String followerIndex = "copy-" + leaderIndex3;
                     assertFollowerGlobalCheckpoint(followerIndex, 1);
                     assertDocumentExists(followerIndex, "2");
                 });
@@ -145,6 +187,10 @@ public class CCRIT extends AbstractUpgradeTestCase {
                 pauseFollow("copy-" + leaderIndex2);
                 closeIndex("copy-" + leaderIndex2);
                 unfollow("copy-" + leaderIndex2);
+
+                pauseFollow("copy-" + leaderIndex3);
+                closeIndex("copy-" + leaderIndex3);
+                unfollow("copy-" + leaderIndex3);
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");

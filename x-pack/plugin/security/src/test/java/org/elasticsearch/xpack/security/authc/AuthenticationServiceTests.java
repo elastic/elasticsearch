@@ -12,12 +12,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequestBuilder;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetAction;
-import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
-import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -28,7 +24,6 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -88,7 +83,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
-import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockCheckTokenInvalidationFromId;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -934,8 +928,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         String token = tokenService.getUserTokenString(tokenFuture.get().v1());
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
-        mockGetTokenFromId(tokenFuture.get().v1(), client);
-        mockCheckTokenInvalidationFromId(tokenFuture.get().v1(), client);
+        mockGetTokenFromId(tokenFuture.get().v1(), false, client);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -1017,32 +1010,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap(), true);
         }
         String token = tokenService.getUserTokenString(tokenFuture.get().v1());
-        mockGetTokenFromId(tokenFuture.get().v1(), client);
-        when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
-        doAnswer(invocationOnMock -> {
-            ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
-            MultiGetResponse response = mock(MultiGetResponse.class);
-            MultiGetItemResponse[] responses = new MultiGetItemResponse[2];
-            when(response.getResponses()).thenReturn(responses);
-
-            final boolean newExpired = randomBoolean();
-            GetResponse oldGetResponse = mock(GetResponse.class);
-            when(oldGetResponse.isExists()).thenReturn(newExpired == false);
-            responses[0] = new MultiGetItemResponse(oldGetResponse, null);
-
-            GetResponse getResponse = mock(GetResponse.class);
-            responses[1] = new MultiGetItemResponse(getResponse, null);
-            when(getResponse.isExists()).thenReturn(newExpired);
-            if (newExpired) {
-                Map<String, Object> source = MapBuilder.<String, Object>newMapBuilder()
-                        .put("access_token", Collections.singletonMap("invalidated", true))
-                        .immutableMap();
-                when(getResponse.getSource()).thenReturn(source);
-            }
-            listener.onResponse(response);
-            return Void.TYPE;
-        }).when(client).multiGet(any(MultiGetRequest.class), any(ActionListener.class));
-
+        mockGetTokenFromId(tokenFuture.get().v1(), true, client);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;

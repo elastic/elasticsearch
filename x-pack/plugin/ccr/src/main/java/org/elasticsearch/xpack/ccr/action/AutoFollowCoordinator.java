@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -345,7 +346,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
                     Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result);
                     checkAutoFollowPattern(autoFollowPatternName, remoteCluster, autoFollowPattern, leaderIndicesToFollow, headers,
-                        patternsForTheSameRemoteCluster, resultHandler);
+                        patternsForTheSameRemoteCluster, remoteClusterState.metaData(), resultHandler);
                 }
                 i++;
             }
@@ -358,6 +359,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                                             List<Index> leaderIndicesToFollow,
                                             Map<String, String> headers,
                                             List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster,
+                                            MetaData remoteMetadata,
                                             Consumer<AutoFollowResult> resultHandler) {
 
             final CountDown leaderIndicesCountDown = new CountDown(leaderIndicesToFollow.size());
@@ -377,6 +379,27 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
                     }
                 } else {
+                    final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
+                    if (leaderIndexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
+                        IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexSettings).onOrAfter(Version.V_7_0_0)) == false) {
+
+                        String message = LoggerMessageFormat.format(
+                            null,
+                            "index [{}] cannot be followed, because soft deletes are not enabled",
+                            indexToFollow.getName());
+                        LOGGER.warn(message);
+                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
+                            ElasticsearchException failure = new ElasticsearchException(message);
+                            if (error != null) {
+                                failure.addSuppressed(error);
+                            }
+                            results.set(slot, new Tuple<>(indexToFollow, failure));
+                            if (leaderIndicesCountDown.countDown()) {
+                                resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
+                            }
+                        });
+                        continue;
+                    }
                     followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers, error -> {
                         results.set(slot, new Tuple<>(indexToFollow, error));
                         if (leaderIndicesCountDown.countDown()) {
@@ -455,12 +478,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         // has a leader index uuid custom metadata entry that matches with uuid of leaderIndexMetaData variable
                         // If so then handle it differently: not follow it, but just add an entry to
                         // AutoFollowMetadata#followedLeaderIndexUUIDs
-                        final Settings leaderIndexSettings = leaderIndexMetaData.getSettings();
-                        // soft deletes are enabled by default on indices created on 7.0.0 or later
-                        if (leaderIndexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
-                            IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexSettings).onOrAfter(Version.V_7_0_0))) {
-                            leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
-                        }
+                        leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
                     }
                 }
             }

@@ -47,7 +47,7 @@ module. This module is divided into the following sections:
     
 <<modules-discovery-settings,Settings>>::
 
-    There are settings that enable users to influence the discover, cluster
+    There are settings that enable users to influence the discovery, cluster
     formation, master election and fault detection processes.    
 
 include::discovery/discovery.asciidoc[]

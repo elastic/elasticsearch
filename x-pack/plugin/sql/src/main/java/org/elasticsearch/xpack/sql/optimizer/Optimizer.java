@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
+import org.elasticsearch.xpack.sql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
@@ -1849,14 +1850,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 List<Object> values = extractConstants(p.projections());
-                if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation)) {
+                if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation) &&
+                    isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
                     return new LocalRelation(p.location(), new SingletonExecutable(p.output(), values.toArray()));
                 }
             }
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
                 List<Object> values = extractConstants(a.aggregates());
-                if (values.size() == a.aggregates().size()) {
+                if (values.size() == a.aggregates().size() && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
                     return new LocalRelation(a.location(), new SingletonExecutable(a.output(), values.toArray()));
                 }
             }
@@ -1874,6 +1876,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return values;
+        }
+
+        /**
+         * Check if the plan doesn't model a query with FROM clause on a table
+         * that its filter (WHERE clause) is folded to FALSE.
+         */
+        private static boolean isNotQueryWithFromClauseAndFilterFoldedToFalse(UnaryPlan plan) {
+            return (!(plan.child() instanceof LocalRelation) || (plan.child() instanceof LocalRelation &&
+                !(((LocalRelation) plan.child()).executable() instanceof EmptyExecutable)));
         }
     }
 

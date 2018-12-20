@@ -79,15 +79,16 @@ see <<ml-datafeed-resource>>.
 
 ==== Authorization
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
+cluster privileges to use this API. For more information, see
+{stack-ov}/security-privileges.html[Security Privileges].
 
 
 ==== Security Integration
 
-When {security} is enabled, your {dfeed} will remember which roles the user who
-updated it had at the time of update, and run the query using those same roles.
+When {es} {security-features} are enabled, your {dfeed} remembers which roles the
+user who updated it had at the time of update and runs the query using those
+same roles.
 
 
 ==== Examples

@@ -193,7 +193,7 @@ setup() {
     # systemd's private temp directory functionally means different
     # processes can have different views of what's in these directories
     local temp=`mktemp -p /etc -d`
-    cp -R "$ESCONFIG" "$temp"
+    cp -R "$ESCONFIG"/* "$temp"
     touch "$temp/jvm.options"
     chown -R elasticsearch:elasticsearch "$temp"
     echo "-Xms512m" >> "$temp/jvm.options"

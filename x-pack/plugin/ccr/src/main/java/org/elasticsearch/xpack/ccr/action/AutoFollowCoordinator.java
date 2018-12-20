@@ -383,9 +383,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     if (leaderIndexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
                         IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexSettings).onOrAfter(Version.V_7_0_0)) == false) {
 
-                        String message = LoggerMessageFormat.format(
-                            null,
-                            "index [{}] cannot be followed, because soft deletes are not enabled",
+                        String message = String.format("index [%s] cannot be followed, because soft deletes are not enabled",
                             indexToFollow.getName());
                         LOGGER.warn(message);
                         updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {

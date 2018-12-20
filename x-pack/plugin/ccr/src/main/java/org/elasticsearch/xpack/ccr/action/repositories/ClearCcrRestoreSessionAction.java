@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.ccr.action.repositories;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
@@ -41,19 +44,26 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
         extends HandledTransportAction<ClearCcrRestoreSessionRequest, ClearCcrRestoreSessionResponse> {
 
         private final CcrRestoreSourceService ccrRestoreService;
+        private final ThreadPool threadPool;
 
         @Inject
         public TransportDeleteCcrRestoreSessionAction(ActionFilters actionFilters, TransportService transportService,
                                                       CcrRestoreSourceService ccrRestoreService) {
             super(NAME, transportService, actionFilters, ClearCcrRestoreSessionRequest::new);
+            TransportActionProxy.registerProxyAction(transportService, NAME, ClearCcrRestoreSessionResponse::new);
             this.ccrRestoreService = ccrRestoreService;
+            this.threadPool = transportService.getThreadPool();
         }
 
         @Override
         protected void doExecute(Task task, ClearCcrRestoreSessionRequest request,
                                  ActionListener<ClearCcrRestoreSessionResponse> listener) {
-            ccrRestoreService.closeSession(request.getSessionUUID());
-            listener.onResponse(new ClearCcrRestoreSessionResponse());
+            // TODO: Currently blocking actions might occur in the session closed callbacks. This dispatch
+            //  may be unnecessary when we remove these callbacks.
+            threadPool.generic().execute(() ->  {
+                ccrRestoreService.closeSession(request.getSessionUUID());
+                listener.onResponse(new ClearCcrRestoreSessionResponse());
+            });
         }
     }
 

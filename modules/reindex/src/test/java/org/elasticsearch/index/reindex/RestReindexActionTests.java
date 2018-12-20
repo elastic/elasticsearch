@@ -78,6 +78,8 @@ public class RestReindexActionTests extends ESTestCase {
 
     public void testBuildRemoteInfoWithoutAllParts() throws IOException {
         expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("example.com"));
+        expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase(":9200"));
+        expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("http://:9200"));
         expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("example.com:9200"));
         expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("http://example.com"));
     }

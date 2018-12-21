@@ -64,6 +64,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -862,4 +863,23 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs + moreDocs));
     }
 
+    public void testShardChangesWithDefaultDocType() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.translog.flush_threshold_size", "512mb") // do not trim translog
+            .put("index.soft_deletes.enabled", true).build();
+        IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
+        client().prepareIndex("index", "_doc", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareDelete("index", "_doc", "1").get();
+        client().prepareIndex("index", "user_doc", "2").setSource("{}", XContentType.JSON).get();
+        client().prepareDelete("index", "user_doc", "2").get();
+        IndexShard shard = indexService.getShard(0);
+        try (Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, 3, true);
+             Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()) {
+            List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
+            List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);
+            assertThat(opsFromLucene, equalTo(opsFromTranslog));
+        }
+    }
 }

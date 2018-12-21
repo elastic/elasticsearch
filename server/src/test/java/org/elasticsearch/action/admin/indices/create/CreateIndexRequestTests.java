@@ -22,12 +22,14 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -107,6 +109,20 @@ public class CreateIndexRequestTests extends ESTestCase {
             "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
 
         assertEquals(expectedRequestBody, actualRequestBody);
+    }
+
+    public void testMappingsToXContent() {
+        String source = "{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}";
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(new BytesArray(source), false,
+            XContentType.JSON).v2();
+
+        CreateIndexRequest request = new CreateIndexRequest("index");
+        request.mapping("my_type", sourceAsMap);
+
+        String expectedContent = "{\"settings\":{}," +
+            "\"mappings\":{\"my_type\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}," +
+            "\"aliases\":{}}";
+        assertEquals(expectedContent, Strings.toString(request));
     }
 
     public void testToAndFromXContent() throws IOException {

@@ -347,6 +347,41 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertNotNull(databaseReaders.get("GeoLite2-ASN.mmdb").databaseReader.get());
     }
 
+    public void testLoadingCustomDatabase() throws IOException {
+        final Path geoIpDir = createTempDir();
+        final Path configDir = createTempDir();
+        final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
+        Files.createDirectories(geoIpConfigDir);
+        copyDatabaseFiles(geoIpDir);
+        // fake the GeoIP2-City database
+        copyDatabaseFile(geoIpConfigDir, "GeoLite2-City.mmdb");
+        Files.move(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), geoIpConfigDir.resolve("GeoIP2-City.mmdb"));
+
+        /*
+         * Loading another database reader instances, because otherwise we can't test lazy loading as the database readers used at class
+         * level are reused between tests. (we want to keep that otherwise running this test will take roughly 4 times more time).
+         */
+        final Map<String, DatabaseReaderLazyLoader> databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir);
+        final GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders, new GeoIpCache(1000));
+        for (DatabaseReaderLazyLoader lazyLoader : databaseReaders.values()) {
+            assertNull(lazyLoader.databaseReader.get());
+        }
+
+        final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
+        final IngestDocument document = new IngestDocument("index", "type", "id", "routing", 1L, VersionType.EXTERNAL, field);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("database_file", "GeoIP2-City.mmdb");
+        final GeoIpProcessor city = factory.create(null, "_tag", config);
+
+        // these are lazy loaded until first use so we expect null here
+        assertNull(databaseReaders.get("GeoIP2-City.mmdb").databaseReader.get());
+        city.execute(document);
+        // the first ingest should trigger a database load
+        assertNotNull(databaseReaders.get("GeoIP2-City.mmdb").databaseReader.get());
+    }
+
     public void testDatabaseNotExistsInDir() throws IOException {
         final Path geoIpDir = createTempDir();
         final Path configDir = createTempDir();

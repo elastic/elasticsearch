@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-results-resource]]
-=== Results Resources
+=== Results resources
 
 Several different result types are created for each job. You can query anomaly
 results for _buckets_, _influencers_, and _records_ by using the results API.

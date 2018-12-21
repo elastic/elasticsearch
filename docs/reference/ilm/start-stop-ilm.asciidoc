@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-stop-ilm]]
-== Start And Stop {ilm}
+== Start and stop {ilm}
 
 beta[]
 

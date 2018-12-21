@@ -136,30 +136,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         detectors = Collections.unmodifiableList(in.readList(Detector::new));
         influencers = Collections.unmodifiableList(in.readList(StreamInput::readString));
 
-        // BWC for result_finalization_window and overlapping_buckets
-        // TODO Remove in 7.0.0
-        if (in.getVersion().before(Version.V_6_6_0)) {
-            in.readOptionalBoolean();
-            in.readOptionalLong();
-        }
         multivariateByFields = in.readOptionalBoolean();
-
-        // BWC for removed multiple_bucket_spans
-        // TODO Remove in 7.0.0
-        if (in.getVersion().before(Version.V_6_5_0)) {
-            if (in.readBoolean()) {
-                final int arraySize = in.readVInt();
-                for (int i = 0; i < arraySize; i++) {
-                    in.readTimeValue();
-                }
-            }
-        }
-
-        // BWC for removed per-partition normalization
-        // TODO Remove in 7.0.0
-        if (in.getVersion().before(Version.V_6_5_0)) {
-            in.readBoolean();
-        }
     }
 
     @Override
@@ -180,25 +157,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         out.writeList(detectors);
         out.writeStringList(influencers);
 
-        // BWC for result_finalization_window and overlapping_buckets
-        // TODO Remove in 7.0.0
-        if (out.getVersion().before(Version.V_6_6_0)) {
-            out.writeOptionalBoolean(null);
-            out.writeOptionalLong(null);
-        }
         out.writeOptionalBoolean(multivariateByFields);
-
-        // BWC for removed multiple_bucket_spans
-        // TODO Remove in 7.0.0
-        if (out.getVersion().before(Version.V_6_5_0)) {
-            out.writeBoolean(false);
-        }
-
-        // BWC for removed per-partition normalization
-        // TODO Remove in 7.0.0
-        if (out.getVersion().before(Version.V_6_5_0)) {
-            out.writeBoolean(false);
-        }
     }
 
     /**

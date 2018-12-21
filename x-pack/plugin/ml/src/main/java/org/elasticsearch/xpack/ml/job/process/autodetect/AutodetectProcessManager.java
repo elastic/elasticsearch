@@ -95,15 +95,11 @@ public class AutodetectProcessManager {
     // available resources on that node: https://github.com/elastic/x-pack-elasticsearch/issues/546
     // However, it is useful to also be able to apply a hard limit.
 
-    // WARNING: These settings cannot be made DYNAMIC, because they are tied to several threadpools
+    // WARNING: This setting cannot be made DYNAMIC, because it is tied to several threadpools
     // and a threadpool's size can't be changed at runtime.
     // See MachineLearning#getExecutorBuilders(...)
-    // TODO: Remove the deprecated setting in 7.0 and move the default value to the replacement setting
-    @Deprecated
-    public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
-            Setting.intSetting("max_running_jobs", 20, 1, 512, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
-            Setting.intSetting("xpack.ml.max_open_jobs", MAX_RUNNING_JOBS_PER_NODE, 1, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, 512, Property.NodeScope);
 
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =

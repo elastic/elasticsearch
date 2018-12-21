@@ -346,7 +346,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         public Builder addBlocks(IndexMetaData indexMetaData) {
             String indexName = indexMetaData.getIndex().getName();
             if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                addIndexBlock(indexName, MetaDataIndexStateService.createIndexClosedBlock());
+                addIndexBlock(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
             }
             if (IndexMetaData.INDEX_READ_ONLY_SETTING.get(indexMetaData.getSettings())) {
                 addIndexBlock(indexName, IndexMetaData.INDEX_READ_ONLY_BLOCK);

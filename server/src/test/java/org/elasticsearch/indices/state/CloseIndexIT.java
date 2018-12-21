@@ -135,6 +135,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final int nbDocs = randomIntBetween(10, 50);
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
             .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
+        ensureYellowAndNoInitializingShards(indexName);
 
         final CountDownLatch startClosing = new CountDownLatch(1);
         final Thread[] threads = new Thread[randomIntBetween(2, 5)];
@@ -146,7 +147,11 @@ public class CloseIndexIT extends ESIntegTestCase {
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }
-                assertAcked(client().admin().indices().prepareClose(indexName));
+                try {
+                    assertAcked(client().admin().indices().prepareClose(indexName));
+                } catch (final Exception e) {
+                    assertException(e, indexName);
+                }
             });
             threads[i].start();
         }
@@ -261,7 +266,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                     waitForLatch.run();
                     client().admin().indices().prepareClose(indexName).get();
                 } catch (final Exception e) {
-                    assertException(e, indexName);
+                    throw new AssertionError(e);
                 }
             }));
         }
@@ -269,9 +274,9 @@ public class CloseIndexIT extends ESIntegTestCase {
             threads.add(new Thread(() -> {
                 try {
                     waitForLatch.run();
-                    client().admin().indices().prepareOpen(indexName).get();
+                    assertAcked(client().admin().indices().prepareOpen(indexName).get());
                 } catch (final Exception e) {
-                    assertException(e, indexName);
+                    throw new AssertionError(e);
                 }
             }));
         }
@@ -291,27 +296,31 @@ public class CloseIndexIT extends ESIntegTestCase {
         if (clusterState.metaData().indices().get(indexName).getState() == IndexMetaData.State.CLOSE) {
             assertIndexIsClosed(indexName);
             assertAcked(client().admin().indices().prepareOpen(indexName));
-        } else {
-            assertIndexIsOpened(indexName);
         }
+        refresh(indexName);
+        assertIndexIsOpened(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), indexer.totalIndexedDocs());
     }
 
-    static void assertIndexIsClosed(final String indexName) {
+    static void assertIndexIsClosed(final String... indices) {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.metaData().indices().get(indexName).getState(), is(IndexMetaData.State.CLOSE));
-        assertThat(clusterState.routingTable().index(indexName), nullValue());
-        assertThat(clusterState.blocks().hasIndexBlockWithId(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(true));
-        assertThat("Index " + indexName + " must have only 1 block with [id=" + MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
-            clusterState.blocks().indices().getOrDefault(indexName, emptySet()).stream()
-                .filter(clusterBlock -> clusterBlock.id() == MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID).count(), equalTo(1L));
+        for (String index : indices) {
+            assertThat(clusterState.metaData().indices().get(index).getState(), is(IndexMetaData.State.CLOSE));
+            assertThat(clusterState.routingTable().index(index), nullValue());
+            assertThat(clusterState.blocks().hasIndexBlock(index, MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
+            assertThat("Index " + index + " must have only 1 block with [id=" + MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
+                clusterState.blocks().indices().getOrDefault(index, emptySet()).stream()
+                    .filter(clusterBlock -> clusterBlock.id() == MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID).count(), equalTo(1L));
+        }
     }
 
-    static void assertIndexIsOpened(final String indexName) {
+    static void assertIndexIsOpened(final String... indices) {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.metaData().indices().get(indexName).getState(), is(IndexMetaData.State.OPEN));
-        assertThat(clusterState.routingTable().index(indexName), notNullValue());
-        assertThat(clusterState.blocks().hasIndexBlockWithId(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(false));
+        for (String index : indices) {
+            assertThat(clusterState.metaData().indices().get(index).getState(), is(IndexMetaData.State.OPEN));
+            assertThat(clusterState.routingTable().index(index), notNullValue());
+            assertThat(clusterState.blocks().hasIndexBlock(index, MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(false));
+        }
     }
 
     static void assertException(final Throwable throwable, final String indexName) {

@@ -105,16 +105,30 @@ keepalives cannot be configured.
 [float]
 ==== Transport Compression
 
-By default Elasticsearch network-level compression is disabled. This default
-normally makes sense for local cluster communication as compression has a
-noticeable CPU cost and local clusters tend to be setup with fast network
-connections between nodes. If compression is necessary for remote cluster
-connections only, this can be configured on a per-cluster basis using the
-`cluster.remote.${cluster_alias}.transport.compress` setting.
+[float]
+===== Request Compresssion
 
-When compression is enabled using either `transport.compress` or for a specific
-remote cluster, only the outbound requests are compressed. Elasticsearch compresses
-responses if and only-if the inbound request received was compressed.
+By default, the `transport.compress` setting is `false` and network-level
+request compression is disabled between nodes in the cluster. This default
+normally makes sense for local cluster communication as compression has a
+noticeable CPU cost and local clusters tend to be set up with fast network
+connections between nodes.
+
+The `transport.compress` setting always configures local cluster request
+compression and is the fallback setting for remote cluster request compression.
+If you want to configure remote request compression differently than local
+request compression, you can set it on a per-remote cluster basis using the
+<<remote-cluster-settings,`cluster.remote.${cluster_alias}.transport.compress` setting>>.
+
+
+[float]
+===== Response Compression
+
+The compression settings do not configure compression for responses. {es} will
+compress a response if the inbound request was compressed--even when compression
+is not enabled. Similarly, {es} will not compress a response if the inbound
+request was uncompressed--even when compression is enabled.
+
 
 [float]
 === Transport Tracer

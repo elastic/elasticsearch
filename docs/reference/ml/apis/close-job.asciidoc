@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-close-job]]
-=== Close Jobs API
+=== Close jobs API
 ++++
-<titleabbrev>Close Jobs</titleabbrev>
+<titleabbrev>Close jobs</titleabbrev>
 ++++
 
 Closes one or more jobs.

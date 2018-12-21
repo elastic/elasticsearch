@@ -399,9 +399,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         // The quantiles type and doc ID changed in v5.5 so delete both the old and new format
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexName());
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
-        IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId),
-                // TODO: remove in 7.0
-                Quantiles.v54DocumentId(jobId));
+        IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId));
         request.setQuery(query);
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setAbortOnVersionConflict(false);
@@ -436,9 +434,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         // The categorizer state type and doc ID changed in v5.5 so delete both the old and new format
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexName());
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
-        IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum),
-                // TODO: remove in 7.0
-                CategorizerState.v54DocumentId(jobId, docNum));
+        IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum));
         request.setQuery(query);
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setAbortOnVersionConflict(false);

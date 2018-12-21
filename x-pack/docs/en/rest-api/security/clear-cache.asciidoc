@@ -1,8 +1,11 @@
 [role="xpack"]
 [[security-api-clear-cache]]
-=== Clear Cache API
+=== Clear cache API
+++++
+<titleabbrev>Clear cache</titleabbrev>
+++++
 
-The Clear Cache API evicts users from the user cache. You can completely clear
+The clear cache API evicts users from the user cache. You can completely clear
 the cache or evict specific users.
 
 ==== Request

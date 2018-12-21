@@ -37,13 +37,16 @@ import java.util.Set;
 public final class CollapseTopFieldDocs extends TopFieldDocs {
     /** The field used for collapsing **/
     public final String field;
+    /** The maximum score allowable for a collapsed group, after which the entire collapsed group will be discard. */
+    public final Float maxScoreThreshold;
     /** The collapse value for each top doc */
     public final Object[] collapseValues;
 
-    public CollapseTopFieldDocs(String field, long totalHits, ScoreDoc[] scoreDocs,
+    public CollapseTopFieldDocs(String field, Float maxScoreThreshold, long totalHits, ScoreDoc[] scoreDocs,
                                 SortField[] sortFields, Object[] values, float maxScore) {
         super(totalHits, scoreDocs, sortFields, maxScore);
         this.field = field;
+        this.maxScoreThreshold = maxScoreThreshold;
         this.collapseValues = values;
     }
 
@@ -162,6 +165,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
     public static CollapseTopFieldDocs merge(Sort sort, int start, int size,
                                              CollapseTopFieldDocs[] shardHits, boolean setShardIndex) {
         String collapseField = shardHits[0].field;
+        Float maxScoreThreshold = shardHits[0].maxScoreThreshold;
         for (int i = 1; i < shardHits.length; i++) {
             if (collapseField.equals(shardHits[i].field) == false) {
                 throw new IllegalArgumentException("collapse field differ across shards [" +
@@ -201,6 +205,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             int numIterOnHits = Math.min(availHitCount, requestedResultWindow);
             int hitUpto = 0;
             Set<Object> seen = new HashSet<>();
+            Set<Object> exceededThreshold = new HashSet<>();
             while (hitUpto < numIterOnHits) {
                 if (queue.size() == 0) {
                     break;
@@ -208,6 +213,24 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
                 ShardRef ref = queue.top();
                 final ScoreDoc hit = shardHits[ref.shardIndex].scoreDocs[ref.hitIndex];
                 final Object collapseValue = shardHits[ref.shardIndex].collapseValues[ref.hitIndex++];
+
+                // Remove collapsed groups that have exceeded the maximum score threshold
+                if (exceededThreshold.contains(collapseValue)) {
+                    queue.pop();
+                    continue;
+                }
+                if (maxScoreThreshold != null && hit.score > maxScoreThreshold) {
+                    exceededThreshold.add(collapseValue);
+                    if (seen.contains(collapseValue)) {
+                        hitList.remove(hit);
+                        collapseList.remove(collapseValue);
+                        hitUpto--;
+                    }
+                    queue.pop();
+                    continue;
+                }
+
+                // Update duplicate collapse values
                 if (seen.contains(collapseValue)) {
                     if (ref.hitIndex < shardHits[ref.shardIndex].scoreDocs.length) {
                         queue.updateTop();
@@ -237,6 +260,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             hits = hitList.toArray(new ScoreDoc[0]);
             values = collapseList.toArray(new Object[0]);
         }
-        return new CollapseTopFieldDocs(collapseField, totalHitCount, hits, sort.getSort(), values, maxScore);
+        return new CollapseTopFieldDocs(
+            collapseField, maxScoreThreshold, totalHitCount, hits, sort.getSort(), values, maxScore);
     }
 }

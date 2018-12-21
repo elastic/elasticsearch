@@ -305,6 +305,7 @@ public class Lucene {
             float maxScore = in.readFloat();
 
             String field = in.readString();
+            Float maxScoreThreshold = in.readFloat();
             SortField[] fields = new SortField[in.readVInt()];
             for (int i = 0; i < fields.length; i++) {
                fields[i] = readSortField(in);
@@ -316,7 +317,8 @@ public class Lucene {
                 fieldDocs[i] = readFieldDoc(in);
                 collapseValues[i] = readSortValue(in);
             }
-            return new CollapseTopFieldDocs(field, totalHits, fieldDocs, fields, collapseValues, maxScore);
+            return new CollapseTopFieldDocs(
+                field, maxScoreThreshold, totalHits, fieldDocs, fields, collapseValues, maxScore);
         } else {
             throw new IllegalStateException("Unknown type " + type);
         }
@@ -395,6 +397,7 @@ public class Lucene {
             out.writeFloat(topDocs.getMaxScore());
 
             out.writeString(collapseDocs.field);
+            out.writeFloat(collapseDocs.maxScoreThreshold);
 
             out.writeVInt(collapseDocs.fields.length);
             for (SortField sortField : collapseDocs.fields) {

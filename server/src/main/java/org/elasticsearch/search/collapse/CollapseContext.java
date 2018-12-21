@@ -32,13 +32,16 @@ import java.util.List;
  */
 public class CollapseContext {
     private final String fieldName;
+    private final Float maxScoreThreshold;
     private final MappedFieldType fieldType;
     private final List<InnerHitBuilder> innerHits;
 
     public CollapseContext(String fieldName,
+                           Float maxScoreThreshold,
                            MappedFieldType fieldType,
                            List<InnerHitBuilder> innerHits) {
         this.fieldName = fieldName;
+        this.maxScoreThreshold = maxScoreThreshold;
         this.fieldType = fieldType;
         this.innerHits = innerHits;
     }
@@ -48,6 +51,13 @@ public class CollapseContext {
      */
     public String getFieldName() {
         return fieldName;
+    }
+
+    /**
+     * The maximum score allowable for a collapsed group, after which the entire collapsed group will be discard.
+     */
+    public Float getMaxScoreThreshold() {
+        return maxScoreThreshold;
     }
 
     /** The field type used for collapsing **/
@@ -62,9 +72,11 @@ public class CollapseContext {
 
     public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, boolean trackMaxScore) {
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            return CollapsingTopDocsCollector.createKeyword(fieldType.name(), sort, topN, trackMaxScore);
+            return CollapsingTopDocsCollector.createKeyword(
+                fieldType.name(), maxScoreThreshold, sort, topN, trackMaxScore);
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            return CollapsingTopDocsCollector.createNumeric(fieldType.name(), sort, topN, trackMaxScore);
+            return CollapsingTopDocsCollector.createNumeric(
+                fieldType.name(), maxScoreThreshold, sort, topN, trackMaxScore);
         } else {
             throw new IllegalStateException("unknown type for collapse field " + fieldType.name() +
                 ", only keywords and numbers are accepted");

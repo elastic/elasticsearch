@@ -49,6 +49,7 @@ import java.util.Objects;
  */
 public class CollapseBuilder implements Writeable, ToXContentObject {
     public static final ParseField FIELD_FIELD = new ParseField("field");
+    public static final ParseField MAX_SCORE_THRESHOLD_FIELD = new ParseField("max_score_threshold");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     public static final ParseField MAX_CONCURRENT_GROUP_REQUESTS_FIELD = new ParseField("max_concurrent_group_searches");
     private static final ObjectParser<CollapseBuilder, Void> PARSER =
@@ -56,6 +57,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareString(CollapseBuilder::setField, FIELD_FIELD);
+        PARSER.declareFloat(CollapseBuilder::setMaxScoreThreshold, MAX_SCORE_THRESHOLD_FIELD);
         PARSER.declareInt(CollapseBuilder::setMaxConcurrentGroupRequests, MAX_CONCURRENT_GROUP_REQUESTS_FIELD);
         PARSER.declareField((parser, builder, context) -> {
             XContentParser.Token currentToken = parser.currentToken();
@@ -77,6 +79,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     }
 
     private String field;
+    private Float maxScoreThreshold;
     private List<InnerHitBuilder> innerHits = Collections.emptyList();
     private int maxConcurrentGroupRequests = 0;
 
@@ -93,6 +96,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
 
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
+        this.maxScoreThreshold = in.readFloat();
         this.maxConcurrentGroupRequests = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
             this.innerHits = in.readList(InnerHitBuilder::new);
@@ -109,6 +113,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
+        out.writeFloat(maxScoreThreshold);
         out.writeVInt(maxConcurrentGroupRequests);
         if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
             out.writeList(innerHits);
@@ -131,6 +136,11 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("field name is null or empty");
         }
         this.field = field;
+        return this;
+    }
+
+    public CollapseBuilder setMaxScoreThreshold(Float maxScoreThreshold) {
+        this.maxScoreThreshold = maxScoreThreshold;
         return this;
     }
 
@@ -157,6 +167,13 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
      */
     public String getField() {
         return this.field;
+    }
+
+    /**
+     * The maximum score allowable for a collapsed group, after which the entire collapsed group will be discard.
+     */
+    public Float getMaxScoreThreshold() {
+        return this.maxScoreThreshold;
     }
 
     /**
@@ -207,13 +224,14 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         CollapseBuilder that = (CollapseBuilder) o;
 
         if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;
+        if (!maxScoreThreshold.equals(that.maxScoreThreshold)) return false;
         if (!field.equals(that.field)) return false;
         return Objects.equals(innerHits, that.innerHits);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(field, innerHits);
+        int result = Objects.hash(field, maxScoreThreshold, innerHits);
         result = 31 * result + maxConcurrentGroupRequests;
         return result;
     }
@@ -247,6 +265,6 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
                 + field + "`, " + "only indexed field can retrieve `inner_hits`");
         }
 
-        return new CollapseContext(field, fieldType, innerHits);
+        return new CollapseContext(field, maxScoreThreshold, fieldType, innerHits);
     }
 }

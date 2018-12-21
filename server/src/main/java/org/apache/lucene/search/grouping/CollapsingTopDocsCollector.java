@@ -37,6 +37,7 @@ import static org.apache.lucene.search.SortField.Type.SCORE;
  */
 public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollector<T> {
     protected final String collapseField;
+    protected final Float maxScoreThreshold;
 
     protected final Sort sort;
     protected Scorer scorer;
@@ -45,10 +46,11 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     private float maxScore;
     private final boolean trackMaxScore;
 
-    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort,
+    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Float maxScoreThreshold, Sort sort,
                                        int topN, boolean trackMaxScore) {
         super(groupSelector, sort, topN);
         this.collapseField = collapseField;
+        this.maxScoreThreshold = maxScoreThreshold;
         this.trackMaxScore = trackMaxScore;
         if (trackMaxScore) {
             maxScore = Float.NEGATIVE_INFINITY;
@@ -66,7 +68,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     public CollapseTopFieldDocs getTopDocs() throws IOException {
         Collection<SearchGroup<T>> groups = super.getTopGroups(0, true);
         if (groups == null) {
-            return new CollapseTopFieldDocs(collapseField, totalHitCount, new ScoreDoc[0],
+            return new CollapseTopFieldDocs(collapseField, maxScoreThreshold, totalHitCount, new ScoreDoc[0],
                 sort.getSort(), new Object[0], Float.NaN);
         }
         FieldDoc[] docs = new FieldDoc[groups.size()];
@@ -92,7 +94,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
             collapseValues[pos] = group.groupValue;
             pos++;
         }
-        return new CollapseTopFieldDocs(collapseField, totalHitCount, docs, sort.getSort(),
+        return new CollapseTopFieldDocs(collapseField, maxScoreThreshold, totalHitCount, docs, sort.getSort(),
             collapseValues, maxScore);
     }
 
@@ -127,16 +129,17 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      *
      * @param collapseField The sort field used to group
      *                      documents.
+     * @param maxScoreThreshold The maximum score allowable for a collapsed group.
      * @param sort          The {@link Sort} used to sort the collapsed hits.
      *                      The collapsing keeps only the top sorted document per collapsed key.
      *                      This must be non-null, ie, if you want to groupSort by relevance
      *                      use Sort.RELEVANCE.
      * @param topN          How many top groups to keep.
      */
-    public static CollapsingTopDocsCollector<?> createNumeric(String collapseField, Sort sort,
+    public static CollapsingTopDocsCollector<?> createNumeric(String collapseField, Float maxScoreThreshold, Sort sort,
                                                               int topN, boolean trackMaxScore)  {
         return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseField),
-                collapseField, sort, topN, trackMaxScore);
+                collapseField, maxScoreThreshold, sort, topN, trackMaxScore);
     }
 
     /**
@@ -147,14 +150,15 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      *
      * @param collapseField The sort field used to group
      *                      documents.
+     * @param maxScoreThreshold The maximum score allowable for a collapsed group.
      * @param sort          The {@link Sort} used to sort the collapsed hits. The collapsing keeps only the top sorted
      *                      document per collapsed key.
      *                      This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
      * @param topN          How many top groups to keep.
      */
-    public static CollapsingTopDocsCollector<?> createKeyword(String collapseField, Sort sort,
+    public static CollapsingTopDocsCollector<?> createKeyword(String collapseField, Float maxScoreThreshold, Sort sort,
                                                               int topN, boolean trackMaxScore)  {
         return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseField),
-                collapseField, sort, topN, trackMaxScore);
+                collapseField, maxScoreThreshold, sort, topN, trackMaxScore);
     }
 }

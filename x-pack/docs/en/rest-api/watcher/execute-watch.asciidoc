@@ -1,6 +1,9 @@
 [role="xpack"]
 [[watcher-api-execute-watch]]
-=== Execute Watch API
+=== Execute watch API
+++++
+<titleabbrev>Execute watch</titleabbrev>
+++++
 
 The execute watch API forces the execution of a stored watch. It can be used to
 force execution of the watch outside of its triggering logic, or to simulate the

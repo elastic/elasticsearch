@@ -51,6 +51,8 @@ public class RestMultiGetAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_mget", this);
         controller.registerHandler(GET, "/{index}/_mget", this);
         controller.registerHandler(POST, "/{index}/_mget", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/_mget", this);
         controller.registerHandler(POST, "/{index}/{type}/_mget", this);
 

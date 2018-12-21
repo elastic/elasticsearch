@@ -239,7 +239,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertDateMathEquals("1418248078000||/m", "2014-12-10T21:47:00.000");
 
         // also check other time units
-        DateMathParser parser = DateFormatter.forPattern("8epoch_second||8dateOptionalTime").toDateMathParser();
+        DateMathParser parser = DateFormatter.forPattern("8epoch_second||dateOptionalTime").toDateMathParser();
         long datetime = parser.parse("1418248078", () -> 0);
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 

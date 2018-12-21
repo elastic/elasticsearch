@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -14,6 +15,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 
 /**
  * Checks whether migration can start and whether ML resources (e.g. jobs, datafeeds)
@@ -37,10 +39,12 @@ public class MlConfigMigrationEligibilityCheck {
         this.isConfigMigrationEnabled = configMigrationEnabled;
     }
 
+
     /**
      * Can migration start? Returns:
      *     False if config migration is disabled via the setting {@link #ENABLE_CONFIG_MIGRATION}
      *     False if the min node version of the cluster is before {@link #MIN_NODE_VERSION}
+     *     False if the .ml-config index shards are not active
      *     True otherwise
      * @param clusterState The cluster state
      * @return A boolean that dictates if config migration can start
@@ -54,12 +58,26 @@ public class MlConfigMigrationEligibilityCheck {
         if (minNodeVersion.before(MIN_NODE_VERSION)) {
             return false;
         }
+
+        return mlConfigIndexIsAllocated(clusterState);
+    }
+
+    static boolean mlConfigIndexIsAllocated(ClusterState clusterState) {
+        if (clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+            return false;
+        }
+
+        IndexRoutingTable routingTable = clusterState.getRoutingTable().index(AnomalyDetectorsIndex.configIndexName());
+        if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            return false;
+        }
         return true;
     }
 
     /**
      * Is the job a eligible for migration? Returns:
      *     False if {@link #canStartMigration(ClusterState)} returns {@code false}
+     *     False if the job is not in the cluster state
      *     False if the {@link Job#isDeleting()}
      *     False if the job has a persistent task
      *     True otherwise i.e. the job is present, not deleting

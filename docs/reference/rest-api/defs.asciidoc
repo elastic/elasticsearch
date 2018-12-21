@@ -2,8 +2,8 @@
 [[api-definitions]]
 == Definitions
 
-These resource definitions are used in {ml} and {security} APIs and in {kib} 
-advanced {ml} job configuration options.
+These resource definitions are used in APIs related to {ml-features} and
+{security-features} and in {kib} advanced {ml} job configuration options.
 
 * <<ml-calendar-resource,Calendars>>
 * <<ml-datafeed-resource,{dfeeds-cap}>>

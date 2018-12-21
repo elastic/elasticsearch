@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[index-lifecycle-error-handling]]
-== Index Lifecycle Error Handling
+== Index lifecycle error handling
 
 beta[]
 

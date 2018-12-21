@@ -126,7 +126,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         leaderCluster.beforeTest(random(), 0.0D);
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
-            ClusterService clusterService = leaderCluster.getMasterNodeInstance(ClusterService.class);
+            ClusterService clusterService = leaderCluster.getInstance(ClusterService.class);
             assertNotNull(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
         });
 
@@ -139,7 +139,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         followerCluster.beforeTest(random(), 0.0D);
         followerCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
-            ClusterService clusterService = followerCluster.getMasterNodeInstance(ClusterService.class);
+            ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
             assertNotNull(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
         });
     }

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-retry-policy]]
-=== Retry Policy Execution API
+=== Retry policy execution API
 ++++
-<titleabbrev>Retry Policy</titleabbrev>
+<titleabbrev>Retry policy</titleabbrev>
 ++++
 
 beta[]

@@ -8,10 +8,13 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -21,6 +24,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRecoveryException;
@@ -37,6 +41,7 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
@@ -111,15 +116,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
-        ClusterStateResponse response = remoteClient
-            .admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setMetaData(true)
-            .setIndices("dummy_index_name") // We set a single dummy index name to avoid fetching all the index data
-            .get();
-        return response.getState().metaData();
+        // We set a single dummy index name to avoid fetching all the index data
+        ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest("dummy_index_name");
+        ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest).actionGet();
+        return clusterState.getState().metaData();
     }
 
     @Override
@@ -128,18 +128,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         String leaderIndex = index.getName();
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
 
-        ClusterStateResponse response = remoteClient
-            .admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setMetaData(true)
-            .setIndices(leaderIndex)
-            .get();
+        ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex);
+        ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest).actionGet();
 
         // Validates whether the leader cluster has been configured properly:
         PlainActionFuture<String[]> future = PlainActionFuture.newFuture();
-        IndexMetaData leaderIndexMetaData = response.getState().metaData().index(leaderIndex);
+        IndexMetaData leaderIndexMetaData = clusterState.getState().metaData().index(leaderIndex);
         ccrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetaData, future::onFailure, future::onResponse);
         String[] leaderHistoryUUIDs = future.actionGet();
 
@@ -252,15 +246,17 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         Map<String, String> ccrMetaData = indexShard.indexSettings().getIndexMetaData().getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
-        ShardId leaderShardId = new ShardId(shardId.getIndexName(), leaderUUID, shardId.getId());
+        Index leaderIndex = new Index(shardId.getIndexName(), leaderUUID);
+        ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
 
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         String sessionUUID = UUIDs.randomBase64UUID();
         PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
             new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId, recoveryMetadata)).actionGet();
-        String nodeId = response.getNodeId();
+        DiscoveryNode node = response.getNode();
         // TODO: Implement file restore
-        closeSession(remoteClient, nodeId, sessionUUID);
+        closeSession(remoteClient, node, sessionUUID);
+        maybeUpdateMappings(client, remoteClient, leaderIndex, indexShard.indexSettings());
     }
 
     @Override
@@ -268,13 +264,23 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
-    private void closeSession(Client remoteClient, String nodeId, String sessionUUID) {
-        ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(nodeId,
-            new ClearCcrRestoreSessionRequest.Request(nodeId, sessionUUID));
+    private void maybeUpdateMappings(Client localClient, Client remoteClient, Index leaderIndex, IndexSettings followerIndexSettings) {
+        ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
+        ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest).actionGet();
+        IndexMetaData leaderIndexMetadata = clusterState.getState().metaData().getIndexSafe(leaderIndex);
+        long leaderMappingVersion = leaderIndexMetadata.getMappingVersion();
+
+        if (leaderMappingVersion > followerIndexSettings.getIndexMetaData().getMappingVersion()) {
+            Index followerIndex = followerIndexSettings.getIndex();
+            MappingMetaData mappingMetaData = leaderIndexMetadata.mapping();
+            PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
+            localClient.admin().indices().putMapping(putMappingRequest).actionGet();
+        }
+    }
+
+    private void closeSession(Client remoteClient, DiscoveryNode node, String sessionUUID) {
+        ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(sessionUUID, node);
         ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse response =
             remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet();
-        if (response.hasFailures()) {
-            throw response.failures().get(0);
-        }
     }
 }

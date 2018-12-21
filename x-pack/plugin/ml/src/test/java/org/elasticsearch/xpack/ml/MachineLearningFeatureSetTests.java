@@ -342,7 +342,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < nodeCount; i++) {
             Map<String, String> attrs = new HashMap<>();
-            attrs.put(MachineLearning.ML_ENABLED_NODE_ATTR, Boolean.toString(true));
+            attrs.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(20));
             Set<DiscoveryNode.Role> roles = new HashSet<>();
             roles.add(DiscoveryNode.Role.DATA);
             roles.add(DiscoveryNode.Role.MASTER);

@@ -30,10 +30,12 @@ import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
@@ -194,8 +196,25 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
         try {
             mkdir(tempConf);
-            cp(installation.config("elasticsearch.yml"), tempConf.resolve("elasticsearch.yml"));
-            cp(installation.config("log4j2.properties"), tempConf.resolve("log4j2.properties"));
+
+            // copy all config files except for jvm.options
+            Files.walkFileTree(installation.config, new SimpleFileVisitor<Path>() {
+
+                @Override
+                public FileVisitResult preVisitDirectory(final Path dir, final BasicFileAttributes attrs) throws IOException {
+                    Files.createDirectories(tempConf.resolve(installation.config.relativize(dir)));
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (file.getFileName().endsWith("jvm.options") == false) {
+                        cp(file, tempConf.resolve(installation.config.relativize(file)));
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+            });
 
             // we have to disable Log4j from using JMX lest it will hit a security
             // manager exception before we have configured logging; this will fail
@@ -244,11 +263,22 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
         try {
             mkdir(tempConf);
-            Stream.of(
-                "elasticsearch.yml",
-                "log4j2.properties",
-                "jvm.options"
-            ).forEach(file -> cp(installation.config(file), tempConf.resolve(file)));
+            // copy all config files
+            Files.walkFileTree(installation.config, new SimpleFileVisitor<Path>() {
+
+                @Override
+                public FileVisitResult preVisitDirectory(final Path dir, final BasicFileAttributes attrs) throws IOException {
+                    Files.createDirectories(tempConf.resolve(installation.config.relativize(dir)));
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    cp(file, tempConf.resolve(installation.config.relativize(file)));
+                    return FileVisitResult.CONTINUE;
+                }
+
+            });
 
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
 

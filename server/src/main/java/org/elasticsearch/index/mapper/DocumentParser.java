@@ -150,7 +150,7 @@ final class DocumentParser {
         // use the docType of the mapper rather than of the source as we may have translated _doc to the user-defined type.
         final String docType = context.docMapper().type();
         assert source.type().equals(context.docMapper().type()) || source.type().equals(MapperService.SINGLE_MAPPING_NAME) :
-            "unexpected docType; mapper type [" + docType + " source type [" + source.type() + "]";
+            "unexpected docType; mapper type [" + docType + "] source type [" + source.type() + "]";
         return new ParsedDocument(
             context.version(),
             context.seqID(),

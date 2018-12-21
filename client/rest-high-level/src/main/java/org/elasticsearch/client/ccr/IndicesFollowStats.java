@@ -119,6 +119,7 @@ public final class IndicesFollowStats {
         static final ConstructingObjectParser<ShardFollowStats, Void> PARSER =
             new ConstructingObjectParser<>(
                 "shard-follow-stats",
+                true,
                 args -> new ShardFollowStats(
                     (String) args[0],
                     (String) args[1],
@@ -155,6 +156,7 @@ public final class IndicesFollowStats {
         static final ConstructingObjectParser<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>, Void> READ_EXCEPTIONS_ENTRY_PARSER =
             new ConstructingObjectParser<>(
                 "shard-follow-stats-read-exceptions-entry",
+                true,
                 args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer) args[1], (ElasticsearchException)args[2])));
 
         static {

@@ -234,6 +234,12 @@ class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
   float getFreq()
 }
 
+class org.elasticsearch.index.query.IntervalFilterScript$Interval {
+  int getStart()
+  int getEnd()
+  int getGaps()
+}
+
 # for testing
 class org.elasticsearch.painless.FeatureTest no_import {
   int z

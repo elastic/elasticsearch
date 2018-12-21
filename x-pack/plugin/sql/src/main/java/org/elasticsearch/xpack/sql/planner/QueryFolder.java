@@ -281,7 +281,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 // found match for expression; if it's an attribute or scalar, end the processing chain with
                                 // the reference to the backing agg
                                 if (matchingGroup != null) {
-                                    if (exp instanceof Attribute || exp instanceof ScalarFunction) {
+                                    if (exp instanceof Attribute || exp instanceof ScalarFunction || exp instanceof GroupingFunction) {
                                         Processor action = null;
                                         ZoneId zi = DataType.DATE == exp.dataType() ? DateUtils.UTC : null;
                                         /*

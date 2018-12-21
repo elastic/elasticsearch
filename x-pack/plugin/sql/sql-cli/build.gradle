@@ -74,8 +74,9 @@ artifacts  {
     nodeps nodepsJar
 }
 
-
-tasks.withType(CheckForbiddenApis) {
+forbiddenApisMain {
+    //sql does not depend on server, so only jdk signatures should be checked
+    replaceSignatureFiles 'jdk-signatures'
     signaturesFiles += files('src/forbidden/cli-signatures.txt')
 }
 
@@ -131,7 +132,7 @@ task runcli {
 }
 
 // Use the jar for testing so we can get the proper version information
-test {
+unitTest {
     classpath -= compileJava.outputs.files
     classpath -= configurations.compile
     classpath -= configurations.runtime

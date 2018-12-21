@@ -36,6 +36,8 @@ The histogram function takes all matching values and divides them into buckets w
 bucket_key = Math.floor(value / interval) * interval
 ----
 
+NOTE:: The histogram in SQL does *NOT* return empty buckets for missing intervals as the traditional <<search-aggregations-bucket-histogram-aggregation, histogram>> and  <<search-aggregations-bucket-datehistogram-aggregation, date histogram>>. Such behavior does not fit conceptually in SQL which treats all missing values as `NULL`; as such the histogram places all missing values in the `NULL` group.
+
 `Histogram` can be applied on either numeric fields:
 
 
@@ -51,4 +53,26 @@ or date/time fields:
 include-tagged::{sql-specs}/docs.csv-spec[histogramDate]
 ----
 
+Expressions inside the histogram are also supported as long as the
+return type is numeric:
 
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[histogramNumericExpression]
+----
+
+Do note that histograms (and grouping functions in general) allow custom expressions but cannot have any functions applied to them in the `GROUP BY`. In other words, the following statement is *NOT* allowed:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[expressionOnHistogramNotAllowed]
+----
+
+as it requires two groupings (one for histogram followed by a second for applying the function on top of the histogram groups).
+
+Instead one can rewrite the query to move the expression on the histogram _inside_ of it:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[histogramDateExpression]
+----

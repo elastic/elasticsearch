@@ -43,10 +43,8 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -214,7 +212,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         }
         assertNoPointlessExclusions("have no violations", violationsExcludes, violationsClasses);
         assertNoPointlessExclusions("do not generate jar hell with the JDK", jdkJarHellExcludes, jdkJarHellClasses);
-        
+
         if (missingClassExcludes == null && (missingClasses.isEmpty() == false)) {
             getLogger().info(
                 "Found missing classes, but task is configured to ignore all of them:\n {}",

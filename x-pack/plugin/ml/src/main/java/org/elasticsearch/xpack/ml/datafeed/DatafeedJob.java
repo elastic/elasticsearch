@@ -8,11 +8,16 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -20,10 +25,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -61,7 +69,8 @@ class DatafeedJob {
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
     private volatile long lastDataCheckTimeMs;
-    private volatile int lastDataCheckAudit;
+    private volatile String lastDataCheckAnnotationId;
+    private volatile Annotation lastDataCheckAnnotation;
     private volatile Long lastEndTimeMs;
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
@@ -177,20 +186,83 @@ class DatafeedJob {
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
             List<BucketWithMissingData> missingDataBuckets = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
             if (missingDataBuckets.isEmpty() == false) {
-
                 long totalRecordsMissing = missingDataBuckets.stream()
                     .mapToLong(BucketWithMissingData::getMissingDocumentCount)
                     .sum();
-                // The response is sorted by asc timestamp, so the last entry is the last bucket
-                Date lastBucketDate = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket().getTimestamp();
-                int newAudit = Objects.hash(totalRecordsMissing, lastBucketDate);
-                if (newAudit != lastDataCheckAudit) {
-                    auditor.warning(jobId,
-                        Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing,
-                            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(lastBucketDate.getTime())));
-                    lastDataCheckAudit = newAudit;
+                Date endTime = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket().getTimestamp();
+                Annotation annotation = createAnnotation(missingDataBuckets.get(0).getBucket().getTimestamp(),
+                    endTime,
+                    totalRecordsMissing);
+
+                // Have we an annotation that covers the same area with the same message?
+                // Cannot use annotation.equals(other) as that checks createTime
+                if (lastDataCheckAnnotation != null
+                    && annotation.getAnnotation().equals(lastDataCheckAnnotation.getAnnotation())
+                    && annotation.getTimestamp().equals(lastDataCheckAnnotation.getTimestamp())
+                    && annotation.getEndTimestamp().equals(lastDataCheckAnnotation.getTimestamp())) {
+                    return;
+                }
+
+                // Creating a warning in addition to updating/creating our annotation. This allows the issue to be plainly visible
+                // in the job list page.
+                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing,
+                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(endTime.getTime())));
+
+                if (lastDataCheckAnnotationId != null) {
+                    updateAnnotation(annotation);
+                } else {
+                    lastDataCheckAnnotationId = addAndSetDelayedDataAnnotation(annotation);
                 }
             }
+        }
+    }
+
+    private Annotation createAnnotation(Date startTime, Date endTime, long recordsMissing) {
+       String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, recordsMissing,
+            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(endTime.getTime()));
+       return new Annotation(msg,
+           new Date(currentTimeSupplier.get()),
+           SystemUser.NAME,
+           startTime,
+           endTime,
+           jobId,
+           null,
+           null,
+           "annotation");
+    }
+
+    private String addAndSetDelayedDataAnnotation(Annotation annotation) {
+        try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
+            IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+            request.source(xContentBuilder);
+            IndexResponse response = client.index(request).actionGet();
+            lastDataCheckAnnotation = annotation;
+            return response.getId();
+        } catch (IOException ex) {
+            String errorMessage = "[" + jobId + "] failed to create annotation for delayed data checker.";
+            LOGGER.error(errorMessage, ex);
+            auditor.error(jobId, errorMessage);
+            return null;
+        }
+    }
+
+    private void updateAnnotation(Annotation annotation) {
+        Annotation updatedAnnotation = new Annotation(lastDataCheckAnnotation);
+        updatedAnnotation.setModifiedUsername(SystemUser.NAME);
+        updatedAnnotation.setModifiedTime(new Date(currentTimeSupplier.get()));
+        updatedAnnotation.setAnnotation(annotation.getAnnotation());
+        updatedAnnotation.setTimestamp(annotation.getTimestamp());
+        updatedAnnotation.setEndTimestamp(annotation.getEndTimestamp());
+        try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
+            IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+            indexRequest.id(lastDataCheckAnnotationId);
+            indexRequest.source(xContentBuilder);
+            client.index(indexRequest).actionGet();
+            lastDataCheckAnnotation = updatedAnnotation;
+        } catch (IOException ex) {
+            String errorMessage = "[" + jobId + "] failed to update annotation for delayed data checker.";
+            LOGGER.error(errorMessage, ex);
+            auditor.error(jobId, errorMessage);
         }
     }
 

@@ -148,7 +148,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                     throw new AssertionError(e);
                 }
                 try {
-                    assertAcked(client().admin().indices().prepareClose(indexName));
+                    client().admin().indices().prepareClose(indexName).get();
                 } catch (final Exception e) {
                     assertException(e, indexName);
                 }

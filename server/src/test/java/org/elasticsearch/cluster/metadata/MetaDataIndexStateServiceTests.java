@@ -89,7 +89,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
                 state = addOpenedIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
                 nonBlockedIndices.add(state.metaData().index(indexName).getIndex());
             } else {
-                final ClusterBlock closingBlock = MetaDataIndexStateService.createIndexClosedBlock();
+                final ClusterBlock closingBlock = MetaDataIndexStateService.createIndexClosingBlock();
                 state = addBlockedIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state, closingBlock);
                 blockedIndices.put(state.metaData().index(indexName).getIndex(), closingBlock);
                 results.put(state.metaData().index(indexName).getIndex(), new AcknowledgedResponse(randomBoolean()));

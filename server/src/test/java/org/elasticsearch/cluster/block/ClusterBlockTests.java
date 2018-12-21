@@ -29,9 +29,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 
+import static java.util.EnumSet.copyOf;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
@@ -39,6 +39,7 @@ import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterBlockTests extends ESTestCase {
@@ -116,16 +117,16 @@ public class ClusterBlockTests extends ESTestCase {
     public void testRemoveIndexBlockWithId() {
         final ClusterBlocks.Builder builder = ClusterBlocks.builder();
         builder.addIndexBlock("index-1",
-            new ClusterBlock(1, "uuid", "", true, true, true, RestStatus.OK, EnumSet.copyOf(ClusterBlockLevel.ALL)));
+            new ClusterBlock(1, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
         builder.addIndexBlock("index-1",
-            new ClusterBlock(2, "uuid", "", true, true, true, RestStatus.OK, EnumSet.copyOf(ClusterBlockLevel.ALL)));
+            new ClusterBlock(2, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
         builder.addIndexBlock("index-1",
-            new ClusterBlock(3, "uuid", "", true, true, true, RestStatus.OK, EnumSet.copyOf(ClusterBlockLevel.ALL)));
+            new ClusterBlock(3, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
         builder.addIndexBlock("index-1",
-            new ClusterBlock(3, "other uuid", "", true, true, true, RestStatus.OK, EnumSet.copyOf(ClusterBlockLevel.ALL)));
+            new ClusterBlock(3, "other uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
 
         builder.addIndexBlock("index-2",
-            new ClusterBlock(3, "uuid3", "", true, true, true, RestStatus.OK, EnumSet.copyOf(ClusterBlockLevel.ALL)));
+            new ClusterBlock(3, "uuid3", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
 
         ClusterBlocks clusterBlocks = builder.build();
         assertThat(clusterBlocks.indices().get("index-1").size(), equalTo(4));
@@ -150,6 +151,21 @@ public class ClusterBlockTests extends ESTestCase {
         assertThat(clusterBlocks.hasIndexBlockWithId("index-2", 3), is(false));
     }
 
+    public void testGetIndexBlockWithId() {
+        final int blockId = randomInt();
+        final ClusterBlock[] clusterBlocks = new ClusterBlock[randomIntBetween(1, 5)];
+
+        final ClusterBlocks.Builder builder = ClusterBlocks.builder();
+        for (int i = 0; i < clusterBlocks.length; i++) {
+            clusterBlocks[i] = new ClusterBlock(blockId, "uuid" + i, "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL));
+            builder.addIndexBlock("index", clusterBlocks[i]);
+        }
+
+        assertThat(builder.build().indices().get("index").size(), equalTo(clusterBlocks.length));
+        assertThat(builder.build().getIndexBlockWithId("index", blockId), isOneOf(clusterBlocks));
+        assertThat(builder.build().getIndexBlockWithId("index", randomValueOtherThan(blockId, ESTestCase::randomInt)), nullValue());
+    }
+
     private ClusterBlock randomClusterBlock() {
         return randomClusterBlock(randomVersion(random()));
     }
@@ -158,7 +174,7 @@ public class ClusterBlockTests extends ESTestCase {
         final String uuid = (version.onOrAfter(Version.V_7_0_0) && randomBoolean()) ? UUIDs.randomBase64UUID() : null;
         final List<ClusterBlockLevel> levels = Arrays.asList(ClusterBlockLevel.values());
         return new ClusterBlock(randomInt(), uuid, "cluster block #" + randomInt(), randomBoolean(), randomBoolean(), randomBoolean(),
-            randomFrom(RestStatus.values()), EnumSet.copyOf(randomSubsetOf(randomIntBetween(1, levels.size()), levels)));
+            randomFrom(RestStatus.values()), copyOf(randomSubsetOf(randomIntBetween(1, levels.size()), levels)));
     }
 
     private void assertClusterBlockEquals(final ClusterBlock expected, final ClusterBlock actual) {

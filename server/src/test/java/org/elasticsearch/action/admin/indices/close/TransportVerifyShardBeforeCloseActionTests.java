@@ -104,7 +104,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
         clusterService = createClusterService(threadPool);
 
-        clusterBlock = MetaDataIndexStateService.createIndexClosedBlock();
+        clusterBlock = MetaDataIndexStateService.createIndexClosingBlock();
         setState(clusterService, new ClusterState.Builder(clusterService.state())
             .blocks(ClusterBlocks.builder().blocks(clusterService.state().blocks()).addIndexBlock("index", clusterBlock).build()).build());
 

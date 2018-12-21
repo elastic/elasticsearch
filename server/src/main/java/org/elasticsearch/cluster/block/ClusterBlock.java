@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.block;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -36,7 +37,7 @@ import java.util.Objects;
 public class ClusterBlock implements Streamable, ToXContentFragment {
 
     private int id;
-    private String uuid;
+    private @Nullable String uuid;
     private String description;
     private EnumSet<ClusterBlockLevel> levels;
     private boolean retryable;

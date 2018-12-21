@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -157,6 +158,19 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             }
         }
         return false;
+    }
+
+    @Nullable
+    public ClusterBlock getIndexBlockWithId(final String index, final int blockId) {
+        final Set<ClusterBlock> clusterBlocks = indicesBlocks.get(index);
+        if (clusterBlocks != null) {
+            for (ClusterBlock clusterBlock : clusterBlocks) {
+                if (clusterBlock.id() == blockId) {
+                    return clusterBlock;
+                }
+            }
+        }
+        return null;
     }
 
     public void globalBlockedRaiseException(ClusterBlockLevel level) throws ClusterBlockException {

@@ -62,7 +62,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         final String indexName = "test";
         createIndexWithDocs(indexName);
 
-        ensureClusterSizeConsistency();
+        ensureYellowAndNoInitializingShards(indexName);
 
         final CountDownLatch block = new CountDownLatch(1);
         final Releasable releaseBlock = interceptVerifyShardBeforeCloseActions(indexName, block::countDown);
@@ -75,7 +75,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareOpen(indexName));
 
         releaseBlock.close();
-        closeIndexResponse.get();
+        assertFalse(closeIndexResponse.get().isAcknowledged());
         assertIndexIsOpened(indexName);
     }
 
@@ -86,7 +86,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
             createIndexWithDocs(indices.get(i));
         }
 
-        ensureClusterSizeConsistency();
+        ensureYellowAndNoInitializingShards(indices.toArray(Strings.EMPTY_ARRAY));
 
         final CountDownLatch block = new CountDownLatch(1);
         final Releasable releaseBlock = interceptVerifyShardBeforeCloseActions(randomFrom(indices), block::countDown);
@@ -100,7 +100,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareOpen(reopenedIndices.toArray(Strings.EMPTY_ARRAY)));
 
         releaseBlock.close();
-        closeIndexResponse.get();
+        assertFalse(closeIndexResponse.get().isAcknowledged());
 
         indices.forEach(index -> {
             if (reopenedIndices.contains(index)) {

@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -68,6 +69,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -147,9 +149,30 @@ public class MetaDataIndexStateService {
                             .execute(new WaitForClosedBlocksApplied(blockedIndices, timeout,
                                 ActionListener.wrap(results ->
                                     clusterService.submitStateUpdateTask("close-indices", new ClusterStateUpdateTask(Priority.URGENT) {
+
+                                        boolean acknowledged = true;
+
                                         @Override
                                         public ClusterState execute(final ClusterState currentState) throws Exception {
                                             final ClusterState updatedState = closeRoutingTable(currentState, blockedIndices, results);
+                                            // Combine the results of the verify shards before close actions with the cluster state changes
+                                            // to determine if the current close action effectively closed all indices.
+                                            for (Map.Entry<Index, AcknowledgedResponse> result : results.entrySet()) {
+                                                IndexMetaData updatedMetaData = updatedState.metaData().index(result.getKey());
+                                                if (updatedMetaData != null) {
+                                                    if (result.getValue().isAcknowledged()) {
+                                                        if (updatedMetaData.getState() == IndexMetaData.State.CLOSE) {
+                                                            IndexMetaData previousMetaData = currentState.metaData().index(result.getKey());
+                                                            if (previousMetaData != null) {
+                                                                acknowledged = (previousMetaData.getState() == IndexMetaData.State.OPEN);
+                                                            }
+                                                        }
+                                                    } else {
+                                                        acknowledged = false;
+                                                        break;
+                                                    }
+                                                }
+                                            }
                                             return allocationService.reroute(updatedState, "indices closed");
                                         }
 
@@ -161,7 +184,6 @@ public class MetaDataIndexStateService {
                                         @Override
                                         public void clusterStateProcessed(final String source,
                                                                           final ClusterState oldState, final ClusterState newState) {
-                                            boolean acknowledged = results.values().stream().allMatch(AcknowledgedResponse::isAcknowledged);
                                             listener.onResponse(new AcknowledgedResponse(acknowledged));
                                         }
                                     }),
@@ -242,10 +264,10 @@ public class MetaDataIndexStateService {
                 blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
                 routingTable.remove(index.getName());
                 indexBlock = INDEX_CLOSED_BLOCK;
-            }
-            if (indexBlock == null) {
+            } else if (indexBlock == null) {
                 // Create a new index closed block
-                indexBlock = createIndexClosedBlock();
+                indexBlock = createIndexClosingBlock();
+                assert Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
             }
             blocks.addIndexBlock(index.getName(), indexBlock);
             blockedIndices.put(index, indexBlock);
@@ -384,27 +406,26 @@ public class MetaDataIndexStateService {
             final boolean acknowledged = result.getValue().isAcknowledged();
             try {
                 if (acknowledged == false) {
-                    logger.debug("closing index {} failed", index);
+                    logger.debug("verification of shards before closing {} failed", index);
                     continue;
                 }
                 final IndexMetaData indexMetaData = metadata.getSafe(index);
                 if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                    logger.debug("closing index {} succeed  but index is already closed", index);
+                    logger.debug("verification of shards before closing {} succeeded but index is already closed", index);
                     assert currentState.blocks().hasIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                     continue;
                 }
                 final ClusterBlock closingBlock = blockedIndices.get(index);
                 if (currentState.blocks().hasIndexBlock(index.getName(), closingBlock) == false) {
-                    logger.debug("closing index {} succeed but block has been removed in the mean time", index);
+                    logger.debug("verification of shards before closing {} succeeded but block has been removed in the meantime", index);
                     continue;
                 }
 
-                logger.debug("closing index {} succeed", index);
+                logger.debug("closing index {} succeeded", index);
                 blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID).addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                 metadata.put(IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE));
                 routingTable.remove(index.getName());
                 closedIndices.add(index.getName());
-
             } catch (final IndexNotFoundException e) {
                 logger.debug("index {} has been deleted since it was blocked before closing, ignoring", index);
             }
@@ -540,12 +561,10 @@ public class MetaDataIndexStateService {
      * @return Generates a {@link ClusterBlock} that blocks read and write operations on soon-to-be-closed indices. The
      * cluster block is generated with the id value equals to {@link #INDEX_CLOSED_BLOCK_ID} and a unique UUID.
      */
-    public static ClusterBlock createIndexClosedBlock() {
-        final String description = "Index is blocked due to on-going index closing operation. Note that the closing process can take " +
-            "time and writes operations are blocked in the meantime. Execute an open index request to unblock the index and allow writes " +
-            "operation again. Execute a new close index request will try to close the index again.";
-        return new ClusterBlock(INDEX_CLOSED_BLOCK_ID, UUIDs.randomBase64UUID(), description , false, false, false,
-            RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
+    public static ClusterBlock createIndexClosingBlock() {
+        return new ClusterBlock(INDEX_CLOSED_BLOCK_ID, UUIDs.randomBase64UUID(), "index preparing to close. Reopen the index to allow " +
+            "writes again or retry closing the index to fully close the index.", false, false, false, RestStatus.FORBIDDEN,
+            EnumSet.of(ClusterBlockLevel.WRITE));
     }
 
 }

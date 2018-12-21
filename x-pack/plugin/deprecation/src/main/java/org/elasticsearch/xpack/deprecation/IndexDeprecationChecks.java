@@ -101,11 +101,21 @@ public class IndexDeprecationChecks {
     static DeprecationIssue oldIndicesCheck(IndexMetaData indexMetaData) {
         Version createdWith = indexMetaData.getCreationVersion();
         if (createdWith.before(Version.V_6_0_0)) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "Index created before 6.0",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                    "breaking-changes-7.0.html",
-                "this index was created using version: " + createdWith);
+            if (indexMetaData.getMappings().size() > 1) {
+                return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                    "Index has more than one mapping type",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html" +
+                        "#_migrating_multi_type_indices_to_single_type",
+                    "This index has more than one mapping type, which is not supported in 7.0. " +
+                        "This index must be reindexed into one or more single-type indices. Mapping types in use: " +
+                        indexMetaData.getMappings().keys());
+            } else {
+                return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                    "Index created before 6.0",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                        "breaking-changes-7.0.html",
+                    "This index was created using version: " + createdWith);
+            }
 
         }
         return null;

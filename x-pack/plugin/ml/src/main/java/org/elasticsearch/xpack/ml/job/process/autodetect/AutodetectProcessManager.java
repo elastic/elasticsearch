@@ -45,13 +45,12 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -62,6 +61,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -95,15 +95,11 @@ public class AutodetectProcessManager {
     // available resources on that node: https://github.com/elastic/x-pack-elasticsearch/issues/546
     // However, it is useful to also be able to apply a hard limit.
 
-    // WARNING: These settings cannot be made DYNAMIC, because they are tied to several threadpools
+    // WARNING: This setting cannot be made DYNAMIC, because it is tied to several threadpools
     // and a threadpool's size can't be changed at runtime.
     // See MachineLearning#getExecutorBuilders(...)
-    // TODO: Remove the deprecated setting in 7.0 and move the default value to the replacement setting
-    @Deprecated
-    public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
-            Setting.intSetting("max_running_jobs", 20, 1, 512, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
-            Setting.intSetting("xpack.ml.max_open_jobs", MAX_RUNNING_JOBS_PER_NODE, 1, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, 512, Property.NodeScope);
 
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
@@ -408,7 +404,6 @@ public class AutodetectProcessManager {
         logger.info("Opening job [{}]", jobId);
 
         jobManager.getJob(jobId, ActionListener.wrap(
-                // NORELEASE JIndex. Should not be doing this work on the network thread
                 job -> {
                     if (job.getJobVersion() == null) {
                         closeHandler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId

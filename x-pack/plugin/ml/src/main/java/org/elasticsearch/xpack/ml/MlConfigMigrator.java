@@ -11,6 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -21,6 +23,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +32,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -126,18 +130,10 @@ public class MlConfigMigrator {
      * @param listener     The success listener
      */
     public void migrateConfigsWithoutTasks(ClusterState clusterState, ActionListener<Boolean> listener) {
-
-        if (migrationEligibilityCheck.canStartMigration(clusterState) == false) {
-            listener.onResponse(false);
-            return;
-        }
-
         if (migrationInProgress.compareAndSet(false, true) == false) {
             listener.onResponse(Boolean.FALSE);
             return;
         }
-
-        logger.debug("migrating ml configurations");
 
         ActionListener<Boolean> unMarkMigrationInProgress = ActionListener.wrap(
                 response -> {
@@ -150,19 +146,34 @@ public class MlConfigMigrator {
                 }
         );
 
-        snapshotMlMeta(MlMetadata.getMlMetadata(clusterState), ActionListener.wrap(
-            response -> {
-                // We have successfully snapshotted the ML configs so we don't need to try again
-                tookConfigSnapshot.set(true);
+        List<JobsAndDatafeeds> batches = splitInBatches(clusterState);
+        if (batches.isEmpty()) {
+            unMarkMigrationInProgress.onResponse(Boolean.FALSE);
+            return;
+        }
 
-                List<JobsAndDatafeeds> batches = splitInBatches(clusterState);
-                if (batches.isEmpty()) {
-                    unMarkMigrationInProgress.onResponse(Boolean.FALSE);
-                    return;
-                }
-                migrateBatches(batches, unMarkMigrationInProgress);
-            },
-            unMarkMigrationInProgress::onFailure
+        if (clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+            createConfigIndex(ActionListener.wrap(
+                    response -> {
+                        unMarkMigrationInProgress.onResponse(Boolean.FALSE);
+                    },
+                    unMarkMigrationInProgress::onFailure
+            ));
+            return;
+        }
+
+        if (migrationEligibilityCheck.canStartMigration(clusterState) == false) {
+            unMarkMigrationInProgress.onResponse(Boolean.FALSE);
+            return;
+        }
+
+        snapshotMlMeta(MlMetadata.getMlMetadata(clusterState), ActionListener.wrap(
+                response -> {
+                    // We have successfully snapshotted the ML configs so we don't need to try again
+                    tookConfigSnapshot.set(true);
+                    migrateBatches(batches, unMarkMigrationInProgress);
+                },
+                unMarkMigrationInProgress::onFailure
         ));
     }
 
@@ -296,6 +307,7 @@ public class MlConfigMigrator {
     private void addJobIndexRequests(Collection<Job> jobs, BulkRequestBuilder bulkRequestBuilder) {
         ToXContent.Params params = new ToXContent.MapParams(JobConfigProvider.TO_XCONTENT_PARAMS);
         for (Job job : jobs) {
+            logger.debug("adding job to migrate: " + job.getId());
             bulkRequestBuilder.add(indexRequest(job, Job.documentId(job.getId()), params));
         }
     }
@@ -303,6 +315,7 @@ public class MlConfigMigrator {
     private void addDatafeedIndexRequests(Collection<DatafeedConfig> datafeedConfigs, BulkRequestBuilder bulkRequestBuilder) {
         ToXContent.Params params = new ToXContent.MapParams(DatafeedConfigProvider.TO_XCONTENT_PARAMS);
         for (DatafeedConfig datafeedConfig : datafeedConfigs) {
+            logger.debug("adding datafeed to migrate: " + datafeedConfig.getId());
             bulkRequestBuilder.add(indexRequest(datafeedConfig, DatafeedConfig.documentId(datafeedConfig.getId()), params));
         }
     }
@@ -317,7 +330,6 @@ public class MlConfigMigrator {
         }
         return indexRequest;
     }
-
 
     // public for testing
     public void snapshotMlMeta(MlMetadata mlMetadata, ActionListener<Boolean> listener) {
@@ -361,6 +373,30 @@ public class MlConfigMigrator {
         );
     }
 
+    private void createConfigIndex(ActionListener<Boolean> listener) {
+        logger.info("creating the .ml-config index");
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(AnomalyDetectorsIndex.configIndexName());
+        try
+        {
+            createIndexRequest.settings(
+                    Settings.builder()
+                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                            .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+            );
+            createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, ElasticsearchMappings.configMapping());
+        } catch (Exception e) {
+            logger.error("error writing the .ml-config mappings", e);
+            listener.onFailure(e);
+            return;
+        }
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
+                ActionListener.<CreateIndexResponse>wrap(
+                        r -> listener.onResponse(r.isAcknowledged()),
+                        listener::onFailure
+                ), client.admin().indices()::create);
+    }
 
     public static Job updateJobForMigration(Job job) {
         Job.Builder builder = new Job.Builder(job);

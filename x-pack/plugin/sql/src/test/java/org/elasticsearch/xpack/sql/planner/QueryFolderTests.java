@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
@@ -66,6 +67,48 @@ public class QueryFolderTests extends ESTestCase {
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(1, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
+    public void testLocalExecWithPrunedFilterWithFunction() {
+        PhysicalPlan p = plan("SELECT E() FROM test WHERE PI() = 5");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
+    }
+
+    public void testLocalExecWithPrunedFilterWithFunctionAndAggregation() {
+        PhysicalPlan p = plan("SELECT E() FROM test WHERE PI() = 5 GROUP BY 1");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
+    }
+
+    public void testLocalExecWithoutFromClause() {
+        PhysicalPlan p = plan("SELECT E(), 'foo', abs(10)");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(3, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
+        assertThat(ee.output().get(1).toString(), startsWith("foo{c}#"));
+        assertThat(ee.output().get(2).toString(), startsWith("ABS(10){c}#"));
+    }
+
+    public void testLocalExecWithoutFromClauseWithPrunedFilter() {
+        PhysicalPlan p = plan("SELECT E() WHERE PI() = 5");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
     }
 
     public void testFoldingOfIsNull() {

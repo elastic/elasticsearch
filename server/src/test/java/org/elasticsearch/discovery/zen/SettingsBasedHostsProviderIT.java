@@ -28,7 +28,7 @@ import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVID
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class SettingsBasedHostProviderIT extends ESIntegTestCase {
+public class SettingsBasedHostsProviderIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

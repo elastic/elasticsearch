@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[unfreeze-index-api]]
-== Unfreeze Index API
+== Unfreeze index API
 ++++
-<titleabbrev>Unfreeze Index</titleabbrev>
+<titleabbrev>Unfreeze index</titleabbrev>
 ++++
 
 Unfreezes an index.

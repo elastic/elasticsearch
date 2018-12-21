@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 /** Tests for explicit casts */
-public class CastTests extends ScriptTestCase {
+public class GeneralCastTests extends ScriptTestCase {
 
     /**
      * Unary operator with explicit cast

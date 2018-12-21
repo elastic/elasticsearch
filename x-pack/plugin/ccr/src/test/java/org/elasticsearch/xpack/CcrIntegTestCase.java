@@ -203,7 +203,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         builder.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
-        builder.put(NetworkModule.HTTP_ENABLED.getKey(), false);
+        if (leaderSeedAddress != null) {
+            builder.put("cluster.remote.leader_cluster.seeds", leaderSeedAddress);
+        }
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {

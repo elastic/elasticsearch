@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -41,27 +42,30 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoIpProcessorNonIngestNodeTests extends ESIntegTestCase {
 
+    public static class IngestGeoIpSettingsPlugin extends Plugin {
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(Setting.simpleString("ingest.geoip.database_path", Setting.Property.NodeScope));
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(IngestGeoIpPlugin.class);
+        return Arrays.asList(IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
     }
 
     @Override
     protected Settings nodeSettings(final int nodeOrdinal) {
-        return Settings.builder().put("node.ingest", false).put(super.nodeSettings(nodeOrdinal)).build();
-    }
-
-    @Override
-    protected Path nodeConfigPath(final int nodeOrdinal) {
-        final Path configPath = createTempDir();
+        final Path databasePath = createTempDir();
         try {
-            final Path databasePath = configPath.resolve("ingest-geoip");
             Files.createDirectories(databasePath);
             Files.copy(
                     new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
@@ -75,7 +79,11 @@ public class GeoIpProcessorNonIngestNodeTests extends ESIntegTestCase {
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
-        return configPath;
+        return Settings.builder()
+                .put("ingest.geoip.database_path", databasePath)
+                .put("node.ingest", false)
+                .put(super.nodeSettings(nodeOrdinal))
+                .build();
     }
 
     /**

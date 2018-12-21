@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-license]]
-=== Get License API
+=== Get license API
+++++
+<titleabbrev>Get license</titleabbrev>
+++++
 
 This API enables you to retrieve licensing information.
 

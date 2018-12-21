@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
@@ -277,7 +278,7 @@ public class DatafeedJobTests extends ESTestCase {
             null,
             "annotation");
 
-        IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+        IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME, ElasticsearchMappings.DOC_TYPE);
         try (XContentBuilder xContentBuilder = expectedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             request.source(xContentBuilder);
         }
@@ -300,7 +301,7 @@ public class DatafeedJobTests extends ESTestCase {
             15,
             XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(2000));
         // What we expect the updated annotation to be indexed as
-        IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+        IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME, ElasticsearchMappings.DOC_TYPE);
         indexRequest.id(annotationDocId);
         Annotation updatedAnnotation = new Annotation(expectedAnnotation);
         updatedAnnotation.setAnnotation(msg);

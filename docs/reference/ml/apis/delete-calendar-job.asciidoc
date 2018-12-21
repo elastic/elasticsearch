@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-calendar-job]]
-=== Delete Jobs from Calendar API
+=== Delete jobs from calendar API
 ++++
-<titleabbrev>Delete Jobs from Calendar</titleabbrev>
+<titleabbrev>Delete jobs from calendar</titleabbrev>
 ++++
 
 Deletes jobs from a calendar.

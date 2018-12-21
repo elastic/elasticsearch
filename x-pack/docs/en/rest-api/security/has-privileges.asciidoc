@@ -1,7 +1,9 @@
 [role="xpack"]
 [[security-api-has-privileges]]
-=== Has Privileges API
-
+=== Has privileges API
+++++
+<titleabbrev>Has privileges</titleabbrev>
+++++
 [[security-api-has-privilege]]
 
 The `has_privileges` API allows you to determine whether the logged in user has

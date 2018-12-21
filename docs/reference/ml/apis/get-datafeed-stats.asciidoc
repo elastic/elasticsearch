@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-datafeed-stats]]
-=== Get {dfeed-cap} Statistics API
+=== Get {dfeed} statistics API
 ++++
-<titleabbrev>Get {dfeed-cap} Statistics</titleabbrev>
+<titleabbrev>Get {dfeed} statistics</titleabbrev>
 ++++
 
 Retrieves usage information for {dfeeds}.

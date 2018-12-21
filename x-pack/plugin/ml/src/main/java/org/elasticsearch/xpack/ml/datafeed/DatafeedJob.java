@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
@@ -233,7 +234,7 @@ class DatafeedJob {
 
     private String addAndSetDelayedDataAnnotation(Annotation annotation) {
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+            IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME, ElasticsearchMappings.DOC_TYPE);
             request.source(xContentBuilder);
             IndexResponse response = client.index(request).actionGet();
             lastDataCheckAnnotation = annotation;
@@ -254,7 +255,7 @@ class DatafeedJob {
         updatedAnnotation.setTimestamp(annotation.getTimestamp());
         updatedAnnotation.setEndTimestamp(annotation.getEndTimestamp());
         try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+            IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME, ElasticsearchMappings.DOC_TYPE);
             indexRequest.id(lastDataCheckAnnotationId);
             indexRequest.source(xContentBuilder);
             client.index(indexRequest).actionGet();

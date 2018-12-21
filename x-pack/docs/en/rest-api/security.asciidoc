@@ -66,12 +66,12 @@ native realm:
 * <<security-api-get-user,Get users>>
 
 
-include::security/put-app-privileges.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
-include::security/create-role-mappings.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
+include::security/put-app-privileges.asciidoc[]
+include::security/create-role-mappings.asciidoc[]
 include::security/create-roles.asciidoc[]
 include::security/create-users.asciidoc[]
 include::security/delete-app-privileges.asciidoc[]

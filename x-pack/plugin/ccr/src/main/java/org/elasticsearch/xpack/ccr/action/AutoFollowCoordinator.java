@@ -82,7 +82,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     private long numberOfSuccessfulIndicesAutoFollowed = 0;
     private long numberOfFailedIndicesAutoFollowed = 0;
     private long numberOfFailedRemoteClusterStateRequests = 0;
-    private final LinkedHashMap<String, ElasticsearchException> recentAutoFollowErrors;
+    private final LinkedHashMap<String, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
 
     public AutoFollowCoordinator(
             Settings settings,
@@ -96,9 +96,9 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
         this.relativeMillisTimeProvider = relativeMillisTimeProvider;
         clusterService.addListener(this);
-        this.recentAutoFollowErrors = new LinkedHashMap<String, ElasticsearchException>() {
+        this.recentAutoFollowErrors = new LinkedHashMap<String, Tuple<Long, ElasticsearchException>>() {
             @Override
-            protected boolean removeEldestEntry(final Map.Entry<String, ElasticsearchException> eldest) {
+            protected boolean removeEldestEntry(final Map.Entry<String, Tuple<Long, ElasticsearchException>> eldest) {
                 return size() > MAX_AUTO_FOLLOW_ERRORS;
             }
         };
@@ -138,10 +138,11 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     }
 
     synchronized void updateStats(List<AutoFollowResult> results) {
+        long newStatsReceivedTimeStamp = relativeMillisTimeProvider.getAsLong();
         for (AutoFollowResult result : results) {
             if (result.clusterStateFetchException != null) {
                 recentAutoFollowErrors.put(result.autoFollowPatternName,
-                    new ElasticsearchException(result.clusterStateFetchException));
+                    Tuple.tuple(newStatsReceivedTimeStamp, new ElasticsearchException(result.clusterStateFetchException)));
                 numberOfFailedRemoteClusterStateRequests++;
                 LOGGER.warn(new ParameterizedMessage("failure occurred while fetching cluster state for auto follow pattern [{}]",
                     result.autoFollowPatternName), result.clusterStateFetchException);
@@ -150,7 +151,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     if (entry.getValue() != null) {
                         numberOfFailedIndicesAutoFollowed++;
                         recentAutoFollowErrors.put(result.autoFollowPatternName + ":" + entry.getKey().getName(),
-                            ExceptionsHelper.convertToElastic(entry.getValue()));
+                            Tuple.tuple(newStatsReceivedTimeStamp, ExceptionsHelper.convertToElastic(entry.getValue())));
                         LOGGER.warn(new ParameterizedMessage("failure occurred while auto following index [{}] for auto follow " +
                             "pattern [{}]", entry.getKey(), result.autoFollowPatternName), entry.getValue());
                     } else {

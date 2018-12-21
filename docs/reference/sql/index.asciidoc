@@ -45,6 +45,8 @@ indices and return results in tabular format.
     syntax.
 <<sql-functions,Functions and Operators>>::
     List of functions and operators supported.
+<<sql-limitations,Limitations>>::
+    {es-sql} current limitations.
 --
 
 include::overview.asciidoc[]
@@ -55,5 +57,6 @@ include::endpoints/index.asciidoc[]
 include::language/index.asciidoc[]
 include::functions/index.asciidoc[]
 include::appendix/index.asciidoc[]
+include::limitations.asciidoc[]
 
 :jdbc-tests!:

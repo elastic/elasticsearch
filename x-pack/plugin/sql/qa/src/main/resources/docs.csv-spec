@@ -2128,5 +2128,5 @@ SELECT NOW() AS result;
          result         
 ------------------------
 2018-12-12T14:48:52.448Z
-// end::nowIgnore
+// end::nowFunction
 ;

@@ -272,7 +272,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         if (leaderMappingVersion > followerIndexSettings.getIndexMetaData().getMappingVersion()) {
             Index followerIndex = followerIndexSettings.getIndex();
-            MappingMetaData mappingMetaData = leaderIndexMetadata.mapping();
+            assert leaderIndexMetadata.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
+                leaderIndexMetadata.getMappings().size() + "]";
+            MappingMetaData mappingMetaData = leaderIndexMetadata.getMappings().iterator().next().value;
             PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
             localClient.admin().indices().putMapping(putMappingRequest).actionGet();
         }

@@ -47,7 +47,7 @@ forbiddenApisMain {
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
 
-thirdPartyAudit.allowMissingClasses (
+thirdPartyAudit.ignoreMissingClasses (
   // classes are missing
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',

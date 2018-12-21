@@ -165,7 +165,7 @@ forbiddenApisMain {
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
 thirdPartyAudit {
-    allowMissingClasses (
+    ignoreMissingClasses (
         // SAML dependencies
         // [missing classes] Some cli utilities that we don't use depend on these missing JCommander classes
         'com.beust.jcommander.JCommander',
@@ -260,7 +260,7 @@ thirdPartyAudit {
         'org.slf4j.ext.EventData'
     )
 
-    allowViolations (
+    ignoreViolations (
         // Guava uses internal java api: sun.misc.Unsafe
         'com.google.common.cache.Striped64',
         'com.google.common.cache.Striped64$1',
@@ -273,7 +273,7 @@ thirdPartyAudit {
 }
 
 if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.allowMissingClasses(
+    thirdPartyAudit.ignoreMissingClasses(
         'javax.xml.bind.JAXBContext',
         'javax.xml.bind.JAXBElement',
         'javax.xml.bind.JAXBException',

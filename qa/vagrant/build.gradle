@@ -77,7 +77,7 @@ tasks.test.enabled = false
 tasks.dependencyLicenses.enabled = false
 tasks.dependenciesInfo.enabled = false
 
-tasks.thirdPartyAudit.allowMissingClasses (
+tasks.thirdPartyAudit.ignoreMissingClasses (
         // commons-logging optional dependencies
         'org.apache.avalon.framework.logger.Logger',
         'org.apache.log.Hierarchy',

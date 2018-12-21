@@ -91,7 +91,7 @@ dependencyLicenses {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-thirdPartyAudit.allowMissingClasses (
+thirdPartyAudit.ignoreMissingClasses (
   'javax.servlet.ServletContextEvent', 
   'javax.servlet.ServletContextListener', 
   'org.apache.avalon.framework.logger.Logger', 
@@ -128,7 +128,7 @@ thirdPartyAudit.allowMissingClasses (
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
 if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.allowJarHellWithJDK (
+  thirdPartyAudit.ignoreJarHellWithJDK (
     'javax.xml.bind.Binder',
     'javax.xml.bind.ContextFinder$1',
     'javax.xml.bind.ContextFinder',
@@ -232,7 +232,7 @@ if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
     'javax.xml.bind.util.ValidationEventCollector'
   )
 } else {
-  thirdPartyAudit.allowMissingClasses (
+  thirdPartyAudit.ignoreMissingClasses (
     'javax.activation.ActivationDataFlavor',
     'javax.activation.DataContentHandler',
     'javax.activation.DataHandler',

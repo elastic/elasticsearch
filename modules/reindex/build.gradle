@@ -62,7 +62,7 @@ dependencies {
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
 }
 
-thirdPartyAudit.allowMissingClasses (
+thirdPartyAudit.ignoreMissingClasses (
   // Commons logging
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',

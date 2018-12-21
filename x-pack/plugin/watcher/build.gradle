@@ -49,7 +49,7 @@ dependencies {
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
 thirdPartyAudit { 
-    allowViolations (
+    ignoreViolations (
         // uses internal java api: sun.misc.Unsafe
         'com.google.common.cache.Striped64',
         'com.google.common.cache.Striped64$1',
@@ -58,7 +58,7 @@ thirdPartyAudit {
         'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
     )
 
-    allowViolations(
+    ignoreViolations(
       'com.sun.activation.registries.LineTokenizer',
       'com.sun.activation.registries.LogSupport',
       'com.sun.activation.registries.MailcapFile',
@@ -72,7 +72,7 @@ thirdPartyAudit {
 
 // pulled in as external dependency to work on java 9
 if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.allowJarHellWithJDK (
+    thirdPartyAudit.ignoreJarHellWithJDK (
         // pulled in as external dependency to work on java 9
         'com.sun.activation.registries.LineTokenizer',
         'com.sun.activation.registries.LogSupport',

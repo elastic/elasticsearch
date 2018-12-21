@@ -79,7 +79,7 @@ tasks.withType(CheckForbiddenApis) {
     signaturesFiles += files('src/forbidden/cli-signatures.txt')
 }
 
-thirdPartyAudit.allowMissingClasses (
+thirdPartyAudit.ignoreMissingClasses (
     // jLine's optional dependencies
     'org.apache.sshd.client.SshClient',
     'org.apache.sshd.client.auth.keyboard.UserInteraction',

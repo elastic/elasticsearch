@@ -305,8 +305,8 @@ if (secureFixtureSupported) {
 }
 
 thirdPartyAudit {
-    allowAllMissingClasses()
-    allowViolations (
+    ignoreMissingClasses()
+    ignoreViolations (
       // internal java api: sun.net.dns.ResolverConfiguration
       // internal java api: sun.net.util.IPAddressUtil
       'org.apache.hadoop.security.SecurityUtil$QualifiedHostResolver',

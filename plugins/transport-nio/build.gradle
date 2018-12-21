@@ -43,7 +43,7 @@ dependencyLicenses {
 }
 
 thirdPartyAudit {
-   allowMissingClasses (
+   ignoreMissingClasses (
         // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
         'com.google.protobuf.ExtensionRegistry',
         'com.google.protobuf.MessageLite$Builder',
@@ -127,7 +127,7 @@ thirdPartyAudit {
         'io.netty.internal.tcnative.SniHostNameMatcher',
     )    
 
-    allowViolations (
+    ignoreViolations (
 
         'io.netty.util.internal.PlatformDependent0',
         'io.netty.util.internal.PlatformDependent0$1',
@@ -152,7 +152,7 @@ thirdPartyAudit {
 if (project.inFipsJvm == false) {
     // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
     // a FIPS JVM with BouncyCastleFIPS Provider
-    thirdPartyAudit.allowMissingClasses (
+    thirdPartyAudit.ignoreMissingClasses (
             'org.bouncycastle.asn1.x500.X500Name'
     )
 }

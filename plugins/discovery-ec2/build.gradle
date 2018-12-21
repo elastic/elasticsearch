@@ -79,7 +79,7 @@ check {
   dependsOn 'qa:amazon-ec2:check'
 }
 
-thirdPartyAudit.allowMissingClasses (
+thirdPartyAudit.ignoreMissingClasses (
   // classes are missing
   'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
   'com.amazonaws.jmespath.JmesPathExpression',
@@ -109,7 +109,7 @@ thirdPartyAudit.allowMissingClasses (
 )
 
 if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.allowMissingClasses (
+  thirdPartyAudit.ignoreMissingClasses (
     'javax.xml.bind.DatatypeConverter',
     'javax.xml.bind.JAXBContext'
   )

@@ -64,7 +64,7 @@ integTestRunner {
 }
 
 thirdPartyAudit {
-    allowMissingClasses (
+    ignoreMissingClasses (
         // classes are missing
 
         // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
@@ -151,7 +151,7 @@ thirdPartyAudit {
         'org.conscrypt.HandshakeListener'
    )
 
-   allowViolations ( 
+   ignoreViolations ( 
         'io.netty.util.internal.PlatformDependent0',
         'io.netty.util.internal.PlatformDependent0$1',
         'io.netty.util.internal.PlatformDependent0$2',
@@ -175,7 +175,7 @@ thirdPartyAudit {
 if (project.inFipsJvm == false) {
     // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
     // a FIPS JVM with BouncyCastleFIPS Provider
-    thirdPartyAudit.allowMissingClasses (
+    thirdPartyAudit.ignoreMissingClasses (
             'org.bouncycastle.asn1.x500.X500Name'
     )
 }

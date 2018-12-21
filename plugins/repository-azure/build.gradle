@@ -38,13 +38,13 @@ dependencyLicenses {
 }
 
 thirdPartyAudit {
-    allowMissingClasses (
+    ignoreMissingClasses (
       // Optional and not enabled by Elasticsearch
       'org.slf4j.Logger',
       'org.slf4j.LoggerFactory'
     )
 
-    allowViolations (
+    ignoreViolations (
       // uses internal java api: sun.misc.Unsafe
       'com.google.common.cache.Striped64',
       'com.google.common.cache.Striped64$1',

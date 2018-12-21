@@ -50,7 +50,7 @@ bundlePlugin {
   }
 }
 
-thirdPartyAudit.allowMissingClasses (
+thirdPartyAudit.ignoreMissingClasses (
   // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
   'org.apache.http.HttpEntity',
   'org.apache.http.HttpHost',

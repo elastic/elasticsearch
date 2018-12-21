@@ -192,7 +192,7 @@ processResources {
   dependsOn generateModulesList, generatePluginsList
 }
 
-thirdPartyAudit.allowMissingClasses (
+thirdPartyAudit.ignoreMissingClasses (
   // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
   'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -303,7 +303,7 @@ thirdPartyAudit.allowMissingClasses (
 )
 
 if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.allowMissingClasses 'javax.xml.bind.DatatypeConverter'
+  thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }
 
 dependencyLicenses {

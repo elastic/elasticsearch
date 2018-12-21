@@ -69,7 +69,7 @@ dependencyLicenses {
 }
 
 thirdPartyAudit {
-    allowViolations (
+    ignoreViolations (
         // uses internal java api: sun.misc.Unsafe
         'com.google.protobuf.UnsafeUtil',
         'com.google.protobuf.UnsafeUtil$1',
@@ -88,7 +88,7 @@ thirdPartyAudit {
         'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
     )
 
-    allowMissingClasses (
+    ignoreMissingClasses (
         'com.google.appengine.api.datastore.Blob',
         'com.google.appengine.api.datastore.DatastoreService',
         'com.google.appengine.api.datastore.DatastoreServiceFactory',

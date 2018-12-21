@@ -42,7 +42,7 @@ dependencyLicenses {
     ignoreSha 'elasticsearch-core'
 }
 
-thirdPartyAudit.allowMissingClasses (
+thirdPartyAudit.ignoreMissingClasses (
         'com.fasterxml.jackson.dataformat.yaml.YAMLFactory',
         'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
 

@@ -71,7 +71,7 @@ if (isEclipse) {
     }
 }
 
-thirdPartyAudit.allowMissingClasses (
+thirdPartyAudit.ignoreMissingClasses (
     // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
     'com.fasterxml.jackson.databind.ObjectMapper',
 )

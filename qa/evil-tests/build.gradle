@@ -36,11 +36,11 @@ test {
 }
 
 thirdPartyAudit {
-    allowMissingClasses (
+    ignoreMissingClasses (
         'com.ibm.icu.lang.UCharacter'
     )
 
-    allowViolations (
+    ignoreViolations (
       // uses internal java api: sun.misc.Unsafe
       'com.google.common.cache.Striped64',
       'com.google.common.cache.Striped64$1',

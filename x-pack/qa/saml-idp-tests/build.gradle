@@ -84,7 +84,7 @@ forbiddenPatterns {
 }
 
 thirdPartyAudit {
-    allowViolations (
+    ignoreViolations (
       // uses internal java api: sun.misc.Unsafe
       'com.google.common.cache.Striped64',
       'com.google.common.cache.Striped64$1',
@@ -95,7 +95,7 @@ thirdPartyAudit {
       'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
    )
 
-   allowMissingClasses ( 
+   ignoreMissingClasses ( 
        'com.ibm.icu.lang.UCharacter'
    )
 }

@@ -86,7 +86,7 @@ forbiddenPatterns {
 }
 
 thirdPartyAudit{ 
-    allowAllMissingClasses()
+    ignoreMissingClasses()
 }
 
 if (project.inFipsJvm) {

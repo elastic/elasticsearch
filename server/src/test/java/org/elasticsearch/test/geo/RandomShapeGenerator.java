@@ -32,6 +32,7 @@ import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.search.geo.GeoShapeQueryTests;
 import org.junit.Assert;
 import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
 import org.locationtech.spatial4j.distance.DistanceUtils;
@@ -153,6 +154,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
     /**
      * Creates a random shape useful for randomized testing, NOTE: exercise caution when using this to build random GeometryCollections
      * as creating a large random number of random shapes can result in massive resource consumption
+     * see: {@link GeoShapeQueryTests#testQueryRandomGeoCollection()}
      *
      * The following options are included
      * @param nearPoint Create a shape near a provided point

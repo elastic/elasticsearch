@@ -299,8 +299,16 @@ final class RequestConverters {
 
     static Request index(IndexRequest indexRequest) {
         String method = Strings.hasLength(indexRequest.id()) ? HttpPut.METHOD_NAME : HttpPost.METHOD_NAME;
-        boolean isCreate = (indexRequest.opType() == DocWriteRequest.OpType.CREATE);
-        String endpoint = endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id(), isCreate ? "_create" : null);
+
+        String endpoint;
+        if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
+            endpoint = indexRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
+                ? endpoint(indexRequest.index(), "_create", indexRequest.id())
+                : endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id(), "_create");
+        } else {
+            endpoint = endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id());
+        }
+
         Request request = new Request(method, endpoint);
 
         Params parameters = new Params(request);
@@ -471,7 +479,7 @@ final class RequestConverters {
     }
 
     static Request explain(ExplainRequest explainRequest) throws IOException {
-        String endpoint = explainRequest.isTypeless()
+        String endpoint = explainRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
             ? endpoint(explainRequest.index(), "_explain", explainRequest.id())
             : endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain");
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);

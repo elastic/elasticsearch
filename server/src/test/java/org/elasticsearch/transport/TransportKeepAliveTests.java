@@ -55,7 +55,7 @@ public class TransportKeepAliveTests extends ESTestCase {
         super.setUp();
         pingSender = mock(AsyncBiFunction.class);
         threadPool = new CapturingThreadPool();
-        keepAlive = new TransportKeepAlive(threadPool, null);
+        keepAlive = new TransportKeepAlive(threadPool, pingSender);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeByte((byte) 'E');

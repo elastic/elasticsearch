@@ -58,7 +58,7 @@ public class OutboundHandler {
         internalSendMessage(channel, sendContext);
     }
 
-    public void sendMesssage(TcpChannel channel, NetworkMessage networkMessage, ActionListener<Void> listener) {
+    public void sendMessage(TcpChannel channel, NetworkMessage networkMessage, ActionListener<Void> listener) {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
         SendContext sendContext = new SendContext(channel, serializer, listener, serializer);

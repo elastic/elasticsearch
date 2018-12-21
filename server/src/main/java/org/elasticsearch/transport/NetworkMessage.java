@@ -100,9 +100,9 @@ public abstract class NetworkMessage implements Writeable {
         private final String[] features;
         private final String action;
 
-        Request(ThreadPool threadPool, String[] features, Writeable message, Version version, String action, long requestId,
+        Request(ThreadContext threadContext, String[] features, Writeable message, Version version, String action, long requestId,
                 boolean isHandshake, boolean compress) {
-            super(threadPool.getThreadContext(), version, setStatus(compress, isHandshake, message), requestId, message, compress);
+            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message, compress);
             this.features = features;
             this.action = action;
         }
@@ -133,9 +133,9 @@ public abstract class NetworkMessage implements Writeable {
 
         private final Set<String> features;
 
-        Response(ThreadPool threadPool, Set<String> features, Writeable message, Version version, long requestId, boolean isHandshake,
+        Response(ThreadContext threadContext, Set<String> features, Writeable message, Version version, long requestId, boolean isHandshake,
                  boolean compress) {
-            super(threadPool.getThreadContext(), version, setStatus(compress, isHandshake, message), requestId, message, compress);
+            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message, compress);
             this.features = features;
         }
 

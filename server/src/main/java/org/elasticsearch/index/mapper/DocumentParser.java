@@ -147,7 +147,7 @@ final class DocumentParser {
 
 
     private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
-        assert source.type().equals(context.docMapper().type()):
+        assert source.type().equals(context.docMapper().type()) :
             "mapper type [" + context.docMapper().type() + "] != source type [" + source.type() + "]";
         return new ParsedDocument(
             context.version(),

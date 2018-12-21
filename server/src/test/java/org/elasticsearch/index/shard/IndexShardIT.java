@@ -867,15 +867,20 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Settings settings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
-            .put("index.translog.flush_threshold_size", "512mb") // do not trim translog
+            .put("index.translog.flush_threshold_size", "512mb") // do not flush
             .put("index.soft_deletes.enabled", true).build();
         IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
-        client().prepareIndex("index", "_doc", "1").setSource("{}", XContentType.JSON).get();
-        client().prepareDelete("index", "_doc", "1").get();
-        client().prepareIndex("index", "user_doc", "2").setSource("{}", XContentType.JSON).get();
-        client().prepareDelete("index", "user_doc", "2").get();
+        int numOps = between(1, 10);
+        for (int i = 0; i < numOps; i++) {
+            if (randomBoolean()) {
+                client().prepareIndex("index", randomFrom("_doc", "user_doc"), randomFrom("1", "2"))
+                    .setSource("{}", XContentType.JSON).get();
+            } else {
+                client().prepareDelete("index", randomFrom("_doc", "user_doc"), randomFrom("1", "2")).get();
+            }
+        }
         IndexShard shard = indexService.getShard(0);
-        try (Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, 3, true);
+        try (Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, numOps - 1, true);
              Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()) {
             List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
             List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);

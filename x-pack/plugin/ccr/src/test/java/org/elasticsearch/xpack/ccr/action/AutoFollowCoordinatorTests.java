@@ -62,7 +62,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
-        ClusterState remoteState = createRemoteClusterState("logs-20190101");
+        ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
             null, null, null, null, null, null, null, null, null, null, null);
@@ -183,7 +183,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     public void testAutoFollowerUpdateClusterStateFailure() {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
-        ClusterState remoteState = createRemoteClusterState("logs-20190101");
+        ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
                 null, null, null, null, null, null, null, null, null, null, null);
@@ -240,7 +240,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     public void testAutoFollowerCreateAndFollowApiCallFailure() {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
-        ClusterState remoteState = createRemoteClusterState("logs-20190101");
+        ClusterState remoteState = createRemoteClusterState("logs-20190101", true);
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
                 null, null, null, null, null, null, null, null, null, null, null);
@@ -315,8 +315,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             String indexName = "metrics-" + i;
             Settings.Builder builder = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_INDEX_UUID, indexName)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), i % 2 == 0);
+                .put(IndexMetaData.SETTING_INDEX_UUID, indexName);
             imdBuilder.put(IndexMetaData.builder("metrics-" + i)
                 .settings(builder)
                 .numberOfShards(1)
@@ -347,17 +346,21 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, clusterState,
             Collections.emptyList());
         result.sort(Comparator.comparing(Index::getName));
-        assertThat(result.size(), equalTo(3));
+        assertThat(result.size(), equalTo(5));
         assertThat(result.get(0).getName(), equalTo("metrics-0"));
-        assertThat(result.get(1).getName(), equalTo("metrics-2"));
-        assertThat(result.get(2).getName(), equalTo("metrics-4"));
+        assertThat(result.get(1).getName(), equalTo("metrics-1"));
+        assertThat(result.get(2).getName(), equalTo("metrics-2"));
+        assertThat(result.get(3).getName(), equalTo("metrics-3"));
+        assertThat(result.get(4).getName(), equalTo("metrics-4"));
 
         List<String> followedIndexUUIDs = Collections.singletonList(remoteState.metaData().index("metrics-2").getIndexUUID());
         result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, clusterState, followedIndexUUIDs);
         result.sort(Comparator.comparing(Index::getName));
-        assertThat(result.size(), equalTo(2));
+        assertThat(result.size(), equalTo(4));
         assertThat(result.get(0).getName(), equalTo("metrics-0"));
-        assertThat(result.get(1).getName(), equalTo("metrics-4"));
+        assertThat(result.get(1).getName(), equalTo("metrics-1"));
+        assertThat(result.get(2).getName(), equalTo("metrics-3"));
+        assertThat(result.get(3).getName(), equalTo("metrics-4"));
     }
 
     public void testGetLeaderIndicesToFollow_shardsNotStarted() {
@@ -370,7 +373,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
 
         // 1 shard started and another not started:
-        ClusterState remoteState = createRemoteClusterState("index1");
+        ClusterState remoteState = createRemoteClusterState("index1", true);
         MetaData.Builder mBuilder= MetaData.builder(remoteState.metaData());
         mBuilder.put(IndexMetaData.builder("index2")
             .settings(settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true))
@@ -692,7 +695,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
                 .build();
             String indexName = "logs-" + i;
-            leaderStates.add(i == 0 ? createRemoteClusterState(indexName) : createRemoteClusterState(leaderStates.get(i - 1), indexName));
+            leaderStates.add(i == 0 ? createRemoteClusterState(indexName, true) :
+                createRemoteClusterState(leaderStates.get(i - 1), indexName));
         }
 
         List<AutoFollowCoordinator.AutoFollowResult> allResults = new ArrayList<>();
@@ -787,9 +791,83 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(counter.get(), equalTo(states.length));
     }
 
-    private static ClusterState createRemoteClusterState(String indexName) {
+    public void testAutoFollowerSoftDeletesDisabled() {
+        Client client = mock(Client.class);
+        when(client.getRemoteClusterClient(anyString())).thenReturn(client);
+
+        ClusterState remoteState = randomBoolean() ? createRemoteClusterState("logs-20190101", false) :
+            createRemoteClusterState("logs-20190101", null);
+
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
+            null, null, null, null, null, null, null, null, null, null, null);
+        Map<String, AutoFollowPattern> patterns = new HashMap<>();
+        patterns.put("remote", autoFollowPattern);
+        Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
+        followedLeaderIndexUUIDS.put("remote", new ArrayList<>());
+        Map<String, Map<String, String>> autoFollowHeaders = new HashMap<>();
+        autoFollowHeaders.put("remote", Collections.singletonMap("key", "val"));
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
+
+        ClusterState currentState = ClusterState.builder(new ClusterName("name"))
+            .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .build();
+
+        List<AutoFollowCoordinator.AutoFollowResult> results = new ArrayList<>();
+        Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = results::addAll;
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L) {
+            @Override
+            void getRemoteClusterState(String remoteCluster,
+                                       long metadataVersion,
+                                       BiConsumer<ClusterStateResponse, Exception> handler) {
+                assertThat(remoteCluster, equalTo("remote"));
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
+            }
+
+            @Override
+            void createAndFollow(Map<String, String> headers,
+                                 PutFollowAction.Request followRequest,
+                                 Runnable successHandler,
+                                 Consumer<Exception> failureHandler) {
+                fail("soft deletes are disabled; index should not be followed");
+            }
+
+            @Override
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
+                ClusterState resultCs = updateFunction.apply(currentState);
+                AutoFollowMetadata result = resultCs.metaData().custom(AutoFollowMetadata.TYPE);
+                assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
+                assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
+                handler.accept(null);
+            }
+
+            @Override
+            void cleanFollowedRemoteIndices(ClusterState remoteClusterState, List<String> patterns) {
+                // Ignore, to avoid invoking updateAutoFollowMetadata(...) twice
+            }
+        };
+        autoFollower.start();
+
+        assertThat(results.size(), equalTo(1));
+        assertThat(results.get(0).clusterStateFetchException, nullValue());
+        List<Map.Entry<Index, Exception>> entries = new ArrayList<>(results.get(0).autoFollowExecutionResults.entrySet());
+        assertThat(entries.size(), equalTo(1));
+        assertThat(entries.get(0).getKey().getName(), equalTo("logs-20190101"));
+        assertThat(entries.get(0).getValue(), notNullValue());
+        assertThat(entries.get(0).getValue().getMessage(), equalTo("index [logs-20190101] cannot be followed, " +
+            "because soft deletes are not enabled"));
+    }
+
+    private static ClusterState createRemoteClusterState(String indexName, Boolean enableSoftDeletes) {
+        Settings.Builder indexSettings;
+        if (enableSoftDeletes != null) {
+            indexSettings = settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), enableSoftDeletes);
+        } else {
+            indexSettings = settings(Version.V_6_6_0);
+        }
+
         IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
-            .settings(settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true))
+            .settings(indexSettings)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

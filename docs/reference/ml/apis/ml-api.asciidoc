@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-apis]]
-== Machine Learning APIs
+== Machine learning APIs
 
 You can use the following APIs to perform {ml} activities.
 See <<ml-api-definitions, Definitions>> for the resource definitions used by the

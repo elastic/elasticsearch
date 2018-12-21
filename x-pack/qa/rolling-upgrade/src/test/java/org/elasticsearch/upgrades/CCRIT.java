@@ -125,12 +125,14 @@ public class CCRIT extends AbstractUpgradeTestCase {
                         assertFollowerGlobalCheckpoint(followerIndex, 1);
                         assertDocumentExists(followerIndex, "2");
                     });
-
+                    // Auto follow stats are kept in-memory on master elected node
+                    // and if this node get updated then auto follow stats are reset
+                    int previousNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
                     createIndex(leaderIndex2, indexSettings);
                     index(leaderIndex2, "1");
                     assertBusy(() -> {
                         String followerIndex = "copy-" + leaderIndex2;
-                        assertNumberOfSuccessfulFollowedIndices(2);
+                        assertNumberOfSuccessfulFollowedIndices(previousNumberOfSuccessfulFollowedIndices + 1);
                         assertFollowerGlobalCheckpoint(followerIndex, 0);
                         assertDocumentExists(followerIndex, "1");
                     });
@@ -148,11 +150,14 @@ public class CCRIT extends AbstractUpgradeTestCase {
                         assertDocumentExists(followerIndex, "2");
                     });
 
+                    // Auto follow stats are kept in-memory on master elected node
+                    // and if this node get updated then auto follow stats are reset
+                    int previousNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
                     createIndex(leaderIndex3, indexSettings);
                     index(leaderIndex3, "1");
                     assertBusy(() -> {
                         String followerIndex = "copy-" + leaderIndex3;
-                        assertNumberOfSuccessfulFollowedIndices(3);
+                        assertNumberOfSuccessfulFollowedIndices(previousNumberOfSuccessfulFollowedIndices + 1);
                         assertFollowerGlobalCheckpoint(followerIndex, 0);
                         assertDocumentExists(followerIndex, "1");
                     });
@@ -249,17 +254,29 @@ public class CCRIT extends AbstractUpgradeTestCase {
         assertThat(client().performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
     }
 
+    private int getNumberOfSuccessfulFollowedIndices() throws IOException {
+        Request statsRequest = new Request("GET", "/_ccr/stats");
+        Map<?, ?> response = toMap(client().performRequest(statsRequest));
+        Integer actualSuccessfulFollowedIndices = ObjectPath.eval("auto_follow_stats.number_of_successful_follow_indices", response);
+        if (actualSuccessfulFollowedIndices != null) {
+            return actualSuccessfulFollowedIndices;
+        } else {
+            return -1;
+        }
+    }
+
     private void assertNumberOfSuccessfulFollowedIndices(int expectedNumberOfSuccessfulFollowedIndices) throws IOException {
         Request statsRequest = new Request("GET", "/_ccr/stats");
         Map<?, ?> response = toMap(client().performRequest(statsRequest));
-        Integer actualSuccessfulFollowedInidices = ObjectPath.eval("auto_follow_stats.number_of_successful_follow_indices", response);
-        assertThat(actualSuccessfulFollowedInidices, equalTo(expectedNumberOfSuccessfulFollowedIndices));
+        LOGGER.info("AUTO FOLLOW STATS={}", response.get("auto_follow_stats"));
+        Integer actualSuccessfulFollowedIndices = ObjectPath.eval("auto_follow_stats.number_of_successful_follow_indices", response);
+        assertThat(actualSuccessfulFollowedIndices, equalTo(expectedNumberOfSuccessfulFollowedIndices));
     }
 
     private void assertFollowerGlobalCheckpoint(String followerIndex, int expectedFollowerCheckpoint) throws IOException {
         Request statsRequest = new Request("GET", "/" + followerIndex + "/_ccr/stats");
         Map<?, ?> response = toMap(client().performRequest(statsRequest));
-        LOGGER.info("CHECK ME={}", response);
+        LOGGER.info("FOLLOW STATS={}", response);
         String index = ObjectPath.eval("indices.0.index", response);
         assertThat(index, equalTo(followerIndex));
         Integer actualFollowerCheckpoint = ObjectPath.eval("indices.0.shards.0.follower_global_checkpoint", response);

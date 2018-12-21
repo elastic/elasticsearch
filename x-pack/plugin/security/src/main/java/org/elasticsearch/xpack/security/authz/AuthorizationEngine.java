@@ -29,11 +29,6 @@ public interface AuthorizationEngine {
     void authorizeClusterAction(Authentication authentication, TransportRequest request, String action, AuthorizationInfo authorizationInfo,
                                 ActionListener<AuthorizationResult> listener);
 
-    boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request);
-
-    void authorizeIndexActionName(Authentication authentication, TransportRequest request, String action,
-                                  AuthorizationInfo authorizationInfo, ActionListener<IndexAuthorizationResult> listener);
-
     void authorizeIndexAction(Authentication authentication, TransportRequest request, String action,
                               AuthorizationInfo authorizationInfo, AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
                               Function<String, AliasOrIndex> aliasOrIndexFunction,
@@ -99,7 +94,7 @@ public interface AuthorizationEngine {
         private final IndicesAccessControl indicesAccessControl;
 
         IndexAuthorizationResult(boolean auditable, IndicesAccessControl indicesAccessControl) {
-            super(indicesAccessControl.isGranted(), auditable);
+            super(indicesAccessControl == null || indicesAccessControl.isGranted(), auditable);
             this.indicesAccessControl = indicesAccessControl;
         }
 

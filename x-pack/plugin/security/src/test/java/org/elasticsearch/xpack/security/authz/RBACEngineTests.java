@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -48,7 +47,7 @@ public class RBACEngineTests extends ESTestCase {
 
     @Before
     public void createEngine() {
-        engine = new RBACEngine(Settings.EMPTY, mock(CompositeRolesStore.class), new AnonymousUser(Settings.EMPTY), false);
+        engine = new RBACEngine(Settings.EMPTY, mock(CompositeRolesStore.class));
     }
 
     public void testSameUserPermission() {

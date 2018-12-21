@@ -40,11 +40,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -53,7 +49,6 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -76,14 +71,10 @@ public class RBACEngine implements AuthorizationEngine {
 
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
-    private final AnonymousUser anonymousUser;
-    private final boolean isAnonymousEnabled;
 
-    RBACEngine(Settings settings, CompositeRolesStore rolesStore, AnonymousUser anonymousUser, boolean isAnonymousEnabled) {
+    RBACEngine(Settings settings, CompositeRolesStore rolesStore) {
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
-        this.anonymousUser = anonymousUser;
-        this.isAnonymousEnabled = isAnonymousEnabled;
     }
 
     @Override
@@ -100,40 +91,8 @@ public class RBACEngine implements AuthorizationEngine {
         }, listener::onFailure));
     }
 
-    private void getRoles(User user, ActionListener<Role> roleActionListener) {
-        // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
-        // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
-        // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
-        // passed into this method. The XPackUser has the Superuser role and we can simply return that
-        if (SystemUser.is(user)) {
-            throw new IllegalArgumentException("the user [" + user.principal() + "] is the system user and we should never try to get its" +
-                " roles");
-        }
-        if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1;
-            roleActionListener.onResponse(XPackUser.ROLE);
-            return;
-        }
-        if (XPackSecurityUser.is(user)) {
-            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
-            return;
-        }
-
-        Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
-        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
-            if (anonymousUser.roles().length == 0) {
-                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-            }
-            Collections.addAll(roleNames, anonymousUser.roles());
-        }
-
-        if (roleNames.isEmpty()) {
-            roleActionListener.onResponse(Role.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
-        } else {
-            rolesStore.roles(roleNames, fieldPermissionsCache, roleActionListener);
-        }
+    private void getRoles(User user, ActionListener<Role> listener) {
+        rolesStore.getRoles(user, fieldPermissionsCache, listener);
     }
 
     @Override
@@ -194,8 +153,7 @@ public class RBACEngine implements AuthorizationEngine {
         return false;
     }
 
-    @Override
-    public boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request) {
+    private static boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request) {
         switch (action) {
             case BulkAction.NAME:
             case IndexAction.NAME:
@@ -235,7 +193,7 @@ public class RBACEngine implements AuthorizationEngine {
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
-            authorizeIndexActionName(authentication, request, action, authorizationInfo, listener);
+            authorizeIndexActionName(action, authorizationInfo, null, listener);
         } else if (request instanceof IndicesRequest == false && request instanceof IndicesAliasesRequest == false) {
             // scroll is special
             // some APIs are indices requests that are not actually associated with indices. For example,
@@ -252,7 +210,7 @@ public class RBACEngine implements AuthorizationEngine {
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
                 if (SearchScrollAction.NAME.equals(action)) {
-                    authorizeIndexActionName(authentication, request, action, authorizationInfo, listener);
+                    authorizeIndexActionName(action, authorizationInfo, null, listener);
                 } else {
                     // we store the request as a transient in the ThreadContext in case of a authorization failure at the shard
                     // level. If authorization fails we will audit a access_denied message and will use the request to retrieve
@@ -275,41 +233,41 @@ public class RBACEngine implements AuthorizationEngine {
                 //'-*' matches no indices so we allow the request to go through, which will yield an empty response
                 if (resolvedIndices.isNoIndicesPlaceholder()) {
                     // check action name
-                    authorizeIndexActionName(authentication, request, action, authorizationInfo, listener);
+                    authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES, listener);
                 } else {
-                    buildIndicesAccessControl(authentication, request, action, authorizationInfo,
+                    buildIndicesAccessControl(authentication, action, authorizationInfo,
                         Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexFunction, listener);
                 }
             }, listener::onFailure));
         } else {
-            authorizeIndexActionName(authentication, request, action, authorizationInfo, ActionListener.wrap(indexAuthorizationResult -> {
-                if (indexAuthorizationResult.isGranted()) {
-                    indicesAsyncSupplier.get(ActionListener.wrap(resolvedIndices -> {
-                        assert !resolvedIndices.isEmpty()
-                            : "every indices request needs to have its indices set thus the resolved indices must not be empty";
-                        //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
-                        //'-*' matches no indices so we allow the request to go through, which will yield an empty response
-                        if (resolvedIndices.isNoIndicesPlaceholder()) {
-                            listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
-                        } else {
-                            buildIndicesAccessControl(authentication, request, action, authorizationInfo,
-                                Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexFunction, listener);
-                        }
-                    }, listener::onFailure));
-                } else {
-                    listener.onResponse(indexAuthorizationResult);
-                }
-            }, listener::onFailure));
+            authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES,
+                ActionListener.wrap(indexAuthorizationResult -> {
+                    if (indexAuthorizationResult.isGranted()) {
+                        indicesAsyncSupplier.get(ActionListener.wrap(resolvedIndices -> {
+                            assert !resolvedIndices.isEmpty()
+                                : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+                            //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
+                            //'-*' matches no indices so we allow the request to go through, which will yield an empty response
+                            if (resolvedIndices.isNoIndicesPlaceholder()) {
+                                listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                            } else {
+                                buildIndicesAccessControl(authentication, action, authorizationInfo,
+                                    Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexFunction, listener);
+                            }
+                        }, listener::onFailure));
+                    } else {
+                        listener.onResponse(indexAuthorizationResult);
+                    }
+                }, listener::onFailure));
         }
     }
 
-    @Override
-    public void authorizeIndexActionName(Authentication authentication, TransportRequest request, String action,
-                                         AuthorizationInfo authorizationInfo, ActionListener<IndexAuthorizationResult> listener) {
+    private void authorizeIndexActionName(String action, AuthorizationInfo authorizationInfo, IndicesAccessControl grantedValue,
+                                          ActionListener<IndexAuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             if (role.indices().check(action)) {
-                listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                listener.onResponse(new IndexAuthorizationResult(true, grantedValue));
             } else {
                 listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.DENIED));
             }
@@ -349,7 +307,7 @@ public class RBACEngine implements AuthorizationEngine {
         return Collections.unmodifiableList(indicesAndAliases);
     }
 
-    void buildIndicesAccessControl(Authentication authentication, TransportRequest request, String action,
+    private void buildIndicesAccessControl(Authentication authentication, String action,
                                           AuthorizationInfo authorizationInfo, Set<String> indices,
                                           Function<String, AliasOrIndex> aliasAndIndexLookup,
                                           ActionListener<IndexAuthorizationResult> listener) {
@@ -383,7 +341,7 @@ public class RBACEngine implements AuthorizationEngine {
         return false;
     }
 
-    static boolean isSuperuser(User user) {
+    private static boolean isSuperuser(User user) {
         return Arrays.asList(user.roles()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
     }
 

@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import java.io.IOException;
 
@@ -124,11 +123,7 @@ public interface ServerTransportFilter {
                         authzService.authorize(replaced, securityAction, request, listener);
                     }, version);
                 } else {
-                    final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                        new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
-                            authzService.authorize(authentication, securityAction, request, listener);
-                        });
-                    asyncAuthorizer.authorize(authzService);
+                    authzService.authorize(authentication, securityAction, request, listener);
                 }
             }, listener::onFailure));
         }

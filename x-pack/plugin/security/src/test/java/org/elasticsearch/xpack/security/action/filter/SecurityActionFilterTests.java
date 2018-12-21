@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -232,12 +231,6 @@ public class SecurityActionFilterTests extends ESTestCase {
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[1];
-            callback.onResponse(Role.EMPTY);
-            return Void.TYPE;
-        }).when(authzService).roles(any(User.class), any(ActionListener.class));
         doThrow(exception).when(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
         filter.apply(task, "_action", request, listener, chain);
         verify(listener).onFailure(exception);

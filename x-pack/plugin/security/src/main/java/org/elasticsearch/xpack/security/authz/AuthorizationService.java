@@ -38,11 +38,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -85,13 +82,11 @@ public class AuthorizationService {
 
     private final Settings settings;
     private final ClusterService clusterService;
-    private final CompositeRolesStore rolesStore;
     private final AuditTrailService auditTrail;
     private final IndicesAndAliasesResolver indicesAndAliasesResolver;
     private final AuthenticationFailureHandler authcFailureHandler;
     private final ThreadContext threadContext;
     private final AnonymousUser anonymousUser;
-    private final FieldPermissionsCache fieldPermissionsCache;
     private final AuthorizationEngine rbacEngine;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -99,7 +94,6 @@ public class AuthorizationService {
     public AuthorizationService(Settings settings, CompositeRolesStore rolesStore, ClusterService clusterService,
                                 AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
                                 ThreadPool threadPool, AnonymousUser anonymousUser) {
-        this.rolesStore = rolesStore;
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService);
@@ -108,8 +102,7 @@ public class AuthorizationService {
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
-        this.fieldPermissionsCache = new FieldPermissionsCache(settings);
-        this.rbacEngine = new RBACEngine(settings, rolesStore, anonymousUser, isAnonymousEnabled);
+        this.rbacEngine = new RBACEngine(settings, rolesStore);
         this.settings = settings;
     }
 
@@ -227,8 +220,10 @@ public class AuthorizationService {
             authzEngine.authorizeIndexAction(authentication, unwrappedRequest, action, authzInfo, resolvedIndicesAsyncSupplier,
                 metaData.getAliasAndIndexLookup()::get, ActionListener.wrap(indexAuthorizationResult -> {
                     if (indexAuthorizationResult.isGranted()) {
-                        putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
-                            indexAuthorizationResult.getIndicesAccessControl());
+                        if (indexAuthorizationResult.getIndicesAccessControl() != null) {
+                            putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
+                                indexAuthorizationResult.getIndicesAccessControl());
+                        }
                         //if we are creating an index we need to authorize potential aliases created at the same time
                         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
                             assert unwrappedRequest instanceof CreateIndexRequest;
@@ -444,8 +439,8 @@ public class AuthorizationService {
                 actionToIndicesMap.forEach((bulkItemAction, indices) -> {
                     authzEngine.authorizeIndexAction(authentication, request, bulkItemAction, authzInfo,
                         ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
-                        metaData.getAliasAndIndexLookup()::get, ActionListener.wrap(
-                            indexAuthorizationResult -> groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),
+                        metaData.getAliasAndIndexLookup()::get, ActionListener.wrap(indexAuthorizationResult ->
+                                groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),
                             groupedActionListener::onFailure));
                 });
                 }, listener::onFailure));
@@ -480,43 +475,6 @@ public class AuthorizationService {
         Object existing = threadContext.getTransient(key);
         if (existing == null) {
             threadContext.putTransient(key, value);
-        }
-    }
-
-    public void roles(User user, ActionListener<Role> roleActionListener) {
-        // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
-        // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
-        // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
-        // passed into this method. The XPackUser has the Superuser role and we can simply return that
-        if (SystemUser.is(user)) {
-            throw new IllegalArgumentException("the user [" + user.principal() + "] is the system user and we should never try to get its" +
-                " roles");
-        }
-        if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1;
-            roleActionListener.onResponse(XPackUser.ROLE);
-            return;
-        }
-        if (XPackSecurityUser.is(user)) {
-            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
-            return;
-        }
-
-        Set<String> roleNames = new HashSet<>();
-        Collections.addAll(roleNames, user.roles());
-        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
-            if (anonymousUser.roles().length == 0) {
-                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-            }
-            Collections.addAll(roleNames, anonymousUser.roles());
-        }
-
-        if (roleNames.isEmpty()) {
-            roleActionListener.onResponse(Role.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
-        } else {
-            rolesStore.roles(roleNames, fieldPermissionsCache, roleActionListener);
         }
     }
 

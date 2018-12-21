@@ -109,7 +109,6 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -145,7 +144,6 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -157,7 +155,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class AuthorizationServiceTests extends ESTestCase {
@@ -199,7 +196,8 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         doAnswer((i) -> {
             ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[2];
-            Set<String> names = (Set<String>) i.getArguments()[0];
+            User user = (User) i.getArguments()[0];
+            Set<String> names = new HashSet<>(Arrays.asList(user.roles()));
             assertNotNull(names);
             Set<RoleDescriptor> roleDescriptors = new HashSet<>();
             for (String name : names) {
@@ -217,7 +215,8 @@ public class AuthorizationServiceTests extends ESTestCase {
                 );
             }
             return Void.TYPE;
-        }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
+        }).when(rolesStore).getRoles(any(User.class), any(FieldPermissionsCache.class), any(ActionListener.class));
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
             auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings));
     }
@@ -981,48 +980,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(".security"));
     }
 
-    public void testAnonymousRolesAreAppliedToOtherUsers() {
-        TransportRequest request = new ClusterHealthRequest();
-        Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role").build();
-        final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
-        roleMap.put("anonymous_user_role", new RoleDescriptor("anonymous_user_role", new String[]{"all"},
-            new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null));
-        mockEmptyMetaData();
-        AuditUtil.getOrGenerateRequestId(threadContext);
-
-        // sanity check the anonymous user
-        authorize(createAuthentication(anonymousUser), ClusterHealthAction.NAME, request);
-        authorize(createAuthentication(anonymousUser), IndicesExistsAction.NAME, new IndicesExistsRequest("a"));
-
-        // test the no role user
-        final User userWithNoRoles = new User("no role user");
-        authorize(createAuthentication(userWithNoRoles), ClusterHealthAction.NAME, request);
-        authorize(createAuthentication(userWithNoRoles), IndicesExistsAction.NAME, new IndicesExistsRequest("a"));
-    }
-
-    public void testDefaultRoleUserWithoutRoles() {
-        PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
-        authorizationService.roles(new User("no role user"), rolesFuture);
-        final Role roles = rolesFuture.actionGet();
-        assertEquals(Role.EMPTY, roles);
-    }
-
-    public void testAnonymousUserEnabledRoleAdded() {
-        Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role").build();
-        final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
-        roleMap.put("anonymous_user_role", new RoleDescriptor("anonymous_user_role", new String[]{"all"},
-            new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null));
-        mockEmptyMetaData();
-        PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
-        authorizationService.roles(new User("no role user"), rolesFuture);
-        final Role roles = rolesFuture.actionGet();
-        assertThat(Arrays.asList(roles.names()), hasItem("anonymous_user_role"));
-    }
-
     public void testCompositeActionsAreImmediatelyRejected() {
         //if the user has no permission for composite actions against any index, the request fails straight-away in the main action
         final Tuple<String, TransportRequest> compositeRequest = randomCompositeRequest();
@@ -1216,20 +1173,6 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private static class MockCompositeIndicesRequest extends TransportRequest implements CompositeIndicesRequest {
-    }
-
-    public void testDoesNotUseRolesStoreForXPackUser() {
-        PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
-        authorizationService.roles(XPackUser.INSTANCE, rolesFuture);
-        final Role roles = rolesFuture.actionGet();
-        assertThat(roles, equalTo(XPackUser.ROLE));
-        verifyZeroInteractions(rolesStore);
-    }
-
-    public void testGetRolesForSystemUserThrowsException() {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> authorizationService.roles(SystemUser.INSTANCE,
-            null));
-        assertEquals("the user [_system] is the system user and we should never try to get its roles", iae.getMessage());
     }
 
     private static Authentication createAuthentication(User user) {

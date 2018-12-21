@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
@@ -104,7 +103,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private final JobResultsProvider jobResultsProvider;
     private final JobConfigProvider jobConfigProvider;
     private final MlMemoryTracker memoryTracker;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
@@ -114,14 +112,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                   XPackLicenseState licenseState, ClusterService clusterService,
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                                  JobResultsProvider jobResultsProvider, JobConfigProvider jobConfigProvider,
-                                  MlMemoryTracker memoryTracker) {
+                                  JobConfigProvider jobConfigProvider, MlMemoryTracker memoryTracker) {
         super(OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 OpenJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-        this.jobResultsProvider = jobResultsProvider;
         this.jobConfigProvider = jobConfigProvider;
         this.memoryTracker = memoryTracker;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
@@ -151,7 +147,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     static PersistentTasksCustomMetaData.Assignment selectLeastLoadedMlNode(String jobId, @Nullable Job job,
                                                                             ClusterState clusterState,
                                                                             int maxConcurrentJobAllocations,
-                                                                            int fallbackMaxNumberOfOpenJobs,
                                                                             int maxMachineMemoryPercent,
                                                                             MlMemoryTracker memoryTracker,
                                                                             Logger logger) {
@@ -189,9 +184,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         DiscoveryNode minLoadedNodeByMemory = null;
         PersistentTasksCustomMetaData persistentTasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
-            Map<String, String> nodeAttributes = node.getAttributes();
-            String enabled = nodeAttributes.get(MachineLearning.ML_ENABLED_NODE_ATTR);
-            if (Boolean.valueOf(enabled) == false) {
+            if (MachineLearning.isMlNode(node) == false) {
                 String reason = "Not opening job [" + jobId + "] on node [" + nodeNameOrId(node)
                         + "], because this node isn't a ml node.";
                 logger.trace(reason);
@@ -281,19 +274,17 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 continue;
             }
 
+            Map<String, String> nodeAttributes = node.getAttributes();
             String maxNumberOfOpenJobsStr = nodeAttributes.get(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR);
-            int maxNumberOfOpenJobs = fallbackMaxNumberOfOpenJobs;
-            // TODO: remove leniency and reject the node if the attribute is null in 7.0
-            if (maxNumberOfOpenJobsStr != null) {
-                try {
-                    maxNumberOfOpenJobs = Integer.parseInt(maxNumberOfOpenJobsStr);
-                } catch (NumberFormatException e) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because " +
-                            MachineLearning.MAX_OPEN_JOBS_NODE_ATTR + " attribute [" + maxNumberOfOpenJobsStr + "] is not an integer";
-                    logger.trace(reason);
-                    reasons.add(reason);
-                    continue;
-                }
+            int maxNumberOfOpenJobs;
+            try {
+                maxNumberOfOpenJobs = Integer.parseInt(maxNumberOfOpenJobsStr);
+            } catch (NumberFormatException e) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because " +
+                    MachineLearning.MAX_OPEN_JOBS_NODE_ATTR + " attribute [" + maxNumberOfOpenJobsStr + "] is not an integer";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
             }
             long availableCount = maxNumberOfOpenJobs - numberOfAssignedJobs;
             if (availableCount == 0) {
@@ -311,18 +302,15 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }
 
             String machineMemoryStr = nodeAttributes.get(MachineLearning.MACHINE_MEMORY_NODE_ATTR);
-            long machineMemory = -1;
-            // TODO: remove leniency and reject the node if the attribute is null in 7.0
-            if (machineMemoryStr != null) {
-                try {
-                    machineMemory = Long.parseLong(machineMemoryStr);
-                } catch (NumberFormatException e) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because " +
-                        MachineLearning.MACHINE_MEMORY_NODE_ATTR + " attribute [" + machineMemoryStr + "] is not a long";
-                    logger.trace(reason);
-                    reasons.add(reason);
-                    continue;
-                }
+            long machineMemory;
+            try {
+                machineMemory = Long.parseLong(machineMemoryStr);
+            } catch (NumberFormatException e) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because " +
+                    MachineLearning.MACHINE_MEMORY_NODE_ATTR + " attribute [" + machineMemoryStr + "] is not a long";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
             }
 
             if (allocateByMemory) {
@@ -735,13 +723,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private final MlMemoryTracker memoryTracker;
         private final Client client;
 
-        /**
-         * The maximum number of open jobs can be different on each node.  However, nodes on older versions
-         * won't add their setting to the cluster state, so for backwards compatibility with these nodes we
-         * assume the older node's setting is the same as that of the node running this code.
-         * TODO: remove this member in 7.0
-         */
-        private final int fallbackMaxNumberOfOpenJobs;
         private volatile int maxConcurrentJobAllocations;
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
@@ -753,7 +734,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             this.autodetectProcessManager = autodetectProcessManager;
             this.memoryTracker = memoryTracker;
             this.client = client;
-            this.fallbackMaxNumberOfOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
@@ -770,14 +750,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 params.getJob(),
                 clusterState,
                 maxConcurrentJobAllocations,
-                fallbackMaxNumberOfOpenJobs,
                 maxMachineMemoryPercent,
                 memoryTracker,
                 logger);
             if (assignment.getExecutorNode() == null) {
                 int numMlNodes = 0;
                 for (DiscoveryNode node : clusterState.getNodes()) {
-                    if (Boolean.valueOf(node.getAttributes().get(MachineLearning.ML_ENABLED_NODE_ATTR))) {
+                    if (MachineLearning.isMlNode(node)) {
                         numMlNodes++;
                     }
                 }

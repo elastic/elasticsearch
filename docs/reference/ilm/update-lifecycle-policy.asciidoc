@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[update-lifecycle-policy]]
-== Update Lifecycle Policy
+== Update lifecycle policy
 ++++
-<titleabbrev>Update Policy</titleabbrev>
+<titleabbrev>Update policy</titleabbrev>
 ++++
 
 beta[]

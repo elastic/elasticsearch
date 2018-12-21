@@ -23,10 +23,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -34,32 +33,35 @@ import java.util.Set;
 
 public abstract class NetworkMessage implements Writeable {
 
-    protected final ThreadPool threadPool;
     protected final Version version;
-    protected final long requestId;
-    protected final Writeable message;
-    protected final boolean compress;
-    protected byte status;
 
-    NetworkMessage(ThreadPool threadPool, Version version, byte status, long requestId, Writeable message, boolean compress) {
-        this.threadPool = threadPool;
+    private final ThreadContext threadContext;
+    private final ThreadContext.StoredContext storedContext;
+    private final Writeable message;
+    private final long requestId;
+    private byte status;
+
+    NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message, boolean compress) {
+        this.threadContext = threadContext;
+        storedContext = threadContext.stashContext();
         this.version = version;
         this.requestId = requestId;
         this.message = message;
-        this.status = status;
-        this.compress = compress && canCompress(message);
+        if (compress && canCompress(message)) {
+            this.status = TransportStatus.setCompress(status);
+        } else {
+            this.status = status;
+        }
     }
 
     BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
-        if (compress) {
-            status = TransportStatus.setCompress(status);
-        }
+        storedContext.restore();
         bytesStream.setVersion(version);
         bytesStream.skip(TcpHeader.HEADER_SIZE);
 
-        final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, compress);
+        final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status));
         stream.setVersion(version);
-        threadPool.getThreadContext().writeTo(stream);
+        threadContext.writeTo(stream);
         writeTo(stream);
         BytesReference reference = writeMessage(stream);
         bytesStream.seek(0);
@@ -98,9 +100,9 @@ public abstract class NetworkMessage implements Writeable {
         private final String[] features;
         private final String action;
 
-        Request(ThreadPool threadPool, String[] features, byte status, Writeable message, Version version, String action, long requestId,
-                boolean compress) {
-            super(threadPool, version, status, requestId, message, compress);
+        Request(ThreadPool threadPool, String[] features, Writeable message, Version version, String action, long requestId,
+                boolean isHandshake, boolean compress) {
+            super(threadPool.getThreadContext(), version, setStatus(compress, isHandshake, message), requestId, message, compress);
             this.features = features;
             this.action = action;
         }
@@ -112,21 +114,50 @@ public abstract class NetworkMessage implements Writeable {
             }
             out.writeString(action);
         }
+
+        private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {
+            byte status = 0;
+            status = TransportStatus.setRequest(status);
+            if (compress && NetworkMessage.canCompress(message)) {
+                status = TransportStatus.setCompress(status);
+            }
+            if (isHandshake) {
+                status = TransportStatus.setHandshake(status);
+            }
+
+            return status;
+        }
     }
 
     static class Response extends NetworkMessage {
 
         private final Set<String> features;
 
-        Response(ThreadPool threadPool, Set<String> features, byte status, Writeable message, Version version, long requestId,
+        Response(ThreadPool threadPool, Set<String> features, Writeable message, Version version, long requestId, boolean isHandshake,
                  boolean compress) {
-            super(threadPool, version, status, requestId, message, compress);
+            super(threadPool.getThreadContext(), version, setStatus(compress, isHandshake, message), requestId, message, compress);
             this.features = features;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.setFeatures(features);
+        }
+
+        private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {
+            byte status = 0;
+            status = TransportStatus.setResponse(status);
+            if (message instanceof RemoteTransportException) {
+                status = TransportStatus.setError(status);
+            }
+            if (compress) {
+                status = TransportStatus.setCompress(status);
+            }
+            if (isHandshake) {
+                status = TransportStatus.setHandshake(status);
+            }
+
+            return status;
         }
     }
 

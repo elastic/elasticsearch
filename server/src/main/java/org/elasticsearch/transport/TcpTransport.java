@@ -712,7 +712,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                                       final TransportRequest request, TransportRequestOptions options, Version channelVersion,
                                       boolean compressRequest, byte status) throws IOException, TransportException {
         Version version = Version.min(this.version, channelVersion);
-        NetworkMessage.Request message = new NetworkMessage.Request(threadPool, features, status, request, version, action, requestId, compressRequest);
+        NetworkMessage.Request message = new NetworkMessage.Request(threadPool, features, request, version, action, requestId, false, compressRequest);
         MessageCreator messageSerializer = new MessageCreator(message);
         ActionListener<Void> listener = ActionListener.wrap(() ->
             messageListener.onRequestSent(node, requestId, action, request, options));
@@ -840,8 +840,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             final BytesReference bytes = stream.bytes();
             final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
             CompositeBytesReference message = new CompositeBytesReference(header, bytes);
-            ReleaseListener releaseListener = new ReleaseListener(null,
-                () -> messageListener.onResponseSent(requestId, action, error));
+//            ReleaseListener releaseListener = new ReleaseListener(null,
+//                () -> messageListener.onResponseSent(requestId, action, error));
         }
 
 
@@ -851,18 +851,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         Version version = Version.min(this.version, nodeVersion);
         RemoteTransportException tx = new RemoteTransportException(
             nodeName, new TransportAddress(channel.getLocalAddress()), action, error);
-        NetworkMessage.Response message1 = new NetworkMessage.Response(threadPool, features, status, tx, version, requestId, false);
-        new SendContext(channel, message1, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                messageListener.onResponseSent(requestId, action, error);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                messageListener.onResponseSent(requestId, action, error);
-            }
-        });
+        NetworkMessage.Response message1 = new NetworkMessage.Response(threadPool, features, tx, version, requestId, false, false);
 
         internalSendMessage(channel, null, null);
     }
@@ -895,18 +884,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         boolean compressMessage = compress || compressAllResponses;
 
         Version version = Version.min(this.version, nodeVersion);
-        NetworkMessage.Response message1 = new NetworkMessage.Response(threadPool, features, status, response, version, requestId, compressMessage);
-        new SendContext(channel, message1, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                messageListener.onResponseSent(requestId, action, response);
-            }
+        NetworkMessage.Response message1 = new NetworkMessage.Response(threadPool, features, response, version, requestId, false, compressMessage);
 
-            @Override
-            public void onFailure(Exception e) {
-                messageListener.onResponseSent(requestId, action, response);
-            }
-        });
     }
 
     /**

@@ -26,11 +26,11 @@ import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
 import org.elasticsearch.client.migration.IndexUpgradeRequest;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,7 +63,7 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
         assertThat(responseException.getDetailedMessage(), containsString("cannot be upgraded"));
     }
 
-    public void testUpgradeWithTaskApi() throws IOException, InterruptedException {
+    public void testUpgradeWithTaskApi() throws Exception {
         createIndex("test", Settings.EMPTY);
 
         IndexUpgradeRequest request = new IndexUpgradeRequest("test");
@@ -73,8 +73,8 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
 
         assertNotNull(upgrade.getTask());
 
-        BooleanSupplier hasUpgradeCompleted = checkCompletionStatus(upgrade);
-        awaitBusy(hasUpgradeCompleted);
+        CheckedRunnable<Exception> hasUpgradeCompleted = checkCompletionStatus(upgrade);
+        assertBusy(hasUpgradeCompleted);
     }
 
     public void testGetDeprecationInfo() throws IOException {
@@ -91,14 +91,13 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
      * Using low-level api as high-level-rest-client's getTaskById work is in progress.
      * TODO revisit once that work is finished
      */
-    private BooleanSupplier checkCompletionStatus(TaskSubmissionResponse upgrade) {
+    private CheckedRunnable<Exception> checkCompletionStatus(TaskSubmissionResponse upgrade) {
         return () -> {
             try {
                 Response response = client().performRequest(new Request("GET", "/_tasks/" + upgrade.getTask()));
-                return (boolean) entityAsMap(response).get("completed");
+                assertTrue((boolean) entityAsMap(response).get("completed"));
             } catch (IOException e) {
                 fail(e.getMessage());
-                return false;
             }
         };
     }

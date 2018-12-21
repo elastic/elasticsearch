@@ -214,7 +214,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
     }
 
-    public void testStateMachineBrokenSearch() throws InterruptedException {
+    public void testStateMachineBrokenSearch() throws Exception {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         isFinished.set(false);
@@ -224,7 +224,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertTrue(ESTestCase.awaitBusy(() -> isFinished.get()));
+            ESTestCase.assertBusy(() -> assertTrue(isFinished.get()));
             assertThat(indexer.getStep(), equalTo(4));
 
         } finally {

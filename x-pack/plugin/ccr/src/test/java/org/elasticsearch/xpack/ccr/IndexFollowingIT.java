@@ -915,4 +915,5 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
         return settings;
     }
+
 }

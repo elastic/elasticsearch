@@ -286,7 +286,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         if (rarely()) {
             assertBusy(() -> {
                 final int value = counter.get();
-                assertTrue(value == iterations);
+                assertEquals(value, iterations);
             }, 5 * interval.millis(), TimeUnit.MILLISECONDS);
         }
     }

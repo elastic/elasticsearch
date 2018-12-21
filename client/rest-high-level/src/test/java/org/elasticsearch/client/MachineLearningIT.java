@@ -117,6 +117,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.junit.After;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -849,7 +850,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         waitForForecastToComplete(jobId, forecastJobResponse.getForecastId());
 
         // Wait for the forecast to expire
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
 
         // Run up to now
         startDatafeed(datafeedId, String.valueOf(0), String.valueOf(nowMillis));
@@ -893,7 +894,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(response.getDeleted());
 
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
 
         GetModelSnapshotsRequest getModelSnapshotsRequest1 = new GetModelSnapshotsRequest(jobId);
         GetModelSnapshotsResponse getModelSnapshotsResponse1 = execute(getModelSnapshotsRequest1, machineLearningClient::getModelSnapshots,
@@ -1393,10 +1394,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().update(updateSnapshotRequest, RequestOptions.DEFAULT);
 
         // Wait a second to ensure subsequent model snapshots will have a different ID (it depends on epoch seconds)
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
     }
-
-
 
     private String createAndPutDatafeed(String jobId, String indexName) throws IOException {
         String datafeedId = jobId + "-feed";

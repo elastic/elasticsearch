@@ -224,9 +224,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         });
         thread.start();
         barrier.await();
-        assertBusy(() -> {
-            assertTrue(tracker.pendingInSync());
-        });
+        assertBusy(() -> assertTrue(tracker.pendingInSync()));
         final long updatedLocalCheckpoint = randomLongBetween(1 + localCheckpoint, Long.MAX_VALUE);
         // there is a shard copy pending in sync, the global checkpoint can not advance
         updatedGlobalCheckpoint.set(UNASSIGNED_SEQ_NO);

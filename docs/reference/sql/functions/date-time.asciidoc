@@ -18,7 +18,7 @@ Inside {es-sql} the former is supported as is by passing the expression in the t
 
 The table below shows the mapping between {es} and {es-sql}:
 
-[cols="^,^"]
+[cols="^m,^m"]
 |==========================
 s|{es}
 s|{es-sql}
@@ -130,6 +130,14 @@ include-tagged::{sql-specs}/docs.csv-spec[curTsFunction]
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[curTsFunctionPrecision]
+--------------------------------------------------
+
+Typically, this function (as well as its twin <<sql-functions-now,NOW())>> function is used for
+relative date/time filtering:
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[filterNow]
 --------------------------------------------------
 
 [[sql-functions-datetime-day]]

@@ -9,8 +9,8 @@ beta[]
 === Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE`
 
 {es} has a special type of relationship fields called `nested` fields. In {es-sql} they can be used by referencing their inner
-sub-fields. These being said, though, `SYS COLUMNS` and `DESCRIBE TABLE` will still display them having the type `NESTED`
-but they cannot actually be used in a query. One can only reference its sub-fields in the form
+sub-fields. Even though `SYS COLUMNS` and `DESCRIBE TABLE` will still display them as having the type `NESTED`, they cannot
+be used in a query. One can only reference its sub-fields in the form:
 
 [source, sql]
 --------------------------------------------------
@@ -27,29 +27,29 @@ SELECT dep.dep_name.keyword FROM test_emp GROUP BY languages;
 [float]
 === Multi-nested fields
 
-{es-sql} doesn't support multi-nested documents. This refers to queries that make reference to more than one nested field in an index.
+{es-sql} doesn't support multi-nested documents, so a query cannot reference more than one nested field in an index.
 This applies to multi-level nested fields, but also multiple nested fields defined on the same level. For example, for this index:
 
 [source, sql]
---------------------------------------------------
-       column        |     type      |    mapping
----------------------+---------------+---------------
-nested1              |STRUCT         |NESTED
-nested1.nested11     |STRUCT         |NESTED
-nested1.nested11.text|VARCHAR        |KEYWORD
-nested1.text         |VARCHAR        |KEYWORD
-nested2              |STRUCT         |NESTED
-nested2.text         |VARCHAR        |KEYWORD
---------------------------------------------------
+----------------------------------------------------
+       column         |     type      |    mapping
+----------------------+---------------+-------------
+nested_A              |STRUCT         |NESTED
+nested_A.nested_X     |STRUCT         |NESTED
+nested_A.nested_X.text|VARCHAR        |KEYWORD
+nested_A.text         |VARCHAR        |KEYWORD
+nested_B              |STRUCT         |NESTED
+nested_B.text         |VARCHAR        |KEYWORD
+----------------------------------------------------
 
-`nested1` and `nested2` cannot be used at the same time, nor `nested1`/`nested2` and `nested1.nested11` combination.
+`nested_A` and `nested_B` cannot be used at the same time, nor `nested_A`/`nested_B` and `nested_A.nested_X` combination.
 For such situations, {es-sql} will display an error message.
 
 [float]
 === Paginating nested inner hits
 
-When SELECTing a nested field, pagination will not work as expected {es-sql} returning __at least__ the page size records. This is like
-this because the way nested queries work in {es}: the root nested field will be returned and it's matching inner nested fields as well,
+When SELECTing a nested field, pagination will not work as expected, {es-sql} will return __at least__ the page size records. 
+This is because of the way nested queries work in {es}: the root nested field will be returned and it's matching inner nested fields as well,
 pagination taking place on the **root nested document and not on its inner hits**.
 
 [float]

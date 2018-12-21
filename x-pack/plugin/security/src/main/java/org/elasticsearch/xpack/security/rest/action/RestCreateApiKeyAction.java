@@ -33,8 +33,8 @@ public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
      */
     public RestCreateApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/api_key", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/api_key", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_security/api_key", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_security/api_key", this);
     }
 
     @Override

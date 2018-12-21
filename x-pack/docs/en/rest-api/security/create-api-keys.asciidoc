@@ -6,8 +6,8 @@ Creates an API key for access without requiring basic authentication.
 
 ==== Request
 
-`POST /_xpack/security/api_key`
-`PUT /_xpack/security/api_key`
+`POST /_security/api_key`
+`PUT /_security/api_key`
 
 ==== Description
 
@@ -47,7 +47,7 @@ The following example creates an API key:
 
 [source, js]
 ------------------------------------------------------------
-POST /_xpack/security/api_key
+POST /_security/api_key
 {
   "name": "my-api-key",
   "expiration": "1d", <1>

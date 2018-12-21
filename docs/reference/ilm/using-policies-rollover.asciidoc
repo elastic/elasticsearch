@@ -129,18 +129,18 @@ the new index, enabling indexing to continue uninterrupted.
 
 beta[]
 
-After an index has been rolled over by {ilm}, the
-`index.lifecycle.indexing_complete` setting will be set to `true` on the index.
-This indicates to {ilm} that this index has already been rolled over, and does
-not need to be rolled over again. If you <<ilm-remove-policy,remove the policy>>
-from an index and set it to use another policy, this setting indicates that the
-new policy should skip execution of the Rollover action.
-
-You can also set this setting to `true` manually if you want to indicate that
-{ilm} should not roll over a particular index. This is useful if you need to
-make an exception to your normal Lifecycle Policy and switching the alias to a
+The `index.lifecycle.indexing_complete` setting indicates to {ilm} whether this
+index has already been rolled over. If it is set to `true`, that indicates that
+this index has already been rolled over and does not need to be rolled over
+again. Therefore, {ilm} will skip any Rollover Action configured in the
+associated lifecycle policy for this index. This is useful if you need to make
+an exception to your normal Lifecycle Policy and switching the alias to a
 different index by hand, but do not want to remove the index from {ilm}
 completely.
+
+This setting is set to `true` automatically by ILM upon the successful
+completion of a Rollover Action. However, it will be removed if
+<<ilm-remove-policy,the policy is removed>> from the index.
 
 IMPORTANT: If `index.lifecycle.indexing_complete` is set to `true` on an index,
 it will not be rolled over by {ilm}, but {ilm} will verify that this index is no

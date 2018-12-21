@@ -131,9 +131,10 @@ public interface DateFormatter {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
+
         List<DateFormatter> formatters = new ArrayList<>();
         for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
-            if (Strings.hasLength(input) == false) {
+            if (Strings.hasLength(pattern) == false) {
                 throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
             }
             if (pattern.startsWith("8")) {

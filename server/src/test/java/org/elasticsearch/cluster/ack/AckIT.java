@@ -232,7 +232,8 @@ public class AckIT extends ESIntegTestCase {
     public void testIndicesAliasesNoAcknowledgement() {
         createIndex("test");
 
-        AcknowledgedResponse indicesAliasesResponse = client().admin().indices().prepareAliases().addAlias("test", "alias").setTimeout("0s").get();
+        AcknowledgedResponse indicesAliasesResponse = client().admin().indices().prepareAliases()
+            .addAlias("test", "alias").setTimeout("0s").get();
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(false));
     }
 
@@ -277,7 +278,7 @@ public class AckIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=keyword"));
 
         for (Client client : clients()) {
-            assertThat(getLocalClusterState(client).metaData().indices().get("test").mapping("test"), notNullValue());
+            assertThat(getLocalClusterState(client).metaData().indices().get("test").getMappings().get("test"), notNullValue());
         }
     }
 
@@ -285,7 +286,8 @@ public class AckIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=keyword").setTimeout("0s").get();
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("test")
+            .setSource("field", "type=keyword").setTimeout("0s").get();
         assertThat(putMappingResponse.isAcknowledged(), equalTo(false));
     }
 

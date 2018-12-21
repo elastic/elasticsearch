@@ -42,7 +42,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 public class InternalEngineMergeIT extends ESIntegTestCase {
 
     @TestLogging("_root:DEBUG")
-    public void testMergesHappening() throws InterruptedException, IOException, ExecutionException {
+    public void testMergesHappening() throws Exception {
         final int numOfShards = randomIntBetween(1, 5);
         // some settings to keep num segments low
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
@@ -56,32 +56,33 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
             final int numDocs = scaledRandomIntBetween(100, 1000);
             BulkRequestBuilder request = client().prepareBulk();
             for (int j = 0; j < numDocs; ++j) {
-                request.add(Requests.indexRequest("test").type("type1").id(Long.toString(id++)).source(jsonBuilder().startObject().field("l", randomLong()).endObject()));
+                request.add(Requests.indexRequest("test").type("type1").id(Long.toString(id++))
+                    .source(jsonBuilder().startObject().field("l", randomLong()).endObject()));
             }
             BulkResponse response = request.execute().actionGet();
             refresh();
             assertNoFailures(response);
-            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").setSegments(true).setMerge(true).get();
-            logger.info("index round [{}] - segments {}, total merges {}, current merge {}", i, stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(), stats.getPrimaries().getMerge().getCurrent());
+            IndicesStatsResponse stats = client().admin().indices().prepareStats("test")
+                .setSegments(true).setMerge(true).get();
+            logger.info("index round [{}] - segments {}, total merges {}, current merge {}",
+                i, stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(),
+                stats.getPrimaries().getMerge().getCurrent());
         }
         final long upperNumberSegments = 2 * numOfShards * 10;
-        try {
-            assertBusy(() -> {
-                IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
-                SegmentsStats segments = stats.getPrimaries().getSegments();
-                MergeStats merge = stats.getPrimaries().getMerge();
-                logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards,
-                    segments.getCount(), merge.getTotal(), merge.getCurrent());
-                long current = merge.getCurrent();
-                long count = segments.getCount();
-                assertTrue(count < upperNumberSegments);
-                assertEquals(0, current);
-            });
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        assertBusy(() -> {
+            IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
+            logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards,
+                stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(),
+                stats.getPrimaries().getMerge().getCurrent());
+            long current = stats.getPrimaries().getMerge().getCurrent();
+            long count = stats.getPrimaries().getSegments().getCount();
+            assertTrue(count < upperNumberSegments);
+            assertEquals(0, current);
+        });
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
-        logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards, stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(), stats.getPrimaries().getMerge().getCurrent());
+        logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards,
+            stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(),
+            stats.getPrimaries().getMerge().getCurrent());
         long count = stats.getPrimaries().getSegments().getCount();
         assertThat(count, Matchers.lessThanOrEqualTo(upperNumberSegments));
     }

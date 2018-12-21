@@ -173,20 +173,22 @@ public final class TimestampFormatFinder {
     /**
      * Find the first timestamp format that matches part of the supplied value.
      * @param text The value that the returned timestamp format must exist within.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
-    public static TimestampMatch findFirstMatch(String text) {
-        return findFirstMatch(text, 0);
+    public static TimestampMatch findFirstMatch(String text, TimeoutChecker timeoutChecker) {
+        return findFirstMatch(text, 0, timeoutChecker);
     }
 
     /**
      * Find the first timestamp format that matches part of the supplied value.
      * @param text The value that the returned timestamp format must exist within.
      * @param requiredFormat A timestamp format that any returned match must support.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
-    public static TimestampMatch findFirstMatch(String text, String requiredFormat) {
-        return findFirstMatch(text, 0, requiredFormat);
+    public static TimestampMatch findFirstMatch(String text, String requiredFormat, TimeoutChecker timeoutChecker) {
+        return findFirstMatch(text, 0, requiredFormat, timeoutChecker);
     }
 
     /**
@@ -194,10 +196,11 @@ public final class TimestampFormatFinder {
      * excluding a specified number of candidate formats.
      * @param text The value that the returned timestamp format must exist within.
      * @param ignoreCandidates The number of candidate formats to exclude from the search.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
-    public static TimestampMatch findFirstMatch(String text, int ignoreCandidates) {
-        return findFirstMatch(text, ignoreCandidates, null);
+    public static TimestampMatch findFirstMatch(String text, int ignoreCandidates, TimeoutChecker timeoutChecker) {
+        return findFirstMatch(text, ignoreCandidates, null, timeoutChecker);
     }
 
     /**
@@ -206,9 +209,10 @@ public final class TimestampFormatFinder {
      * @param text             The value that the returned timestamp format must exist within.
      * @param ignoreCandidates The number of candidate formats to exclude from the search.
      * @param requiredFormat A timestamp format that any returned match must support.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
-    public static TimestampMatch findFirstMatch(String text, int ignoreCandidates, String requiredFormat) {
+    public static TimestampMatch findFirstMatch(String text, int ignoreCandidates, String requiredFormat, TimeoutChecker timeoutChecker) {
         if (ignoreCandidates >= ORDERED_CANDIDATE_FORMATS.size()) {
             return null;
         }
@@ -229,7 +233,8 @@ public final class TimestampFormatFinder {
                     }
                 }
                 if (quicklyRuledOut == false) {
-                    Map<String, Object> captures = candidate.strictSearchGrok.captures(text);
+                    Map<String, Object> captures = timeoutChecker.grokCaptures(candidate.strictSearchGrok, text,
+                        "timestamp format determination");
                     if (captures != null) {
                         String preface = captures.getOrDefault(PREFACE, "").toString();
                         String epilogue = captures.getOrDefault(EPILOGUE, "").toString();
@@ -246,20 +251,22 @@ public final class TimestampFormatFinder {
     /**
      * Find the best timestamp format for matching an entire field value.
      * @param text The value that the returned timestamp format must match in its entirety.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
-    public static TimestampMatch findFirstFullMatch(String text) {
-        return findFirstFullMatch(text, 0);
+    public static TimestampMatch findFirstFullMatch(String text, TimeoutChecker timeoutChecker) {
+        return findFirstFullMatch(text, 0, timeoutChecker);
     }
 
     /**
      * Find the best timestamp format for matching an entire field value.
      * @param text The value that the returned timestamp format must match in its entirety.
      * @param requiredFormat A timestamp format that any returned match must support.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
-    public static TimestampMatch findFirstFullMatch(String text, String requiredFormat) {
-        return findFirstFullMatch(text, 0, requiredFormat);
+    public static TimestampMatch findFirstFullMatch(String text, String requiredFormat, TimeoutChecker timeoutChecker) {
+        return findFirstFullMatch(text, 0, requiredFormat, timeoutChecker);
     }
 
     /**
@@ -267,10 +274,11 @@ public final class TimestampFormatFinder {
      * excluding a specified number of candidate formats.
      * @param text The value that the returned timestamp format must match in its entirety.
      * @param ignoreCandidates The number of candidate formats to exclude from the search.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
-    public static TimestampMatch findFirstFullMatch(String text, int ignoreCandidates) {
-        return findFirstFullMatch(text, ignoreCandidates, null);
+    public static TimestampMatch findFirstFullMatch(String text, int ignoreCandidates, TimeoutChecker timeoutChecker) {
+        return findFirstFullMatch(text, ignoreCandidates, null, timeoutChecker);
     }
 
     /**
@@ -279,9 +287,11 @@ public final class TimestampFormatFinder {
      * @param text The value that the returned timestamp format must match in its entirety.
      * @param ignoreCandidates The number of candidate formats to exclude from the search.
      * @param requiredFormat A timestamp format that any returned match must support.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
-    public static TimestampMatch findFirstFullMatch(String text, int ignoreCandidates, String requiredFormat) {
+    public static TimestampMatch findFirstFullMatch(String text, int ignoreCandidates, String requiredFormat,
+                                                    TimeoutChecker timeoutChecker) {
         if (ignoreCandidates >= ORDERED_CANDIDATE_FORMATS.size()) {
             return null;
         }
@@ -290,7 +300,8 @@ public final class TimestampFormatFinder {
         for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS.subList(ignoreCandidates, ORDERED_CANDIDATE_FORMATS.size())) {
             if (adjustedRequiredFormat == null || candidate.jodaTimestampFormats.contains(adjustedRequiredFormat) ||
                 candidate.javaTimestampFormats.contains(adjustedRequiredFormat)) {
-                Map<String, Object> captures = candidate.strictFullMatchGrok.captures(text);
+                Map<String, Object> captures = timeoutChecker.grokCaptures(candidate.strictFullMatchGrok, text,
+                    "timestamp format determination");
                 if (captures != null) {
                     return makeTimestampMatch(candidate, index, "", text, "");
                 }
@@ -540,8 +551,8 @@ public final class TimestampFormatFinder {
             this.simplePattern = Pattern.compile(simpleRegex, Pattern.MULTILINE);
             // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
             this.strictSearchGrok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}" + strictGrokPattern +
-                "%{GREEDYDATA:" + EPILOGUE + "}");
-            this.strictFullMatchGrok = new Grok(Grok.getBuiltinPatterns(), "^" + strictGrokPattern + "$");
+                "%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog);
+            this.strictFullMatchGrok = new Grok(Grok.getBuiltinPatterns(), "^" + strictGrokPattern + "$", TimeoutChecker.watchdog);
             this.standardGrokPatternName = standardGrokPatternName;
             assert quickRuleOutIndices.stream()
                 .noneMatch(quickRuleOutIndex -> quickRuleOutIndex < 0 || quickRuleOutIndex >= QUICK_RULE_OUT_PATTERNS.size());

@@ -7,7 +7,7 @@
       "link": "elasticsearch/nodes",
       "severity": 1000,
       "type": "monitoring",
-      "version_created": 7000001,
+      "version_created": 7000099,
       "watch": "${monitoring.watch.id}"
     }
   },

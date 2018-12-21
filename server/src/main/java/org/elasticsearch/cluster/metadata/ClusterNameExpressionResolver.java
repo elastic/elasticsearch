@@ -19,9 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,13 +31,9 @@ import java.util.stream.Collectors;
  * Resolves cluster names from an expression. The expression must be the exact match of a cluster
  * name or must be a wildcard expression.
  */
-public final class ClusterNameExpressionResolver extends AbstractComponent {
+public final class ClusterNameExpressionResolver {
 
     private final WildcardExpressionResolver wildcardResolver = new WildcardExpressionResolver();
-
-    public ClusterNameExpressionResolver(Settings settings) {
-        super(settings);
-    }
 
     /**
      * Resolves the provided cluster expression to matching cluster names. This method only
@@ -83,11 +77,7 @@ public final class ClusterNameExpressionResolver extends AbstractComponent {
         }
 
         private static Set<String> matches(Set<String> remoteClusters, String expression) {
-            if (expression.indexOf("*") == expression.length() - 1) {
-                return otherWildcard(remoteClusters, expression);
-            } else {
-                return otherWildcard(remoteClusters, expression);
-            }
+            return otherWildcard(remoteClusters, expression);
         }
 
         private static Set<String> otherWildcard(Set<String> remoteClusters, String expression) {

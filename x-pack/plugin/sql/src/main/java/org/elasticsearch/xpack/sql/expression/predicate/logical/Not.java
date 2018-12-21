@@ -7,10 +7,11 @@ package org.elasticsearch.xpack.sql.expression.predicate.logical;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
+import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -36,8 +37,7 @@ public class Not extends UnaryScalarFunction {
         if (DataType.BOOLEAN == field().dataType()) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return new TypeResolution("Cannot negate expression ([" + Expressions.name(field()) + "] of type ["
-                + field().dataType().esType + "])");
+        return Expressions.typeMustBeBoolean(field(), functionName(), ParamOrdinal.DEFAULT);
     }
 
     @Override
@@ -58,8 +58,8 @@ public class Not extends UnaryScalarFunction {
     @Override
     protected Expression canonicalize() {
         Expression canonicalChild = field().canonical();
-        if (canonicalChild instanceof Negateable) {
-            return ((Negateable) canonicalChild).negate();
+        if (canonicalChild instanceof Negatable) {
+            return ((Negatable) canonicalChild).negate();
         }
         return this;
     }

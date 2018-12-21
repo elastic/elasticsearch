@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -20,7 +21,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TransportPutAutoFollowPatternAction extends
@@ -44,7 +45,6 @@ public class TransportPutAutoFollowPatternAction extends
 
     @Inject
     public TransportPutAutoFollowPatternAction(
-            final Settings settings,
             final TransportService transportService,
             final ClusterService clusterService,
             final ThreadPool threadPool,
@@ -52,8 +52,8 @@ public class TransportPutAutoFollowPatternAction extends
             final Client client,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final CcrLicenseChecker ccrLicenseChecker) {
-        super(settings, PutAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, PutAutoFollowPatternAction.Request::new);
+        super(PutAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            PutAutoFollowPatternAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
     }
@@ -76,48 +76,47 @@ public class TransportPutAutoFollowPatternAction extends
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final Client leaderClient = client.getRemoteClusterClient(request.getRemoteCluster());
+        final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
+        final Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
+            .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
+            String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
+            ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
+                if (e == null) {
+                    clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getRemoteCluster(),
+                        new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
+
+                            @Override
+                            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                                return new AcknowledgedResponse(acknowledged);
+                            }
+
+                            @Override
+                            public ClusterState execute(ClusterState currentState) throws Exception {
+                                return innerPut(request, filteredHeaders, currentState, remoteClusterState.getState());
+                            }
+                        });
+                } else {
+                    listener.onFailure(e);
+                }
+            });
+        };
+
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
 
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-            .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(client, request.getRemoteCluster(),
+            clusterStateRequest, listener::onFailure, consumer);
 
-        String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
-        ccrLicenseChecker.hasPrivilegesToFollowIndices(leaderClient, indices, e -> {
-            if (e == null) {
-                leaderClient.admin().cluster().state(
-                    clusterStateRequest,
-                    ActionListener.wrap(
-                        clusterStateResponse -> {
-                            final ClusterState leaderClusterState = clusterStateResponse.getState();
-                            clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getRemoteCluster(),
-                                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
-                                    @Override
-                                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                                        return new AcknowledgedResponse(acknowledged);
-                                    }
-
-                                    @Override
-                                    public ClusterState execute(ClusterState currentState) throws Exception {
-                                        return innerPut(request, filteredHeaders, currentState, leaderClusterState);
-                                    }
-                                });
-                        },
-                        listener::onFailure));
-            } else {
-                listener.onFailure(e);
-            }
-        });
     }
 
     static ClusterState innerPut(PutAutoFollowPatternAction.Request request,
                                  Map<String, String> filteredHeaders,
                                  ClusterState localState,
-                                 ClusterState leaderClusterState) {
+                                 ClusterState remoteClusterState) {
         // auto patterns are always overwritten
         // only already followed index uuids are updated
 
@@ -145,10 +144,10 @@ public class TransportPutAutoFollowPatternAction extends
         followedLeaderIndices.put(request.getName(), followedIndexUUIDs);
         // Mark existing leader indices as already auto followed:
         if (previousPattern != null) {
-            markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), leaderClusterState.metaData(),
+            markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), remoteClusterState.metaData(),
                 previousPattern, followedIndexUUIDs);
         } else {
-            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), leaderClusterState.metaData(),
+            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), remoteClusterState.metaData(),
                 followedIndexUUIDs);
         }
 

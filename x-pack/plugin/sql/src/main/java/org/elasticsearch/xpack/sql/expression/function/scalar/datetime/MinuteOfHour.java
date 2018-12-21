@@ -10,39 +10,28 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * Exract the minute of the hour from a datetime.
  */
 public class MinuteOfHour extends DateTimeFunction {
-    public MinuteOfHour(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+    public MinuteOfHour(Location location, Expression field, ZoneId zoneId) {
+        super(location, field, zoneId, DateTimeExtractor.MINUTE_OF_HOUR);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return MinuteOfHour::new;
     }
 
     @Override
     protected MinuteOfHour replaceChild(Expression newChild) {
-        return new MinuteOfHour(location(), newChild, timeZone());
+        return new MinuteOfHour(location(), newChild, zoneId());
     }
 
     @Override
     public String dateTimeFormat() {
         return "m";
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.MINUTE_OF_HOUR;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.MINUTE_OF_HOUR;
     }
 }

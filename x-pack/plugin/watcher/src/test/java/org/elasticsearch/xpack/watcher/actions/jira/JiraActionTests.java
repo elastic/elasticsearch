@@ -293,7 +293,7 @@ public class JiraActionTests extends ESTestCase {
         private final Map<String, Object> model;
 
         ModelTextTemplateEngine(Map<String, Object> model) {
-            super(Settings.EMPTY, mock(ScriptService.class));
+            super(mock(ScriptService.class));
             this.model = model;
         }
 

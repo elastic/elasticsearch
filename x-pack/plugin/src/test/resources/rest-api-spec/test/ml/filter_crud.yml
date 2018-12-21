@@ -1,6 +1,7 @@
 ---
 setup:
-
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -19,7 +20,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_filter:
+      ml.put_filter:
         filter_id: filter-foo
         body:  >
           {
@@ -29,7 +30,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_filter:
+      ml.put_filter:
         filter_id: filter-foo2
         body:  >
           {
@@ -47,14 +48,14 @@ setup:
 
   - do:
       catch: missing
-      xpack.ml.get_filters:
+      ml.get_filters:
         filter_id: "do_not_exist"
 
 ---
 "Test get filter API":
 
   - do:
-      xpack.ml.get_filters:
+      ml.get_filters:
         filter_id: "filter-foo"
 
   - match: { count:   1 }
@@ -67,7 +68,7 @@ setup:
 "Test get filters API":
 
   - do:
-      xpack.ml.get_filters: {}
+      ml.get_filters: {}
 
   - match: { count:   2 }
   - match:
@@ -82,7 +83,7 @@ setup:
         items: ["123", "lmnop"]
 
   - do:
-      xpack.ml.get_filters:
+      ml.get_filters:
         from: 1
         size: 1
 
@@ -93,19 +94,19 @@ setup:
 
   - do:
       catch: bad_request
-      xpack.ml.get_filters:
+      ml.get_filters:
         filter_id: "filter-foo"
         from: 0
 
   - do:
       catch: bad_request
-      xpack.ml.get_filters:
+      ml.get_filters:
         filter_id: "filter-foo"
         size: 1
 
   - do:
       catch: bad_request
-      xpack.ml.get_filters:
+      ml.get_filters:
         filter_id: "filter-foo"
         from: 0
         size: 1
@@ -114,7 +115,7 @@ setup:
 "Test create filter given invalid filter_id":
   - do:
       catch: bad_request
-      xpack.ml.put_filter:
+      ml.put_filter:
         filter_id: Invalid
         body:  >
           {
@@ -124,7 +125,7 @@ setup:
 ---
 "Test create filter api":
   - do:
-      xpack.ml.put_filter:
+      ml.put_filter:
         filter_id: new-filter
         body:  >
           {
@@ -137,7 +138,7 @@ setup:
   - match: { items: ["abc", "xyz"]}
 
   - do:
-      xpack.ml.get_filters:
+      ml.get_filters:
         filter_id: "new-filter"
 
   - match: { count:   1 }
@@ -151,7 +152,7 @@ setup:
 "Test create filter api with mismatching body ID":
   - do:
       catch: /illegal_argument_exception/
-      xpack.ml.put_filter:
+      ml.put_filter:
         filter_id: "uri_id"
         body:  >
           {
@@ -163,7 +164,7 @@ setup:
 "Test update filter given no filter matches filter_id":
   - do:
       catch: missing
-      xpack.ml.update_filter:
+      ml.update_filter:
         filter_id: "missing_filter"
         body:  >
           {
@@ -172,7 +173,7 @@ setup:
 ---
 "Test update filter":
   - do:
-      xpack.ml.put_filter:
+      ml.put_filter:
         filter_id: "test_update_filter"
         body:  >
           {
@@ -182,7 +183,7 @@ setup:
   - match: { filter_id: test_update_filter }
 
   - do:
-      xpack.ml.update_filter:
+      ml.update_filter:
         filter_id: "test_update_filter"
         body:  >
           {
@@ -195,7 +196,7 @@ setup:
   - match: { items: ["b", "c", "d"] }
 
   - do:
-      xpack.ml.get_filters:
+      ml.get_filters:
         filter_id: "test_update_filter"
   - match:
       filters.0:
@@ -204,14 +205,14 @@ setup:
         items: ["b", "c", "d"]
 
   - do:
-      xpack.ml.delete_filter:
+      ml.delete_filter:
         filter_id: test_update_filter
 
 ---
 "Test update filter given remove item is not present":
   - do:
       catch: /Cannot remove item \[not present item\] as it is not present in filter \[filter-foo\]/
-      xpack.ml.update_filter:
+      ml.update_filter:
         filter_id: "filter-foo"
         body:  >
           {
@@ -221,7 +222,7 @@ setup:
 ---
 "Test delete in-use filter":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: filter-crud
         body:  >
           {
@@ -245,22 +246,22 @@ setup:
             }
           }
   - do:
-      catch: conflict
-      xpack.ml.delete_filter:
+      catch: /Cannot delete filter \[filter-foo\] currently used by jobs \[filter-crud\]/
+      ml.delete_filter:
         filter_id: "filter-foo"
 
 ---
 "Test non-existing filter":
   - do:
       catch: missing
-      xpack.ml.delete_filter:
+      ml.delete_filter:
         filter_id: "does_not_exist"
 
 ---
 "Test valid delete filter":
 
   - do:
-      xpack.ml.get_filters:
+      ml.get_filters:
         filter_id: "filter-foo"
 
   - match: { count:   1 }
@@ -270,26 +271,26 @@ setup:
         items: ["abc", "xyz"]
 
   - do:
-      xpack.ml.delete_filter:
+      ml.delete_filter:
         filter_id: "filter-foo"
 
   - do:
       catch: missing
-      xpack.ml.get_filters:
+      ml.get_filters:
         filter_id: "filter-foo"
 
 ---
 "Test get all filter given no filter exists":
 
   - do:
-      xpack.ml.delete_filter:
+      ml.delete_filter:
         filter_id: "filter-foo"
 
   - do:
-      xpack.ml.delete_filter:
+      ml.delete_filter:
         filter_id: "filter-foo2"
 
   - do:
-      xpack.ml.get_filters: {}
+      ml.get_filters: {}
   - match: { count: 0 }
   - match: { filters: [] }

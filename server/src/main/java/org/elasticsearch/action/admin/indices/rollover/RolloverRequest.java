@@ -196,7 +196,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return dryRun;
     }
 
-    Map<String, Condition<?>> getConditions() {
+    public Map<String, Condition<?>> getConditions() {
         return conditions;
     }
 

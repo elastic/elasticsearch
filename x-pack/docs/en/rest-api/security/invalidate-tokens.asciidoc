@@ -1,0 +1,146 @@
+[role="xpack"]
+[[security-api-invalidate-token]]
+=== Invalidate token API
+++++
+<titleabbrev>Invalidate token</titleabbrev>
+++++
+
+Invalidates one or more access tokens or refresh tokens.
+
+==== Request
+
+`DELETE /_security/oauth2/token`
+
+==== Description
+
+The access tokens returned by the <<security-api-get-token,get token API>> have a
+finite period of time for which they are valid and after that time period, they 
+can no longer be used. That time period is defined by the 
+`xpack.security.authc.token.timeout` setting. For more information, see 
+<<token-service-settings>>.
+
+The refresh tokens returned by the <<security-api-get-token,get token API>> are
+only valid for 24 hours. They can also be used exactly once.
+
+If you want to invalidate one or more access or refresh tokens immediately, use this invalidate token API.
+
+
+==== Request Body
+
+The following parameters can be specified in the body of a DELETE request and
+pertain to invalidating tokens:
+
+`token` (optional)::
+(string) An access token. This parameter cannot be used any of `refresh_token`, `realm_name` or
+         `username` are used.
+
+`refresh_token` (optional)::
+(string) A refresh token. This parameter cannot be used any of `refresh_token`, `realm_name` or
+                          `username` are used.
+
+`realm_name` (optional)::
+(string) The name of an authentication realm. This parameter cannot be used with either `refresh_token` or `token`.
+
+`username` (optional)::
+(string) The username of a user. This parameter cannot be used with either `refresh_token` or `token`
+
+NOTE: While all parameters are optional, at least one of them is required. More specifically, either one of `token`
+or `refresh_token` parameters is required. If none of these two are specified, then `realm_name` and/or `username`
+need to be specified.
+
+==== Examples
+
+The following example invalidates the specified token immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_security/oauth2/token
+{
+  "token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+whereas the following example invalidates the specified refresh token immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_security/oauth2/token
+{
+  "refresh_token" : "movUJjPGRRC0PQ7+NW0eag"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The following example invalidates all access tokens and refresh tokens for the `saml1` realm immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/oauth2/token
+{
+  "realm_name" : "saml1"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The following example invalidates all access tokens and refresh tokens for the user `myuser` in all realms immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/oauth2/token
+{
+  "username" : "myuser"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Finally, the following example invalidates all access tokens and refresh tokens for the user `myuser` in
+ the `saml1` realm immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/oauth2/token
+{
+  "username" : "myuser",
+  "realm_name" : "saml1"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+A successful call returns a JSON structure that contains the number of tokens that were invalidated, the number
+of tokens that had already been invalidated, and potentially a list of errors encountered while invalidating
+specific tokens.
+
+[source,js]
+--------------------------------------------------
+{
+  "invalidated_tokens":9, <1>
+  "previously_invalidated_tokens":15, <2>
+  "error_count":2, <3>
+  "error_details":[ <4>
+    {
+      "type":"exception",
+      "reason":"Elasticsearch exception [type=exception, reason=foo]",
+      "caused_by":{
+        "type":"exception",
+        "reason":"Elasticsearch exception [type=illegal_argument_exception, reason=bar]"
+      }
+    },
+    {
+      "type":"exception",
+      "reason":"Elasticsearch exception [type=exception, reason=boo]",
+      "caused_by":{
+        "type":"exception",
+        "reason":"Elasticsearch exception [type=illegal_argument_exception, reason=far]"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> The number of the tokens that were invalidated as part of this request.
+<2> The number of tokens that were already invalidated.
+<3> The number of errors that were encountered when invalidating the tokens.
+<4> Details about these errors. This field is not present in the response when
+    `error_count` is 0.

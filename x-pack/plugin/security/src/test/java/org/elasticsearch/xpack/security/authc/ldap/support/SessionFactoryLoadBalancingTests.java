@@ -237,10 +237,10 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
         Settings settings = buildLdapSettings(ldapUrls(), new String[] { userTemplate }, groupSearchBase,
                 LdapSearchScope.SUB_TREE, loadBalancing);
-        Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        RealmConfig config = new RealmConfig("test-session-factory", settings, globalSettings,
+        Settings globalSettings = Settings.builder().put("path.home", createTempDir()).put(settings).build();
+        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
-        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, TestEnvironment.newEnvironment(config.globalSettings())),
+        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, TestEnvironment.newEnvironment(config.settings())),
                 threadPool);
     }
 

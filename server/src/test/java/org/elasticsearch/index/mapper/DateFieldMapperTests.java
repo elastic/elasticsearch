@@ -37,7 +37,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -77,7 +76,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(8, pointField.fieldType().pointNumBytes());
         assertFalse(pointField.fieldType().stored());
         assertEquals(1457654400000L, pointField.numericValue().longValue());
@@ -128,7 +127,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
     }
 
     public void testStore() throws Exception {
@@ -150,7 +149,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         IndexableField storedField = fields[2];
@@ -228,8 +227,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        double epochFloatMillisFromEpoch = (randomDouble() * 2 - 1) * 1000000;
-        String epochFloatValue = String.format(Locale.US, "%f", epochFloatMillisFromEpoch);
+        long epochMillis = randomNonNegativeLong();
+        String epochFloatValue = epochMillis + "." + randomIntBetween(0, 999);
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
@@ -241,7 +240,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals((long)epochFloatMillisFromEpoch, pointField.numericValue().longValue());
+        assertEquals(epochMillis, pointField.numericValue().longValue());
     }
 
     public void testChangeLocale() throws IOException {
@@ -304,7 +303,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(8, pointField.fieldType().pointNumBytes());
         assertFalse(pointField.fieldType().stored());
         assertEquals(1457654400000L, pointField.numericValue().longValue());

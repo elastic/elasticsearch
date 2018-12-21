@@ -103,7 +103,7 @@ dependencies {
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.10'
+  compile "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.2'
@@ -156,6 +156,9 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
 forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'
+  exclude '**/*.dic'
+  exclude '**/*.binary'
+  exclude '**/*.st'
 }
 
 task generateModulesList {
@@ -172,9 +175,9 @@ task generateModulesList {
 }
 
 task generatePluginsList {
-  List<String> plugins = project(':plugins').subprojects
-    .findAll { it.name.contains('example') == false }
-    .collect { it.name }
+  Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
+  plugins.remove('example')
+
   File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
   processResources.from(pluginsFile)
   inputs.property('plugins', plugins)
@@ -319,9 +322,7 @@ if (isEclipse == false || project.path == ":server-tests") {
   task integTest(type: RandomizedTestingTask,
                  group: JavaBasePlugin.VERIFICATION_GROUP,
                  description: 'Multi-node tests',
-                 dependsOn: test.dependsOn) {
-    classpath = project.test.classpath
-    testClassesDirs = project.test.testClassesDirs
+                 dependsOn: unitTest.dependsOn) {
     include '**/*IT.class'
   }
   check.dependsOn integTest

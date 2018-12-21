@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.process.logging;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
@@ -13,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -47,7 +47,7 @@ import java.util.regex.Pattern;
  */
 public class CppLogMessageHandler implements Closeable {
 
-    private static final Logger LOGGER = Loggers.getLogger(CppLogMessageHandler.class);
+    private static final Logger LOGGER = LogManager.getLogger(CppLogMessageHandler.class);
     private static final int DEFAULT_READBUF_SIZE = 1024;
     private static final int DEFAULT_ERROR_STORE_SIZE = 5;
     private static final long MAX_MESSAGE_INTERVAL_SECONDS = 10;

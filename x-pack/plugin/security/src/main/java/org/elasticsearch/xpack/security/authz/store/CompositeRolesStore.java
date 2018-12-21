@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -14,7 +16,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +65,14 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
  * A composite roles store that combines built in roles, file-based roles, and index-based roles. Checks the built in roles first, then the
  * file roles, and finally the index roles.
  */
-public class CompositeRolesStore extends AbstractComponent {
+public class CompositeRolesStore {
+
+
+    private static final Setting<Integer> CACHE_SIZE_SETTING =
+        Setting.intSetting("xpack.security.authz.store.roles.cache.max_size", 10000, Property.NodeScope);
+    private static final Setting<Integer> NEGATIVE_LOOKUP_CACHE_SIZE_SETTING =
+        Setting.intSetting("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 10000, Property.NodeScope);
+    private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
 
     // the lock is used in an odd manner; when iterating over the cache we cannot have modifiers other than deletes using
     // the iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
@@ -78,11 +86,6 @@ public class CompositeRolesStore extends AbstractComponent {
         readLock = new ReleasableLock(iterationLock.readLock());
         writeLock = new ReleasableLock(iterationLock.writeLock());
     }
-
-    private static final Setting<Integer> CACHE_SIZE_SETTING =
-        Setting.intSetting("xpack.security.authz.store.roles.cache.max_size", 10000, Property.NodeScope);
-    private static final Setting<Integer> NEGATIVE_LOOKUP_CACHE_SIZE_SETTING =
-        Setting.intSetting("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 10000, Property.NodeScope);
 
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;
@@ -99,7 +102,6 @@ public class CompositeRolesStore extends AbstractComponent {
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
                                List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
                                ThreadContext threadContext, XPackLicenseState licenseState) {
-        super(settings);
         this.fileRolesStore = fileRolesStore;
         fileRolesStore.addListener(this::invalidate);
         this.nativeRolesStore = nativeRolesStore;

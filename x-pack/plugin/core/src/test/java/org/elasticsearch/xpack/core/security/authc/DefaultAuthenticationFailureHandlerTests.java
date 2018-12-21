@@ -35,7 +35,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
         final DefaultAuthenticationFailureHandler failuerHandler;
         if (testDefault) {
-            failuerHandler = new DefaultAuthenticationFailureHandler();
+            failuerHandler = new DefaultAuthenticationFailureHandler(Collections.emptyMap());
         } else {
             final Map<String, List<String>> failureResponeHeaders = new HashMap<>();
             failureResponeHeaders.put("WWW-Authenticate", Arrays.asList(basicAuthScheme, bearerAuthScheme));

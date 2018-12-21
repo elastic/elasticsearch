@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -30,10 +31,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -41,7 +40,9 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
-public class GatewayAllocator extends AbstractComponent {
+public class GatewayAllocator {
+
+    private static final Logger logger = LogManager.getLogger(GatewayAllocator.class);
 
     private final RoutingService routingService;
 
@@ -54,12 +55,11 @@ public class GatewayAllocator extends AbstractComponent {
         asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public GatewayAllocator(Settings settings, ClusterService clusterService, RoutingService routingService,
+    public GatewayAllocator(ClusterService clusterService, RoutingService routingService,
                             TransportNodesListGatewayStartedShards startedAction, TransportNodesListShardStoreMetaData storeAction) {
-        super(settings);
         this.routingService = routingService;
-        this.primaryShardAllocator = new InternalPrimaryShardAllocator(settings, startedAction);
-        this.replicaShardAllocator = new InternalReplicaShardAllocator(settings, storeAction);
+        this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction);
+        this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction);
         clusterService.addStateApplier(event -> {
             boolean cleanCache = false;
             DiscoveryNode localNode = event.state().nodes().getLocalNode();
@@ -80,8 +80,7 @@ public class GatewayAllocator extends AbstractComponent {
     }
 
     // for tests
-    protected GatewayAllocator(Settings settings) {
-        super(settings);
+    protected GatewayAllocator() {
         this.routingService = null;
         this.primaryShardAllocator = null;
         this.replicaShardAllocator = null;
@@ -157,8 +156,7 @@ public class GatewayAllocator extends AbstractComponent {
 
         private final TransportNodesListGatewayStartedShards startedAction;
 
-        InternalPrimaryShardAllocator(Settings settings, TransportNodesListGatewayStartedShards startedAction) {
-            super(settings);
+        InternalPrimaryShardAllocator(TransportNodesListGatewayStartedShards startedAction) {
             this.startedAction = startedAction;
         }
 
@@ -182,8 +180,7 @@ public class GatewayAllocator extends AbstractComponent {
 
         private final TransportNodesListShardStoreMetaData storeAction;
 
-        InternalReplicaShardAllocator(Settings settings, TransportNodesListShardStoreMetaData storeAction) {
-            super(settings);
+        InternalReplicaShardAllocator(TransportNodesListShardStoreMetaData storeAction) {
             this.storeAction = storeAction;
         }
 

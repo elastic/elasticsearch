@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.logstash;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -28,7 +28,9 @@ import java.util.regex.Pattern;
  */
 public class Logstash extends Plugin implements ActionPlugin {
 
-    private static final String LOGSTASH_TEMPLATE_NAME = "logstash-index-template";
+    private static final String LOGSTASH_TEMPLATE_FILE_NAME = "logstash-management";
+    private static final String LOGSTASH_INDEX_TEMPLATE_NAME = ".logstash-management";
+    private static final String OLD_LOGSTASH_INDEX_NAME = "logstash-index-template";
     private static final String TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${logstash.template.version}");
 
@@ -58,8 +60,9 @@ public class Logstash extends Plugin implements ActionPlugin {
 
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
-            TemplateUtils.loadTemplateIntoMap("/" + LOGSTASH_TEMPLATE_NAME + ".json", templates, LOGSTASH_TEMPLATE_NAME,
-                    Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN, Loggers.getLogger(Logstash.class));
+            templates.keySet().removeIf(OLD_LOGSTASH_INDEX_NAME::equals);
+            TemplateUtils.loadTemplateIntoMap("/" + LOGSTASH_TEMPLATE_FILE_NAME + ".json", templates, LOGSTASH_INDEX_TEMPLATE_NAME,
+                    Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN, LogManager.getLogger(Logstash.class));
             return templates;
         };
     }

@@ -53,7 +53,6 @@ public class SameShardAllocationDecider extends AllocationDecider {
     private volatile boolean sameHost;
 
     public SameShardAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         this.sameHost = CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING, this::setSameHost);
     }

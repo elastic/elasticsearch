@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.Token;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DebugContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExplainContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowColumnsContext;
@@ -190,7 +191,13 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public SysTypes visitSysTypes(SysTypesContext ctx) {
-        return new SysTypes(source(ctx));
+        int type = 0;
+        if (ctx.type != null) {
+            Literal value = (Literal) visit(ctx.type);
+            type = ((Number) value.fold()).intValue();
+        }
+
+        return new SysTypes(source(ctx), Integer.valueOf(type));
     }
 
     @Override

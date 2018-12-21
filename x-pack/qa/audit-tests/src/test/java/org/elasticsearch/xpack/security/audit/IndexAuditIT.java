@@ -184,15 +184,9 @@ public class IndexAuditIT extends ESIntegTestCase {
             logger.info("refreshing audit indices");
             client().admin().indices().prepareRefresh(".security_audit_log*").get();
             logger.info("refreshed audit indices");
-            assertTrue(client().prepareSearch(".security_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER))
-                    .get().getHits().getTotalHits() > 0);
-            }, 60L, TimeUnit.SECONDS);
-        
-
-        SearchResponse searchResponse = client().prepareSearch(".security_audit_log*").setQuery(
-                QueryBuilders.matchQuery("principal", USER)).get();
-        assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
-        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("principal"), is(USER));
+            assertTrue(client().prepareSearch(".security_audit_log*").setQuery(query)
+                .get().getHits().getTotalHits().value > 0);
+        }, 60L, TimeUnit.SECONDS);
     }
 
     private void awaitIndexTemplateCreation() throws Exception {

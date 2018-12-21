@@ -307,7 +307,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [keystore reload exception]");
@@ -348,7 +348,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [pem key reload exception]");
@@ -383,7 +383,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [truststore reload exception]");
@@ -415,7 +415,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [pem trust reload exception]");
@@ -444,7 +444,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final CountDownLatch reloadLatch = new CountDownLatch(1);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 super.reloadSSLContext(configuration);

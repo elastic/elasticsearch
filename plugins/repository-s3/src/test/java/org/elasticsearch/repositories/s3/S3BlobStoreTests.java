@@ -24,7 +24,6 @@ import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.ESBlobStoreTestCase;
@@ -117,13 +116,13 @@ public class S3BlobStoreTests extends ESBlobStoreTestCase {
 
         final String theClientName = randomAlphaOfLength(4);
         final AmazonS3 client = new MockAmazonS3(new ConcurrentHashMap<>(), bucket, serverSideEncryption, cannedACL, storageClass);
-        final S3Service service = new S3Service(Settings.EMPTY) {
+        final S3Service service = new S3Service() {
             @Override
             public synchronized AmazonS3Reference client(String clientName) {
                 assert theClientName.equals(clientName);
                 return new AmazonS3Reference(client);
             }
         };
-        return new S3BlobStore(Settings.EMPTY, service, theClientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        return new S3BlobStore(service, theClientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
     }
 }

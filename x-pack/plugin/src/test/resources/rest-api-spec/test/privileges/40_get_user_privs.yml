@@ -9,7 +9,7 @@ setup:
 
   # Create some privileges
   - do:
-      xpack.security.put_privileges:
+      security.put_privileges:
         body: >
           {
             "test-app": {
@@ -27,7 +27,7 @@ setup:
 
   # Store 2 test roles
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "test-role-1"
         body:  >
             {
@@ -82,7 +82,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "test-role-2"
         body:  >
             {
@@ -142,7 +142,7 @@ setup:
 
   # And a user for each role combination
   - do:
-        xpack.security.put_user:
+      security.put_user:
           username: "test-1"
           body:  >
               {
@@ -150,7 +150,7 @@ setup:
                 "roles" : [ "test-role-1" ]
               }
   - do:
-        xpack.security.put_user:
+      security.put_user:
           username: "test-2"
           body:  >
               {
@@ -158,7 +158,7 @@ setup:
                 "roles" : [ "test-role-2" ]
               }
   - do:
-        xpack.security.put_user:
+      security.put_user:
           username: "test-3"
           body:  >
               {
@@ -169,33 +169,33 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: test-app
         name: "user,read,write"
         ignore: 404
 
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "test-1"
         ignore: 404
 
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "test-2"
         ignore: 404
 
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "test-3"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "test-role-1"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "test-role-2"
         ignore: 404
 
@@ -204,10 +204,10 @@ teardown:
 "Test get_user_privileges for single role":
   - skip:
           reason: "contains is a newly added assertion"
-          features: contains  
+          features: contains
   - do:
       headers: { Authorization: "Basic dGVzdC0xOjEyMzQ1Njc4" } # test-1
-      xpack.security.get_user_privileges: {}
+      security.get_user_privileges: {}
 
   - match: { "cluster" : [ "monitor" ] }
 
@@ -235,7 +235,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdC0yOjEyMzQ1Njc4" } # test-2
-      xpack.security.get_user_privileges:
+      security.get_user_privileges:
         username: null
 
   - match: { "cluster" : [ "manage", "manage_security" ] }
@@ -269,7 +269,7 @@ teardown:
       features: contains
   - do:
       headers: { Authorization: "Basic dGVzdC0zOjEyMzQ1Njc4" } # test-3
-      xpack.security.get_user_privileges: {}
+      security.get_user_privileges: {}
 
   - match: { "cluster" : [ "manage", "manage_security", "monitor" ] }
 

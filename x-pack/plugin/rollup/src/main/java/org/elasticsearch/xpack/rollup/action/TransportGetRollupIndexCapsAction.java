@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -35,9 +34,9 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
     private final ClusterService clusterService;
 
     @Inject
-    public TransportGetRollupIndexCapsAction(Settings settings, TransportService transportService,
-                                             ClusterService clusterService, ActionFilters actionFilters) {
-        super(settings, GetRollupIndexCapsAction.NAME, transportService, actionFilters,
+    public TransportGetRollupIndexCapsAction(TransportService transportService, ClusterService clusterService,
+                                             ActionFilters actionFilters) {
+        super(GetRollupIndexCapsAction.NAME, transportService, actionFilters,
             (Supplier<GetRollupIndexCapsAction.Request>) GetRollupIndexCapsAction.Request::new);
         this.clusterService = clusterService;
     }
@@ -46,7 +45,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
     protected void doExecute(Task task, GetRollupIndexCapsAction.Request request,
                              ActionListener<GetRollupIndexCapsAction.Response> listener) {
 
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(clusterService.getSettings());
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         String[] indices = resolver.concreteIndexNames(clusterService.state(),
             request.indicesOptions(), request.indices());
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(Arrays.asList(indices),

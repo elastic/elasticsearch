@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.TimeZone;
+
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<DateTimeProcessor> {
-    private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
 
     public static DateTimeProcessor randomDateTimeProcessor() {
         return new DateTimeProcessor(randomFrom(DateTimeExtractor.values()), UTC);
@@ -39,12 +38,12 @@ public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<Date
 
     public void testApply() {
         DateTimeProcessor proc = new DateTimeProcessor(DateTimeExtractor.YEAR, UTC);
-        assertEquals(1970, proc.process(new DateTime(0L, DateTimeZone.UTC)));
-        assertEquals(2017, proc.process(new DateTime(2017, 01, 02, 10, 10, DateTimeZone.UTC)));
+        assertEquals(1970, proc.process(dateTime(0L)));
+        assertEquals(2017, proc.process(dateTime(2017, 01, 02, 10, 10)));
 
         proc = new DateTimeProcessor(DateTimeExtractor.DAY_OF_MONTH, UTC);
-        assertEquals(1, proc.process(new DateTime(0L, DateTimeZone.UTC)));
-        assertEquals(2, proc.process(new DateTime(2017, 01, 02, 10, 10, DateTimeZone.UTC)));
-        assertEquals(31, proc.process(new DateTime(2017, 01, 31, 10, 10, DateTimeZone.UTC)));
+        assertEquals(1, proc.process(dateTime(0L)));
+        assertEquals(2, proc.process(dateTime(2017, 01, 02, 10, 10)));
+        assertEquals(31, proc.process(dateTime(2017, 01, 31, 10, 10)));
     }
 }

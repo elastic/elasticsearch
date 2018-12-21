@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -13,58 +14,93 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.Collections;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class MlAssignmentNotifierTests extends ESTestCase {
 
-    public void testClusterChanged_info() throws Exception {
-        Auditor auditor = mock(Auditor.class);
-        ClusterService clusterService = mock(ClusterService.class);
-        MlAssignmentNotifier notifier = new MlAssignmentNotifier(Settings.EMPTY, auditor, clusterService);
-        notifier.onMaster();
+    private Auditor auditor;
+    private ClusterService clusterService;
+    private ThreadPool threadPool;
+    private MlConfigMigrator configMigrator;
 
-        DiscoveryNode node =
-                new DiscoveryNode("node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+    @Before
+    @SuppressWarnings("unchecked")
+    private void setupMocks() {
+        auditor = mock(Auditor.class);
+        clusterService = mock(ClusterService.class);
+        threadPool = mock(ThreadPool.class);
+        configMigrator = mock(MlConfigMigrator.class);
+        threadPool = mock(ThreadPool.class);
+
+        ExecutorService executorService = mock(ExecutorService.class);
+        org.elasticsearch.mock.orig.Mockito.doAnswer(invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(executorService).execute(any(Runnable.class));
+        when(threadPool.executor(anyString())).thenReturn(executorService);
+
+        doAnswer(invocation -> {
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(Boolean.TRUE);
+            return null;
+        }).when(configMigrator).migrateConfigsWithoutTasks(any(ClusterState.class), any(ActionListener.class));
+    }
+
+    public void testClusterChanged_info() {
+        MlAssignmentNotifier notifier = new MlAssignmentNotifier(auditor, threadPool, configMigrator, clusterService);
+
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE,
                         new PersistentTasksCustomMetaData(0L, Collections.emptyMap())))
                 .build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
-        addJobTask("job_id", "node_id", null, tasksBuilder);
+        addJobTask("job_id", "_node_id", null, tasksBuilder);
         MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()).build();
-        ClusterState state = ClusterState.builder(new ClusterName("_name"))
+        ClusterState newState = ClusterState.builder(new ClusterName("_name"))
                 .metaData(metaData)
-                .nodes(DiscoveryNodes.builder().add(node))
+                // set local node master
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+                        .localNodeId("_node_id")
+                        .masterNodeId("_node_id"))
                 .build();
-        notifier.clusterChanged(new ClusterChangedEvent("_test", state, previous));
+        notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
         verify(auditor, times(1)).info(eq("job_id"), any());
+        verify(configMigrator, times(1)).migrateConfigsWithoutTasks(eq(newState), any());
 
-        notifier.offMaster();
-        notifier.clusterChanged(new ClusterChangedEvent("_test", state, previous));
+        // no longer master
+        newState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(metaData)
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT)))
+                .build();
+        notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
         verifyNoMoreInteractions(auditor);
     }
 
-    public void testClusterChanged_warning() throws Exception {
-        Auditor auditor = mock(Auditor.class);
-        ClusterService clusterService = mock(ClusterService.class);
-        MlAssignmentNotifier notifier = new MlAssignmentNotifier(Settings.EMPTY, auditor, clusterService);
-        notifier.onMaster();
+    public void testClusterChanged_warning() {
+        MlAssignmentNotifier notifier = new MlAssignmentNotifier(auditor, threadPool, configMigrator, clusterService);
 
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE,
@@ -74,15 +110,59 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", null, null, tasksBuilder);
         MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()).build();
-        ClusterState state = ClusterState.builder(new ClusterName("_name"))
+        ClusterState newState = ClusterState.builder(new ClusterName("_name"))
                 .metaData(metaData)
+                // set local node master
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                        .localNodeId("_node_id")
+                        .masterNodeId("_node_id"))
                 .build();
-        notifier.clusterChanged(new ClusterChangedEvent("_test", state, previous));
+        notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
         verify(auditor, times(1)).warning(eq("job_id"), any());
+        verify(configMigrator, times(1)).migrateConfigsWithoutTasks(eq(newState), any());
 
-        notifier.offMaster();
-        notifier.clusterChanged(new ClusterChangedEvent("_test", state, previous));
+        // no longer master
+        newState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(metaData)
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT)))
+                .build();
+
+        notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
         verifyNoMoreInteractions(auditor);
     }
 
+    public void testClusterChanged_noPersistentTaskChanges() {
+        MlAssignmentNotifier notifier = new MlAssignmentNotifier(auditor, threadPool, configMigrator, clusterService);
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask("job_id", null, null, tasksBuilder);
+        MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()).build();
+        ClusterState previous = ClusterState.builder(new ClusterName("_name"))
+                .metaData(metaData)
+                .build();
+
+        ClusterState newState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(metaData)
+                // set local node master
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                        .localNodeId("_node_id")
+                        .masterNodeId("_node_id"))
+                .build();
+
+        notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
+        verify(configMigrator, times(1)).migrateConfigsWithoutTasks(any(), any());
+        verifyNoMoreInteractions(auditor);
+
+        // no longer master
+        newState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(metaData)
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT)))
+                .build();
+        notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
+        verifyNoMoreInteractions(configMigrator);
+    }
 }

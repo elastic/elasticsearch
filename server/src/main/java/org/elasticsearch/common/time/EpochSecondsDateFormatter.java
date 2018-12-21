@@ -25,14 +25,13 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalField;
 import java.util.Locale;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 public class EpochSecondsDateFormatter implements DateFormatter {
 
     public static DateFormatter INSTANCE = new EpochSecondsDateFormatter();
+    static final DateMathParser DATE_MATH_INSTANCE = new JavaDateMathParser(INSTANCE, INSTANCE);
     private static final Pattern SPLIT_BY_DOT_PATTERN = Pattern.compile("\\.");
 
     private EpochSecondsDateFormatter() {}
@@ -82,13 +81,18 @@ public class EpochSecondsDateFormatter implements DateFormatter {
     }
 
     @Override
-    public Locale getLocale() {
+    public Locale locale() {
         return Locale.ROOT;
     }
 
     @Override
-    public ZoneId getZone() {
+    public ZoneId zone() {
         return ZoneOffset.UTC;
+    }
+
+    @Override
+    public DateMathParser toDateMathParser() {
+        return DATE_MATH_INSTANCE;
     }
 
     @Override
@@ -104,11 +108,6 @@ public class EpochSecondsDateFormatter implements DateFormatter {
         if (Locale.ROOT.equals(locale) == false) {
             throw new IllegalArgumentException(pattern() + " date formatter can only be in locale ROOT");
         }
-        return this;
-    }
-
-    @Override
-    public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
         return this;
     }
 }

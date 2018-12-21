@@ -298,7 +298,7 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-            loggingFilter.set(new LoggingFilter(clusterService.getSettings(), threadPool));
+            loggingFilter.set(new LoggingFilter(threadPool));
             return Collections.emptyList();
         }
 
@@ -313,8 +313,7 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
         private final ThreadPool threadPool;
 
-        public LoggingFilter(Settings settings, ThreadPool pool) {
-            super(settings);
+        public LoggingFilter(ThreadPool pool) {
             this.threadPool = pool;
         }
 

@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.util.Check;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
@@ -26,16 +26,9 @@ public class AggFilter extends PipelineAgg {
     public AggFilter(String name, ScriptTemplate scriptTemplate) {
         super(BUCKET_SELECTOR_ID_PREFIX + name);
         Check.isTrue(scriptTemplate != null, "a valid script is required");
-        this.scriptTemplate = scriptTemplate;
+        // make script null safe
+        this.scriptTemplate = Scripts.nullSafeFilter(scriptTemplate);
         this.aggPaths = scriptTemplate.aggPaths();
-    }
-
-    public Map<String, String> aggPaths() {
-        return aggPaths;
-    }
-
-    public Collection<String> aggRefs() {
-        return scriptTemplate.aggRefs();
     }
 
     public ScriptTemplate scriptTemplate() {

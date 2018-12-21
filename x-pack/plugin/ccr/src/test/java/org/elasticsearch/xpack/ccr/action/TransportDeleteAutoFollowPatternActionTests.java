@@ -56,8 +56,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
                 new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
             .build();
 
-        Request request = new Request();
-        request.setName("name1");
+        Request request = new Request("name1");
         AutoFollowMetadata result = TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState)
             .getMetaData()
             .custom(AutoFollowMetadata.TYPE);
@@ -86,8 +85,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
                 new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
             .build();
 
-        Request request = new Request();
-        request.setName("name2");
+        Request request = new Request("name2");
         Exception e = expectThrows(ResourceNotFoundException.class,
             () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState));
         assertThat(e.getMessage(), equalTo("auto-follow pattern [name2] is missing"));
@@ -98,8 +96,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             .metaData(MetaData.builder())
             .build();
 
-        Request request = new Request();
-        request.setName("name1");
+        Request request = new Request("name1");
         Exception e = expectThrows(ResourceNotFoundException.class,
             () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState));
         assertThat(e.getMessage(), equalTo("auto-follow pattern [name1] is missing"));

@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -36,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
 import java.io.IOException;
@@ -54,10 +54,10 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     private final JobManager jobManager;
 
     @Inject
-    public TransportUpdateFilterAction(Settings settings, TransportService transportService, ActionFilters actionFilters, Client client,
+    public TransportUpdateFilterAction(TransportService transportService, ActionFilters actionFilters, Client client,
                                        JobManager jobManager) {
-        super(settings, UpdateFilterAction.NAME, transportService, actionFilters,
-                (Supplier<UpdateFilterAction.Request>) UpdateFilterAction.Request::new);
+        super(UpdateFilterAction.NAME, transportService, actionFilters,
+            (Supplier<UpdateFilterAction.Request>) UpdateFilterAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
     }
@@ -105,7 +105,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
             indexRequest.source(filter.toXContent(builder, params));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
@@ -114,8 +114,10 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, new ActionListener<IndexResponse>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
-                jobManager.notifyFilterChanged(filter, request.getAddItems(), request.getRemoveItems());
-                listener.onResponse(new PutFilterAction.Response(filter));
+                jobManager.notifyFilterChanged(filter, request.getAddItems(), request.getRemoveItems(), ActionListener.wrap(
+                        response -> listener.onResponse(new PutFilterAction.Response(filter)),
+                        listener::onFailure
+                ));
             }
 
             @Override

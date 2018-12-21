@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -217,7 +218,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", index, 0, null));
         hit.sourceRef(source);
-        SearchHits hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
+        SearchHits hits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         when(searchResponse1.getHits()).thenReturn(hits);
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
         doAnswer(invocation -> {
@@ -231,7 +232,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", index, 0, null));
         hit.sourceRef(source);
-        hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
+        hits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponse searchResponse2 = new SearchResponse(
             new InternalSearchResponse(hits, null, null, null, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
         SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId2", 1, 1, 0, 1, null, null);
@@ -398,10 +399,10 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         triggeredWatch.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(Collections.singleton(new CronSchedule.Parser()));
-        TriggerEngine triggerEngine = new WatchTests.ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, new ClockMock());
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
+        TriggerEngine triggerEngine = new WatchTests.ParseOnlyScheduleTriggerEngine(scheduleRegistry, new ClockMock());
+        TriggerService triggerService = new TriggerService(singleton(triggerEngine));
 
-        TriggeredWatch.Parser parser = new TriggeredWatch.Parser(Settings.EMPTY, triggerService);
+        TriggeredWatch.Parser parser = new TriggeredWatch.Parser(triggerService);
         TriggeredWatch parsedTriggeredWatch = parser.parse(triggeredWatch.id().value(), 0, BytesReference.bytes(jsonBuilder));
 
         XContentBuilder jsonBuilder2 = XContentFactory.jsonBuilder();

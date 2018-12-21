@@ -217,11 +217,11 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * to wait till throttling on it is done.
      */
     public void testThrottleWhenAllocatingToMatchingNode() {
-        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(new AllocationDeciders(Settings.EMPTY,
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(new AllocationDeciders(
             Arrays.asList(new TestAllocateDecision(Decision.YES),
                 new SameShardAllocationDecider(
                     Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-                new AllocationDecider(Settings.EMPTY) {
+                new AllocationDecider() {
                     @Override
                     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                         if (node.node().equals(node2)) {
@@ -355,10 +355,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
 
         private Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> data = null;
         private AtomicBoolean fetchDataCalled = new AtomicBoolean(false);
-
-        TestAllocator() {
-            super(Settings.EMPTY);
-        }
 
         public void clean() {
             data = null;

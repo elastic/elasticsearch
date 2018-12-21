@@ -126,8 +126,11 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
                                                   "parseResponseException",
                                                   "performRequest",
                                                   "performRequestAndParseEntity",
+                                                  "performRequestAndParseOptionalEntity",
                                                   "performRequestAsync",
-                                                  "performRequestAsyncAndParseEntity"};
+                                                  "performRequestAsyncAndParseEntity",
+                                                  "performRequestAsyncAndParseOptionalEntity"
+                                                  };
 
         final Set<String> protectedMethods =  Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
                                                      .filter(method -> Modifier.isProtected(method.getModifiers()))

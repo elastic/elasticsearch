@@ -352,7 +352,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                     for (int i = 0; i < iters; i++) {
                         int shard = randomIntBetween(0, counts.length - 1);
                         try {
-                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), scaledRandomIntBetween(0, 10))) {
+                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), 
+                                    scaledRandomIntBetween(0, 10))) {
                                 counts[shard].value++;
                                 countsAtomic[shard].incrementAndGet();
                                 assertEquals(flipFlop[shard].incrementAndGet(), 1);
@@ -386,7 +387,9 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         final Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "myindexUUID").build();
         IndexSettings s1 = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
-        IndexSettings s2 = IndexSettingsModule.newIndexSettings("myindex", Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build());
+        IndexSettings s2 = IndexSettingsModule.newIndexSettings("myindex", Settings.builder()
+                .put(indexSettings)
+                .put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build());
         Index index = new Index("myindex", "myindexUUID");
         ShardId sid = new ShardId(index, 0);
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -12,45 +13,26 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityExtension;
+import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class RealmSettingsTests extends ESTestCase {
     private static final List<String> CACHE_HASHING_ALGOS = Arrays.stream(Hasher.values()).map(Hasher::name).collect(Collectors.toList());
 
-    public void testRealmWithoutTypeDoesNotValidate() throws Exception {
-        final Settings.Builder builder = baseSettings("x", false);
-        builder.remove("type");
-        assertErrorWithMessage("empty1", "missing realm type", realm("empty1", builder).build());
-    }
-
     public void testRealmWithBlankTypeDoesNotValidate() throws Exception {
-        final Settings.Builder builder = baseSettings("", false);
-        assertErrorWithMessage("empty2", "missing realm type", realm("empty2", builder).build());
-    }
-
-    /**
-     * This test exists because (in 5.x), we want to be backwards compatible and accept custom realms that
-     * have not been updated to explicitly declare their settings.
-     *
-     * @see org.elasticsearch.xpack.core.security.SecurityExtension#getRealmSettings()
-     */
-    public void testRealmWithUnknownTypeAcceptsAllSettings() throws Exception {
-        final Settings.Builder settings = baseSettings("tam", true)
-                .put("ip", "8.6.75.309")
-                .put(randomAlphaOfLengthBetween(4, 8), randomTimeValue());
-        assertSuccess(realm("tam", settings));
+        final Settings.Builder builder = baseSettings(false);
+        assertErrorWithMessage("", "empty", "unknown setting [" + realmPrefix("", "empty"), realm("", "empty", builder).build());
     }
 
     public void testFileRealmWithAllSettingsValidatesSuccessfully() throws Exception {
@@ -58,8 +40,8 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     public void testFileRealmWithUnknownConfigurationDoesNotValidate() throws Exception {
-        final Settings.Builder builder = realm("file2", fileSettings().put("not-valid", randomInt()));
-        assertErrorWithCause("file2", "unknown setting [not-valid]", builder.build());
+        final Settings.Builder builder = realm("file", "file2", fileSettings().put("not-valid", randomInt()));
+        assertErrorWithMessage("file", "file2", "unknown setting [" + realmPrefix("file", "file2") + "not-valid]", builder.build());
     }
 
     public void testNativeRealmWithAllSettingsValidatesSuccessfully() throws Exception {
@@ -67,8 +49,8 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     public void testNativeRealmWithUnknownConfigurationDoesNotValidate() throws Exception {
-        final Settings.Builder builder = realm("native2", nativeSettings().put("not-valid", randomAlphaOfLength(10)));
-        assertErrorWithCause("native2", "unknown setting [not-valid]", builder.build());
+        final Settings.Builder builder = realm("native", "native2", nativeSettings().put("not-valid", randomAlphaOfLength(10)));
+        assertErrorWithMessage("native", "native2", "unknown setting [" + realmPrefix("native", "native2") + "not-valid]", builder.build());
     }
 
     public void testLdapRealmWithUserTemplatesAndGroupAttributesValidatesSuccessfully() throws Exception {
@@ -92,15 +74,8 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     public void testPkiRealmWithFullSslSettingsDoesNotValidate() throws Exception {
-        final Settings.Builder realm = realm("pki3", configureSsl("", pkiSettings(true), true, true));
-        assertError("pki3", realm.build());
-    }
-
-    public void testPkiRealmWithClosedSecurePasswordValidatesSuccessfully() throws Exception {
-        final Settings.Builder builder = pkiRealm("pki4", true);
-        builder.getSecureSettings().close();
-        final Settings settings = builder.build();
-        assertSuccess(settings);
+        final Settings.Builder realm = realm("pki", "pki3", configureSsl("", pkiSettings(true), true, true));
+        assertError("pki", "pki3", realm.build());
     }
 
     public void testSettingsWithMultipleRealmsValidatesSuccessfully() throws Exception {
@@ -115,23 +90,23 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     private Settings.Builder nativeRealm(String name) {
-        return realm(name, nativeSettings());
+        return realm("native", name, nativeSettings());
     }
 
     private Settings.Builder nativeSettings() {
-        return baseSettings("native", true);
+        return baseSettings(true);
     }
 
     private Settings.Builder fileRealm(String name) {
-        return realm(name, fileSettings());
+        return realm("file", name, fileSettings());
     }
 
     private Settings.Builder fileSettings() {
-        return baseSettings("file", true);
+        return baseSettings(true);
     }
 
     private Settings.Builder ldapRealm(String name, boolean userSearch, boolean groupSearch) {
-        return realm(name, ldapSettings(userSearch, groupSearch));
+        return realm("ldap", name, ldapSettings(userSearch, groupSearch));
     }
 
     private Settings.Builder ldapSettings(boolean userSearch, boolean groupSearch) {
@@ -140,7 +115,7 @@ public class RealmSettingsTests extends ESTestCase {
                 .put("follow_referrals", randomBoolean());
 
         SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
-            secureSettings.setString("bind_password", "t0p_s3cr3t");
+            secureSettings.setString("secure_bind_password", "t0p_s3cr3t");
         });
 
         if (userSearch) {
@@ -171,7 +146,7 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     private Settings.Builder activeDirectoryRealm(String name, boolean configureSSL) {
-        return realm(name, activeDirectorySettings(configureSSL));
+        return realm("active_directory", name, activeDirectorySettings(configureSSL));
     }
 
     private Settings.Builder activeDirectorySettings(boolean configureSSL) {
@@ -186,7 +161,7 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     private Settings.Builder commonLdapSettings(String type, boolean configureSSL) {
-        final Settings.Builder builder = baseSettings(type, true)
+        final Settings.Builder builder = baseSettings(true)
                 .putList("url", "ldap://dir1.internal:9876", "ldap://dir2.internal:9876", "ldap://dir3.internal:9876")
                 .put("load_balance.type", "round_robin")
                 .put("load_balance.cache_ttl", randomTimeValue())
@@ -202,11 +177,11 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     private Settings.Builder pkiRealm(String name, boolean useTrustStore) {
-        return realm(name, pkiSettings(useTrustStore));
+        return realm("pki", name, pkiSettings(useTrustStore));
     }
 
     private Settings.Builder pkiSettings(boolean useTrustStore) {
-        final Settings.Builder builder = baseSettings("pki", false)
+        final Settings.Builder builder = baseSettings(false)
                 .put("username_pattern", "CN=\\D(\\d+)(?:,\\|$)")
                 .put("files.role_mapping", "x-pack/" + randomAlphaOfLength(8) + ".yml");
 
@@ -232,7 +207,7 @@ public class RealmSettingsTests extends ESTestCase {
         } else {
             builder.put(prefix + "key", "x-pack/ssl/" + randomAlphaOfLength(5) + ".key");
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
-                secureSettings.setString(prefix + "secure_key_passphrase", randomAlphaOfLength(32)));
+                    secureSettings.setString(prefix + "secure_key_passphrase", randomAlphaOfLength(32)));
 
             builder.put(prefix + "certificate", "ssl/" + randomAlphaOfLength(5) + ".cert");
         }
@@ -240,7 +215,7 @@ public class RealmSettingsTests extends ESTestCase {
         if (useTrustStore) {
             builder.put(prefix + "truststore.path", "x-pack/ssl/" + randomAlphaOfLength(5) + ".jts");
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
-                secureSettings.setString(prefix + "truststore.secure_password", randomAlphaOfLength(8)));
+                    secureSettings.setString(prefix + "truststore.secure_password", randomAlphaOfLength(8)));
         } else {
             builder.put(prefix + "certificate_authorities", "ssl/" + randomAlphaOfLength(8) + ".ca");
         }
@@ -252,9 +227,8 @@ public class RealmSettingsTests extends ESTestCase {
         return builder;
     }
 
-    private Settings.Builder baseSettings(String type, boolean withCacheSettings) {
+    private Settings.Builder baseSettings(boolean withCacheSettings) {
         final Settings.Builder builder = Settings.builder()
-                .put("type", type)
                 .put("order", randomInt())
                 .put("enabled", true);
         if (withCacheSettings) {
@@ -265,8 +239,8 @@ public class RealmSettingsTests extends ESTestCase {
         return builder;
     }
 
-    private Settings.Builder realm(String name, Settings.Builder settings) {
-        final String prefix = realmPrefix(name);
+    private Settings.Builder realm(String type, String name, Settings.Builder settings) {
+        final String prefix = realmPrefix(type, name);
         final MockSecureSettings secureSettings = normaliseSecureSettingPrefix(prefix, settings.getSecureSettings());
         final Settings.Builder builder = Settings.builder().put(settings.normalizePrefix(prefix).build(), false);
         if (secureSettings != null) {
@@ -291,8 +265,8 @@ public class RealmSettingsTests extends ESTestCase {
         }
     }
 
-    private String realmPrefix(String name) {
-        return RealmSettings.PREFIX + name + ".";
+    private String realmPrefix(String type, String name) {
+        return RealmSettings.PREFIX + type + "." + name + ".";
     }
 
     private void assertSuccess(Settings.Builder builder) {
@@ -300,33 +274,37 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     private void assertSuccess(Settings settings) {
-        assertThat(group().get(settings), notNullValue());
+        try {
+            validate(settings);
+        } catch (RuntimeException e) {
+            fail("Settings do not validate: " + e);
+        }
     }
 
-    private void assertErrorWithCause(String realmName, String message, Settings settings) {
-        final IllegalArgumentException exception = assertError(realmName, settings);
+    private void assertErrorWithCause(String realmType, String realmName, String message, Settings settings) {
+        final IllegalArgumentException exception = assertError(realmType, realmName, settings);
         assertThat(exception.getCause(), notNullValue());
         assertThat(exception.getCause().getMessage(), containsString(message));
     }
 
-    private void assertErrorWithMessage(String realmName, String message, Settings settings) {
-        final IllegalArgumentException exception = assertError(realmName, settings);
+    private void assertErrorWithMessage(String realmType, String realmName, String message, Settings settings) {
+        final IllegalArgumentException exception = assertError(realmType, realmName, settings);
         assertThat(exception.getMessage(), containsString(message));
     }
 
-    private IllegalArgumentException assertError(String realmName, Settings settings) {
+    private IllegalArgumentException assertError(String realmType, String realmName, Settings settings) {
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> group().get(settings)
+                () -> validate(settings)
         );
-        assertThat(exception.getMessage(), containsString(realmPrefix(realmName)));
+        assertThat(exception.getMessage(), containsString(realmPrefix(realmType, realmName)));
         return exception;
     }
 
-    private Setting<?> group() {
-        final List<Setting<?>> list = new ArrayList<>();
-        final List<SecurityExtension> noExtensions = Collections.emptyList();
-        RealmSettings.addSettings(list, noExtensions);
-        assertThat(list, hasSize(1));
-        return list.get(0);
+    private void validate(Settings settings) {
+        final Set<Setting<?>> settingsSet = new HashSet<>(InternalRealmsSettings.getSettings());
+        final AbstractScopedSettings validator = new AbstractScopedSettings(settings, settingsSet, Collections.emptySet(),
+            Setting.Property.NodeScope) {
+        };
+        validator.validate(settings, false);
     }
 }

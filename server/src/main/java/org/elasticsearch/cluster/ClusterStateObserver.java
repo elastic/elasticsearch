@@ -216,7 +216,8 @@ public class ClusterStateObserver {
                     lastObservedState.set(new StoredState(newState));
                     context.listener.onNewClusterState(newState);
                 } else {
-                    logger.trace("observer: postAdded - predicate approved state but observing context has changed - ignoring ({})", newState);
+                    logger.trace("observer: postAdded - predicate approved state but observing context has changed - ignoring ({})",
+                        newState);
                 }
             } else {
                 logger.trace("observer: postAdded - predicate rejected state ({})", newState);
@@ -240,7 +241,8 @@ public class ClusterStateObserver {
             if (context != null) {
                 clusterApplierService.removeTimeoutListener(this);
                 long timeSinceStartMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeNS);
-                logger.trace("observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStartMS));
+                logger.trace("observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]",
+                    timeOutValue, new TimeValue(timeSinceStartMS));
                 // update to latest, in case people want to retry
                 lastObservedState.set(new StoredState(clusterApplierService.state()));
                 timedOut = true;

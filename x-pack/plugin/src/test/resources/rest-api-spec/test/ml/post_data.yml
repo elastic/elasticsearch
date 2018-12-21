@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: post-data-job
         body:  >
           {
@@ -22,7 +24,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: post-data-closed-job
         body:  >
           {
@@ -39,13 +41,13 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: post-data-job
 
 ---
 "Test POST data job api, flush, close and verify DataCounts doc":
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: post-data-job
         body:
           - airline: AAL
@@ -69,18 +71,18 @@ setup:
   - match: { latest_record_timestamp: 1403481700000}
 
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: post-data-job
   - match: { flushed: true }
   - match: { last_finalized_bucket_end: 1403481600000 }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: post-data-job
   - match: { closed: true }
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: post-data-job
   - match: { jobs.0.state: "closed" }
 
@@ -104,18 +106,18 @@ setup:
 ---
 "Test flush and close job WITHOUT sending any data":
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: post-data-job
   - match: { flushed: true }
   - match: { last_finalized_bucket_end: 0 }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: post-data-job
   - match: { closed: true }
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: post-data-job
   - match: { jobs.0.state: "closed" }
 
@@ -123,7 +125,7 @@ setup:
 "Test flush with skip_time":
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: post-data-job
         body:
           - airline: AAL
@@ -137,7 +139,7 @@ setup:
 
   # Skip a bucket
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: post-data-job
         skip_time: 1403488700
   - match: { flushed: true }
@@ -145,7 +147,7 @@ setup:
 
   # Send some data that should be ignored
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: post-data-job
         body:
           - airline: AAL
@@ -159,7 +161,7 @@ setup:
 
   # Send data that will create results for the bucket after the skipped one
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: post-data-job
         body:
           - airline: AAL
@@ -172,12 +174,12 @@ setup:
             time: 1403492400
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: post-data-job
   - match: { closed: true }
 
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "post-data-job"
   - match: { count: 2 }
   - match: { buckets.0.timestamp: 1403481600000 }
@@ -187,10 +189,13 @@ setup:
 
 ---
 "Test POST data with invalid parameters":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/34747"
+      version: "6.5.0 - "
 
   - do:
       catch: missing
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: not_a_job
         body:
           - airline: AAL
@@ -204,7 +209,7 @@ setup:
 
   - do:
       catch: /parse_exception/
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: post-data-job
         reset_start: not_a_date
         body:
@@ -219,7 +224,7 @@ setup:
 
   - do:
       catch: /parse_exception/
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: post-data-job
         reset_end: end_not_a_date
         body:
@@ -234,26 +239,30 @@ setup:
 
 ---
 "Test Flush data with invalid parameters":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/34747"
+      version: "6.5.0 - "
+
   - do:
       catch: missing
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: not_a_job
 
   - do:
       catch: /parse_exception/
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: post-data-job
         start: not_a_date
 
   - do:
       catch: /parse_exception/
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: post-data-job
         end: end_not_a_date
 
   - do:
       catch: /parse_exception/
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: post-data-job
         advance_time: advance_time_not_a_date
 
@@ -261,12 +270,12 @@ setup:
 "Test open and close with non-existent job id":
   - do:
       catch: missing
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: not_a_job
 
   - do:
       catch: missing
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: not_a_job
 
 ---
@@ -274,12 +283,12 @@ setup:
 
   - do:
       catch: /status_exception/
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: post-data-closed-job
 
   - do:
       catch: /status_exception/
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: post-data-closed-job
         body:
           - airline: AAL

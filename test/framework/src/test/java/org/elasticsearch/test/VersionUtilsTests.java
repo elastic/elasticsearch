@@ -24,8 +24,10 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
@@ -389,13 +391,19 @@ public class VersionUtilsTests extends ESTestCase {
         private final List<String> unreleased = new ArrayList<>();
 
         private VersionsFromProperty(String property) {
+            Set<String> allUnreleased = new HashSet<>(Arrays.asList(
+                System.getProperty("tests.gradle_unreleased_versions", "").split(",")
+            ));
+            if (allUnreleased.isEmpty()) {
+                fail("[tests.gradle_unreleased_versions] not set or empty. Gradle should set this before running.");
+            }
             String versions = System.getProperty(property);
-            assertNotNull("Couldn't find [" + property + "]. Gradle should set these before running the tests.", versions);
+            assertNotNull("Couldn't find [" + property + "]. Gradle should set this before running the tests.", versions);
             logger.info("Looked up versions [{}={}]", property, versions);
 
             for (String version : versions.split(",")) {
-                if (version.endsWith("-SNAPSHOT")) {
-                    unreleased.add(version.replace("-SNAPSHOT", ""));
+                if (allUnreleased.contains(version)) {
+                    unreleased.add(version);
                 } else {
                     released.add(version);
                 }

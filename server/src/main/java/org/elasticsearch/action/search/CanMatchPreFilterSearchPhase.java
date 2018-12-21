@@ -55,10 +55,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
                                         TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
                                         SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
                                         SearchResponse.Clusters clusters) {
-        /*
-         * We set max concurrent shard requests to the number of shards to otherwise avoid deep recursing that would occur if the local node
-         * is the coordinating node for the query, holds all the shards for the request, and there are a lot of shards.
-         */
+        //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
         super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener, shardsIts, timeProvider, clusterStateVersion, task,
                 new BitSetSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);

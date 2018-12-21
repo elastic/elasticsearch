@@ -25,10 +25,8 @@ public abstract class BinaryStringNumericFunction extends BinaryStringFunction<N
     protected abstract BinaryStringNumericOperation operation();
 
     @Override
-    protected TypeResolution resolveSecondParameterInputType(DataType inputType) {
-        return inputType.isNumeric() ?
-                TypeResolution.TYPE_RESOLVED :
-                new TypeResolution("'%s' requires second parameter to be a numeric type, received %s", functionName(), inputType);
+    protected TypeResolution resolveSecondParameterInputType(Expression e) {
+        return Expressions.typeMustBeNumeric(e,functionName(), Expressions.ParamOrdinal.SECOND);
     }
 
     @Override

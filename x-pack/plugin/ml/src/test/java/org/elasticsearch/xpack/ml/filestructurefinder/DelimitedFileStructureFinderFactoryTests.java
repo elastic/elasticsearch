@@ -12,7 +12,7 @@ public class DelimitedFileStructureFinderFactoryTests extends FileStructureTestC
     private FileStructureFinderFactory semiColonDelimitedfactory = new DelimitedFileStructureFinderFactory(';', '"', 4, false);
     private FileStructureFinderFactory pipeDelimitedFactory = new DelimitedFileStructureFinderFactory('|', '"', 5, true);
 
-    // CSV - no need to check JSON or XML because they come earlier in the order we check formats
+    // CSV - no need to check NDJSON or XML because they come earlier in the order we check formats
 
     public void testCanCreateCsvFromSampleGivenCsv() {
 
@@ -39,7 +39,7 @@ public class DelimitedFileStructureFinderFactoryTests extends FileStructureTestC
         assertFalse(csvFactory.canCreateFromSample(explanation, TEXT_SAMPLE));
     }
 
-    // TSV - no need to check JSON, XML or CSV because they come earlier in the order we check formats
+    // TSV - no need to check NDJSON, XML or CSV because they come earlier in the order we check formats
 
     public void testCanCreateTsvFromSampleGivenTsv() {
 
@@ -61,7 +61,7 @@ public class DelimitedFileStructureFinderFactoryTests extends FileStructureTestC
         assertFalse(tsvFactory.canCreateFromSample(explanation, TEXT_SAMPLE));
     }
 
-    // Semi-colon delimited - no need to check JSON, XML, CSV or TSV because they come earlier in the order we check formats
+    // Semi-colon delimited - no need to check NDJSON, XML, CSV or TSV because they come earlier in the order we check formats
 
     public void testCanCreateSemiColonDelimitedFromSampleGivenSemiColonDelimited() {
 
@@ -78,7 +78,7 @@ public class DelimitedFileStructureFinderFactoryTests extends FileStructureTestC
         assertFalse(semiColonDelimitedfactory.canCreateFromSample(explanation, TEXT_SAMPLE));
     }
 
-    // Pipe delimited - no need to check JSON, XML, CSV, TSV or semi-colon delimited
+    // Pipe delimited - no need to check NDJSON, XML, CSV, TSV or semi-colon delimited
     // values because they come earlier in the order we check formats
 
     public void testCanCreatePipeDelimitedFromSampleGivenPipeDelimited() {

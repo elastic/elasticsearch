@@ -123,8 +123,7 @@ public class FunctionScoreQuery extends Query {
     final ScoreMode scoreMode;
     final float maxBoost;
     private final Float minScore;
-
-    protected final CombineFunction combineFunction;
+    private final CombineFunction combineFunction;
 
     /**
      * Creates a FunctionScoreQuery without function.
@@ -190,6 +189,10 @@ public class FunctionScoreQuery extends Query {
 
     public Float getMinScore() {
         return minScore;
+    }
+
+    public CombineFunction getCombineFunction() {
+        return combineFunction;
     }
 
     @Override
@@ -379,7 +382,7 @@ public class FunctionScoreQuery extends Query {
             }
             double factor = computeScore(docId, subQueryScore);
             float finalScore = scoreCombiner.combine(subQueryScore, factor, maxBoost);
-            if (finalScore == Float.NEGATIVE_INFINITY || Float.isNaN(finalScore)) {
+            if (finalScore < 0f || Float.isNaN(finalScore)) {
                 /*
                   These scores are invalid for score based {@link org.apache.lucene.search.TopDocsCollector}s.
                   See {@link org.apache.lucene.search.TopScoreDocCollector} for details.

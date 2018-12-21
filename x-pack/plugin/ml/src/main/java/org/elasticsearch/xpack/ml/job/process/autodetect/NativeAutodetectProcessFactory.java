@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -33,7 +33,7 @@ import java.util.concurrent.ExecutorService;
 
 public class NativeAutodetectProcessFactory implements AutodetectProcessFactory {
 
-    private static final Logger LOGGER = Loggers.getLogger(NativeAutodetectProcessFactory.class);
+    private static final Logger LOGGER = LogManager.getLogger(NativeAutodetectProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
     public static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(10);
 
@@ -68,7 +68,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 
         AutodetectStateProcessor stateProcessor = new AutodetectStateProcessor(client, job.getId());
-        AutodetectResultsParser resultsParser = new AutodetectResultsParser(settings);
+        AutodetectResultsParser resultsParser = new AutodetectResultsParser();
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
                 job.getId(), processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
                 processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields,

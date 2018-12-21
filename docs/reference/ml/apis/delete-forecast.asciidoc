@@ -1,20 +1,20 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-forecast]]
-=== Delete Forecast API
+=== Delete forecast API
 ++++
-<titleabbrev>Delete Forecast</titleabbrev>
+<titleabbrev>Delete forecast</titleabbrev>
 ++++
 
 Deletes forecasts from a {ml} job.  
 
 ==== Request
 
-`DELETE _xpack/ml/anomaly_detectors/<job_id>/_forecast` +
+`DELETE _ml/anomaly_detectors/<job_id>/_forecast` +
 
-`DELETE _xpack/ml/anomaly_detectors/<job_id>/_forecast/<forecast_id>` +
+`DELETE _ml/anomaly_detectors/<job_id>/_forecast/<forecast_id>` +
 
-`DELETE _xpack/ml/anomaly_detectors/<job_id>/_forecast/_all` 
+`DELETE _ml/anomaly_detectors/<job_id>/_forecast/_all`
 
 
 ==== Description
@@ -63,7 +63,7 @@ The following example deletes all forecasts from the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/ml/anomaly_detectors/total-requests/_forecast/_all
+DELETE _ml/anomaly_detectors/total-requests/_forecast/_all
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_openjob]

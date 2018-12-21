@@ -6,17 +6,15 @@ setup:
       cluster.health:
           wait_for_status: yellow
 
-
-
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "test_user"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "foo_only_access"
         ignore: 404
 
@@ -24,7 +22,7 @@ teardown:
 "Index-based access":
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "foo_only_access"
         body:  >
             {
@@ -36,7 +34,7 @@ teardown:
             }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "test_user"
         body:  >
           {
@@ -149,6 +147,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: foo
         body:
           query:
@@ -160,6 +159,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: rollup
         body:
           query:
@@ -186,7 +186,7 @@ teardown:
 "Attribute-based access":
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "foo_only_access"
         body:  >
             {
@@ -206,7 +206,7 @@ teardown:
             }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "test_user"
         body:  >
           {
@@ -310,6 +310,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: foo
         body:
           query:
@@ -321,6 +322,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
+        rest_total_hits_as_int: true
         index: rollup
         body:
           query:

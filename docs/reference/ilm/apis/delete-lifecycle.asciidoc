@@ -1,0 +1,88 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-delete-lifecycle]]
+=== Delete lifecycle policy API
+++++
+<titleabbrev>Delete policy</titleabbrev>
+++++
+
+beta[]
+
+Deletes a lifecycle policy.
+
+==== Request
+
+`DELETE _ilm/policy/<policy_id>`
+
+==== Description
+
+Deletes the specified lifecycle policy definition. You cannot delete policies
+that are currently in use. If the policy is being used to manage any indices,
+the request fails and returns an error.
+
+==== Path Parameters
+
+`policy` (required)::
+  (string) Identifier for the policy.
+
+==== Request Parameters
+
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
+
+==== Authorization
+
+You must have the `manage_ilm` cluster privilege to use this API.
+For more information, see {stack-ov}/security-privileges.html[Security Privileges].
+
+==== Examples
+
+The following example deletes `my_policy`:
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "min_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+DELETE _ilm/policy/my_policy
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+When the policy is successfully deleted, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE

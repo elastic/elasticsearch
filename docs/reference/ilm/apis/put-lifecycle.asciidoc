@@ -1,0 +1,81 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-put-lifecycle]]
+=== Create lifecycle policy API
+++++
+<titleabbrev>Create policy</titleabbrev>
+++++
+
+beta[]
+
+Creates or updates lifecycle policy.
+
+==== Request
+
+`PUT _ilm/policy/<policy_id>`
+
+==== Description
+
+Creates a lifecycle policy. If the specified policy exists, the policy is
+replaced and the policy version is incremented.
+
+NOTE: Only the latest version of the policy is stored, you cannot revert to
+previous versions.
+
+==== Path Parameters
+
+`policy` (required)::
+  (string) Identifier for the policy.
+
+==== Request Parameters
+
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
+
+==== Authorization
+
+You must have the `manage_ilm` cluster privilege to use this API. You must
+also have the `manage` index privilege on all indices being managed by `policy`.
+All operations executed by {ilm} for a policy are executed as the user that
+put the latest version of a policy.
+For more information, see {stack-ov}/security-privileges.html[Security Privileges].
+
+==== Examples
+
+The following example creates a new policy named `my_policy`:
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "min_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+If the request succeeds, you receive the following result:
+[source,js]
+----
+{
+  "acknowledged": true
+}
+----
+// CONSOLE
+// TESTRESPONSE

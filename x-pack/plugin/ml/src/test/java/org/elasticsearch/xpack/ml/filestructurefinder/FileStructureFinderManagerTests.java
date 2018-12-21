@@ -73,20 +73,20 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
         }
     }
 
-    public void testMakeBestStructureGivenJson() throws Exception {
-        assertThat(structureFinderManager.makeBestStructureFinder(explanation, JSON_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(JsonFileStructureFinder.class));
+    public void testMakeBestStructureGivenNdJson() throws Exception {
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation, NDJSON_SAMPLE, StandardCharsets.UTF_8.name(),
+            randomBoolean(), EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(NdJsonFileStructureFinder.class));
     }
 
-    public void testMakeBestStructureGivenJsonAndDelimitedOverride() throws Exception {
+    public void testMakeBestStructureGivenNdJsonAndDelimitedOverride() throws Exception {
 
         // Need to change the quote character from the default of double quotes
-        // otherwise the quotes in the JSON will stop it parsing as CSV
+        // otherwise the quotes in the NDJSON will stop it parsing as CSV
         FileStructureOverrides overrides = FileStructureOverrides.builder()
             .setFormat(FileStructure.Format.DELIMITED).setQuote('\'').build();
 
-        assertThat(structureFinderManager.makeBestStructureFinder(explanation, JSON_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            overrides, NOOP_TIMEOUT_CHECKER), instanceOf(DelimitedFileStructureFinder.class));
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation, NDJSON_SAMPLE, StandardCharsets.UTF_8.name(),
+            randomBoolean(), overrides, NOOP_TIMEOUT_CHECKER), instanceOf(DelimitedFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXml() throws Exception {
@@ -109,13 +109,13 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
 
     public void testMakeBestStructureGivenCsvAndJsonOverride() {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setFormat(FileStructure.Format.JSON).build();
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setFormat(FileStructure.Format.NDJSON).build();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> structureFinderManager.makeBestStructureFinder(explanation, CSV_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
                 overrides, NOOP_TIMEOUT_CHECKER));
 
-        assertEquals("Input did not match the specified format [json]", e.getMessage());
+        assertEquals("Input did not match the specified format [ndjson]", e.getMessage());
     }
 
     public void testMakeBestStructureGivenText() throws Exception {

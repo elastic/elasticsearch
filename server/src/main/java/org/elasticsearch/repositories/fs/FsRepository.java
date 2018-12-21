@@ -19,6 +19,8 @@
 
 package org.elasticsearch.repositories.fs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -46,6 +48,7 @@ import java.util.function.Function;
  * </dl>
  */
 public class FsRepository extends BlobStoreRepository {
+    private static final Logger logger = LogManager.getLogger(FsRepository.class);
 
     public static final String TYPE = "fs";
 
@@ -99,10 +102,10 @@ public class FsRepository extends BlobStoreRepository {
         if (CHUNK_SIZE_SETTING.exists(metadata.settings())) {
             this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
         } else {
-            this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(settings);
+            this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(environment.settings());
         }
         this.compress = COMPRESS_SETTING.exists(metadata.settings())
-            ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(settings);
+            ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(environment.settings());
         this.basePath = BlobPath.cleanPath();
     }
 
@@ -110,7 +113,7 @@ public class FsRepository extends BlobStoreRepository {
     protected BlobStore createBlobStore() throws Exception {
         final String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         final Path locationFile = environment.resolveRepoFile(location);
-        return new FsBlobStore(settings, locationFile);
+        return new FsBlobStore(environment.settings(), locationFile);
     }
 
     @Override

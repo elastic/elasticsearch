@@ -52,12 +52,18 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
             .build();
         expectThrows(ResourceNotFoundException.class,
             () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metaData, "name1"));
+
+        Map<String, AutoFollowPattern> result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metaData, null);
+        assertThat(result.size(), equalTo(0));
     }
 
     public void testGetAutoFollowPatternNoAutoFollowMetadata() {
         MetaData metaData = MetaData.builder().build();
         expectThrows(ResourceNotFoundException.class,
             () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metaData, "name1"));
+
+        Map<String, AutoFollowPattern> result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metaData, null);
+        assertThat(result.size(), equalTo(0));
     }
 
 }

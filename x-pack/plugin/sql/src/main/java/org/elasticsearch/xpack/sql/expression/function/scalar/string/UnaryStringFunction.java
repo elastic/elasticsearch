@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
@@ -41,9 +43,7 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-
-        return field().dataType().isString() ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "'%s' requires a string type, received %s", operation(), field().dataType().esType);
+        return Expressions.typeMustBeString(field(), operation().toString(), ParamOrdinal.DEFAULT);
     }
 
     @Override

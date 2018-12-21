@@ -27,7 +27,6 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -49,7 +49,8 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
+import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;
+import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -79,6 +80,7 @@ import java.util.function.Function;
  */
 public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRequest, AnalyzeResponse> {
 
+    private final Settings settings;
     private final IndicesService indicesService;
     private final Environment environment;
 
@@ -86,8 +88,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver, Environment environment) {
-        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
             AnalyzeRequest::new, ThreadPool.Names.ANALYZE);
+        this.settings = settings;
         this.indicesService = indicesService;
         this.environment = environment;
     }
@@ -573,11 +576,10 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     throw new IllegalArgumentException("failed to find char filter under [" + charFilter.name + "]");
                 }
                 if (normalizer) {
-                    if (charFilterFactory instanceof MultiTermAwareComponent == false) {
+                    if (charFilterFactory instanceof NormalizingCharFilterFactory == false) {
                         throw new IllegalArgumentException("Custom normalizer may not use char filter ["
                             + charFilterFactory.name() + "]");
                     }
-                    charFilterFactory = (CharFilterFactory) ((MultiTermAwareComponent) charFilterFactory).getMultiTermComponent();
                 }
                 charFilterFactoryList.add(charFilterFactory);
             }
@@ -675,11 +677,10 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     throw new IllegalArgumentException("failed to find or create token filter under [" + tokenFilter.name + "]");
                 }
                 if (normalizer) {
-                    if (tokenFilterFactory instanceof MultiTermAwareComponent == false) {
+                    if (tokenFilterFactory instanceof NormalizingTokenFilterFactory == false) {
                         throw new IllegalArgumentException("Custom normalizer may not use filter ["
                             + tokenFilterFactory.name() + "]");
                     }
-                    tokenFilterFactory = (TokenFilterFactory) ((MultiTermAwareComponent) tokenFilterFactory).getMultiTermComponent();
                 }
                 tokenFilterFactoryList.add(tokenFilterFactory);
             }

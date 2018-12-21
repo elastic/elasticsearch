@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -29,31 +30,31 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 public class Replace extends ScalarFunction {
 
     private final Expression source, pattern, replacement;
-    
+
     public Replace(Location location, Expression source, Expression pattern, Expression replacement) {
         super(location, Arrays.asList(source, pattern, replacement));
         this.source = source;
         this.pattern = pattern;
         this.replacement = replacement;
     }
-    
+
     @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = StringFunctionUtils.resolveStringInputType(source.dataType(), functionName());
-        if (sourceResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), ParamOrdinal.FIRST);
+        if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
-        
-        TypeResolution patternResolution = StringFunctionUtils.resolveStringInputType(pattern.dataType(), functionName());
-        if (patternResolution != TypeResolution.TYPE_RESOLVED) {
+
+        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, functionName(), ParamOrdinal.SECOND);
+        if (patternResolution.unresolved()) {
             return patternResolution;
         }
-        
-        return StringFunctionUtils.resolveStringInputType(replacement.dataType(), functionName());
+
+        return Expressions.typeMustBeString(replacement, functionName(), ParamOrdinal.THIRD);
     }
 
     @Override
@@ -102,7 +103,7 @@ public class Replace extends ScalarFunction {
                     .script(replacementScript.params())
                     .build(), dataType());
     }
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),

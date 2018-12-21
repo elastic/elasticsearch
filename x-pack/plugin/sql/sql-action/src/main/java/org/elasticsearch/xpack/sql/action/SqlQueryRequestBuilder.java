@@ -11,11 +11,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
-import java.util.TimeZone;
 
 /**
  * The builder to build sql request
@@ -24,14 +25,14 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
         this(client, action, "", Collections.emptyList(), null, Protocol.TIME_ZONE, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, "", Mode.PLAIN);
+            Protocol.PAGE_TIMEOUT, "", new RequestInfo(Mode.PLAIN));
     }
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action, String query, List<SqlTypedParamValue> params,
-                                  QueryBuilder filter, TimeZone timeZone, int fetchSize, TimeValue requestTimeout,
-                                  TimeValue pageTimeout, String nextPageInfo, Mode mode) {
-        super(client, action, new SqlQueryRequest(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout,
-                nextPageInfo));
+            QueryBuilder filter, ZoneId zoneId, int fetchSize, TimeValue requestTimeout,
+                                  TimeValue pageTimeout, String nextPageInfo, RequestInfo requestInfo) {
+        super(client, action, new SqlQueryRequest(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, nextPageInfo,
+                requestInfo));
     }
 
     public SqlQueryRequestBuilder query(String query) {
@@ -59,8 +60,8 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
         return this;
     }
 
-    public SqlQueryRequestBuilder timeZone(TimeZone timeZone) {
-        request.timeZone(timeZone);
+    public SqlQueryRequestBuilder zoneId(ZoneId zoneId) {
+        request.zoneId(zoneId);
         return this;
     }
 

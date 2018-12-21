@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.license;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
@@ -266,7 +266,7 @@ public class XPackLicenseState {
         }
     }
 
-    private final List<Runnable> listeners;
+    private final List<LicenseStateListener> listeners;
     private final boolean isSecurityEnabled;
     private final boolean isSecurityExplicitlyEnabled;
 
@@ -309,23 +309,23 @@ public class XPackLicenseState {
                 // Before 6.3, Trial licenses would default having security enabled.
                 // If this license was generated before that version, then treat it as if security is explicitly enabled
                 if (mostRecentTrialVersion == null || mostRecentTrialVersion.before(Version.V_6_3_0)) {
-                    Loggers.getLogger(getClass()).info("Automatically enabling security for older trial license ({})",
+                    LogManager.getLogger(getClass()).info("Automatically enabling security for older trial license ({})",
                         mostRecentTrialVersion == null ? "[pre 6.1.0]" : mostRecentTrialVersion.toString());
                     isSecurityEnabledByTrialVersion = true;
                 }
             }
         }
-        listeners.forEach(Runnable::run);
+        listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
     /** Add a listener to be notified on license change */
-    public void addListener(Runnable runnable) {
-        listeners.add(Objects.requireNonNull(runnable));
+    public void addListener(final LicenseStateListener listener) {
+        listeners.add(Objects.requireNonNull(listener));
     }
 
     /** Remove a listener */
-    public void removeListener(Runnable runnable) {
-        listeners.remove(runnable);
+    public void removeListener(final LicenseStateListener listener) {
+        listeners.remove(Objects.requireNonNull(listener));
     }
 
     /** Return the current license type. */
@@ -604,6 +604,22 @@ public class XPackLicenseState {
     public synchronized boolean isUpgradeAllowed() {
         // Should work on all active licenses
         return status.active;
+    }
+
+    /**
+     * Determine if Index Lifecycle API should be enabled.
+     * <p>
+     * Index Lifecycle API is available in for all license types except
+     * {@link OperationMode#MISSING}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isIndexLifecycleAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        // Should work on all active licenses
+        return localStatus.active;
     }
 
     /**

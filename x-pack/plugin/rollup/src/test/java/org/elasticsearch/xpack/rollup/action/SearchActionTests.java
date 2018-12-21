@@ -686,7 +686,8 @@ public class SearchActionTests extends ESTestCase {
         metaMap.put("bar", indexMeta);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> TransportRollupSearchAction.separateIndices(indices, metaMap.build()));
-        assertThat(e.getMessage(), equalTo("RollupSearch currently only supports searching one rollup index at a time."));
+        assertThat(e.getMessage(), equalTo("RollupSearch currently only supports searching one rollup index at a time. " +
+            "Found the following rollup indices: [foo, bar]"));
     }
 
     public void testEmptyMsearch() {

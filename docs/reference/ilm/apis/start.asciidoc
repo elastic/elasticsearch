@@ -1,0 +1,87 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-start]]
+=== Start {ilm} API
+++++
+<titleabbrev>Start {ilm}</titleabbrev>
+++++
+
+beta[]
+
+Start the {ilm} ({ilm-init}) plugin.
+
+==== Request
+
+`POST /_ilm/start`
+
+==== Description
+
+Starts the {ilm-init} plugin if it is currently stopped. {ilm-init} is started
+automatically when the cluster is formed. Restarting {ilm-init} is only
+necessary if it has been stopped using the <<ilm-stop, Stop {ilm-init} API>>.
+
+==== Request Parameters
+
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
+
+==== Authorization
+
+You must have the `manage_ilm` cluster privilege to use this API.
+For more information, see {stack-ov}/security-privileges.html[Security privileges].
+
+==== Examples
+
+The following example starts the ILM plugin.
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "min_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my_index
+
+POST _ilm/stop
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST _ilm/start
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the request succeeds, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE

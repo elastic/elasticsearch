@@ -26,6 +26,9 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+/**
+ * Rest handler that authenticates the user based on the provided oauth2 code
+ */
 public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHandler {
 
     static final ObjectParser<OpenIdConnectAuthenticateRequest, Void> PARSER = new ObjectParser<>("oidc_authn",
@@ -64,6 +67,6 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
 
     @Override
     public String getName() {
-        return "xpack_security_oidc_authenticate_action";
+        return "security_oidc_authenticate_action";
     }
 }

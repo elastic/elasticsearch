@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 public class OpenIdConnectRealm extends Realm implements Releasable {
 
+    public static final String CONTEXT_TOKEN_DATA = "_oidc_tokendata";
     private static final Logger logger = LogManager.getLogger(OpenIdConnectRealm.class);
 
     public OpenIdConnectRealm(RealmConfig config) {

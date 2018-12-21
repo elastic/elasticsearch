@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.security.action.oidc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -8,9 +13,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
-import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 
@@ -25,7 +30,7 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
     @Inject
     public TransportOpenIdConnectPrepareAuthenticationAction(TransportService transportService,
                                                              ActionFilters actionFilters, Realms realms) {
-        super(OpenIdConnectAuthenticateAction.NAME, transportService, actionFilters, OpenIdConnectPrepareAuthenticationRequest::new);
+        super(OpenIdConnectPrepareAuthenticationAction.NAME, transportService, actionFilters, OpenIdConnectPrepareAuthenticationRequest::new);
         this.realms = realms;
     }
 
@@ -40,7 +45,7 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
         if (realms.isEmpty()) {
             listener.onFailure(new ElasticsearchSecurityException("Cannot find OIDC realm with name [{}]", request.getRealmName()));
         } else if (realms.size() > 1) {
-            // Can't define multiple realms with the same name in configuration, but check still.
+            // Can't define multiple realms with the same name in configuration, but check, still.
             listener.onFailure(new ElasticsearchSecurityException("Found multiple ([{}]) OIDC realms with name [{}]", realms.size(),
                 request.getRealmName()));
         } else if (Strings.isNullOrEmpty(request.getState())) {

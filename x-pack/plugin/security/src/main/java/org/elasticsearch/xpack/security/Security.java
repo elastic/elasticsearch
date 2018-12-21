@@ -84,6 +84,8 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
+import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
@@ -141,6 +143,8 @@ import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.ResizeRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.action.oidc.TransportOpenIdConnectAuthenticateAction;
+import org.elasticsearch.xpack.security.action.oidc.TransportOpenIdConnectPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportDeletePrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
@@ -720,6 +724,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ActionHandler<>(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
                 new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
                 new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
+            new ActionHandler<>(OpenIdConnectPrepareAuthenticationAction.INSTANCE,
+                TransportOpenIdConnectPrepareAuthenticationAction.class),
+            new ActionHandler<>(OpenIdConnectAuthenticateAction.INSTANCE, TransportOpenIdConnectAuthenticateAction.class),
                 new ActionHandler<>(GetPrivilegesAction.INSTANCE, TransportGetPrivilegesAction.class),
                 new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
                 new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class)

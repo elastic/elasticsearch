@@ -50,11 +50,10 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
             return channel -> client.execute(OpenIdConnectPrepareAuthenticationAction.INSTANCE, authenticationRequest,
                 new RestBuilderListener<OpenIdConnectPrepareAuthenticationResponse>(channel) {
                     @Override
-                    public RestResponse buildResponse(OpenIdConnectPrepareAuthenticationResponse actionResponse, XContentBuilder builder)
+                    public RestResponse buildResponse(OpenIdConnectPrepareAuthenticationResponse response, XContentBuilder builder)
                         throws Exception {
                         builder.startObject();
-                        builder.field("state");
-                        builder.field("redirect");
+                        builder.field("authorization_endpoint_url", response.getAuthorizationEndpointUrl());
                         builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
@@ -64,6 +63,6 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
 
     @Override
     public String getName() {
-        return "xpack_security_oidc_prepare_authentication_action";
+        return "security_oidc_prepare_authentication_action";
     }
 }

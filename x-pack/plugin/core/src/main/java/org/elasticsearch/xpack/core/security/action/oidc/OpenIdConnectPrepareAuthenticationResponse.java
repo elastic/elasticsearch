@@ -14,36 +14,28 @@ import java.io.IOException;
 
 public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse {
 
-    private String redirectUrl;
-    private String state;
+    private String authorizationEndpointUrl;
 
-    public OpenIdConnectPrepareAuthenticationResponse(String redirectUrl, String state) {
-        this.redirectUrl = redirectUrl;
-        this.state = state;
+    public OpenIdConnectPrepareAuthenticationResponse(String authorizationEndpointUrl, String state) {
+        this.authorizationEndpointUrl = authorizationEndpointUrl;
     }
 
     public OpenIdConnectPrepareAuthenticationResponse() {
     }
 
-    public String getRedirectUrl() {
-        return redirectUrl;
-    }
-
-    public String getState() {
-        return state;
+    public String getAuthorizationEndpointUrl() {
+        return authorizationEndpointUrl;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        state = in.readString();
-        redirectUrl = in.readString();
+        authorizationEndpointUrl = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(state);
-        out.writeString(redirectUrl);
+        out.writeString(authorizationEndpointUrl);
     }
 }

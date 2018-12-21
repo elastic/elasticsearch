@@ -453,11 +453,8 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("caching", "test_realm"), globalSettings,
             TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
 
-
-
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
         final int numberOfThreads = scaledRandomIntBetween((numberOfProcessors + 1) / 2, numberOfProcessors * 3);
-        final int numberOfIterations = scaledRandomIntBetween(20, 100);
         final CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
         List<Thread> threads = new ArrayList<>(numberOfThreads);
         final SecureString credsToUse = new SecureString(randomAlphaOfLength(12).toCharArray());
@@ -483,19 +480,17 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                 try {
                     latch.countDown();
                     latch.await();
-                    for (int i1 = 0; i1 < numberOfIterations; i1++) {
-                        final UsernamePasswordToken token = new UsernamePasswordToken(username, credsToUse);
+                    final UsernamePasswordToken token = new UsernamePasswordToken(username, credsToUse);
 
-                        realm.authenticate(token, ActionListener.wrap((result) -> {
-                            if (result.isAuthenticated()) {
-                                throw new IllegalStateException("invalid password led to an authenticated result: " + result);
-                            }
-                            assertThat(result.getMessage(), containsString("password verification failed"));
-                        }, (e) -> {
-                            logger.error("caught exception", e);
-                            fail("unexpected exception - " + e);
-                        }));
-                    }
+                    realm.authenticate(token, ActionListener.wrap((result) -> {
+                        if (result.isAuthenticated()) {
+                            throw new IllegalStateException("invalid password led to an authenticated result: " + result);
+                        }
+                        assertThat(result.getMessage(), containsString("password verification failed"));
+                    }, (e) -> {
+                        logger.error("caught exception", e);
+                        fail("unexpected exception - " + e);
+                    }));
 
                 } catch (InterruptedException e) {
                     logger.error("thread was interrupted", e);
@@ -511,7 +506,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
-        assertEquals(numberOfIterations, authCounter.get());
+        assertEquals(1, authCounter.get());
     }
 
     public void testCacheConcurrency() throws Exception {

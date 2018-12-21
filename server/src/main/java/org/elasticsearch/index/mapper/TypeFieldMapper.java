@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
@@ -36,7 +35,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -92,10 +90,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static final class TypeFieldType extends StringFieldType {
 
-        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TypeFieldType.class));
-        public static final String TYPES_DEPRECATION_MESSAGE =
-            "[types removal] Referring to types within search queries is deprecated, filter on a field instead.";
-
         TypeFieldType() {
         }
 
@@ -126,7 +120,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            deprecationLogger.deprecatedAndMaybeLog("exists_query_with_type_field", TYPES_DEPRECATION_MESSAGE);
             return new MatchAllDocsQuery();
         }
 
@@ -137,7 +130,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
-            deprecationLogger.deprecatedAndMaybeLog("term_query_with_type_field", TYPES_DEPRECATION_MESSAGE);
             DocumentMapper mapper = context.getMapperService().documentMapper();
             if (mapper == null) {
                 return new MatchNoDocsQuery("No types");
@@ -159,7 +151,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            deprecationLogger.deprecatedAndMaybeLog("range_query_with_type_field", TYPES_DEPRECATION_MESSAGE);
             Query result = new MatchAllDocsQuery();
             String type = context.getMapperService().documentMapper().type();
             if (type != null) {

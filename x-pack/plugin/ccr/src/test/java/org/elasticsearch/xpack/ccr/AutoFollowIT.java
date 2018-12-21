@@ -296,6 +296,43 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
     }
 
+    public void testAutoFollowSoftDeletesDisabled() throws Exception {
+        putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"});
+
+        // Soft deletes are disabled:
+        Settings leaderIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+        createLeaderIndex("logs-20200101", leaderIndexSettings);
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
+            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(1));
+            ElasticsearchException failure  = autoFollowStats.getRecentAutoFollowErrors().firstEntry().getValue();
+            assertThat(failure.getMessage(), equalTo("index [logs-20200101] cannot be followed, " +
+                "because soft deletes are not enabled"));
+            IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-20200101");
+            assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
+        });
+
+        // Soft deletes are enabled:
+        leaderIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+        createLeaderIndex("logs-20200102", leaderIndexSettings);
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-20200102");
+            assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
+        });
+    }
+
     private void putAutoFollowPatterns(String name, String[] patterns) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName(name);

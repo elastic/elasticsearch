@@ -22,13 +22,13 @@ Set to `false` to disable {watcher} on the node.
 Set to `true` to encrypt sensitive data. If this setting is enabled, you
 must also specify the `xpack.watcher.encryption_key` setting. For more
 information, see
-{xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}].
+{stack-ov}/encrypting-data.html[Encrypting sensitive data in {watcher}].
 
 `xpack.watcher.encryption_key` (<<secure-settings,Secure>>)::
 Specifies the path to a file that contains a key for encrypting sensitive data.
 If `xpack.watcher.encrypt_sensitive_data` is set to `true`, this setting is
 required. For more information, see
-{xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}].
+{stack-ov}/encrypting-data.html[Encrypting sensitive data in {watcher}].
 
 `xpack.watcher.history.cleaner_service.enabled`::
 added[6.3.0,Default changed to `true`.]
@@ -72,7 +72,7 @@ include::ssl-settings.asciidoc[]
 ==== Email Notification Settings
 You can configure the following email notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via email, see {xpack-ref}/actions-email.html#configuring-email-actions[Configuring Email].
+via email, see {stack-ov}/actions-email.html#configuring-email-actions[Configuring Email].
 
 `xpack.notification.email.account`::
 Specifies account information for sending notifications via email. You
@@ -80,13 +80,13 @@ can specify the following email account attributes:
 
 [[email-account-attributes]]
   `profile` (<<cluster-update-settings,Dynamic>>);;
-  The {xpack-ref}/actions-email.html#configuring-email[email profile] to use to build the MIME
+  The {stack-ov}/actions-email.html#configuring-email[email profile] to use to build the MIME
   messages that are sent from the account. Valid values: `standard`, `gmail` and
   `outlook`. Defaults to `standard`.
 
   `email_defaults.*` (<<cluster-update-settings,Dynamic>>);;
   An optional set of email attributes to use as defaults
-  for the emails sent from the account. See {xpack-ref}/actions-email.html#email-action-attributes[
+  for the emails sent from the account. See {stack-ov}/actions-email.html#email-action-attributes[
   Email Action Attributes] for the supported attributes.
 
   `smtp.auth` (<<cluster-update-settings,Dynamic>>);;
@@ -103,6 +103,10 @@ can specify the following email account attributes:
   The user name for SMTP. Required.
 
   `smtp.password` (<<cluster-update-settings,Dynamic>>);;
+  deprecated[6.6.0] The password for the specified SMTP user.
+  Use `smtp.secure_password` instead.
+
+  `smtp.secure_password` (<<secure-settings,Secure>>);;
   The password for the specified SMTP user.
 
   `smtp.starttls.enable` (<<cluster-update-settings,Dynamic>>);;
@@ -147,7 +151,7 @@ can specify the following email account attributes:
 
 `xpack.notification.email.html.sanitization.allow`::
 Specifies the HTML elements that are allowed in email notifications. For
-more information, see {xpack-ref}/actions-email.html#email-html-sanitization[Configuring HTML
+more information, see {stack-ov}/actions-email.html#email-html-sanitization[Configuring HTML
 Sanitization Options]. You can specify individual HTML elements
 and the following HTML feature groups:
 
@@ -198,7 +202,7 @@ Defaults to `true`.
 ==== HipChat Notification Settings
 You can configure the following HipChat notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via HipChat, see {xpack-ref}/actions-hipchat.html#configuring-hipchat-actions[Configuring HipChat].
+via HipChat, see {stack-ov}/actions-hipchat.html#configuring-hipchat-actions[Configuring HipChat].
 
 `xpack.notification.hipchat` ::
 Specifies account information for sending notifications
@@ -210,8 +214,11 @@ via HipChat. You can specify the following HipChat account attributes:
                       `user`, or `v1`. Required.
 
   `auth_token`;;
-  The authentication token to use to access
-                      the HipChat API. Required.
+  deprecated[6.6.0] The authentication token to use to access the HipChat API.
+  Use `secure_auth_token` instead.
+
+  `secure_auth_token` (<<secure-settings,Secure>>);;
+  The authentication token to use to access the HipChat API. Required.
 
   `host`;;
   The HipChat server hostname. Defaults to `api.hipchat.com`.
@@ -247,7 +254,7 @@ via HipChat. You can specify the following HipChat account attributes:
 ==== Slack Notification Settings
 You can configure the following Slack notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via Slack, see  {xpack-ref}/actions-slack.html#configuring-slack-actions[Configuring Slack].
+via Slack, see {stack-ov}/actions-slack.html#configuring-slack-actions[Configuring Slack].
 
 `xpack.notification.slack` ::
 Specifies account information for sending notifications
@@ -256,8 +263,11 @@ via Slack. You can specify the following Slack account attributes:
 [[slack-account-attributes]]
 
   `url`;;
-  The Incoming Webhook URL to use to post
-                                    messages to Slack. Required.
+  deprecated[6.6.0] The Incoming Webhook URL to use to post messages to Slack.
+  Use `secure_url` instead.
+
+  `secure_url` (<<secure-settings,Secure>>);;
+  The Incoming Webhook URL to use to post messages to Slack. Required.
 
   `message_defaults.from`;;
   The sender name to display in the
@@ -288,7 +298,7 @@ via Slack. You can specify the following Slack account attributes:
 ==== Jira Notification Settings
 You can configure the following Jira notification settings in
 `elasticsearch.yml`. For more information about using notifications
-to create issues in Jira, see  {xpack-ref}/actions-jira.html#configuring-jira-actions[Configuring Jira].
+to create issues in Jira, see {stack-ov}/actions-jira.html#configuring-jira-actions[Configuring Jira].
 
 `xpack.notification.jira` ::
 Specifies account information for using notifications to create
@@ -297,17 +307,29 @@ issues in Jira. You can specify the following Jira account attributes:
 [[jira-account-attributes]]
 
   `url`;;
+  deprecated[6.6.0] The URL of the Jira Software server. Use `secure_url`
+  instead.
+
+  `secure_url` (<<secure-settings,Secure>>);;
   The URL of the Jira Software server. Required.
 
   `user`;;
+  deprecated[6.6.0] The name of the user to connect to the Jira Software server.
+  Use `secure_user` instead.
+
+  `secure_user` (<<secure-settings,Secure>>);;
   The name of the user to connect to the Jira Software server. Required.
 
   `password`;;
+  deprecated[6.6.0] The password of the user to connect to the Jira Software
+  server. Use `secure_password` instead.
+
+  `secure_password` (<<secure-settings,Secure>>);;
   The password of the user to connect to the Jira Software server. Required.
 
   `issue_defaults`;;
   Default fields values for the issue created in Jira. See
-  {xpack-ref}/actions-jira.html#jira-action-attributes[Jira Action Attributes] for more information.
+  {stack-ov}/actions-jira.html#jira-action-attributes[Jira Action Attributes] for more information.
   Optional.
 
 
@@ -316,7 +338,7 @@ issues in Jira. You can specify the following Jira account attributes:
 ==== PagerDuty Notification Settings
 You can configure the following PagerDuty notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via PagerDuty, see  {xpack-ref}/actions-pagerduty.html#configuring-pagerduty-actions[Configuring PagerDuty].
+via PagerDuty, see  {stack-ov}/actions-pagerduty.html#configuring-pagerduty-actions[Configuring PagerDuty].
 
 
 [[pagerduty-account-attributes]]
@@ -329,12 +351,17 @@ via PagerDuty. You can specify the following PagerDuty account attributes:
   are using to access PagerDuty. Required.
 
   `service_api_key`;;
+   deprecated[6.6.0] The
+   https://developer.pagerduty.com/documentation/rest/authentication[PagerDuty API key]
+   to use to access PagerDuty. Use `secure_service_api_key` instead.
+
+  `secure_service_api_key` (<<secure-settings,Secure>>);;
    The https://developer.pagerduty.com/documentation/rest/authentication[
    PagerDuty API key] to use to access PagerDuty. Required.
 
 
   `event_defaults`;;
-  Default values for  {xpack-ref}/actions-pagerduty.html#pagerduty-event-trigger-incident-attributes[
+  Default values for {stack-ov}/actions-pagerduty.html#pagerduty-event-trigger-incident-attributes[
   PagerDuty event attributes]. Optional.
 
         `description`::

@@ -11,7 +11,7 @@ setup:
 "Test create api key":
 
   - do:
-      xpack.security.create_api_key:
+      security.create_api_key:
         body:  >
             {
               "name": "my-api-key",

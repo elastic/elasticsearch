@@ -1,10 +1,10 @@
 {
-  "xpack.security.create_api_key": {
+  "security.create_api_key": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-api-key.html",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_xpack/security/api_key",
-      "paths": [ "/_xpack/security/api_key" ],
+      "path": "/_security/api_key",
+      "paths": [ "/_security/api_key" ],
       "parts": {},
       "params": {
         "refresh": {

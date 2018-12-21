@@ -39,13 +39,12 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
     apply plugin: 'distribution'
     // Not published so no need to assemble
     assemble.enabled = false
-    assemble.dependsOn.remove('buildBwcVersion')
 
     File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
     final String remote = System.getProperty("tests.bwc.remote", "elastic")
 
-    final boolean gitFetchLatest
+    boolean gitFetchLatest
     final String gitFetchLatestProperty = System.getProperty("tests.bwc.git_fetch_latest", "true")
     if ("true".equals(gitFetchLatestProperty)) {
         gitFetchLatest = true

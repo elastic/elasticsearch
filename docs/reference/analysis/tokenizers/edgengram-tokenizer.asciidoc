@@ -300,7 +300,10 @@ GET my_index/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.5753642,
     "hits": [
       {

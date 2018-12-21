@@ -45,7 +45,7 @@ else
 fi
 
 if [ ! -x "$JAVA" ]; then
-  echo "could not find java; set JAVA_HOME or ensure java is in PATH"
+  echo "could not find java; set JAVA_HOME or ensure java is in PATH" >&2
   exit 1
 fi
 

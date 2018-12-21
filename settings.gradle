@@ -20,6 +20,7 @@ List projects = [
   'distribution:archives:zip',
   'distribution:archives:oss-tar',
   'distribution:archives:tar',
+  'distribution:docker',
   'distribution:packages:oss-deb',
   'distribution:packages:deb',
   'distribution:packages:oss-rpm',
@@ -138,8 +139,5 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
-
-// enable in preparation for Gradle 5.0
-enableFeaturePreview('STABLE_PUBLISHING')
 
 project(":libs:cli").name = 'elasticsearch-cli'

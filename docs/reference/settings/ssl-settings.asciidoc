@@ -110,7 +110,7 @@ Password to the truststore.
 
 ===== PKCS#12 Files
 
-{security} can be configured to use PKCS#12 container files (`.p12` or `.pfx` files)
+{es} can be configured to use PKCS#12 container files (`.p12` or `.pfx` files)
 that contain the private key, certificate and certificates that should be trusted.
 
 PKCS#12 files are configured in the same way as Java Keystore Files:
@@ -148,7 +148,7 @@ Password to the PKCS#12 file.
 
 ===== PKCS#11 Tokens
 
-{security} can be configured to use a PKCS#11 token that contains the private key,
+{es} can be configured to use a PKCS#11 token that contains the private key,
 certificate and certificates that should be trusted.
 
 PKCS#11 token require additional configuration on the JVM level and can be enabled

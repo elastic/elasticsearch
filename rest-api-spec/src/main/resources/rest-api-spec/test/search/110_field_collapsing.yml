@@ -65,6 +65,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group }
@@ -96,6 +97,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           from: 2
@@ -116,6 +118,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group, inner_hits: { name: sub_hits, size: 2, sort: [{ sort: asc }] } }
@@ -155,6 +158,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group, max_concurrent_group_searches: 10, inner_hits: { name: sub_hits, size: 2, sort: [{ sort: asc }] } }
@@ -196,6 +200,7 @@ setup:
   - do:
       catch:      /cannot use \`collapse\` in a scroll context/
       search:
+        rest_total_hits_as_int: true
         index: test
         scroll: 1s
         body:
@@ -207,6 +212,7 @@ setup:
   - do:
       catch:      /cannot use \`collapse\` in conjunction with \`search_after\`/
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group }
@@ -219,6 +225,7 @@ setup:
   - do:
       catch:      /cannot use \`collapse\` in conjunction with \`rescore\`/
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group }
@@ -235,6 +242,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           size: 0
@@ -253,6 +261,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           size: 0
@@ -266,6 +275,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: 
@@ -322,6 +332,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group, inner_hits: { name: sub_hits, version: true, size: 2, sort: [{ sort: asc }] } }
@@ -380,6 +391,7 @@ setup:
               group_alias: { type: alias, path: numeric_group }
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: group_alias, inner_hits: { name: sub_hits } }

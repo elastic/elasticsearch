@@ -43,7 +43,12 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContent {
@@ -63,21 +68,8 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
 
         public Request() {}
 
-        public String getId() {
-            return id;
-        }
-
-        public TimeValue timeout() {
-            return timeout;
-        }
-
-        public boolean waitForCompletion() {
-            return waitForCompletion;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             id = in.readString();
             if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
                 waitForCompletion = in.readBoolean();
@@ -93,6 +85,18 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
                 out.writeBoolean(waitForCompletion);
                 out.writeTimeValue(timeout);
             }
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public TimeValue timeout() {
+            return timeout;
+        }
+
+        public boolean waitForCompletion() {
+            return waitForCompletion;
         }
 
         @Override
@@ -139,30 +143,15 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean stopped;
-
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
-            readFrom(in);
-        }
+        private final boolean stopped;
 
         public Response(boolean stopped) {
             super(Collections.emptyList(), Collections.emptyList());
             this.stopped = stopped;
         }
 
-        public boolean isStopped() {
-            return stopped;
-        }
-
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             stopped = in.readBoolean();
         }
 
@@ -170,6 +159,10 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(stopped);
+        }
+
+        public boolean isStopped() {
+            return stopped;
         }
 
         @Override

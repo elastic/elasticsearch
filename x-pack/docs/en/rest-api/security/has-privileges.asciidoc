@@ -1,7 +1,9 @@
 [role="xpack"]
 [[security-api-has-privileges]]
-=== Has Privileges API
-
+=== Has privileges API
+++++
+<titleabbrev>Has privileges</titleabbrev>
+++++
 [[security-api-has-privilege]]
 
 The `has_privileges` API allows you to determine whether the logged in user has
@@ -9,7 +11,7 @@ a specified list of privileges.
 
 ==== Request
 
-`GET _xpack/security/user/_has_privileges`
+`GET /_security/user/_has_privileges`
 
 
 ==== Description
@@ -53,7 +55,7 @@ cluster, index, and application privileges:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/security/user/_has_privileges
+GET /_security/user/_has_privileges
 {
   "cluster": [ "monitor", "manage" ],
   "index" : [

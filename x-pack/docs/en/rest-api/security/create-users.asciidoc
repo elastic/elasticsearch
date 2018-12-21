@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-put-user]]
 === Create or update users API
+++++
+<titleabbrev>Create or update users</titleabbrev>
+++++
 
 Adds and updates users in the native realm. These users are commonly referred 
 to as _native users_.
@@ -8,9 +11,9 @@ to as _native users_.
 
 ==== Request
 
-`POST /_xpack/security/user/<username>` +
+`POST /_security/user/<username>` +
 
-`PUT /_xpack/security/user/<username>` 
+`PUT /_security/user/<username>` 
 
 
 ==== Description
@@ -95,7 +98,7 @@ The following example creates a user `jacknich`:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/security/user/jacknich
+POST /_security/user/jacknich
 {
   "password" : "j@rV1s",
   "roles" : [ "admin", "other_role1" ],

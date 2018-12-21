@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,20 +42,30 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
 
     private final SecurityContext securityContext;
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestHasPrivilegesAction.class));
 
     public RestHasPrivilegesAction(Settings settings, RestController controller, SecurityContext securityContext,
                                    XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
-        controller.registerHandler(GET, "/_xpack/security/user/{username}/_has_privileges", this);
-        controller.registerHandler(POST, "/_xpack/security/user/{username}/_has_privileges", this);
-        controller.registerHandler(GET, "/_xpack/security/user/_has_privileges", this);
-        controller.registerHandler(POST, "/_xpack/security/user/_has_privileges", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/user/{username}/_has_privileges", this,
+            GET, "/_xpack/security/user/{username}/_has_privileges", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            POST, "/_security/user/{username}/_has_privileges", this,
+            POST, "/_xpack/security/user/{username}/_has_privileges", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/user/_has_privileges", this,
+            GET, "/_xpack/security/user/_has_privileges", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            POST, "/_security/user/_has_privileges", this,
+            POST, "/_xpack/security/user/_has_privileges", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_has_priviledges_action";
+        return "security_has_priviledges_action";
     }
 
     @Override

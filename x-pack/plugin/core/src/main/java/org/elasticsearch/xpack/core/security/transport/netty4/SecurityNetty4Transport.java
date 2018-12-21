@@ -20,12 +20,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper;
@@ -61,11 +61,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
             final Version version,
             final ThreadPool threadPool,
             final NetworkService networkService,
-            final BigArrays bigArrays,
+            final PageCacheRecycler pageCacheRecycler,
             final NamedWriteableRegistry namedWriteableRegistry,
             final CircuitBreakerService circuitBreakerService,
             final SSLService sslService) {
-        super(settings, version, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
+        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         if (sslEnabled) {
@@ -87,8 +87,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
             profileConfiguration.put(profileName, configuration);
         }
 
-        if (profileConfiguration.containsKey(TcpTransport.DEFAULT_PROFILE) == false) {
-            profileConfiguration.put(TcpTransport.DEFAULT_PROFILE, defaultConfiguration);
+        if (profileConfiguration.containsKey(TransportSettings.DEFAULT_PROFILE) == false) {
+            profileConfiguration.put(TransportSettings.DEFAULT_PROFILE, defaultConfiguration);
         }
         return profileConfiguration;
     }

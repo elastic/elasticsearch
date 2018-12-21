@@ -72,8 +72,8 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
                         "type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test")
                                 .field("type", "text").endObject().startObject("num1").field("type", "date").endObject().endObject()
-                                .endObject().endObject()).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+                                .endObject().endObject()).get();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().get();
 
         client().index(
                 indexRequest("test").type("type1").id("1")
@@ -82,7 +82,7 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
                 indexRequest("test").type("type1").id("2")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())).actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().get();
         DecayFunctionBuilder<?> gfb = new CustomDistanceScoreBuilder("num1", "2013-05-28", "+1d");
 
         ActionFuture<SearchResponse> response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(

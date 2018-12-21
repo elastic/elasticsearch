@@ -1,0 +1,78 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions-grouping]]
+=== Grouping Functions
+
+beta[]
+
+Functions for creating special __grouping__s (also known as _bucketing_); as such these need to be used
+as part of the <<sql-syntax-group-by, grouping>>.
+
+[[sql-functions-grouping-histogram]]
+==== `HISTOGRAM`
+
+.Synopsis:
+[source, sql]
+----
+HISTOGRAM(numeric_exp<1>, numeric_interval<2>)
+HISTOGRAM(date_exp<3>, date_time_interval<4>)
+----
+
+*Input*:
+
+<1> numeric expression (typically a field)
+<2> numeric interval
+<3> date/time expression (typically a field)
+<4> date/time <<sql-functions-datetime-interval, interval>>
+
+*Output*: non-empty buckets or groups of the given expression divided according to the given interval
+
+.Description
+
+The histogram function takes all matching values and divides them into buckets with fixed size matching the given interval, using (roughly) the following formula:
+
+[source, sql]
+----
+bucket_key = Math.floor(value / interval) * interval
+----
+
+NOTE:: The histogram in SQL does *NOT* return empty buckets for missing intervals as the traditional <<search-aggregations-bucket-histogram-aggregation, histogram>> and  <<search-aggregations-bucket-datehistogram-aggregation, date histogram>>. Such behavior does not fit conceptually in SQL which treats all missing values as `NULL`; as such the histogram places all missing values in the `NULL` group.
+
+`Histogram` can be applied on either numeric fields:
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[histogramNumeric]
+----
+
+or date/time fields:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[histogramDate]
+----
+
+Expressions inside the histogram are also supported as long as the
+return type is numeric:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[histogramNumericExpression]
+----
+
+Do note that histograms (and grouping functions in general) allow custom expressions but cannot have any functions applied to them in the `GROUP BY`. In other words, the following statement is *NOT* allowed:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[expressionOnHistogramNotAllowed]
+----
+
+as it requires two groupings (one for histogram followed by a second for applying the function on top of the histogram groups).
+
+Instead one can rewrite the query to move the expression on the histogram _inside_ of it:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[histogramDateExpression]
+----

@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-job]]
-=== Create Jobs API
+=== Create jobs API
 ++++
-<titleabbrev>Create Jobs</titleabbrev>
+<titleabbrev>Create jobs</titleabbrev>
 ++++
 
 Instantiates a job.
 
 ==== Request
 
-`PUT _xpack/ml/anomaly_detectors/<job_id>`
+`PUT _ml/anomaly_detectors/<job_id>`
 
 //===== Description
 
@@ -85,7 +85,7 @@ The following example creates the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/total-requests
+PUT _ml/anomaly_detectors/total-requests
 {
   "description" : "Total sum of requests",
   "analysis_config" : {

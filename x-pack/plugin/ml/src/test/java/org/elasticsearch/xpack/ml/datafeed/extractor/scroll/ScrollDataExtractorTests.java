@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -488,7 +489,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
             hit.fields(fields);
             hits.add(hit);
         }
-        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]), hits.size(), 1);
+        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]),
+            new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
         return searchResponse;
     }

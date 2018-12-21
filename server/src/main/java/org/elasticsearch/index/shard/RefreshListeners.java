@@ -53,6 +53,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * Is this closed? If true then we won't add more listeners and have flushed all pending listeners.
      */
     private volatile boolean closed = false;
+
+    /**
+     * Prevents new refresh listeners from being registered. Used to prevent becoming blocked on operations waiting for refresh
+     * during relocation.
+     */
+    private volatile boolean preventNewRefreshListeners = false;
+
     /**
      * List of refresh listeners. Defaults to null and built on demand because most refresh cycles won't need it. Entries are never removed
      * from it, rather, it is nulled and rebuilt when needed again. The (hopefully) rare entries that didn't make the current refresh cycle
@@ -73,6 +80,22 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         this.listenerExecutor = listenerExecutor;
         this.logger = logger;
         this.threadContext = threadContext;
+    }
+
+    /**
+     * Prohibit adding new refresh listeners. See {@link #preventNewRefreshListeners}.
+     */
+    public void disallowAdd() {
+        synchronized (this) {
+            preventNewRefreshListeners = true;
+        }
+    }
+
+    /**
+     * Enable adding new refresh listeners. See {@link #preventNewRefreshListeners}.
+     */
+    public void allowAdd() {
+        preventNewRefreshListeners = false;
     }
 
     /**
@@ -102,7 +125,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                 listeners = new ArrayList<>();
                 refreshListeners = listeners;
             }
-            if (listeners.size() < getMaxRefreshListeners.getAsInt()) {
+            if (preventNewRefreshListeners == false && listeners.size() < getMaxRefreshListeners.getAsInt()) {
                 ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
                 Consumer<Boolean> contextPreservingListener = forced -> {
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

@@ -244,12 +244,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private final RefreshListeners refreshListeners;
 
-    /**
-     * Prevents new refresh listeners from being registered. Used to prevent becoming blocked on operations waiting for refresh
-     * during relocation.
-     */
-    private final AtomicBoolean preventNewRefreshListeners = new AtomicBoolean(false);
-
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
 
@@ -614,7 +608,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void relocated(final Consumer<ReplicationTracker.PrimaryContext> consumer)
                                             throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
-        preventNewRefreshListeners.set(true);
+        refreshListeners.disallowAdd();
         try {
             if (refreshListeners.refreshNeeded()) {
                 refresh("relocated");
@@ -651,7 +645,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
         } finally {
-            preventNewRefreshListeners.set(false);
+            refreshListeners.allowAdd();
         }
     }
 
@@ -2675,7 +2669,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private RefreshListeners buildRefreshListeners() {
         return new RefreshListeners(
-            () -> preventNewRefreshListeners.get() ? 0 : indexSettings.getMaxRefreshListeners(),
+            indexSettings::getMaxRefreshListeners,
             () -> refresh("too_many_listeners"),
             threadPool.executor(ThreadPool.Names.LISTENER)::execute,
             logger, threadPool.getThreadContext());

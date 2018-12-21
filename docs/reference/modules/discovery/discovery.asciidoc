@@ -6,13 +6,6 @@ nodes with which to form a cluster. This process runs when you start an
 Elasticsearch node or when a node believes the master node failed and continues
 until the master node is found or a new master node is elected.
 
-Discovery operates in two phases: First, each node probes the addresses of all
-known master-eligible nodes by connecting to each address and attempting to
-identify the node to which it is connected. Secondly it shares with the remote
-node a list of all of its known master-eligible peers and the remote node
-responds with _its_ peers in turn. The node then probes all the new nodes that
-it just discovered, requests their peers, and so on.
-
 This process starts with a list of _seed_ addresses from one or more
 <<built-in-hosts-providers,hosts providers>>, together with the addresses of
 any master-eligible nodes that were in the last known cluster. The process

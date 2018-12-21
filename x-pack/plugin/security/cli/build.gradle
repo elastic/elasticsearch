@@ -29,7 +29,7 @@ if (project.inFipsJvm) {
     tasks.withType(CheckForbiddenApis) {
         bundledSignatures -= "jdk-non-portable"
     }
-    // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
+    // FIPS JVM includes many classes from bouncycastle which count as jar hell for the third party audit,
     // rather than provide a long list of exclusions, disable the check on FIPS.
     thirdPartyAudit.enabled = false
 }

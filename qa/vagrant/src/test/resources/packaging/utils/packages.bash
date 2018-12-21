@@ -76,6 +76,7 @@ install_package() {
     if is_rpm; then
         rpm $rpmCommand $PACKAGE_NAME-$version.rpm
     elif is_dpkg; then
+        echo run dpkg $dpkgCommand -i $PACKAGE_NAME-$version.deb
         run dpkg $dpkgCommand -i $PACKAGE_NAME-$version.deb
         [[ "$status" -eq 0 ]] || {
             echo "dpkg failed:"

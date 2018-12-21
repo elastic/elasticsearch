@@ -47,24 +47,28 @@ setup() {
     if [ "$(cat upgrade_from_version)" == "$(cat version)" ]; then
         sameVersion="true"
     fi
-    export PACKAGE_NAME="elasticsearch"
 }
 
-@test "[UPGRADE] install old version" {
-    clean_before_test
+@test "[UPGRADE OSS] install old version" {
     PACKAGE_NAME="elasticsearch-oss" clean_before_test
+    PACKAGE_NAME="elasticsearch" clean_before_test
+    if ! is_upgrade_from_pre_6.3 ; then
+        export PACKAGE_NAME="elasticsearch-oss"
+    else
+        export PACKAGE_NAME="elasticsearch"
+    fi
     install_package -v $(cat upgrade_from_version)
 }
 
-@test "[UPGRADE] start old version" {
+@test "[UPGRADE OSS] start old version" {
     start_elasticsearch_service
 }
 
-@test "[UPGRADE] check elasticsearch version is old version" {
+@test "[UPGRADE OSS] check elasticsearch version is old version" {
     check_elasticsearch_version "$(cat upgrade_from_version)"
 }
 
-@test "[UPGRADE] index some documents into a few indexes" {
+@test "[UPGRADE OSS] index some documents into a few indexes" {
     curl -s -H "Content-Type: application/json" -XPOST localhost:9200/library/book/1?pretty -d '{
       "title": "Elasticsearch - The Definitive Guide"
     }'
@@ -76,17 +80,18 @@ setup() {
     }'
 }
 
-@test "[UPGRADE] verify that the documents are there" {
+@test "[UPGRADE OSS] verify that the documents are there" {
     curl -s localhost:9200/library/book/1?pretty | grep Elasticsearch
     curl -s localhost:9200/library/book/2?pretty | grep World
     curl -s localhost:9200/library2/book/1?pretty | grep Darkness
 }
 
-@test "[UPGRADE] stop old version" {
+@test "[UPGRADE OSS] stop old version" {
     stop_elasticsearch_service
 }
 
-@test "[UPGRADE] install version under test" {
+@test "[UPGRADE OSS] install version under test" {
+    export PACKAGE_NAME="elasticsearch-oss"
     if [ "$sameVersion" == "true" ]; then
         install_package -f
     else
@@ -94,21 +99,21 @@ setup() {
     fi
 }
 
-@test "[UPGRADE] start version under test" {
+@test "[UPGRADE OSS] start version under test" {
     start_elasticsearch_service yellow library
     wait_for_elasticsearch_status yellow library2
 }
 
-@test "[UPGRADE] check elasticsearch version is version under test" {
+@test "[UPGRADE OSS] check elasticsearch version is version under test" {
     check_elasticsearch_version "$(cat version)"
 }
 
-@test "[UPGRADE] verify that the documents are there after restart" {
+@test "[UPGRADE OSS] verify that the documents are there after restart" {
     curl -s localhost:9200/library/book/1?pretty | grep Elasticsearch
     curl -s localhost:9200/library/book/2?pretty | grep World
     curl -s localhost:9200/library2/book/1?pretty | grep Darkness
 }
 
-@test "[UPGRADE] stop version under test" {
+@test "[UPGRADE OSS] stop version under test" {
     stop_elasticsearch_service
 }

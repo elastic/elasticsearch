@@ -213,7 +213,7 @@ assert_module_or_plugin_directory() {
     local directory=$1
     shift
 
-    #owner group and permissions vary depending on how es was installed
+    #owner group and permissions vary depending on how es was instaled
     #just make sure that everything is the same as $CONFIG_DIR, which was properly set up during install
     config_user=$(find "$ESHOME" -maxdepth 0 -printf "%u")
     config_owner=$(find "$ESHOME" -maxdepth 0 -printf "%g")
@@ -603,4 +603,13 @@ unmove_java() {
     which_java=`command -v java.bak`
     assert_file_exist $which_java
     mv $which_java `dirname $which_java`/java
+}
+
+
+is_upgrade_from_pre_6.3() {
+    if [[ -f upgrade_is_oss ]]; then
+        return 0
+    else
+       return 1
+    fi
 }

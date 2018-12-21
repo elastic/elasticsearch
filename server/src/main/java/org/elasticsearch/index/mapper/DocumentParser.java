@@ -153,7 +153,7 @@ final class DocumentParser {
             context.version(),
             context.seqID(),
             context.sourceToParse().id(),
-            source.type(),
+            context.sourceToParse().type(),
             source.routing(),
             context.docs(),
             context.sourceToParse().source(),

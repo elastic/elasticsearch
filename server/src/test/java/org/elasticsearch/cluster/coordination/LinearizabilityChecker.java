@@ -75,7 +75,8 @@ public class LinearizabilityChecker {
     }
 
     /**
-     * Sequential specification of a datatype that allows for keyed access
+     * Sequential specification of a datatype that allows for keyed access,
+     * providing compositional checking (see {@link SequentialSpec#partition(List)}).
      */
     public interface KeyedSpec extends SequentialSpec {
         /**

@@ -1079,6 +1079,7 @@ public class CoordinatorTests extends ESTestCase {
             assertThat("may reconnect blackholed nodes, probably unexpected", blackholedNodes, empty());
 
             final int randomSteps = scaledRandomIntBetween(10, 10000);
+            final int keyRange = randomSteps / 200; // for randomized writes and reads
             logger.info("--> start of safety phase of at least [{}] steps", randomSteps);
 
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(EXTREME_DELAY_VARIABILITY);
@@ -1099,8 +1100,8 @@ public class CoordinatorTests extends ESTestCase {
                 try {
                     if (randomBoolean() && randomBoolean() && randomBoolean()) {
                         final ClusterNode clusterNode = getAnyNodePreferringLeaders();
+                        final int key = randomIntBetween(0, keyRange);
                         final int newValue = randomInt();
-                        final int key = randomIntBetween(0, 10);
                         onNode(clusterNode.getLocalNode(), () -> {
                             logger.debug("----> [runRandomly {}] proposing new value [{}] to [{}]",
                                 thisStep, newValue, clusterNode.getId());
@@ -1108,7 +1109,7 @@ public class CoordinatorTests extends ESTestCase {
                         }).run();
                     } else if (randomBoolean() && randomBoolean() && randomBoolean()) {
                         final ClusterNode clusterNode = getAnyNodePreferringLeaders();
-                        final int key = randomIntBetween(0, 10);
+                        final int key = randomIntBetween(0, keyRange);
                         onNode(clusterNode.getLocalNode(), () -> {
                             logger.debug("----> [runRandomly {}] reading value from [{}]",
                                 thisStep, clusterNode.getId());
@@ -1575,7 +1576,7 @@ public class CoordinatorTests extends ESTestCase {
 
             void readValue(int key) {
                 final int eventId = history.invoke(new Tuple<>(key, null));
-                submitUpdateTask("read value", cs -> cs, new ClusterStateTaskListener() {
+                submitUpdateTask("read value", cs -> ClusterState.builder(cs).build(), new ClusterStateTaskListener() {
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         history.respond(eventId, value(newState, key));
@@ -1622,9 +1623,7 @@ public class CoordinatorTests extends ESTestCase {
                                 updateCommittedStates();
                                 ClusterState state = committedStatesByVersion.get(newState.version());
                                 assertNotNull("State not committed : " + newState.toString(), state);
-                                for (int i = 0; i < 10; i++) {
-                                    assertEquals(value(state, i), value(newState, i));
-                                }
+                                assertStateEquals(state, newState);
                                 logger.trace("successfully published: [{}]", newState);
                                 taskListener.clusterStateProcessed(source, oldState, newState);
                             }
@@ -1887,6 +1886,20 @@ public class CoordinatorTests extends ESTestCase {
 
     public long value(ClusterState clusterState, int key) {
         return clusterState.metaData().persistentSettings().getAsLong("value_" + key, 0L);
+    }
+
+    public void assertStateEquals(ClusterState clusterState1, ClusterState clusterState2) {
+        assertEquals(clusterState1.version(), clusterState2.version());
+        assertEquals(clusterState1.term(), clusterState2.term());
+        assertEquals(keySet(clusterState1), keySet(clusterState2));
+        for (int key : keySet(clusterState1)) {
+            assertEquals(value(clusterState1, key), value(clusterState2, key));
+        }
+    }
+
+    public Set<Integer> keySet(ClusterState clusterState) {
+        return clusterState.metaData().persistentSettings().keySet().stream()
+            .filter(s -> s.startsWith("value_")).map(s -> Integer.valueOf(s.substring("value_".length()))).collect(Collectors.toSet());
     }
 
     /**

@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-put-privileges]]
 === Create or update application privileges API
+++++
+<titleabbrev>Create or update application privileges</titleabbrev>
+++++
 
 Adds or updates 
 {stack-ov}/security-privileges.html#application-privileges[application privileges].

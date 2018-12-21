@@ -70,21 +70,21 @@ class EpochTime {
     private static final EpochField MILLIS = new EpochField(ChronoUnit.MILLIS, ChronoUnit.FOREVER, LONG_POSITIVE_RANGE,
         temporal -> temporal.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + temporal.getLong(ChronoField.MILLI_OF_SECOND),
         temporal -> temporal.isSupported(ChronoField.INSTANT_SECONDS) && temporal.isSupported(ChronoField.MILLI_OF_SECOND)) {
-        @Override
-        public TemporalAccessor resolve(Map<TemporalField,Long> fieldValues,
-                                        TemporalAccessor partialTemporal, ResolverStyle resolverStyle) {
-            long secondsAndMillis = fieldValues.remove(this);
-            long seconds = secondsAndMillis / 1_000;
-            long nanos = (Math.abs(secondsAndMillis) % 1000) * 1_000_000;
-            Long nanosOfMilli = fieldValues.remove(NANOS_OF_MILLI);
-            if (nanosOfMilli != null) {
-                nanos += nanosOfMilli;
+            @Override
+            public TemporalAccessor resolve(Map<TemporalField,Long> fieldValues,
+                                            TemporalAccessor partialTemporal, ResolverStyle resolverStyle) {
+                long secondsAndMillis = fieldValues.remove(this);
+                long seconds = secondsAndMillis / 1_000;
+                long nanos = secondsAndMillis % 1000 * 1_000_000;
+                Long nanosOfMilli = fieldValues.remove(NANOS_OF_MILLI);
+                if (nanosOfMilli != null) {
+                    nanos += nanosOfMilli;
+                }
+                fieldValues.put(ChronoField.INSTANT_SECONDS, seconds);
+                fieldValues.put(ChronoField.NANO_OF_SECOND, nanos);
+                return null;
             }
-            fieldValues.put(ChronoField.INSTANT_SECONDS, seconds);
-            fieldValues.put(ChronoField.NANO_OF_SECOND, nanos);
-            return null;
-        }
-    };
+        };
 
     private static final EpochField NANOS_OF_MILLI = new EpochField(ChronoUnit.NANOS, ChronoUnit.MILLIS, ValueRange.of(0, 999_999),
         temporal -> temporal.getLong(ChronoField.NANO_OF_SECOND),

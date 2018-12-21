@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.function.Supplier;
 
 
 /**
@@ -67,7 +68,7 @@ public interface TcpChannel extends CloseableChannel {
      * @param messageSupplier to send to channel
      * @param listener to execute upon send completion
      */
-    void sendMessage(CheckedSupplier<BytesReference, IOException> messageSupplier, ActionListener<Void> listener);
+    void sendMessage(Supplier<BytesReference> messageSupplier, ActionListener<Void> listener);
 
     /**
      * Adds a listener that will be executed when the channel is connected. If the channel is still

@@ -35,10 +35,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
-import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.nio.FlushReadyWrite;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
@@ -47,6 +45,7 @@ import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
+import org.elasticsearch.nio.SupplierWriteOperation;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -65,6 +64,7 @@ import java.nio.channels.SocketChannel;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
@@ -242,35 +242,22 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {
-            return new WriteOperation() {
-                @Override
-                public BiConsumer<Void, Exception> getListener() {
-                    return listener;
-                }
-
-                @Override
-                public SocketChannelContext getChannel() {
-                    return context;
-                }
-
-                @Override
-                public CheckedSupplier<ByteBuffer[], IOException> getObject() {
-                    CheckedSupplier<BytesReference, IOException> messageSupplier =
-                        (CheckedSupplier<BytesReference, IOException>) message;
-                    return () -> BytesReference.toByteBuffers(messageSupplier.get());
-                }
+            Supplier<BytesReference> messageSuppler = (Supplier<BytesReference>) message;
+            Supplier<ByteBuffer[]> wrapped = () -> {
+                BytesReference reference = messageSuppler.get();
+                return reference == null ? null : BytesReference.toByteBuffers(reference);
             };
+            return new SupplierWriteOperation(context, wrapped, listener);
         }
 
         @Override
         public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
-            CheckedSupplier<ByteBuffer[], IOException> messageSupplier =
-                (CheckedSupplier<ByteBuffer[], IOException>) writeOperation.getObject();
-            try {
-                return Collections.singletonList(new FlushOperation(messageSupplier.get(), writeOperation.getListener()));
-            } catch (IOException e) {
-                writeOperation.getListener().accept(null, e);
+            Supplier<ByteBuffer[]> messageSupplier = ((SupplierWriteOperation) writeOperation).getObject();
+            ByteBuffer[] byteBuffers = messageSupplier.get();
+            if (byteBuffers == null) {
                 return Collections.emptyList();
+            } else {
+                return Collections.singletonList(new FlushOperation(messageSupplier.get(), writeOperation.getListener()));
             }
         }
 
@@ -359,8 +346,8 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public void sendMessage(CheckedSupplier<BytesReference, IOException> messageSupplier, ActionListener<Void> listener) {
-            getContext().sendMessage(BytesReference.toByteBuffers(null), ActionListener.toBiConsumer(listener));
+        public void sendMessage(Supplier<BytesReference> messageSupplier, ActionListener<Void> listener) {
+            getContext().sendMessage(messageSupplier, ActionListener.toBiConsumer(listener));
         }
     }
 }

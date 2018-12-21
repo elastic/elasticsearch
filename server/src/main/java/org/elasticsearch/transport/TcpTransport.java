@@ -1230,66 +1230,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-//    /**
-//     * This listener increments the transmitted bytes metric on success.
-//     */
-//    private class SendListener extends NotifyOnceListener<Void> {
-//
-//        private final TcpChannel channel;
-//        private final long messageSize;
-//        private final ActionListener<Void> delegateListener;
-//
-//        private SendListener(TcpChannel channel, long messageSize, ActionListener<Void> delegateListener) {
-//            this.channel = channel;
-//            this.messageSize = messageSize;
-//            this.delegateListener = delegateListener;
-//        }
-//
-//        @Override
-//        protected void innerOnResponse(Void v) {
-//            transmittedBytesMetric.inc(messageSize);
-//            delegateListener.onResponse(v);
-//        }
-//
-//        @Override
-//        protected void innerOnFailure(Exception e) {
-//            logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
-//            delegateListener.onFailure(e);
-//        }
-//    }
-
-//    private class ReleaseListener implements ActionListener<Void> {
-//
-//        private final Closeable optionalCloseable;
-//        private final Runnable transportAdaptorCallback;
-//
-//        private ReleaseListener(Closeable optionalCloseable, Runnable transportAdaptorCallback) {
-//            this.optionalCloseable = optionalCloseable;
-//            this.transportAdaptorCallback = transportAdaptorCallback;
-//        }
-//
-//        @Override
-//        public void onResponse(Void aVoid) {
-//            closeAndCallback(null);
-//        }
-//
-//        @Override
-//        public void onFailure(Exception e) {
-//            closeAndCallback(e);
-//        }
-//
-//        private void closeAndCallback(final Exception e) {
-//            try {
-//                IOUtils.close(optionalCloseable, transportAdaptorCallback::run);
-//            } catch (final IOException inner) {
-//                if (e != null) {
-//                    inner.addSuppressed(e);
-//                }
-//                throw new UncheckedIOException(inner);
-//            }
-//        }
-//    }
-
     @Override
     public final TransportStats getStats() {
         return new TransportStats(acceptedChannels.size(), readBytesMetric.count(), readBytesMetric.sum(), transmittedBytesMetric.count(),

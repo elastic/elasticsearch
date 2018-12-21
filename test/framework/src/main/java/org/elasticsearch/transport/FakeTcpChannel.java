@@ -26,6 +26,7 @@ import org.elasticsearch.common.concurrent.CompletableContext;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 public class FakeTcpChannel implements TcpChannel {
 
@@ -75,8 +76,8 @@ public class FakeTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(CheckedSupplier<BytesReference, IOException> messageSupplier, ActionListener<Void> listener) {
-        messageCaptor.set(null);
+    public void sendMessage(Supplier<BytesReference> messageSupplier, ActionListener<Void> listener) {
+        messageCaptor.set(messageSupplier.get());
     }
 
     @Override

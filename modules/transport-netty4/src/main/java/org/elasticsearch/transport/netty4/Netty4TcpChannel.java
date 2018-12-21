@@ -31,6 +31,7 @@ import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportException;
 
 import java.net.InetSocketAddress;
+import java.util.function.Supplier;
 
 public class Netty4TcpChannel implements TcpChannel {
 
@@ -121,7 +122,7 @@ public class Netty4TcpChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+    public void sendMessage(Supplier<BytesReference> messageSupplier, ActionListener<Void> listener) {
         ChannelPromise writePromise = channel.newPromise();
         writePromise.addListener(f -> {
             if (f.isSuccess()) {
@@ -136,7 +137,7 @@ public class Netty4TcpChannel implements TcpChannel {
                 }
             }
         });
-        channel.writeAndFlush(Netty4Utils.toByteBuf(reference), writePromise);
+        channel.writeAndFlush(messageSupplier, writePromise);
 
         if (channel.eventLoop().isShutdown()) {
             listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));

@@ -25,6 +25,7 @@ import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.transport.TcpChannel;
 
 import java.nio.channels.SocketChannel;
+import java.util.function.Supplier;
 
 public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
 
@@ -38,8 +39,8 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
         this.profile = profile;
     }
 
-    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+    public void sendMessage(Supplier<BytesReference> messageSupplier, ActionListener<Void> listener) {
+        getContext().sendMessage(messageSupplier, ActionListener.toBiConsumer(listener));
     }
 
     @Override

@@ -46,7 +46,7 @@ compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 bundlePlugin {
   from("${project.buildDir}/ingest-geoip") {
-    into 'config/'
+    into '/'
   }
 }
 

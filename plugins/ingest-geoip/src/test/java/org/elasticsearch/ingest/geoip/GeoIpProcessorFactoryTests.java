@@ -44,7 +44,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class GeoIpProcessorFactoryTests extends ESTestCase {
@@ -60,17 +62,13 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             return;
         }
 
-        Path configDir = createTempDir();
-        Path geoIpConfigDir = configDir.resolve("ingest-geoip");
+        final Path geoIpDir = createTempDir();
+        final Path configDir = createTempDir();
+        final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
-                geoIpConfigDir.resolve("GeoLite2-City.mmdb"));
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")),
-                geoIpConfigDir.resolve("GeoLite2-Country.mmdb"));
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb")),
-            geoIpConfigDir.resolve("GeoLite2-ASN.mmdb"));
+        copyDatabaseFiles(geoIpDir);
 
-        databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir);
+        databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir);
     }
 
     @AfterClass
@@ -297,21 +295,16 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         // This test uses a MappedByteBuffer which will keep the file mappings active until it is garbage-collected.
         // As a consequence, the corresponding file appears to be still in use and Windows cannot delete it.
         assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
-        Path configDir = createTempDir();
-        Path geoIpConfigDir = configDir.resolve("ingest-geoip");
+        final Path geoIpDir = createTempDir();
+        final Path configDir = createTempDir();
+        final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
-            geoIpConfigDir.resolve("GeoLite2-City.mmdb"));
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")),
-            geoIpConfigDir.resolve("GeoLite2-Country.mmdb"));
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb")),
-            geoIpConfigDir.resolve("GeoLite2-ASN.mmdb"));
+        copyDatabaseFiles(geoIpDir);
 
         // Loading another database reader instances, because otherwise we can't test lazy loading as the
         // database readers used at class level are reused between tests. (we want to keep that otherwise running this
         // test will take roughly 4 times more time)
-        Map<String, DatabaseReaderLazyLoader> databaseReaders =
-            IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir);
+        Map<String, DatabaseReaderLazyLoader> databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders, new GeoIpCache(1000));
         for (DatabaseReaderLazyLoader lazyLoader : databaseReaders.values()) {
             assertNull(lazyLoader.databaseReader.get());
@@ -352,6 +345,81 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         asn.execute(document);
         // the first ingest should trigger a database load
         assertNotNull(databaseReaders.get("GeoLite2-ASN.mmdb").databaseReader.get());
+    }
+
+    public void testLoadingCustomDatabase() throws IOException {
+        final Path geoIpDir = createTempDir();
+        final Path configDir = createTempDir();
+        final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
+        Files.createDirectories(geoIpConfigDir);
+        copyDatabaseFiles(geoIpDir);
+        // fake the GeoIP2-City database
+        copyDatabaseFile(geoIpConfigDir, "GeoLite2-City.mmdb");
+        Files.move(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), geoIpConfigDir.resolve("GeoIP2-City.mmdb"));
+
+        /*
+         * Loading another database reader instances, because otherwise we can't test lazy loading as the database readers used at class
+         * level are reused between tests. (we want to keep that otherwise running this test will take roughly 4 times more time).
+         */
+        final Map<String, DatabaseReaderLazyLoader> databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir);
+        final GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders, new GeoIpCache(1000));
+        for (DatabaseReaderLazyLoader lazyLoader : databaseReaders.values()) {
+            assertNull(lazyLoader.databaseReader.get());
+        }
+
+        final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
+        final IngestDocument document = new IngestDocument("index", "type", "id", "routing", 1L, VersionType.EXTERNAL, field);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("database_file", "GeoIP2-City.mmdb");
+        final GeoIpProcessor city = factory.create(null, "_tag", config);
+
+        // these are lazy loaded until first use so we expect null here
+        assertNull(databaseReaders.get("GeoIP2-City.mmdb").databaseReader.get());
+        city.execute(document);
+        // the first ingest should trigger a database load
+        assertNotNull(databaseReaders.get("GeoIP2-City.mmdb").databaseReader.get());
+    }
+
+    public void testDatabaseNotExistsInDir() throws IOException {
+        final Path geoIpDir = createTempDir();
+        final Path configDir = createTempDir();
+        final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
+        if (randomBoolean()) {
+            Files.createDirectories(geoIpConfigDir);
+        }
+        copyDatabaseFiles(geoIpDir);
+        final String databaseFilename = randomFrom(IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES);
+        Files.delete(geoIpDir.resolve(databaseFilename));
+        final IOException e =
+                expectThrows(IOException.class, () -> IngestGeoIpPlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir));
+        assertThat(e, hasToString(containsString("expected database [" + databaseFilename + "] to exist in [" + geoIpDir + "]")));
+    }
+
+    public void testDatabaseExistsInConfigDir() throws IOException {
+        final Path geoIpDir = createTempDir();
+        final Path configDir = createTempDir();
+        final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
+        Files.createDirectories(geoIpConfigDir);
+        copyDatabaseFiles(geoIpDir);
+        final String databaseFilename = randomFrom(IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES);
+        copyDatabaseFile(geoIpConfigDir, databaseFilename);
+        final IOException e =
+                expectThrows(IOException.class, () -> IngestGeoIpPlugin.loadDatabaseReaders(geoIpDir, geoIpConfigDir));
+        assertThat(e, hasToString(containsString("expected database [" + databaseFilename + "] to not exist in [" + geoIpConfigDir + "]")));
+    }
+
+    private static void copyDatabaseFile(final Path path, final String databaseFilename) throws IOException {
+        Files.copy(
+                new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/" + databaseFilename)),
+                path.resolve(databaseFilename));
+    }
+
+    private static void copyDatabaseFiles(final Path path) throws IOException {
+        for (final String databaseFilename : IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES) {
+            copyDatabaseFile(path, databaseFilename);
+        }
     }
 
 }

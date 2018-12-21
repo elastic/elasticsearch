@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubqueryAliases;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -19,6 +20,10 @@ import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
@@ -92,7 +97,9 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -1174,5 +1181,31 @@ public class OptimizerTests extends ESTestCase {
         PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, r));
         assertEquals(Literal.FALSE, rule.rule(exp));
+    }
+
+    public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
+        Expression expr = new Abs(EMPTY, getFieldAttribute());
+        Expression percentage = new Abs(EMPTY, getFieldAttribute());
+        Percentile percentile = new Percentile(EMPTY, expr, percentage);
+        Map<Expression, Percentiles> percentiles = new HashMap<>();
+        percentiles.put(expr, new Percentiles(EMPTY, expr, Collections.singletonList(percentage)));
+
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () ->
+            new Optimizer.ReplaceAggsWithPercentiles().rule(percentile, percentiles, Collections.emptyMap()));
+        assertEquals("2nd argument: [ABS(a)] of PERCENTILE cannot be based on a field but only constant number",
+            e.getMessage());
+    }
+
+    public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
+        FieldAttribute expr = getFieldAttribute();
+        Expression value = new Abs(EMPTY, getFieldAttribute());
+        PercentileRank percentileRank = new PercentileRank(EMPTY, expr, value);
+        Map<Expression, PercentileRanks> percentileRanks = new HashMap<>();
+        percentileRanks.put(expr, new PercentileRanks(EMPTY, expr, Collections.singletonList(value)));
+
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () ->
+            new Optimizer.ReplaceAggsWithPercentileRanks().rule(percentileRank, percentileRanks, Collections.emptyMap()));
+        assertEquals("2nd argument: [ABS(a)] of PERCENTILE_RANK cannot be based on a field but only constant number",
+            e.getMessage());
     }
 }

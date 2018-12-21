@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
@@ -60,6 +61,10 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
 
     @Override
     public String innerName() {
+        if (!value.foldable()) {
+            throw new SqlIllegalArgumentException("2nd argument: [{}] of PERCENTILE_RANK cannot be based on " +
+                "a field but only constant number", Expressions.name(value));
+        }
         return Double.toString(Foldables.doubleValueOf(value));
     }
 }

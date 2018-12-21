@@ -171,7 +171,7 @@ public class TestingConventionsTasks extends DefaultTask {
                 suffixToBaseClass = naming.stream()
                     .collect(
                         Collectors.toMap(
-                            TestingConventionRule::getName,
+                            TestingConventionRule::getSuffix,
                             rule -> rule.getBaseClasses().stream()
                                 .map(each -> loadClassWithoutInitializing(each, isolatedClassLoader))
                                 .collect(Collectors.toSet())
@@ -338,7 +338,7 @@ public class TestingConventionsTasks extends DefaultTask {
 
     private boolean implementsNamingConvention(Class<?> clazz) {
         if (naming.stream()
-            .map(TestingConventionRule::getName)
+            .map(TestingConventionRule::getSuffix)
             .anyMatch(suffix -> clazz.getName().endsWith(suffix))) {
             getLogger().info("{} is a test because it matches the naming convention", clazz.getName());
             return true;

@@ -33,18 +33,26 @@ import java.util.regex.Pattern;
  */
 public class TestingConventionRule implements Serializable {
 
-    private final String name;
+    private final String suffix;
 
     private Set<String> baseClasses = new HashSet<>();
 
     private Set<Pattern> taskNames = new HashSet<>();
 
-    public TestingConventionRule(String name) {
-        this.name = name;
+    public TestingConventionRule(String suffix) {
+        this.suffix = suffix;
     }
 
+    public String getSuffix() {
+        return suffix;
+    }
+
+    /**
+     * Alias for @{link getSuffix} as Gradle requires a name property
+     *
+     */
     public String getName() {
-        return name;
+        return suffix;
     }
 
     public void baseClass(String clazz) {
@@ -81,11 +89,11 @@ public class TestingConventionRule implements Serializable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TestingConventionRule that = (TestingConventionRule) o;
-        return Objects.equals(name, that.name);
+        return Objects.equals(suffix, that.suffix);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(suffix);
     }
 }

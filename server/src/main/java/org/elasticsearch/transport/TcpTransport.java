@@ -653,7 +653,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 }
             }
         } else {
-            logger.trace(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
+            logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
         }

@@ -322,7 +322,7 @@ if (isEclipse == false || project.path == ":server-tests") {
   task integTest(type: RandomizedTestingTask,
                  group: JavaBasePlugin.VERIFICATION_GROUP,
                  description: 'Multi-node tests',
-                 dependsOn: test.dependsOn) {
+                 dependsOn: unitTest.dependsOn) {
     include '**/*IT.class'
   }
   check.dependsOn integTest

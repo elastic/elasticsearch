@@ -125,7 +125,8 @@ public class VersionTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
             if (version != Version.CURRENT) {
-                assertThat("Version: " + version + " should be before: " + Version.CURRENT + " but wasn't", version.before(Version.CURRENT), is(true));
+                assertThat("Version: " + version + " should be before: " + Version.CURRENT + " but wasn't",
+                    version.before(Version.CURRENT), is(true));
             }
         }
     }
@@ -161,7 +162,11 @@ public class VersionTests extends ESTestCase {
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetaData.SETTING_INDEX_UUID
         final Version version = Version.V_6_0_0_beta1;
-        assertEquals(version, Version.indexCreated(Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
+        assertEquals(version, Version.indexCreated(
+            Settings.builder()
+                .put(IndexMetaData.SETTING_INDEX_UUID, "foo")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .build()));
     }
 
     public void testMinCompatVersion() {
@@ -181,7 +186,7 @@ public class VersionTests extends ESTestCase {
 
         // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
-        Version lastVersion = Version.V_6_6_0; // TODO: remove this once min compat version is a constant instead of method
+        Version lastVersion = Version.V_6_7_0; // TODO: remove this once min compat version is a constant instead of method
         assertEquals(lastVersion.major, Version.V_7_0_0.minimumCompatibilityVersion().major);
         assertEquals("did you miss to bump the minor in Version#minimumCompatibilityVersion()",
                 lastVersion.minor, Version.V_7_0_0.minimumCompatibilityVersion().minor);
@@ -340,8 +345,8 @@ public class VersionTests extends ESTestCase {
 
     public void testIsCompatible() {
         assertTrue(isCompatible(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
-        assertFalse(isCompatible(Version.V_6_5_0, Version.V_7_0_0));
-        assertTrue(isCompatible(Version.V_6_6_0, Version.V_7_0_0));
+        assertFalse(isCompatible(Version.V_6_6_0, Version.V_7_0_0));
+        assertTrue(isCompatible(Version.V_6_7_0, Version.V_7_0_0));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_7_0_0));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_6_5_0));
 

@@ -173,10 +173,6 @@ Closure commonPackageConfig(String type, boolean oss) {
       configurationFile '/etc/elasticsearch/users'
       configurationFile '/etc/elasticsearch/users_roles'
     }
-    configurationFile '/etc/elasticsearch/ingest-geoip'
-    configurationFile '/etc/elasticsearch/ingest-geoip/GeoLite2-ASN.mmdb'
-    configurationFile '/etc/elasticsearch/ingest-geoip/GeoLite2-City.mmdb'
-    configurationFile '/etc/elasticsearch/ingest-geoip/GeoLite2-Country.mmdb'
     into('/etc/elasticsearch') {
       dirMode 0750
       fileMode 0660

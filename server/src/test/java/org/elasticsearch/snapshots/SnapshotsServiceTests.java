@@ -45,16 +45,17 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotShardsService.UpdateIndexShardSnapshotStatusRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
@@ -63,6 +64,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -81,10 +83,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyListOf;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -112,12 +111,10 @@ public class SnapshotsServiceTests extends ESTestCase {
         String repoName = "repo";
         String snapshotName = "snapshot";
         final int shards = randomIntBetween(1, 10);
-        final Repository repository = mock(Repository.class);
-        when(repository.getRepositoryData()).thenReturn(RepositoryData.EMPTY);
+        final Repository repository = createRepository();
         testClusterNodes.nodes.values().forEach(
             node -> when(node.repositoriesService.repository(repoName)).thenReturn(repository)
         );
-
         String index = randomAlphaOfLength(10);
         MetaData metaData = MetaData.builder().putCustom(
             RepositoriesMetaData.TYPE,
@@ -133,16 +130,6 @@ public class SnapshotsServiceTests extends ESTestCase {
             .numberOfShards(shards)
             .numberOfReplicas(1)
         ).build();
-
-        doAnswer(invocation -> {
-            Object[] args = invocation.getArguments();
-            return new SnapshotInfo(
-                (SnapshotId) args[0],
-                ((List<IndexId>) args[1]).stream().map(IndexId::getName).collect(Collectors.toList()),
-                ((List<IndexShard.ShardFailure>) args[5]).isEmpty() ? SnapshotState.SUCCESS : SnapshotState.FAILED
-            );
-        }).when(repository).finalizeSnapshot(
-            any(), anyListOf(IndexId.class), anyLong(), anyString(), eq(shards), any(), anyLong(), anyBoolean());
 
         TestClusterState clusterState = new TestClusterState(
             allocateRouting(
@@ -290,6 +277,33 @@ public class SnapshotsServiceTests extends ESTestCase {
             }
         }
         assertNoSnapshotsInProgress(clusterState.current);
+    }
+
+    /**
+     * Create a {@link Repository} with a random name
+     **/
+    private Repository createRepository() {
+        Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
+        RepositoryMetaData repositoryMetaData = new RepositoryMetaData(randomAlphaOfLength(10), FsRepository.TYPE, settings);
+        final FsRepository repository = new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry()) {
+            @Override
+            protected void assertSnapshotOrGenericThread() {
+                // eliminate thread name check as we create repo manually
+            }
+        };
+        repository.start();
+        return repository;
+    }
+
+    /**
+     * Create a {@link Environment} with random path.home and path.repo
+     **/
+    private Environment createEnvironment() {
+        Path home = createTempDir();
+        return TestEnvironment.newEnvironment(Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), home.toAbsolutePath())
+            .put(Environment.PATH_REPO_SETTING.getKey(), home.resolve("repo").toAbsolutePath())
+            .build());
     }
 
     private static boolean isCompletedSnapshot(TestClusterState clusterState) {

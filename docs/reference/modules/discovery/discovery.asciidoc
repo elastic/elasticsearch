@@ -82,9 +82,10 @@ gives a convenient mechanism for an Elasticsearch instance that is run in a
 Docker container to be dynamically supplied with a list of IP addresses to
 connect to when those IP addresses may not be known at node startup.
 
-To enable file-based discovery, configure the `file` hosts provider as follows:
+To enable file-based discovery, configure the `file` hosts provider as follows
+in the `elasticsearch.yml` file:
 
-[source,txt]
+[source,yml]
 ----------------------------------------------------------------
 discovery.zen.hosts_provider: file
 ----------------------------------------------------------------
@@ -150,39 +151,3 @@ a hosts provider that uses the Azure Classic API find a list of seed nodes.
 
 The {plugins}/discovery-gce.html[GCE discovery plugin] adds a hosts provider
 that uses the GCE API find a list of seed nodes.
-
-[float]
-==== Discovery settings
-
-The discovery process is controlled by the following settings.
-
-`discovery.find_peers_interval`::
-
-    Sets how long a node will wait before attempting another discovery round.
-    Defaults to `1s`.
-
-`discovery.request_peers_timeout`::
-
-    Sets how long a node will wait after asking its peers again before
-    considering the request to have failed. Defaults to `3s`.
-
-`discovery.probe.connect_timeout`::
-
-    Sets how long to wait when attempting to connect to each address. Defaults
-    to `3s`.
-
-`discovery.probe.handshake_timeout`::
-
-    Sets how long to wait when attempting to identify the remote node via a
-    handshake. Defaults to `1s`.
-
-`discovery.cluster_formation_warning_timeout`::
-
-    Sets how long a node will try to form a cluster before logging a warning
-    that the cluster did not form. Defaults to `10s`.
-
-If a cluster has not formed after `discovery.cluster_formation_warning_timeout`
-has elapsed then the node will log a warning message that starts with the phrase
-`master not discovered` which describes the current state of the discovery
-process.
-

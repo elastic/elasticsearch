@@ -909,7 +909,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25281")
     public void testMasterShutdownDuringFailedSnapshot() throws Exception {
         logger.info("-->  starting two master nodes and two data nodes");
         internalCluster().startMasterOnlyNodes(2);
@@ -966,11 +965,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertEquals(0, snapshotsInProgress.entries().size());
         }, 30, TimeUnit.SECONDS);
 
-        logger.info("-->  verify that snapshot failed");
+        logger.info("-->  verify that the snapshot is done");
         GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
             .prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
         SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
-        assertEquals(SnapshotState.FAILED, snapshotInfo.state());
+        assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
     }
 
     /**

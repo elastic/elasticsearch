@@ -10,7 +10,7 @@ data folder and freshly-started nodes that are joining an existing cluster
 obtain this information from the cluster's elected master. 
 
 The initial set of master-eligible nodes is defined in the 
-<<modules-discovery-settings,`cluster.initial_master_nodes` setting>>. When you
+<<initial_master_nodes,`cluster.initial_master_nodes` setting>>. When you
 start a master-eligible node, you can provide this setting on the command line
 or in the `elasticsearch.yml` file. After the cluster has formed, this setting
 is no longer required and is ignored. It need not be set

@@ -239,7 +239,7 @@ PUT _ilm/policy/my_executing_policy
   "policy": {
     "phases": {
       "hot": {
-        "min_age": "1d",
+        "min_age": "1d", <1>
         "actions": {
           "rollover": {
             "max_docs": 1
@@ -258,10 +258,10 @@ PUT _ilm/policy/my_executing_policy
 ------------------------
 // CONSOLE
 // TEST[continued]
+<1> updated `min_age` from "0ms" to "1d"
 
-Now, version 2 of this policy has `min_age` for the hot phase set to one day, but if we
-run the Explain API again, we will see that nothing has changed. The index `my_index`
-is still executing version 1 of the policy.
+The index `my_index` has already entered the hot phase, so it will still
+use version 1 of the policy until it completes the hot phase.
 
 ////
 [source,js]
@@ -290,7 +290,7 @@ GET my_index/_ilm/explain
       "phase_execution": {
         "policy": "my_executing_policy",
         "modified_date_in_millis": 1538475653317,
-        "version": 1,
+        "version": 1, <1>
         "phase_definition": {
           "min_age": "0ms",
           "actions": {
@@ -306,6 +306,7 @@ GET my_index/_ilm/explain
 --------------------------------------------------
 // CONSOLE
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
+<1> the version of the policy used for executing the hot phase
 
 We can also update `my_executing_policy` to have no rollover action and,
 instead, go directly into a newly introduced `warm` phase.
@@ -337,8 +338,9 @@ PUT _ilm/policy/my_executing_policy
 // CONSOLE
 // TEST[continued]
 
-Now, version 3 of this policy has no `hot` phase, but if we run the Explain API again, we will see that nothing has changed.
-The index `my_index` is still executing version 1 of the policy.
+Now, version 3 of this policy has no `hot` phase, but if we run the
+Explain API again, we will see that nothing has changed. The index
+`my_index` is still executing version 1 of the policy.
 
 ////
 [source,js]
@@ -367,7 +369,7 @@ GET my_index/_ilm/explain
       "phase_execution": {
         "policy": "my_executing_policy",
         "modified_date_in_millis": 1538475653317,
-        "version": 1,
+        "version": 1, <1>
         "phase_definition": {
           "min_age": "0ms",
           "actions": {
@@ -383,9 +385,11 @@ GET my_index/_ilm/explain
 --------------------------------------------------
 // CONSOLE
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
+<1> the version of the policy used for executing the hot phase
 
-After indexing one document into `my_index` so that rollover succeeds and moves onto the next phase, we will notice something new. The
-index will move into the next phase in the updated version 3 of its policy.
+After indexing one document into `my_index` so that rollover succeeds and
+moves onto the next phase, we will notice something new. The index will
+move into the next phase in the updated version 3 of its policy.
 
 ////
 [source,js]

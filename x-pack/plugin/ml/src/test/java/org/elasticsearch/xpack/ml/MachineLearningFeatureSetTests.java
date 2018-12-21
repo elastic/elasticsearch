@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
@@ -63,6 +62,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -86,6 +86,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         client = mock(Client.class);
         jobManager = mock(JobManager.class);
         licenseState = mock(XPackLicenseState.class);
+        ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE).build();
+        when(clusterService.state()).thenReturn(clusterState);
         givenJobs(Collections.emptyList(), Collections.emptyList());
         givenDatafeeds(Collections.emptyList());
     }
@@ -322,15 +324,14 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     private void givenJobs(List<Job> jobs, List<GetJobsStatsAction.Response.JobStats> jobsStats) {
-        MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
-        for (Job job : jobs) {
-            mlMetadataBuilder.putJob(job, false);
-        }
-        ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE)
-                .metaData(new MetaData.Builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
-                .build();
-        when(clusterService.state()).thenReturn(clusterState);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<QueryPage<Job>> jobListener =
+                    (ActionListener<QueryPage<Job>>) invocationOnMock.getArguments()[2];
+            jobListener.onResponse(
+                    new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
+            return Void.TYPE;
+        }).when(jobManager).expandJobs(eq(MetaData.ALL), eq(true), any(ActionListener.class));
 
         doAnswer(invocationOnMock -> {
             ActionListener<GetJobsStatsAction.Response> listener =

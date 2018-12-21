@@ -168,7 +168,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
         this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService,
-            this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::unsafelySetConfigurationForUpgrade);
+            this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::setInitialConfiguration);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
@@ -720,49 +720,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
             return true;
-        }
-    }
-
-    private void unsafelySetConfigurationForUpgrade(VotingConfiguration votingConfiguration) {
-        assert Version.CURRENT.major == Version.V_6_6_0.major + 1 : "remove this method once unsafe upgrades are no longer needed";
-        synchronized (mutex) {
-            if (mode != Mode.CANDIDATE) {
-                throw new IllegalStateException("Cannot overwrite configuration in mode " + mode);
-            }
-
-            if (isInitialConfigurationSet()) {
-                throw new IllegalStateException("Cannot overwrite configuration: configuration is already set to "
-                    + getLastAcceptedState().getLastAcceptedConfiguration());
-            }
-
-            if (lastKnownLeader.map(Coordinator::isZen1Node).orElse(false) == false) {
-                throw new IllegalStateException("Cannot upgrade from last-known leader: " + lastKnownLeader);
-            }
-
-            if (getCurrentTerm() != ZEN1_BWC_TERM) {
-                throw new IllegalStateException("Cannot upgrade, term is " + getCurrentTerm());
-            }
-
-            logger.info("automatically bootstrapping during rolling upgrade, using initial configuration {}", votingConfiguration);
-
-            final ClusterState currentState = getStateForMasterService();
-            final Builder builder = masterService.incrementVersion(currentState);
-            builder.metaData(MetaData.builder(currentState.metaData()).coordinationMetaData(
-                CoordinationMetaData.builder(currentState.metaData().coordinationMetaData())
-                    .term(1)
-                    .lastAcceptedConfiguration(votingConfiguration)
-                    .lastCommittedConfiguration(votingConfiguration)
-                    .build()));
-            final ClusterState newClusterState = builder.build();
-
-            coordinationState.get().handleStartJoin(new StartJoinRequest(getLocalNode(), newClusterState.term()));
-            coordinationState.get().handlePublishRequest(new PublishRequest(newClusterState));
-
-            followersChecker.clearCurrentNodes();
-            followersChecker.updateFastResponseState(getCurrentTerm(), mode);
-
-            peerFinder.deactivate(getLocalNode());
-            peerFinder.activate(newClusterState.nodes());
         }
     }
 

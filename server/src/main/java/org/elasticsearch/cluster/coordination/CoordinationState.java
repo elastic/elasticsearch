@@ -126,27 +126,29 @@ public class CoordinationState {
     /**
      * Used to bootstrap a cluster by injecting the initial state and configuration.
      *
-     * @param initialState The initial state to use. Must have term 0, version 1, and non-empty configurations.
+     * @param initialState The initial state to use. Must have term 0, version equal to the last-accepted version, and non-empty
+     *                     configurations.
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public void setInitialState(ClusterState initialState) {
-        final long lastAcceptedVersion = getLastAcceptedVersion();
-        if (lastAcceptedVersion != 0) {
-            logger.debug("setInitialState: rejecting since last-accepted version {} > 0", lastAcceptedVersion);
-            throw new CoordinationStateRejectedException("initial state already set: last-accepted version now " + lastAcceptedVersion);
+
+        final VotingConfiguration lastAcceptedConfiguration = getLastAcceptedConfiguration();
+        if (lastAcceptedConfiguration.isEmpty() == false) {
+            logger.debug("setInitialState: rejecting since last-accepted configuration is nonempty: {}", lastAcceptedConfiguration);
+            throw new CoordinationStateRejectedException("initial state already set: last-accepted configuration now " + lastAcceptedConfiguration);
         }
 
         assert getLastAcceptedTerm() == 0 : getLastAcceptedTerm();
-        assert getLastAcceptedConfiguration().isEmpty() : getLastAcceptedConfiguration();
         assert getLastCommittedConfiguration().isEmpty() : getLastCommittedConfiguration();
-        assert lastPublishedVersion == 0 : lastAcceptedVersion;
+        assert lastPublishedVersion == 0 : lastPublishedVersion;
         assert lastPublishedConfiguration.isEmpty() : lastPublishedConfiguration;
         assert electionWon == false;
         assert joinVotes.isEmpty() : joinVotes;
         assert publishVotes.isEmpty() : publishVotes;
 
         assert initialState.term() == 0 : initialState;
-        assert initialState.version() == 1 : initialState;
+        assert initialState.version() > 0 : initialState;
+        assert initialState.version() == getLastAcceptedVersion() + 1 : initialState + " vs " + getLastAcceptedVersion();
         assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
         assert initialState.getLastCommittedConfiguration().isEmpty() == false;
 
@@ -203,6 +205,11 @@ public class CoordinationState {
      */
     public boolean handleJoin(Join join) {
         assert join.getTargetNode().equals(localNode) : "handling join " + join + " for the wrong node " + localNode;
+
+        if (getLastAcceptedConfiguration().isEmpty()) {
+            logger.debug("handleJoin: rejecting join since this node has not received its initial configuration yet");
+            throw new CoordinationStateRejectedException("rejecting join since this node has not received its initial configuration yet");
+        }
 
         if (join.getTerm() != getCurrentTerm()) {
             logger.debug("handleJoin: ignored join due to term mismatch (expected: [{}], actual: [{}])",

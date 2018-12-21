@@ -26,7 +26,6 @@ import org.apache.lucene.index.PointValues.Relation;
  * <p>The field must be indexed using
  * {@link XLatLonShape#createIndexableFields} added per document.
  *
- *  @lucene.experimental
  **/
 final class XLatLonShapeBoundingBoxQuery extends XLatLonShapeQuery {
   final XRectangle2D rectangle2D;

@@ -52,11 +52,12 @@ public class RestBulkAction extends BaseRestHandler {
 
     public RestBulkAction(Settings settings, RestController controller) {
         super(settings);
-
         controller.registerHandler(POST, "/_bulk", this);
         controller.registerHandler(PUT, "/_bulk", this);
         controller.registerHandler(POST, "/{index}/_bulk", this);
         controller.registerHandler(PUT, "/{index}/_bulk", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(POST, "/{index}/{type}/_bulk", this);
         controller.registerHandler(PUT, "/{index}/{type}/_bulk", this);
 

@@ -52,7 +52,22 @@ public class RestIndexActionTests extends RestActionTestCase {
         dispatchRequest(validRequest);
     }
 
-    public void testCreateOpTypeValidation() throws Exception {
+    public void testCreateWithTypeInPath() {
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.PUT)
+            .withPath("/some_index/some_type/some_id/_create")
+            .build();
+        dispatchRequest(deprecatedRequest);
+        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
+
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.PUT)
+            .withPath("/some_index/_create/some_id")
+            .build();
+        dispatchRequest(validRequest);
+    }
+
+    public void testCreateOpTypeValidation() {
         Settings settings = settings(Version.CURRENT).build();
         RestIndexAction.CreateHandler create = action.new CreateHandler(settings);
 

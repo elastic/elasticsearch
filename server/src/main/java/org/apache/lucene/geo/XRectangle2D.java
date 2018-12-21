@@ -38,7 +38,6 @@ import static org.apache.lucene.geo.GeoUtils.orient;
 /**
  * 2D rectangle implementation containing spatial logic.
  *
- * @lucene.internal
  */
 public class XRectangle2D {
   final byte[] bbox;

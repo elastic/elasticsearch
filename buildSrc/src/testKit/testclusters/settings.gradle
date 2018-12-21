@@ -1,0 +1,4 @@
+include 'dummyPlugin'
+include ':alpha'
+include ':bravo'
+include ':charlie'

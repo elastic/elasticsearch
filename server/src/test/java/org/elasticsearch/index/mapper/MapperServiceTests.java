@@ -39,8 +39,6 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -179,25 +177,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertWarnings("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
     }
 
-    public void testMergeWithMap() throws Throwable {
-        IndexService indexService1 = createIndex("index1");
-        MapperService mapperService = indexService1.mapperService();
-        Map<String, Map<String, Object>> mappings = new HashMap<>();
-
-        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping(xContentRegistry(), "{}"));
-        MapperException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
-
-        mappings.clear();
-        mappings.put("type1", MapperService.parseMapping(xContentRegistry(), "{}"));
-
-        e = expectThrows( MapperParsingException.class,
-            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
-    }
-
-     public void testPartitionedConstraints() {
+    public void testPartitionedConstraints() {
         // partitioned index must have routing
          IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate("test-index")

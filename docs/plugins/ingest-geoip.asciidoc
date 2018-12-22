@@ -4,3 +4,8 @@
 The `geoip` processor is no longer distributed as a plugin, but is now a module
 distributed by default with Elasticsearch. See <<ingest-geoip>> for more
 details.
+
+[[using-ingest-geoip]]
+==== Using the `geoip` Processor in a Pipeline
+
+See <<ingest-geoip>>

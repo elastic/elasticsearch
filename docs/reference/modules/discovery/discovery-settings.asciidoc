@@ -3,6 +3,14 @@
 
 Discovery and cluster formation are affected by the following settings:
 
+`cluster.auto_shrink_voting_configuration`::
+
+    Controls whether the <<modules-discovery-voting,voting configuration>> sheds
+    departed nodes automatically, as long as it still contains at least 3 nodes.
+    The default value is `true`. If set to `false`, the voting configuration
+    never shrinks automatically; you must remove departed nodes manually with
+    the <<voting-config-exclusions,voting configuration exclusions API>>.
+
 [[master-election-settings]]`cluster.election.back_off_time`::
 
     Sets the amount to increase the upper bound on the wait before an election

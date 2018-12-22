@@ -188,9 +188,13 @@ public class DocumentMapperParser {
     @SuppressWarnings({"unchecked"})
     private Tuple<String, Map<String, Object>> extractMapping(String type, Map<String, Object> root) throws MapperParsingException {
         if (root.size() == 0) {
-            // if we don't have any keys throw an exception
-            throw new MapperParsingException("malformed mapping no root object found");
+            if (type != null) {
+                return new Tuple<>(type, root);
+            } else {
+                throw new MapperParsingException("malformed mapping, no type name found");
+            }
         }
+
         String rootName = root.keySet().iterator().next();
         Tuple<String, Map<String, Object>> mapping;
         if (type == null || type.equals(rootName)) {

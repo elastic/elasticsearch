@@ -8,4 +8,4 @@ details.
 [[using-ingest-geoip]]
 ==== Using the `geoip` Processor in a Pipeline
 
-See <<ingest-geoip>>
+See <<ingest-geoip>>.

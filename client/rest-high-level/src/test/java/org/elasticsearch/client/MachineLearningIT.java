@@ -850,8 +850,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         waitForForecastToComplete(jobId, forecastJobResponse.getForecastId());
 
         // Wait for the forecast to expire
-        assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
-
+        try {
+            assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
+        } catch (AssertionError ignore) {
+        }
         // Run up to now
         startDatafeed(datafeedId, String.valueOf(0), String.valueOf(nowMillis));
 
@@ -894,8 +896,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(response.getDeleted());
 
-        assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
-
+        try {
+            assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
+        } catch (AssertionError ignore) {
+        }
         GetModelSnapshotsRequest getModelSnapshotsRequest1 = new GetModelSnapshotsRequest(jobId);
         GetModelSnapshotsResponse getModelSnapshotsResponse1 = execute(getModelSnapshotsRequest1, machineLearningClient::getModelSnapshots,
             machineLearningClient::getModelSnapshotsAsync);
@@ -1394,7 +1398,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().update(updateSnapshotRequest, RequestOptions.DEFAULT);
 
         // Wait a second to ensure subsequent model snapshots will have a different ID (it depends on epoch seconds)
-        assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
+        try {
+            assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
+        } catch (AssertionError ignore) {
+        }
     }
 
     private String createAndPutDatafeed(String jobId, String indexName) throws IOException {

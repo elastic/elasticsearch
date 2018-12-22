@@ -38,6 +38,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
+    private static final UnfollowAction TEST_UNFOLLOW_ACTION  = new UnfollowAction();
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -476,6 +477,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return TEST_ROLLOVER_ACTION;
             case ShrinkAction.NAME:
                 return TEST_SHRINK_ACTION;
+            case UnfollowAction.NAME:
+                return TEST_UNFOLLOW_ACTION;
             default:
                 throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
         }

@@ -34,7 +34,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     public static final String TYPE = "timeseries";
     static final List<String> VALID_PHASES = Arrays.asList("hot", "warm", "cold", "delete");
-    static final List<String> ORDERED_VALID_HOT_ACTIONS = Collections.singletonList(RolloverAction.NAME);
+    static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(UnfollowAction.NAME, RolloverAction.NAME);
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(ReadOnlyAction.NAME, AllocateAction.NAME,
         ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(AllocateAction.NAME);

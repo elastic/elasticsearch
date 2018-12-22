@@ -29,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.BufferedReader;
@@ -249,6 +250,33 @@ public class RemovePluginCommandTests extends ESTestCase {
         UserException e = expectThrows(UserException.class, () -> removePlugin(null, home, randomBoolean()));
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertEquals("plugin name is required", e.getMessage());
+    }
+
+    /**
+     * The ingest-geoip plugin receives special handling because we have re-packaged it as a module; this test ensures that we are still
+     * able to uninstall an old installation of ingest-geoip.
+     *
+     * @throws Exception if an exception is thrown creating or removing the plugin
+     */
+    public void testRemoveIngestGeoIp() throws Exception {
+        createPlugin(
+                "ingest-geoip",
+                VersionUtils.randomVersionBetween(
+                        random(),
+                        Version.CURRENT.minimumIndexCompatibilityVersion(),
+                        Version.V_6_6_0));
+        removePlugin("ingest-geoip", home, randomBoolean());
+        assertThat(Files.exists(env.pluginsFile().resolve("ingest-geoip")), equalTo(false));
+        assertRemoveCleaned(env);
+    }
+
+    public void testRemoveIngestGeoIpWhenNotInstalled() {
+        final UserException e = expectThrows(UserException.class, () -> removePlugin("ingest-geoip", home, randomBoolean()));
+        assertThat(e.exitCode, equalTo(ExitCodes.OK));
+        assertThat(
+                e,
+                hasToString(Matchers.containsString(
+                        "ingest-geoip is no longer a plugin but instead a module packaged with this distribution of Elasticsearch")));
     }
 
     public void testRemoveWhenRemovingMarker() throws Exception {

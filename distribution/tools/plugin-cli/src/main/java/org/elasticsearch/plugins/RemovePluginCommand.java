@@ -111,6 +111,14 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
          */
         if ((!Files.exists(pluginDir) && !Files.exists(pluginConfigDir) && !Files.exists(removing))
                 || (!Files.exists(pluginDir) && Files.exists(pluginConfigDir) && !purge)) {
+
+            // special case for ingest-geoip since it is a module now but could have been installed from a previous when it was a plugin
+            if ("ingest-geoip".equals(pluginName)) {
+                throw new UserException(
+                        ExitCodes.OK,
+                        "ingest-geoip is no longer a plugin but instead a module packaged with this distribution of Elasticsearch");
+            }
+
             final String message = String.format(
                     Locale.ROOT, "plugin [%s] not found; run 'elasticsearch-plugin list' to get list of installed plugins", pluginName);
             throw new UserException(ExitCodes.CONFIG, message);

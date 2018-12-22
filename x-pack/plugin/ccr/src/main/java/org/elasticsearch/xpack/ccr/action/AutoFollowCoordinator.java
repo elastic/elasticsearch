@@ -74,6 +74,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     private final ClusterService clusterService;
     private final CcrLicenseChecker ccrLicenseChecker;
     private final LongSupplier relativeMillisTimeProvider;
+    private final LongSupplier absoluteMillisTimeProvider;
 
     private volatile TimeValue waitForMetadataTimeOut;
     private volatile Map<String, AutoFollower> autoFollowers = Collections.emptyMap();
@@ -85,16 +86,18 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     private final LinkedHashMap<String, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
 
     public AutoFollowCoordinator(
-            Settings settings,
-            Client client,
-            ClusterService clusterService,
-            CcrLicenseChecker ccrLicenseChecker,
-            LongSupplier relativeMillisTimeProvider) {
+        Settings settings,
+        Client client,
+        ClusterService clusterService,
+        CcrLicenseChecker ccrLicenseChecker,
+        LongSupplier relativeMillisTimeProvider,
+        LongSupplier absoluteMillisTimeProvider) {
 
         this.client = client;
         this.clusterService = clusterService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
         this.relativeMillisTimeProvider = relativeMillisTimeProvider;
+        this.absoluteMillisTimeProvider = absoluteMillisTimeProvider;
         clusterService.addListener(this);
         this.recentAutoFollowErrors = new LinkedHashMap<String, Tuple<Long, ElasticsearchException>>() {
             @Override
@@ -138,7 +141,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
     }
 
     synchronized void updateStats(List<AutoFollowResult> results) {
-        long newStatsReceivedTimeStamp = relativeMillisTimeProvider.getAsLong();
+        long newStatsReceivedTimeStamp = absoluteMillisTimeProvider.getAsLong();
         for (AutoFollowResult result : results) {
             if (result.clusterStateFetchException != null) {
                 recentAutoFollowErrors.put(result.autoFollowPatternName,

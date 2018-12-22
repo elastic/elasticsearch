@@ -16,7 +16,7 @@ uncompressed. The `ingest-geoip` config directory is located at `$ES_HOME/config
 ==== Using the `geoip` Processor in a Pipeline
 
 [[ingest-geoip-options]]
-.`geoip` options
+.geoip options
 [options="header"]
 |======
 | Name                   | Required  | Default                                                                            | Description

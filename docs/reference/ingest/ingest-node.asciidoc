@@ -1310,10 +1310,10 @@ doesn't exist on all nodes. If you rely on custom processor plugins make sure to
 
 [source,yaml]
 --------------------------------------------------
-plugin.mandatory: ingest-attachment,ingest-geoip
+plugin.mandatory: ingest-attachment
 --------------------------------------------------
 
-A node will not start if either of these plugins are not available.
+A node will not start if this plugin is not available.
 
 The <<ingest-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
 pipeline basis. Useful to find out which pipelines are used the most or spent the most time on preprocessing.
@@ -1334,6 +1334,7 @@ include::processors/dot-expand.asciidoc[]
 include::processors/drop.asciidoc[]
 include::processors/fail.asciidoc[]
 include::processors/foreach.asciidoc[]
+include::processors/geoip.asciidoc[]
 include::processors/grok.asciidoc[]
 include::processors/gsub.asciidoc[]
 include::processors/join.asciidoc[]

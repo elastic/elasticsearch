@@ -1,11 +1,11 @@
-[[ingest-geoip-plugin]]
+[[ingest-geoip]]
 === Ingest `geoip` Processor Plugin
 
 The `geoip` processor is no longer distributed as a plugin, but is now a module
-distributed by default with Elasticsearch. See <<ingest-geoip>> for more
-details.
+distributed by default with Elasticsearch. See
+{ref}/ingest-geoip.html[Ingest `geoip` processor] for more details.
 
 [[using-ingest-geoip]]
 ==== Using the `geoip` Processor in a Pipeline
 
-See <<ingest-geoip>>.
+See {ref}/using-ingest-geoip.html[using `ingest-geoip`].

@@ -90,7 +90,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
     private Path getGeoIpDirectory(Processor.Parameters parameters) {
         final Path geoIpDirectory;
         if (parameters.env.settings().get("ingest.geoip.database_path") == null) {
-            geoIpDirectory = parameters.env.pluginsFile().resolve("ingest-geoip");
+            geoIpDirectory = parameters.env.modulesFile().resolve("ingest-geoip");
         } else {
             geoIpDirectory = PathUtils.get(parameters.env.settings().get("ingest.geoip.database_path"));
         }

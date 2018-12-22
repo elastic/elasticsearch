@@ -757,6 +757,17 @@ public class InstallPluginCommandTests extends ESTestCase {
         }
     }
 
+    public void testInstallGeoIp() throws IOException {
+        final Environment environment = createEnv(fs, temp).v2();
+        final UserException exception =
+                expectThrows(UserException.class, () -> new InstallPluginCommand().execute(terminal, "ingest-geoip", false, environment));
+        assertThat(exception.exitCode, equalTo(ExitCodes.OK));
+        assertThat(
+                exception,
+                hasToString(containsString(
+                        "ingest-geoip is no longer a plugin but instead a module packaged with this distribution of Elasticsearch")));
+    }
+
     public void testInstallXPack() throws IOException {
         runInstallXPackTest(Build.Flavor.DEFAULT, UserException.class, "this distribution of Elasticsearch contains X-Pack by default");
         runInstallXPackTest(

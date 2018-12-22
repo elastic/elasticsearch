@@ -36,4 +36,3 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }
-

@@ -157,6 +157,20 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertTrue(metadata.sourceAsMap().isEmpty());
     }
 
+    public void testFlatMappingFormat() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping("_doc", "field", "type=keyword"));
+
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
+
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        assertNotNull(mappings);
+
+        MappingMetaData metadata = mappings.get("_doc");
+        assertNotNull(metadata);
+        assertFalse(metadata.sourceAsMap().isEmpty());
+    }
+
     public void testInvalidShardCountSettings() throws Exception {
         int value = randomIntBetween(-10, 0);
         try {

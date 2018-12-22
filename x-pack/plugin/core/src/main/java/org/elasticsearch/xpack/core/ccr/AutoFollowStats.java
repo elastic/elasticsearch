@@ -57,7 +57,8 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))));
 
-    private static final ConstructingObjectParser<Map.Entry<String, Tuple<Long, ElasticsearchException>>, Void> AUTO_FOLLOW_EXCEPTIONS_PARSER =
+    private static final ConstructingObjectParser<Map.Entry<String,
+        Tuple<Long, ElasticsearchException>>, Void> AUTO_FOLLOW_EXCEPTIONS_PARSER =
         new ConstructingObjectParser<>(
             "auto_follow_stats_errors",
             args -> new AbstractMap.SimpleEntry<>((String) args[0], new Tuple<>((Long) args[1], (ElasticsearchException) args[2])));

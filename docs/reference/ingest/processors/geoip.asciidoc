@@ -13,10 +13,10 @@ and the `database_file` option should be used to specify the filename of the cus
 uncompressed. The `ingest-geoip` config directory is located at `$ES_HOME/config/ingest-geoip`.
 
 [[using-ingest-geoip]]
-==== Using the Geoip Processor in a Pipeline
+==== Using the `geoip` Processor in a Pipeline
 
 [[ingest-geoip-options]]
-.Geoip options
+.`geoip` options
 [options="header"]
 |======
 | Name                   | Required  | Default                                                                            | Description

@@ -1,4 +1,4 @@
-"Ingest User Agent installed":
+"ingest-user-agent installed":
     - skip:
         reason: "contains is a newly added assertion"
         features: contains

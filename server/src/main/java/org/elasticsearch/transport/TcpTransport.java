@@ -143,7 +143,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final String transportName;
 
     private final MeanMetric readBytesMetric = new MeanMetric();
-    private final MeanMetric transmittedBytesMetric = new MeanMetric();
     private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private final TransportLogger transportLogger;
@@ -1232,8 +1231,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public final TransportStats getStats() {
-        return new TransportStats(acceptedChannels.size(), readBytesMetric.count(), readBytesMetric.sum(), transmittedBytesMetric.count(),
-            transmittedBytesMetric.sum());
+        MeanMetric transmittedBytes = outboundHandler.getTransmittedBytes();
+        return new TransportStats(acceptedChannels.size(), readBytesMetric.count(), readBytesMetric.sum(), transmittedBytes.count(),
+            transmittedBytes.sum());
     }
 
     /**

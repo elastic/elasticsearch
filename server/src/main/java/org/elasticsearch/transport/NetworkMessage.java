@@ -44,6 +44,7 @@ public abstract class NetworkMessage implements Writeable {
     NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message, boolean compress) {
         this.threadContext = threadContext;
         storedContext = threadContext.stashContext();
+        storedContext.restore();
         this.version = version;
         this.requestId = requestId;
         this.message = message;
@@ -59,13 +60,14 @@ public abstract class NetworkMessage implements Writeable {
         bytesStream.setVersion(version);
         bytesStream.skip(TcpHeader.HEADER_SIZE);
 
+        // TODO: Need to close
         final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status));
         stream.setVersion(version);
         threadContext.writeTo(stream);
         writeTo(stream);
         BytesReference reference = writeMessage(stream);
         bytesStream.seek(0);
-        TcpHeader.writeHeader(bytesStream, requestId, status, version, reference.length() - 6);
+        TcpHeader.writeHeader(bytesStream, requestId, status, version, reference.length() - TcpHeader.HEADER_SIZE);
         return reference;
     }
 

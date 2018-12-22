@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.function.Supplier;
 
 public class OutboundHandler {
 
@@ -82,6 +83,10 @@ public class OutboundHandler {
         }
     }
 
+    MeanMetric getTransmittedBytes() {
+        return transmittedBytesMetric;
+    }
+
     private static class MessageSerializer implements CheckedSupplier<BytesReference, IOException>, Releasable {
 
         private final NetworkMessage message;
@@ -105,7 +110,7 @@ public class OutboundHandler {
         }
     }
 
-    private class SendContext extends NotifyOnceListener<Void> implements CheckedSupplier<BytesReference, IOException> {
+    private class SendContext extends NotifyOnceListener<Void> implements Supplier<BytesReference> {
 
         private final TcpChannel channel;
         private final CheckedSupplier<BytesReference, IOException> messageSupplier;

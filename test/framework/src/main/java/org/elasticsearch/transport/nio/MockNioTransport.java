@@ -257,7 +257,7 @@ public class MockNioTransport extends TcpTransport {
             if (byteBuffers == null) {
                 return Collections.emptyList();
             } else {
-                return Collections.singletonList(new FlushOperation(messageSupplier.get(), writeOperation.getListener()));
+                return Collections.singletonList(new FlushOperation(byteBuffers, writeOperation.getListener()));
             }
         }
 

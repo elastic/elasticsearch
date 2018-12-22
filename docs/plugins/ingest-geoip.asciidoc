@@ -8,4 +8,4 @@ distributed by default with Elasticsearch. See
 [[using-ingest-geoip]]
 ==== Using the `geoip` Processor in a Pipeline
 
-See {ref}/using-ingest-geoip.html[using `ingest-geoip`].
+See {ref}/ingest-geoip.html#using-ingest-geoip[using `ingest-geoip`].

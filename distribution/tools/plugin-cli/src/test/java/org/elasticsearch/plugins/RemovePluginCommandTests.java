@@ -259,24 +259,48 @@ public class RemovePluginCommandTests extends ESTestCase {
      * @throws Exception if an exception is thrown creating or removing the plugin
      */
     public void testRemoveIngestGeoIp() throws Exception {
+        runTestRemoveIngestGeoIpOrIngestUserAgent("ingest-geoip");
+    }
+
+    /**
+     * The ingest-user-agent plugin receives special handling because we have re-packaged it as a module; this test ensures that we are
+     * still able to uninstall an old installation of ingest-user-agent.
+     *
+     * @throws Exception if an exception is thrown creating or removing the plugin
+     */
+    public void testRemoveIngestUserAgent() throws Exception {
+        runTestRemoveIngestGeoIpOrIngestUserAgent("ingest-user-agent");
+    }
+
+    private void runTestRemoveIngestGeoIpOrIngestUserAgent(final String name) throws Exception {
+        assert "ingest-geoip".equals(name) || "ingest-user-agent".equals(name) : name;
         createPlugin(
-                "ingest-geoip",
+                name,
                 VersionUtils.randomVersionBetween(
                         random(),
                         Version.CURRENT.minimumIndexCompatibilityVersion(),
                         Version.V_6_6_0));
-        removePlugin("ingest-geoip", home, randomBoolean());
-        assertThat(Files.exists(env.pluginsFile().resolve("ingest-geoip")), equalTo(false));
+        removePlugin(name, home, randomBoolean());
+        assertThat(Files.exists(env.pluginsFile().resolve(name)), equalTo(false));
         assertRemoveCleaned(env);
     }
 
     public void testRemoveIngestGeoIpWhenNotInstalled() {
-        final UserException e = expectThrows(UserException.class, () -> removePlugin("ingest-geoip", home, randomBoolean()));
+        runTestRemoveIngestGeoIpOrIngestUserAgentWhenNotInstalled("ingest-geoip");
+    }
+
+    public void testRemoveIngestUserAgentWhenNotInstalled() {
+        runTestRemoveIngestGeoIpOrIngestUserAgentWhenNotInstalled("ingest-user-agent");
+    }
+
+    private void runTestRemoveIngestGeoIpOrIngestUserAgentWhenNotInstalled(final String name) {
+        assert "ingest-geoip".equals(name) || "ingest-user-agent".equals(name) : name;
+        final UserException e = expectThrows(UserException.class, () -> removePlugin(name, home, randomBoolean()));
         assertThat(e.exitCode, equalTo(ExitCodes.OK));
         assertThat(
                 e,
                 hasToString(Matchers.containsString(
-                        "ingest-geoip is no longer a plugin but instead a module packaged with this distribution of Elasticsearch")));
+                        "[" + name + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch")));
     }
 
     public void testRemoveWhenRemovingMarker() throws Exception {

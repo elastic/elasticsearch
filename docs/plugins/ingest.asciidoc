@@ -24,7 +24,10 @@ details.
 
 <<ingest-user-agent>>::
 
-A processor that extracts details from the User-Agent header value.
+A processor that extracts details from the User-Agent header value. The
+`user_agent` processor is no longer distributed as a plugin, but is now a module
+distributed by default with Elasticsearch. See
+{ref}/ingest-user-agent.html[Ingest `user_agent` processor] for more details.
 
 [float]
 === Community contributed ingest plugins

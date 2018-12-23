@@ -198,4 +198,3 @@ public class UserAgentProcessorTests extends ESTestCase {
         assertThat(target.get("device"), is("Other"));
     }
 }
-

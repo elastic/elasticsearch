@@ -21,11 +21,11 @@ package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -112,11 +112,14 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         if ((!Files.exists(pluginDir) && !Files.exists(pluginConfigDir) && !Files.exists(removing))
                 || (!Files.exists(pluginDir) && Files.exists(pluginConfigDir) && !purge)) {
 
-            // special case for ingest-geoip since it is a module now but could have been installed from a previous when it was a plugin
-            if ("ingest-geoip".equals(pluginName)) {
+            /*
+             * This is special case handling for ingest-geoip and ingest-user-agent since they are modules now but could have been installed
+             * from a previous when it was a plugin.
+             */
+            if ("ingest-geoip".equals(pluginName) || "ingest-user-agent".equals(pluginName)) {
                 throw new UserException(
                         ExitCodes.OK,
-                        "ingest-geoip is no longer a plugin but instead a module packaged with this distribution of Elasticsearch");
+                        "[" + pluginName + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch");
             }
 
             final String message = String.format(

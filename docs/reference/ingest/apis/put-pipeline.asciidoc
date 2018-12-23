@@ -20,5 +20,24 @@ PUT _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
 // CONSOLE
 
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+DELETE /_ingest/pipeline/my-pipeline-id
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+"acknowledged": true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
+
 NOTE: The put pipeline API also instructs all ingest nodes to reload their in-memory representation of pipelines, so that
       pipeline changes take effect immediately.

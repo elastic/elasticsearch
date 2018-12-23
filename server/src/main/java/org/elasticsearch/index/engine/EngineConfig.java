@@ -26,7 +26,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -127,11 +126,6 @@ public final class EngineConfig {
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
                         CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
                         LongSupplier primaryTermSupplier, TombstoneDocSupplier tombstoneDocSupplier) {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)
-            && INDEX_OPTIMIZE_AUTO_GENERATED_IDS.exists(indexSettings.getSettings())) {
-            throw new IllegalArgumentException(
-                "Setting [" + INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] was removed in version 7.0.0");
-        }
         this.shardId = shardId;
         this.allocationId = allocationId;
         this.indexSettings = indexSettings;

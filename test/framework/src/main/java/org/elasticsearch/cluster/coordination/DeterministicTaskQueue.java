@@ -405,7 +405,17 @@ public class DeterministicTaskQueue {
 
             @Override
             public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-                throw new UnsupportedOperationException();
+                return new Cancellable() {
+                    @Override
+                    public void cancel() {
+
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        return false;
+                    }
+                };
             }
 
             @Override

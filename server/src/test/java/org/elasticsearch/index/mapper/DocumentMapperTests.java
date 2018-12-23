@@ -180,7 +180,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                         ParsedDocument doc = documentMapper.parse(SourceToParse.source("test",
                                 "test",
                                 fieldName,
-                                new BytesArray("{ \"" + fieldName + "\" : \"test\" }"),
+                            null, new BytesArray("{ \"" + fieldName + "\" : \"test\" }"),
                                 XContentType.JSON));
                         Mapping update = doc.dynamicMappingsUpdate();
                         assert update != null;
@@ -203,7 +203,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                 ParsedDocument parsedDoc = documentMapper.parse(SourceToParse.source("test",
                         "test",
                         "random",
-                        source,
+                    null, source,
                         XContentType.JSON));
                 if (parsedDoc.dynamicMappingsUpdate() != null) {
                     // not in the mapping yet, try again

@@ -293,9 +293,9 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         Uid uid = rootFieldsVisitor.uid();
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
-                        Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, source
-                            (index, uid.type(), uid.id(), source, XContentHelper.xContentType(source))
-                            .routing(rootFieldsVisitor.routing()), SequenceNumbers.UNASSIGNED_SEQ_NO, 0, 1, false);
+                        Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
+                            source(index, uid.type(), uid.id(), rootFieldsVisitor.routing(), source, XContentHelper.xContentType(source)),
+                            SequenceNumbers.UNASSIGNED_SEQ_NO, 0, 1, false);
                         if (result.getResultType() != Engine.Result.Type.SUCCESS) {
                             throw new IllegalStateException("failed applying post restore operation result: " + result
                                 .getResultType(), result.getFailure());

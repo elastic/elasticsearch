@@ -27,9 +27,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 public class SourceToParse {
 
-    public static SourceToParse source(String index, String type, String id, BytesReference source,
+    public static SourceToParse source(String index, String type, String id, String routing, BytesReference source,
                                        XContentType contentType) {
-        return new SourceToParse(index, type, id, source, contentType);
+        return new SourceToParse(index, type, id, routing, source, contentType);
     }
 
     private final BytesReference source;
@@ -40,14 +40,15 @@ public class SourceToParse {
 
     private final String id;
 
-    private String routing;
+    private final String routing;
 
-    private XContentType xContentType;
+    private final XContentType xContentType;
 
-    private SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType) {
+    public SourceToParse(String index, String type, String id, String routing, BytesReference source, XContentType xContentType) {
         this.index = Objects.requireNonNull(index);
         this.type = Objects.requireNonNull(type);
         this.id = Objects.requireNonNull(id);
+        this.routing = routing;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
@@ -76,11 +77,6 @@ public class SourceToParse {
 
     public XContentType getXContentType() {
         return this.xContentType;
-    }
-
-    public SourceToParse routing(String routing) {
-        this.routing = routing;
-        return this;
     }
 
     public enum Origin {

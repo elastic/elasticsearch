@@ -40,13 +40,13 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         for (int i = 0; i < 8; i++) {
             final String id = Long.toString(i);
             SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "_doc", id,
-                new BytesArray("{}"), XContentType.JSON);
+                null, new BytesArray("{}"), XContentType.JSON);
             indexShard.applyIndexOperationOnReplica(++seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
         }
         long seqNoBeforeGap = seqNo;
         seqNo += 8;
         SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "_doc", "9",
-            new BytesArray("{}"), XContentType.JSON);
+            null, new BytesArray("{}"), XContentType.JSON);
         indexShard.applyIndexOperationOnReplica(seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
 
         // promote the replica to primary:

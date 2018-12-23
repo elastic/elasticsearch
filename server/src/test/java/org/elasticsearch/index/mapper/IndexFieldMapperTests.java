@@ -48,7 +48,7 @@ public class IndexFieldMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
+            null, BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "value")
                         .endObject()),

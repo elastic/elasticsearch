@@ -50,7 +50,7 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         try {
-            docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+            docMapper.parse(SourceToParse.source("test", "type", "1", null, BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("_id", "1").endObject()), XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
@@ -63,7 +63,7 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
         ParsedDocument document = mapper.parse(SourceToParse.source("index", "type", "id",
-            new BytesArray("{}"), XContentType.JSON));
+            null, new BytesArray("{}"), XContentType.JSON));
         IndexableField[] fields = document.rootDoc().getFields(IdFieldMapper.NAME);
         assertEquals(1, fields.length);
         assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());

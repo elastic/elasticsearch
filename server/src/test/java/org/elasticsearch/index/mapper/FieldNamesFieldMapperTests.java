@@ -83,7 +83,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
+            null, BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                             .field("a", "100")
                             .startObject("b")
@@ -107,7 +107,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(fieldNamesMapper.fieldType().isEnabled());
 
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
+            null, BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()),
@@ -126,7 +126,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         assertFalse(fieldNamesMapper.fieldType().isEnabled());
 
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
+            null, BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()),

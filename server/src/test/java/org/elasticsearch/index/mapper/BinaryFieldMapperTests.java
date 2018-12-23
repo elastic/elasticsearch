@@ -92,7 +92,7 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
 
         for (byte[] value : Arrays.asList(binaryValue1, binaryValue2)) {
             ParsedDocument doc = mapperService.documentMapper().parse(SourceToParse.source("test", "type", "id",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
+                null, BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                     XContentType.JSON));
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
             assertEquals(new BytesRef(value), indexedValue);

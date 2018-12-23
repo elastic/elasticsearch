@@ -64,7 +64,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
         MappedFieldType completionFieldType = mapperService.fullName("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
-            BytesReference.bytes(jsonBuilder()
+            null, BytesReference.bytes(jsonBuilder()
                         .startObject()
                         .startArray("completion")
                         .startObject()
@@ -103,7 +103,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
         MappedFieldType completionFieldType = mapperService.fullName("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
-            BytesReference.bytes(jsonBuilder()
+            null, BytesReference.bytes(jsonBuilder()
                         .startObject()
                         .startArray("completion")
                         .startObject()
@@ -139,7 +139,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
         MappedFieldType completionFieldType = mapperService.fullName("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
-            BytesReference.bytes(jsonBuilder()
+            null, BytesReference.bytes(jsonBuilder()
                         .startObject()
                             .startObject("completion")
                                 .array("input", "suggestion5", "suggestion6", "suggestion7")
@@ -196,7 +196,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject();
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
-            BytesReference.bytes(builder), XContentType.JSON));
+            null, BytesReference.bytes(builder), XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }

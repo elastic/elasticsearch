@@ -45,7 +45,7 @@ public class DynamicMappingVersionTests extends ESSingleNodeTestCase {
             .documentMapperWithAutoCreate("my-type").getDocumentMapper();
 
         ParsedDocument parsedDoc = documentMapper.parse(
-            SourceToParse.source("my-index", "my-type", "1", BytesReference
+            SourceToParse.source("my-index", "my-type", "1", null, BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("foo", 3)

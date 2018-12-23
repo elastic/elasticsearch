@@ -40,7 +40,7 @@ public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
+            null, BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("obj1").endObject()
                         .field("value1", "test1")
@@ -50,7 +50,7 @@ public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
         doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
+            null, BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .nullField("obj1")
                         .field("value1", "test1")
@@ -60,7 +60,7 @@ public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
         doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
+            null, BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("obj1").field("field", "value").endObject()
                         .field("value1", "test1")

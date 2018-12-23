@@ -302,8 +302,8 @@ public class TermVectorsService  {
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
         // parse the document, at the moment we do update the mapping, just like percolate
-        ParsedDocument parsedDocument =
-            parseDocument(indexShard, indexShard.shardId().getIndexName(), request.type(), request.doc(), request.xContentType());
+        ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndexName(), request.type(), request.routing(),
+                request.doc(), request.xContentType());
 
         // select the right fields and generate term vectors
         ParseContext.Document doc = parsedDocument.rootDoc();
@@ -331,11 +331,11 @@ public class TermVectorsService  {
                 request.offsets(), request.perFieldAnalyzer(), seenFields);
     }
 
-    private static ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc,
-                                                XContentType xContentType) {
+    private static ParsedDocument parseDocument(IndexShard indexShard, String index, String type, String routing,
+                                                BytesReference doc, XContentType xContentType) {
         MapperService mapperService = indexShard.mapperService();
         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
-        ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(source(index, type, "_id_for_tv_api", doc, xContentType));
+        ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(source(index, type, "_id_for_tv_api", null, doc, xContentType));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
         }

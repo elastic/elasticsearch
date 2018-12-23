@@ -222,8 +222,10 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "plugin id is required");
         }
 
-        if ("ingest-geoip".equals(pluginId)) {
-            handleInstallIngestGeoIp();
+        if ("ingest-geoip".equals(pluginId) || "ingest-user-agent".equals(pluginId)) {
+            throw new UserException(
+                    ExitCodes.OK,
+                    "[" + pluginId + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch");
         }
 
         if ("x-pack".equals(pluginId)) {
@@ -233,12 +235,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         Path pluginZip = download(terminal, pluginId, env.tmpFile(), isBatch);
         Path extractedZip = unzip(pluginZip, env.pluginsFile());
         install(terminal, isBatch, extractedZip, env);
-    }
-
-    private static void handleInstallIngestGeoIp() throws UserException {
-        throw new UserException(
-                ExitCodes.OK,
-                "ingest-geoip is no longer a plugin but instead a module packaged with this distribution of Elasticsearch");
     }
 
     Build.Flavor buildFlavor() {

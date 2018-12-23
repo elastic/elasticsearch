@@ -757,15 +757,25 @@ public class InstallPluginCommandTests extends ESTestCase {
         }
     }
 
-    public void testInstallGeoIp() throws IOException {
+    public void testInstallIngestGeoIp() throws IOException {
+        runInstallIngestGeoIpOrIngestUserAgentTest("ingest-geoip");
+    }
+
+    public void testInstallIngestUserAgent() throws IOException {
+        runInstallIngestGeoIpOrIngestUserAgentTest("ingest-user-agent");
+    }
+
+    private void runInstallIngestGeoIpOrIngestUserAgentTest(final String pluginId) throws IOException {
+        assert "ingest-geoip".equals(pluginId) || "ingest-user-agent".equals(pluginId) : pluginId;
         final Environment environment = createEnv(fs, temp).v2();
         final UserException exception =
-                expectThrows(UserException.class, () -> new InstallPluginCommand().execute(terminal, "ingest-geoip", false, environment));
+                expectThrows(UserException.class, () -> new InstallPluginCommand().execute(terminal, pluginId, false, environment));
         assertThat(exception.exitCode, equalTo(ExitCodes.OK));
         assertThat(
                 exception,
                 hasToString(containsString(
-                        "ingest-geoip is no longer a plugin but instead a module packaged with this distribution of Elasticsearch")));
+                        "[" + pluginId + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch")));
+
     }
 
     public void testInstallXPack() throws IOException {

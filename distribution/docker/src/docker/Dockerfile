@@ -30,9 +30,8 @@ RUN groupadd -g 1000 elasticsearch && \
 
 WORKDIR /usr/share/elasticsearch
 
-COPY ${elasticsearch} ${ingest-user-agent} /opt/
+COPY ${elasticsearch} /opt/
 RUN tar zxf /opt/${elasticsearch} --strip-components=1
-RUN elasticsearch-plugin install --batch file:///opt/${ingest-user-agent}
 RUN mkdir -p config data logs
 RUN chmod 0775 config data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/

@@ -1,5 +1,5 @@
-[[ingest-user-agent]]
-=== Ingest user agent processor
+[[user-agent]]
+=== User Agent processor
 
 The `user_agent` processor extracts details from the user agent string a browser sends with its web requests.
 This processor adds this information by default under the `user_agent` field.

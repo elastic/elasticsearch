@@ -1,5 +1,5 @@
-[[ingest-geoip]]
-=== Ingest `geoip` Processor
+[[geoip-processor]]
+=== GeoIP Processor
 
 The `geoip` processor adds information about the geographical location of IP addresses, based on data from the Maxmind databases.
 This processor adds this information by default under the `geoip` field. The `geoip` processor can resolve both IPv4 and

@@ -19,22 +19,33 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 public class OutboundHandlerTests extends ESTestCase {
 
     private TestThreadPool threadPool = new TestThreadPool(getClass().getName());;
+    private AtomicReference<Supplier<BytesReference>> messageCaptor = new AtomicReference<>();
     private OutboundHandler handler;
     private FakeTcpChannel fakeTcpChannel;
 
@@ -42,7 +53,7 @@ public class OutboundHandlerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         TransportLogger transportLogger = new TransportLogger();
-        fakeTcpChannel = new FakeTcpChannel();
+        fakeTcpChannel = new FakeTcpChannel(randomBoolean(), messageCaptor);
         handler = new OutboundHandler(threadPool, BigArrays.NON_RECYCLING_INSTANCE, transportLogger);
     }
 
@@ -52,11 +63,88 @@ public class OutboundHandlerTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testThing() {
+    @SuppressWarnings("unchecked")
+    public void testSendRawBytes() {
         BytesArray bytesArray = new BytesArray("message".getBytes(StandardCharsets.UTF_8));
-        AtomicBoolean isDone = new AtomicBoolean(false);
-        handler.sendBytes(fakeTcpChannel, bytesArray, ActionListener.wrap(() -> isDone.set(true)));
-        
 
+        AtomicBoolean isSuccess = new AtomicBoolean(false);
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<Void> listener = ActionListener.wrap((v) -> isSuccess.set(true), exception::set);
+        handler.sendBytes(fakeTcpChannel, bytesArray, listener);
+
+        ActionListener<Void> sendContext = (ActionListener<Void>) messageCaptor.get();
+        BytesReference reference = messageCaptor.get().get();
+        if (randomBoolean()) {
+            sendContext.onResponse(null);
+            assertTrue(isSuccess.get());
+            assertNull(exception.get());
+        } else {
+            IOException e = new IOException("failed");
+            sendContext.onFailure(e);
+            assertFalse(isSuccess.get());
+            assertSame(e, exception.get());
+        }
+
+        assertEquals(bytesArray, reference);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSendMessage() throws IOException {
+        NetworkMessage message;
+        ThreadContext threadContext = threadPool.getThreadContext();
+        Version version = Version.CURRENT;
+        String actionName = "handshake";
+        long requestId = randomLongBetween(0, 300);
+        boolean isHandshake = randomBoolean();
+        boolean compress = randomBoolean();
+        Writeable writeable = new Message("message");
+
+        if (randomBoolean()) {
+            message = new NetworkMessage.Request(threadContext, new String[0], writeable, version, actionName, requestId, isHandshake,
+                compress);
+        } else {
+            message = new NetworkMessage.Response(threadContext, new HashSet<>(), writeable, version, requestId, isHandshake, compress);
+        }
+
+        AtomicBoolean isSuccess = new AtomicBoolean(false);
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<Void> listener = ActionListener.wrap((v) -> isSuccess.set(true), exception::set);
+        handler.sendMessage(fakeTcpChannel, message, listener);
+
+        ActionListener<Void> sendContext = (ActionListener<Void>) messageCaptor.get();
+        BytesReference reference = messageCaptor.get().get();
+        if (randomBoolean()) {
+            sendContext.onResponse(null);
+            assertTrue(isSuccess.get());
+            assertNull(exception.get());
+        } else {
+            IOException e = new IOException("failed");
+            sendContext.onFailure(e);
+            assertFalse(isSuccess.get());
+            assertSame(e, exception.get());
+        }
+
+        NetworkMessage deserialized = NetworkMessage.deserialize(reference.streamInput());
+        // TODO: Implement test
+        assertEquals(null, deserialized);
+    }
+
+    private static final class Message extends TransportRequest {
+
+        public String value;
+
+        private Message(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            value = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(value);
+        }
     }
 }

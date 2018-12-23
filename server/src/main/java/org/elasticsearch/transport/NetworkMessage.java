@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -53,6 +54,10 @@ public abstract class NetworkMessage implements Writeable {
         } else {
             this.status = status;
         }
+    }
+
+    static NetworkMessage deserialize(StreamInput streamInput) {
+        return null;
     }
 
     BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {

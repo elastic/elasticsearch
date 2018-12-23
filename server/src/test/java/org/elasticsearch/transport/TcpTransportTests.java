@@ -45,6 +45,7 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -188,7 +189,7 @@ public class TcpTransportTests extends ESTestCase {
         final boolean compressed = randomBoolean();
         Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));
         ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
-        AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
+        AtomicReference<Supplier<BytesReference>> messageCaptor = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport("test", Settings.EMPTY, Version.CURRENT, threadPool,
                 PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(), null, null) {
@@ -234,7 +235,7 @@ public class TcpTransportTests extends ESTestCase {
             Transport.Connection connection = future.actionGet();
             connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
 
-            BytesReference reference = messageCaptor.get();
+            BytesReference reference = messageCaptor.get().get();
             assertNotNull(reference);
 
             StreamInput streamIn = reference.streamInput();

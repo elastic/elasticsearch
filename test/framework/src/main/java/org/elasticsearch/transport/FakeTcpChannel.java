@@ -32,7 +32,7 @@ public class FakeTcpChannel implements TcpChannel {
 
     private final boolean isServer;
     private final String profile;
-    private final AtomicReference<BytesReference> messageCaptor;
+    private final AtomicReference<Supplier<BytesReference>> messageCaptor;
     private final ChannelStats stats = new ChannelStats();
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
@@ -44,12 +44,12 @@ public class FakeTcpChannel implements TcpChannel {
         this(isServer, "profile", new AtomicReference<>());
     }
 
-    public FakeTcpChannel(boolean isServer, AtomicReference<BytesReference> messageCaptor) {
+    public FakeTcpChannel(boolean isServer, AtomicReference<Supplier<BytesReference>> messageCaptor) {
         this(isServer, "profile", messageCaptor);
     }
 
 
-    public FakeTcpChannel(boolean isServer, String profile, AtomicReference<BytesReference> messageCaptor) {
+    public FakeTcpChannel(boolean isServer, String profile, AtomicReference<Supplier<BytesReference>> messageCaptor) {
         this.isServer = isServer;
         this.profile = profile;
         this.messageCaptor = messageCaptor;
@@ -77,7 +77,7 @@ public class FakeTcpChannel implements TcpChannel {
 
     @Override
     public void sendMessage(Supplier<BytesReference> messageSupplier, ActionListener<Void> listener) {
-        messageCaptor.set(messageSupplier.get());
+        messageCaptor.set(messageSupplier);
     }
 
     @Override

@@ -10,7 +10,6 @@ The get pipeline API returns pipelines based on ID. This API always returns a lo
 PUT _ingest/pipeline/my-pipeline-id
 {
   "description" : "describe pipeline",
-  "version" : 123,
   "processors" : [
     {
       "set" : {

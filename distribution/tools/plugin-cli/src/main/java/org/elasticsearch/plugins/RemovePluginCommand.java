@@ -114,7 +114,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
             /*
              * This is special case handling for ingest-geoip and ingest-user-agent since they are modules now but could have been installed
-             * from a previous when it was a plugin.
+             * from a previous version when there were plugins.
              */
             if ("ingest-geoip".equals(pluginName) || "ingest-user-agent".equals(pluginName)) {
                 throw new UserException(

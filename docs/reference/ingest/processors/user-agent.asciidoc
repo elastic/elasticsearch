@@ -1,4 +1,4 @@
-[[user-agent]]
+[[user-agent-processor]]
 === User Agent processor
 
 The `user_agent` processor extracts details from the user agent string a browser sends with its web requests.

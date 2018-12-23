@@ -4975,14 +4975,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    private EngineConfig createEngineConfigWithSettings(IndexSettings indexSettings) {
-        return new EngineConfig(shardId, null, threadPool,
-            indexSettings, null, store, null, null,
-            null, null, null, null, null,
-            null, null, null, null, null,
-            null, null, null, null);
-    }
-
     public void testPruneOnlyDeletesAtMostLocalCheckpoint() throws Exception {
         final AtomicLong clock = new AtomicLong(0);
         threadPool = spy(threadPool);

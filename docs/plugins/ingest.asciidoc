@@ -19,7 +19,7 @@ The `geoip` processor adds information about the geographical location of IP
 addresses, based on data from the Maxmind databases. This processor adds this
 information by default under the `geoip` field. The `geoip` processor is no
 longer distributed as a plugin, but is now a module distributed by default with
-Elasticsearch. See {ref}/ingest-geoip.html[Ingest `geoip` processor] for more
+Elasticsearch. See {ref}/geoip-processor.html[GeoIP processor] for more
 details.
 
 <<ingest-user-agent>>::
@@ -27,7 +27,7 @@ details.
 A processor that extracts details from the User-Agent header value. The
 `user_agent` processor is no longer distributed as a plugin, but is now a module
 distributed by default with Elasticsearch. See
-{ref}/ingest-user-agent.html[Ingest `user_agent` processor] for more details.
+{ref}/user-agent-processor.html[User Agent processor] for more details.
 
 [float]
 === Community contributed ingest plugins

@@ -29,7 +29,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.BufferedReader;

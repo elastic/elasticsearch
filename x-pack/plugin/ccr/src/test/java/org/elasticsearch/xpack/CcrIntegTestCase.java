@@ -65,6 +65,7 @@ import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngine;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -199,6 +200,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         builder.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        // Let cluster state api return quickly in order to speed up auto follow tests:
+        builder.put(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
         if (leaderSeedAddress != null) {
             builder.put("cluster.remote.leader_cluster.seeds", leaderSeedAddress);
         }

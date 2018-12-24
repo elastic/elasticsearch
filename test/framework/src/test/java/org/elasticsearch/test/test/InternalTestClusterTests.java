@@ -273,6 +273,7 @@ public class InternalTestClusterTests extends ESTestCase {
                         2 + (masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                     .build();
             }
 
@@ -385,6 +386,7 @@ public class InternalTestClusterTests extends ESTestCase {
                         // elections more likely
                         .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "3s")
                         .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                        .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                         .build();
             }
 
@@ -470,6 +472,7 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                     .build();
             }
 

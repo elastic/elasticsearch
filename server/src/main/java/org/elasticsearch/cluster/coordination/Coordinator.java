@@ -158,8 +158,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         configuredHostsResolver = new UnicastConfiguredHostsResolver(nodeName, settings, transportService, unicastHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
-        this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry,
-            this::handlePublishRequest, this::handleApplyCommit);
+        this.publicationHandler = new PublicationTransportHandler(settings, transportService, namedWriteableRegistry,
+            this::handlePublishRequest, this::handleApplyCommit, random, this::onClusterStateChunkReceived);
         this.leaderChecker = new LeaderChecker(settings, transportService, getOnLeaderFailure());
         this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::removeNode);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
@@ -336,6 +336,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         becomeCandidate("updateMaxTermSeen");
                     }
                 }
+            }
+        }
+    }
+
+    private void onClusterStateChunkReceived() {
+        synchronized (mutex) {
+            if (mode == Mode.CANDIDATE) {
+                closePrevotingAndElectionScheduler();
+                startElectionScheduler(ElectionSchedulerFactory.ELECTION_GRACE_PERIOD_SETTING.get(settings));
             }
         }
     }
@@ -712,7 +721,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             builder.metaData(metaDataBuilder);
             coordinationState.get().setInitialState(builder.build());
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
-            startElectionScheduler();
+            startElectionScheduler(TimeValue.ZERO);
             return true;
         }
     }
@@ -1014,7 +1023,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                     if (foundQuorum) {
                         if (electionScheduler == null) {
-                            startElectionScheduler();
+                            startElectionScheduler(TimeValue.ZERO);
                         }
                     } else {
                         closePrevotingAndElectionScheduler();
@@ -1028,14 +1037,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    private void startElectionScheduler() {
+    private void startElectionScheduler(TimeValue gracePeriod) {
         assert electionScheduler == null : electionScheduler;
 
         if (getLocalNode().isMasterNode() == false) {
             return;
         }
 
-        final TimeValue gracePeriod = TimeValue.ZERO; // TODO variable grace period
         electionScheduler = electionSchedulerFactory.startElectionScheduler(gracePeriod, new Runnable() {
             @Override
             public void run() {

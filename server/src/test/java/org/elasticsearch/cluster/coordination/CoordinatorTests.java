@@ -1465,6 +1465,7 @@ public class CoordinatorTests extends ESTestCase {
                 };
 
                 final Settings settings = Settings.builder()
+                    .put(PublicationTransportHandler.PUBLISH_CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1, 1000) + "b")
                     .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
                         ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)).build(); // suppress auto-bootstrap
 

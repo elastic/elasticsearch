@@ -32,16 +32,19 @@ import java.io.IOException;
  */
 public class BytesTransportRequest extends TransportRequest {
 
-    BytesReference bytes;
-    Version version;
-
-    public BytesTransportRequest() {
-
-    }
+    final BytesReference bytes;
+    final Version version;
 
     public BytesTransportRequest(BytesReference bytes, Version version) {
         this.bytes = bytes;
         this.version = version;
+    }
+
+    public BytesTransportRequest(StreamInput in) throws IOException {
+        super(in);
+        readBeforeBytes(in);
+        bytes = in.readBytesReference();
+        version = in.getVersion();
     }
 
     public Version version() {
@@ -53,24 +56,30 @@ public class BytesTransportRequest extends TransportRequest {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        bytes = in.readBytesReference();
-        version = in.getVersion();
+    public final void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    protected void readBeforeBytes(StreamInput in) throws IOException {
+    }
+
+    protected void writeBeforeBytes(StreamOutput out) throws IOException {
     }
 
     /**
      * Writes the data in a "thin" manner, without the actual bytes, assumes
      * the actual bytes will be appended right after this content.
      */
-    public void writeThin(StreamOutput out) throws IOException {
+    public final void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);
+        writeBeforeBytes(out);
         out.writeVInt(bytes.length());
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public final void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        writeBeforeBytes(out);
         out.writeBytesReference(bytes);
     }
 }

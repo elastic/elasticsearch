@@ -157,10 +157,13 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         TransportService localTransportService =
                 internalCluster().getInstance(TransportService.class, discoveryNodes.getLocalNode().getName());
         if (randomBoolean()) {
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME,
-                PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService,
+                PublishClusterStateAction.SEND_ACTION_NAME,
+                PublicationTransportHandler.PUBLISH_STATE_CHUNK_ACTION_NAME,
+                PublicationTransportHandler.PUBLISH_STATE_LAST_CHUNK_ACTION_NAME);
         } else {
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.COMMIT_ACTION_NAME,
+            masterTransportService.addFailToSendNoConnectRule(localTransportService,
+                PublishClusterStateAction.COMMIT_ACTION_NAME,
                 PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
         }
 

@@ -30,7 +30,10 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -38,17 +41,24 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -56,6 +66,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -66,8 +77,16 @@ public class PublicationTransportHandler {
 
     private static final Logger logger = LogManager.getLogger(PublicationTransportHandler.class);
 
-    public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/coordination/publish_state";
+    public static final String PUBLISH_STATE_CHUNK_ACTION_NAME = "internal:cluster/coordination/publish_state_chunk";
+    public static final String PUBLISH_STATE_LAST_CHUNK_ACTION_NAME = "internal:cluster/coordination/publish_state_last_chunk";
     public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
+
+    public static final Setting<ByteSizeValue> PUBLISH_CHUNK_SIZE_SETTING =
+        Setting.byteSizeSetting("cluster.publish.chunk_size",
+            new ByteSizeValue(512L, ByteSizeUnit.KB),
+            new ByteSizeValue(1L, ByteSizeUnit.BYTES),
+            new ByteSizeValue(1L, ByteSizeUnit.GB),
+            Property.NodeScope);
 
     private final TransportService transportService;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -83,19 +102,33 @@ public class PublicationTransportHandler {
     private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
         .withType(TransportRequestOptions.Type.STATE).build();
 
-    public PublicationTransportHandler(TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
+    private final int publishChunkSizeBytes;
+    private final Random random;
+    private final Runnable onClusterStateChunkReceived;
+
+    public PublicationTransportHandler(Settings settings, TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
                                        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
-                                       BiConsumer<ApplyCommitRequest, ActionListener<Void>> handleApplyCommit) {
+                                       BiConsumer<ApplyCommitRequest, ActionListener<Void>> handleApplyCommit, Random random,
+                                       Runnable onClusterStateChunkReceived) {
         this.transportService = transportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handlePublishRequest = handlePublishRequest;
 
-        transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, BytesTransportRequest::new, ThreadPool.Names.GENERIC,
-            false, false, (request, channel, task) -> channel.sendResponse(handleIncomingPublishRequest(request)));
+        publishChunkSizeBytes = Math.toIntExact(PUBLISH_CHUNK_SIZE_SETTING.get(settings).getBytes());
+        this.random = random;
+        this.onClusterStateChunkReceived = onClusterStateChunkReceived;
 
-        transportService.registerRequestHandler(PublishClusterStateAction.SEND_ACTION_NAME, BytesTransportRequest::new,
-            ThreadPool.Names.GENERIC,
-            false, false, (request, channel, task) -> {
+        transportService.registerRequestHandler(PUBLISH_STATE_CHUNK_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
+            PublishStateChunkRequest::new, (request, channel, task) -> {
+                handleIncomingChunk(request);
+                channel.sendResponse(Empty.INSTANCE);
+            });
+
+        transportService.registerRequestHandler(PUBLISH_STATE_LAST_CHUNK_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
+            PublishStateChunkRequest::new, (request, channel, task) -> channel.sendResponse(handleIncomingLastChunk(request)));
+
+        transportService.registerRequestHandler(PublishClusterStateAction.SEND_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
+            BytesTransportRequest::new, (request, channel, task) -> {
                 handleIncomingPublishRequest(request);
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             });
@@ -257,7 +290,6 @@ public class PublicationTransportHandler {
                                         ActionListener<PublishWithJoinResponse> responseActionListener, boolean sendDiffs,
                                         Map<Version, BytesReference> serializedStates) {
         try {
-            final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
             final Consumer<TransportException> transportExceptionHandler = exp -> {
                 if (sendDiffs && exp.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                     logger.debug("resending full cluster state to node {} reason {}", node, exp.getDetailedMessage());
@@ -290,22 +322,101 @@ public class PublicationTransportHandler {
                         return ThreadPool.Names.GENERIC;
                     }
                 };
-            final String actionName;
-            final TransportResponseHandler<?> transportResponseHandler;
             if (Coordinator.isZen1Node(node)) {
-                actionName = PublishClusterStateAction.SEND_ACTION_NAME;
-                transportResponseHandler = publishWithJoinResponseHandler.wrap(empty -> new PublishWithJoinResponse(
-                    new PublishResponse(clusterState.term(), clusterState.version()),
-                    Optional.of(new Join(node, transportService.getLocalNode(), clusterState.term(), clusterState.term(),
-                        clusterState.version()))), in -> TransportResponse.Empty.INSTANCE);
+                transportService.sendRequest(node, PublishClusterStateAction.SEND_ACTION_NAME,
+                    new BytesTransportRequest(bytes, node.getVersion()), stateRequestOptions,
+                    publishWithJoinResponseHandler.wrap(empty -> new PublishWithJoinResponse(
+                        new PublishResponse(clusterState.term(), clusterState.version()),
+                        Optional.of(new Join(node, transportService.getLocalNode(), clusterState.term(), clusterState.term(),
+                            clusterState.version()))), in -> TransportResponse.Empty.INSTANCE));
             } else {
-                actionName = PUBLISH_STATE_ACTION_NAME;
-                transportResponseHandler = publishWithJoinResponseHandler;
+                final int chunkCount = (bytes.length() - 1) / publishChunkSizeBytes + 1;
+                sendStateInChunks(UUIDs.randomBase64UUID(random), node, bytes, publishWithJoinResponseHandler, 0, chunkCount);
             }
-            transportService.sendRequest(node, actionName, request, stateRequestOptions, transportResponseHandler);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", node), e);
             responseActionListener.onFailure(e);
+        }
+    }
+
+    private void sendStateInChunks(String transferUUID, DiscoveryNode node, BytesReference bytes,
+                                   TransportResponseHandler<PublishWithJoinResponse> responseHandler, int chunkIndex, int chunkCount) {
+
+        int nextChunkStart = chunkIndex * publishChunkSizeBytes;
+
+        if (bytes.length() - publishChunkSizeBytes <= nextChunkStart) {
+            assert chunkIndex == chunkCount - 1 : chunkIndex + "/" + chunkCount + " not the last chunk";
+            logger.trace("sending cluster state of size [{}] to [{}]: last chunk starting at [{}]", bytes.length(), node, nextChunkStart);
+            transportService.sendRequest(node, PUBLISH_STATE_LAST_CHUNK_ACTION_NAME,
+                new PublishStateChunkRequest(transferUUID, chunkIndex, chunkCount, bytes.slice(nextChunkStart, bytes.length() - nextChunkStart), node.getVersion()),
+                responseHandler);
+        } else {
+            logger.trace("sending cluster state of size [{}] to [{}]: chunk starting at [{}]", bytes.length(), node, nextChunkStart);
+            assert chunkIndex < chunkCount - 1 : chunkIndex + "/" + chunkCount + " not a valid chunk";
+            transportService.sendRequest(node, PUBLISH_STATE_CHUNK_ACTION_NAME,
+                new PublishStateChunkRequest(transferUUID, chunkIndex, chunkCount, bytes.slice(nextChunkStart, publishChunkSizeBytes), node.getVersion()),
+                new TransportResponseHandler<Empty>() {
+                    @Override
+                    public void handleResponse(Empty response) {
+                        sendStateInChunks(transferUUID, node, bytes, responseHandler, chunkIndex + 1, chunkCount);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        responseHandler.handleException(exp);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return Names.SAME;
+                    }
+
+                    @Override
+                    public Empty read(StreamInput in) {
+                        return Empty.INSTANCE;
+                    }
+                });
+        }
+    }
+
+    public static class PublishStateChunkRequest extends BytesTransportRequest {
+
+        private String transferUUID;
+        private int chunkIndex;
+        private int chunkCount;
+
+        public PublishStateChunkRequest(String transferUUID, int chunkIndex, int chunkCount, BytesReference bytesReference, Version version) {
+            super(bytesReference, version);
+            this.transferUUID = transferUUID;
+            this.chunkIndex = chunkIndex;
+            this.chunkCount = chunkCount;
+        }
+
+        PublishStateChunkRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected void readBeforeBytes(StreamInput in) throws IOException {
+            transferUUID = in.readString();
+            chunkIndex = in.readVInt();
+            chunkCount = in.readVInt();
+        }
+
+        @Override
+        protected void writeBeforeBytes(StreamOutput out) throws IOException {
+            out.writeString(transferUUID);
+            out.writeVInt(chunkIndex);
+            out.writeVInt(chunkCount);
+        }
+
+        @Override
+        public String toString() {
+            return "PublishStateChunkRequest{" +
+                "transferUUID='" + transferUUID + '\'' +
+                ", chunkIndex=" + chunkIndex +
+                ", chunkCount=" + chunkCount +
+                '}';
         }
     }
 
@@ -376,6 +487,42 @@ public class PublicationTransportHandler {
             diff.writeTo(stream);
         }
         return bStream.bytes();
+    }
+
+    @Nullable // if no incoming state
+    private String transferUUID;
+    @Nullable // if no incoming state
+    private BytesReference[] chunks;
+
+    private void handleIncomingChunk(PublishStateChunkRequest request) {
+        if (request.transferUUID.equals(transferUUID) == false) {
+            if (request.chunkIndex != 0) {
+                throw new ElasticsearchException("received out-of-order cluster state chunk: " + request);
+            }
+
+            logger.trace("starting cluster state transfer: {}", request);
+            transferUUID = request.transferUUID;
+            chunks = new BytesReference[request.chunkCount];
+        }
+
+        assert request.chunkIndex <= request.chunkCount - 1;
+        assert chunks[request.chunkIndex] == null : "already received chunk " + request.chunkIndex + ": " + chunks[request.chunkIndex];
+        assert request.chunkIndex == 0 || chunks[request.chunkIndex - 1] != null : "received chunk " + request.chunkIndex + " out of order";
+
+        chunks[request.chunkIndex] = request.bytes();
+
+        onClusterStateChunkReceived.run();
+    }
+
+    private PublishWithJoinResponse handleIncomingLastChunk(PublishStateChunkRequest request) throws IOException {
+        assert request.chunkIndex == request.chunkCount - 1;
+        handleIncomingChunk(request);
+
+        final BytesReference bytesReference = new CompositeBytesReference(chunks);
+        chunks = null;
+        transferUUID = null;
+
+        return handleIncomingPublishRequest(new BytesTransportRequest(bytesReference, request.version()));
     }
 
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {

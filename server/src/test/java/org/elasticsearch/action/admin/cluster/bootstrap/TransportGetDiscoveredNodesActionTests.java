@@ -33,11 +33,13 @@ import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.NoOpClusterApplier;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler.PublishStateChunkRequest;
 import org.elasticsearch.cluster.coordination.PublishWithJoinResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +52,6 @@ import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -311,9 +312,9 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             .lastCommittedConfiguration(new VotingConfiguration(singleton(otherNode.getId())))
             .build()));
 
-        transportService.sendRequest(localNode, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
-            new BytesTransportRequest(PublicationTransportHandler.serializeFullClusterState(publishedClusterState.build(), Version.CURRENT),
-                Version.CURRENT),
+        transportService.sendRequest(localNode, PublicationTransportHandler.PUBLISH_STATE_LAST_CHUNK_ACTION_NAME,
+            new PublishStateChunkRequest(UUIDs.randomBase64UUID(random()), 0, 1,
+                PublicationTransportHandler.serializeFullClusterState(publishedClusterState.build(), Version.CURRENT), Version.CURRENT),
             new TransportResponseHandler<PublishWithJoinResponse>() {
                 @Override
                 public void handleResponse(PublishWithJoinResponse response) {

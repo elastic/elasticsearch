@@ -1,4 +1,4 @@
-"ingest-user-agent plugin installed":
+"ingest-user-agent installed":
     - skip:
         reason: "contains is a newly added assertion"
         features: contains
@@ -10,5 +10,5 @@
     - do:
         nodes.info: {}
 
-    - contains:  { nodes.$master.plugins: { name: ingest-user-agent } }
+    - contains:  { nodes.$master.modules: { name: ingest-user-agent } }
     - contains:  { nodes.$master.ingest.processors: { type: user_agent } }

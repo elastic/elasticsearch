@@ -40,22 +40,15 @@ module. This module is divided into the following sections:
     Cluster state publishing is the process by which the elected master node
     updates the cluster state on all the other nodes in the cluster.
 
-<<no-master-block>>::
-
-    The no-master block is put in place when there is no known elected master,
-    and can be configured to determine which operations should be rejected when
-    it is in place.
-
-Advanced settings::
-
-    There are settings that allow advanced users to influence the
-    <<master-election-settings,master election>> and
-    <<fault-detection-settings,fault detection>> processes.
-
 <<modules-discovery-quorums>>::
 
     This section describes the detailed design behind the master election and
     auto-reconfiguration logic.
+    
+<<modules-discovery-settings,Settings>>::
+
+    There are settings that enable users to influence the discovery, cluster
+    formation, master election and fault detection processes.    
 
 include::discovery/discovery.asciidoc[]
 
@@ -65,11 +58,8 @@ include::discovery/adding-removing-nodes.asciidoc[]
 
 include::discovery/publishing.asciidoc[]
 
-include::discovery/no-master-block.asciidoc[]
-
-include::discovery/master-election.asciidoc[]
+include::discovery/quorums.asciidoc[]
 
 include::discovery/fault-detection.asciidoc[]
 
-include::discovery/quorums.asciidoc[]
-
+include::discovery/discovery-settings.asciidoc[]

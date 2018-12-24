@@ -85,8 +85,8 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -100,7 +100,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -110,6 +110,7 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -138,33 +139,33 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
     }
 
-    @TestLogging("_root:debug")
     public void testSuccessfulSnapshot() {
-        // Set up fake repository
+
         String repoName = "repo";
         String snapshotName = "snapshot";
+        final String index = "test";
+
         final int shards = randomIntBetween(1, 10);
         final Repository repository = createRepository();
         testClusterNodes.nodes.values().forEach(
             node -> when(node.repositoriesService.repository(repoName)).thenReturn(repository)
         );
-        String index = "test";
-        MetaData metaData = MetaData.builder().putCustom(
-            RepositoriesMetaData.TYPE,
-            new RepositoriesMetaData(
-                Collections.singletonList(
-                    new RepositoryMetaData(
-                        repoName, randomAlphaOfLength(10), Settings.EMPTY
-                    )
-                )
-            )
-        ).build();
 
         ClusterState initialClusterState =
             new ClusterState.Builder(ClusterName.DEFAULT)
                 .nodes(testClusterNodes.randomDiscoveryNodes())
-                .metaData(metaData)
-                .build();
+                .metaData(
+                    MetaData.builder().putCustom(
+                        RepositoriesMetaData.TYPE,
+                        new RepositoriesMetaData(
+                            Collections.singletonList(
+                                new RepositoryMetaData(
+                                    repoName, randomAlphaOfLength(10), Settings.EMPTY
+                                )
+                            )
+                        )
+                    )
+                ).build();
         startServices(initialClusterState);
 
         TestClusterNode masterNode = testClusterNodes.currentMaster(initialClusterState);
@@ -176,15 +177,9 @@ public class SnapshotsServiceTests extends ESTestCase {
             )
         );
 
-        while (testClusterNodes.nodes.values().stream().anyMatch(node -> node.deterministicTaskQueue.hasRunnableTasks())) {
-            testClusterNodes.nodes.values().forEach(node -> {
-                if (node.deterministicTaskQueue.hasRunnableTasks()) {
-                    node.deterministicTaskQueue.runRandomTask();
-                }
-            });
-        }
+        runOutstandingTasks();
 
-        createIndexResponseActionFuture.actionGet();
+        assertNotNull(createIndexResponseActionFuture.actionGet(0L));
 
         SetOnce<Boolean> successfulSnapshotStart = new SetOnce<>();
         masterNode.snapshotsService.createSnapshot(
@@ -200,25 +195,31 @@ public class SnapshotsServiceTests extends ESTestCase {
                     throw new AssertionError("Snapshot failed.");
                 }
             });
-        assertTrue(
-            "Expected a begin snapshot task in the master node's threadpool.", masterNode.deterministicTaskQueue.hasRunnableTasks());
+
         while (successfulSnapshotStart.get() == null || masterNode.deterministicTaskQueue.hasRunnableTasks()) {
             masterNode.deterministicTaskQueue.runRandomTask();
         }
         assertTrue("Snapshot did not start successfully.", successfulSnapshotStart.get());
 
-        while (testClusterNodes.nodes.values().stream().anyMatch(node -> node.deterministicTaskQueue.hasRunnableTasks())) {
-            testClusterNodes.nodes.values().forEach(node -> {
-                if (node.deterministicTaskQueue.hasRunnableTasks()) {
-                    node.deterministicTaskQueue.runRandomTask();
-                }
-            });
-        }
+        runOutstandingTasks();
+
         assertNoSnapshotsInProgress(masterNode.currentState.get());
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
-        SnapshotInfo data = repository.getSnapshotInfo(snapshotIds.stream().findFirst().get());
+        SnapshotInfo data = repository.getSnapshotInfo(snapshotIds.iterator().next());
         assertEquals(SnapshotState.SUCCESS, data.state());
+        assertThat(data.indices(), containsInAnyOrder(index));
+    }
+
+    /**
+     * Run all outstanding tasks on all cluster nodes in random order.
+     */
+    private void runOutstandingTasks() {
+        final Collection<TestClusterNode> nodes = testClusterNodes.nodes.values();
+        while (nodes.stream().anyMatch(node -> node.deterministicTaskQueue.hasRunnableTasks())) {
+            nodes.stream().filter(n -> n.deterministicTaskQueue.hasRunnableTasks())
+                .forEach(node -> node.deterministicTaskQueue.runRandomTask());
+        }
     }
 
     /**
@@ -240,21 +241,12 @@ public class SnapshotsServiceTests extends ESTestCase {
     /**
      * Create a {@link Environment} with random path.home and path.repo
      **/
-    private Environment createEnvironment() {
+    private static Environment createEnvironment() {
         Path home = createTempDir();
         return TestEnvironment.newEnvironment(Settings.builder()
             .put(PATH_HOME_SETTING.getKey(), home.toAbsolutePath())
             .put(Environment.PATH_REPO_SETTING.getKey(), home.resolve("repo").toAbsolutePath())
             .build());
-    }
-
-    private static void assertNoSnapshotsInProgress(ClusterState clusterState) {
-        SnapshotsInProgress finalSnapshotsInProgress = clusterState.custom(SnapshotsInProgress.TYPE);
-        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> !entry.state().completed()));
-    }
-
-    private void startServices(ClusterState initialState) {
-        testClusterNodes.nodes.values().forEach(testClusterNode -> testClusterNode.start(initialState));
     }
 
     private TestClusterNode newMasterNode(String nodeName) throws IOException {
@@ -273,9 +265,27 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
     }
 
+    private static void assertNoSnapshotsInProgress(ClusterState clusterState) {
+        SnapshotsInProgress finalSnapshotsInProgress = clusterState.custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> !entry.state().completed()));
+    }
+
+    private void startServices(ClusterState initialState) {
+        testClusterNodes.nodes.values().forEach(testClusterNode -> testClusterNode.start(initialState));
+    }
+
+    private static ClusterState stateForNode(ClusterState state, DiscoveryNode node) {
+        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(node.getId())).build();
+    }
+
+    private static ClusterChangedEvent changeEventForNode(ClusterChangedEvent event, DiscoveryNode node) {
+        return new ClusterChangedEvent(event.source(), stateForNode(event.state(), node), stateForNode(event.previousState(), node));
+    }
+
     private final class TestClusterNodes {
 
-        private final Map<String, TestClusterNode> nodes = new HashMap<>();
+        // LinkedHashMap so we have deterministic ordering when iterating over the map in tests
+        private final Map<String, TestClusterNode> nodes = new LinkedHashMap<>();
 
         TestClusterNodes(int masterNodes, int dataNodes) {
             for (int i = 0; i < masterNodes; ++i) {
@@ -298,6 +308,11 @@ public class SnapshotsServiceTests extends ESTestCase {
             }
         }
 
+        /**
+         * Builds a {@link DiscoveryNodes} instance that has one master eligible node set as its master
+         * by random.
+         * @return DiscoveryNodes with set master node
+         */
         public DiscoveryNodes randomDiscoveryNodes() {
             DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
             nodes.values().forEach(node -> builder.add(node.node));
@@ -307,20 +322,17 @@ public class SnapshotsServiceTests extends ESTestCase {
             return builder.localNodeId(masterId).masterNodeId(masterId).build();
         }
 
+        /**
+         * Returns the {@link TestClusterNode} for the master node in the given {@link ClusterState}.
+         * @param state ClusterState
+         * @return Master Node
+         */
         public TestClusterNode currentMaster(ClusterState state) {
             TestClusterNode master = nodes.get(state.nodes().getMasterNode().getName());
             assertNotNull(master);
             assertTrue(master.node.isMasterNode());
             return master;
         }
-    }
-
-    private static ClusterState stateForNode(ClusterState state, DiscoveryNode node) {
-        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(node.getId())).build();
-    }
-
-    private static ClusterChangedEvent changeEventForNode(ClusterChangedEvent event, DiscoveryNode node) {
-        return new ClusterChangedEvent(event.source(), stateForNode(event.state(), node), stateForNode(event.previousState(), node));
     }
 
     private final class TestClusterNode {
@@ -353,6 +365,9 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         private final NodeEnvironment nodeEnv;
 
+        /**
+         * Short circuit mock transport that simply invokes handlers on the discovery nodes directly.
+         */
         private final MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
@@ -363,9 +378,14 @@ public class SnapshotsServiceTests extends ESTestCase {
                     SetOnce<TransportResponse> responseSetOnce = new SetOnce<>();
                     TransportChannel channel = mock(TransportChannel.class);
                     doAnswer(invocation -> {
-                            responseSetOnce.set((TransportResponse) invocation.getArguments()[0]);
-                            handleResponse(requestId, responseSetOnce.get());
-                            return null;
+                            try {
+                                // We expect to only send one response per request
+                                responseSetOnce.set((TransportResponse) invocation.getArguments()[0]);
+                                handleResponse(requestId, responseSetOnce.get());
+                                return null;
+                            } catch (Exception e) {
+                                throw new AssertionError(e);
+                            }
                         }
                     ).when(channel).sendResponse(any(TransportResponse.class));
                     handlerRegistry.processMessageReceived(request, channel);
@@ -377,29 +397,37 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         TestClusterNode(DiscoveryNode node, DeterministicTaskQueue deterministicTaskQueue) throws IOException {
             this.node = node;
-            this.masterService = new FakeThreadPoolMasterService(node.getName(), "test", deterministicTaskQueue::scheduleNow);
+            masterService = new FakeThreadPoolMasterService(node.getName(), "test", deterministicTaskQueue::scheduleNow);
             final Settings settings = Settings.builder()
                 .put(NODE_NAME_SETTING.getKey(), node.getName())
                 .put(PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .build();
-            this.allocationService = ESAllocationTestCase.createAllocationService(settings);
-            ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            clusterService = new ClusterService(
-                settings, clusterSettings, deterministicTaskQueue.getThreadPool(), masterService);
+            allocationService = ESAllocationTestCase.createAllocationService(settings);
+            final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+            clusterService = new ClusterService(settings, clusterSettings, threadPool, masterService);
             this.deterministicTaskQueue = deterministicTaskQueue;
             transportService = mockTransport.createTransportService(
-                settings, deterministicTaskQueue.getThreadPool(runnable -> onNode(node, runnable)), NOOP_TRANSPORT_INTERCEPTOR,
+                settings, deterministicTaskQueue.getThreadPool(
+                    runnable -> () -> {
+                        try (CloseableThreadContext.Instance ignored =
+                                 CloseableThreadContext.put("nodeId", '{' + node.getId() + "}{" + node.getEphemeralId() + '}')) {
+                            runnable.run();
+                        }
+                    }
+                ), NOOP_TRANSPORT_INTERCEPTOR,
                 a -> node, null, emptySet()
             );
-            IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
-            snapshotsService = new SnapshotsService(settings, clusterService, indexNameExpressionResolver,
-                repositoriesService, deterministicTaskQueue.getThreadPool());
+            final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+            snapshotsService =
+                new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService, threadPool);
             final Environment environment = new Environment(settings, createTempDir());
             nodeEnv = new NodeEnvironment(settings, environment);
             final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
-            ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
-            client = new NodeClient(settings, deterministicTaskQueue.getThreadPool());
-            IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+            final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
+            client = new NodeClient(settings, threadPool);
+            final IndexScopedSettings indexScopedSettings =
+                new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
             indicesService = new IndicesService(
                 settings,
                 mock(PluginsService.class),
@@ -410,7 +438,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                 indexNameExpressionResolver,
                 new MapperRegistry(emptyMap(), emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
                 new NamedWriteableRegistry(Collections.emptyList()),
-                deterministicTaskQueue.getThreadPool(),
+                threadPool,
                 indexScopedSettings,
                 new NoneCircuitBreakerService(),
                 new BigArrays(new PageCacheRecycler(settings), null, "test"),
@@ -420,18 +448,18 @@ public class SnapshotsServiceTests extends ESTestCase {
                 Collections.emptyList(),
                 emptyMap()
             );
-            RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
-            ActionFilters actionFilters = new ActionFilters(emptySet());
+            final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
+            final ActionFilters actionFilters = new ActionFilters(emptySet());
             snapshotShardsService = new SnapshotShardsService(
-                settings, clusterService, snapshotsService, deterministicTaskQueue.getThreadPool(),
+                settings, clusterService, snapshotsService, threadPool,
                 transportService, indicesService, actionFilters, indexNameExpressionResolver);
-            ShardStateAction shardStateAction = new ShardStateAction(
+            final ShardStateAction shardStateAction = new ShardStateAction(
                 clusterService, transportService, allocationService,
                 new RoutingService(settings, clusterService, allocationService),
                 deterministicTaskQueue.getThreadPool()
             );
             indicesClusterStateService = new IndicesClusterStateService(
-                settings, indicesService, clusterService, deterministicTaskQueue.getThreadPool(),
+                settings, indicesService, clusterService, threadPool,
                 new PeerRecoveryTargetService(
                     deterministicTaskQueue.getThreadPool(), transportService, recoverySettings,
                     clusterService
@@ -446,21 +474,21 @@ public class SnapshotsServiceTests extends ESTestCase {
                 new PrimaryReplicaSyncer(
                     transportService,
                     new TransportResyncReplicationAction(
-                        settings, transportService, clusterService, indicesService, deterministicTaskQueue.getThreadPool(),
+                        settings, transportService, clusterService, indicesService, threadPool,
                         shardStateAction, actionFilters, indexNameExpressionResolver)
                 ),
                 new GlobalCheckpointSyncAction(
-                    settings, transportService, clusterService, indicesService, deterministicTaskQueue.getThreadPool(),
+                    settings, transportService, clusterService, indicesService, threadPool,
                     shardStateAction, actionFilters, indexNameExpressionResolver)
             );
             client.initialize(
                 Collections.singletonMap(
                     CreateIndexAction.INSTANCE,
                     new TransportCreateIndexAction(
-                        transportService, clusterService, deterministicTaskQueue.getThreadPool(),
+                        transportService, clusterService, threadPool,
                         new MetaDataCreateIndexService(settings, clusterService, indicesService,
                             allocationService, new AliasValidator(), environment, indexScopedSettings,
-                            deterministicTaskQueue.getThreadPool(), namedXContentRegistry, false),
+                            threadPool, namedXContentRegistry, false),
                         actionFilters, indexNameExpressionResolver
                     )
                 ),
@@ -475,6 +503,8 @@ public class SnapshotsServiceTests extends ESTestCase {
             snapshotsService.start();
             snapshotShardsService.start();
             masterService.setClusterStatePublisher((clusterChangedEvent, publishListener, ackListener) -> {
+                // Mock publisher that invokes other cluster change listeners directly
+                // TODO: Use actual discovery here?
                 testClusterNodes.nodes.values().forEach(n -> {
                     ClusterChangedEvent adjustedEvent = changeEventForNode(clusterChangedEvent, n.node);
                     n.snapshotsService.applyClusterState(adjustedEvent);
@@ -497,15 +527,6 @@ public class SnapshotsServiceTests extends ESTestCase {
             clusterService.getClusterApplierService().start();
             indicesService.start();
             indicesClusterStateService.start();
-        }
-
-        private Runnable onNode(DiscoveryNode node, Runnable runnable) {
-            final String nodeId = '{' + node.getId() + "}{" + node.getEphemeralId() + '}';
-            return () -> {
-                try (CloseableThreadContext.Instance ignored = CloseableThreadContext.put("nodeId", nodeId)) {
-                    runnable.run();
-                }
-            };
         }
     }
 }

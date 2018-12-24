@@ -409,12 +409,12 @@ public class DeterministicTaskQueue {
                 return new Cancellable() {
                     @Override
                     public void cancel() {
-
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public boolean isCancelled() {
-                        return false;
+                        throw new UnsupportedOperationException();
                     }
                 };
             }
@@ -441,91 +441,90 @@ public class DeterministicTaskQueue {
 
             @Override
             public ScheduledExecutorService scheduler() {
-                // TODO: Implement more
                 return new ScheduledExecutorService() {
                     @Override
                     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public void shutdown() {
-
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public List<Runnable> shutdownNow() {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public boolean isShutdown() {
-                        return false;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public boolean isTerminated() {
-                        return false;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public boolean awaitTermination(long timeout, TimeUnit unit) {
-                        return false;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public <T> Future<T> submit(Callable<T> task) {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public <T> Future<T> submit(Runnable task, T result) {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public Future<?> submit(Runnable task) {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public <T> T invokeAny(Collection<? extends Callable<T>> tasks) {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
-                        return null;
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public void execute(Runnable command) {
-
+                        throw new UnsupportedOperationException();
                     }
                 };
             }

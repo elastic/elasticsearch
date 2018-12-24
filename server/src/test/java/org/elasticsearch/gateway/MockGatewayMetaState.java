@@ -41,11 +41,11 @@ import static org.mockito.Mockito.mock;
  * Metadata upgrade is tested in {@link  GatewayMetaStateTests} and different {@link ClusterStateUpdaters} in
  * {@link ClusterStateUpdatersTests}.
  */
-public class GatewayMetaStateUT extends GatewayMetaState {
+public class MockGatewayMetaState extends GatewayMetaState {
     private final DiscoveryNode localNode;
 
-    public GatewayMetaStateUT(Settings settings, NodeEnvironment nodeEnvironment,
-                              NamedXContentRegistry xContentRegistry, DiscoveryNode localNode) throws IOException {
+    public MockGatewayMetaState(Settings settings, NodeEnvironment nodeEnvironment,
+                                NamedXContentRegistry xContentRegistry, DiscoveryNode localNode) throws IOException {
         super(settings, nodeEnvironment, new MetaStateService(nodeEnvironment, xContentRegistry),
                 mock(MetaDataIndexUpgradeService.class), mock(MetaDataUpgrader.class),
                 mock(TransportService.class), mock(ClusterService.class),

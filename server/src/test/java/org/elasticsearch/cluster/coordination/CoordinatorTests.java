@@ -51,7 +51,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.GatewayMetaStateUT;
+import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
@@ -1500,7 +1500,7 @@ public class CoordinatorTests extends ESTestCase {
                 try {
                     NodeEnvironment nodeEnvironment = newNodeEnvironment();
                     nodeEnvironments.add(nodeEnvironment);
-                    persistedState = new MockPersistedState(new GatewayMetaStateUT(settings, nodeEnvironment, xContentRegistry(),
+                    persistedState = new MockPersistedState(new MockGatewayMetaState(settings, nodeEnvironment, xContentRegistry(),
                             localNode).getPersistedState(settings, null));
                 } catch (IOException e) {
                     fail("Unable to create node environment");

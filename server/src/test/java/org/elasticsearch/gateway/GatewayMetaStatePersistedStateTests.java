@@ -62,13 +62,13 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         super.tearDown();
     }
 
-    private GatewayMetaStateUT newGateway() throws IOException {
-        GatewayMetaStateUT gateway = new GatewayMetaStateUT(settings, nodeEnvironment, xContentRegistry(), localNode);
+    private MockGatewayMetaState newGateway() throws IOException {
+        MockGatewayMetaState gateway = new MockGatewayMetaState(settings, nodeEnvironment, xContentRegistry(), localNode);
         gateway.applyClusterStateUpdaters();
         return gateway;
     }
 
-    private GatewayMetaStateUT maybeNew(GatewayMetaStateUT gateway) throws IOException {
+    private MockGatewayMetaState maybeNew(MockGatewayMetaState gateway) throws IOException {
         if (randomBoolean()) {
             return newGateway();
         }
@@ -76,7 +76,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     public void testInitialState() throws IOException {
-        GatewayMetaStateUT gateway = newGateway();
+        MockGatewayMetaState gateway = newGateway();
         ClusterState state = gateway.getLastAcceptedState();
         assertThat(state.getClusterName(), equalTo(clusterName));
         assertTrue(MetaData.isGlobalStateEquals(state.metaData(), MetaData.EMPTY_META_DATA));
@@ -88,7 +88,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     public void testSetCurrentTerm() throws IOException {
-        GatewayMetaStateUT gateway = newGateway();
+        MockGatewayMetaState gateway = newGateway();
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             final long currentTerm = randomNonNegativeLong();
@@ -142,7 +142,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     public void testSetLastAcceptedState() throws IOException {
-        GatewayMetaStateUT gateway = newGateway();
+        MockGatewayMetaState gateway = newGateway();
         final long term = randomNonNegativeLong();
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
@@ -165,7 +165,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     public void testSetLastAcceptedStateTermChanged() throws IOException {
-        GatewayMetaStateUT gateway = newGateway();
+        MockGatewayMetaState gateway = newGateway();
 
         final String indexName = randomAlphaOfLength(10);
         final int numberOfShards = randomIntBetween(1, 5);
@@ -189,7 +189,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     public void testCurrentTermAndTermAreDifferent() throws IOException {
-        GatewayMetaStateUT gateway = newGateway();
+        MockGatewayMetaState gateway = newGateway();
 
         long currentTerm = randomNonNegativeLong();
         long term  = randomValueOtherThan(currentTerm, () -> randomNonNegativeLong());
@@ -204,7 +204,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     public void testMarkAcceptedConfigAsCommitted() throws IOException {
-        GatewayMetaStateUT gateway = newGateway();
+        MockGatewayMetaState gateway = newGateway();
 
         //generate random coordinationMetaData with different lastAcceptedConfiguration and lastCommittedConfiguration
         CoordinationMetaData coordinationMetaData;

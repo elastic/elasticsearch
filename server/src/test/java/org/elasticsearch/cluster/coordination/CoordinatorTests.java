@@ -82,6 +82,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setValue;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
@@ -1371,10 +1372,18 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         class MockPersistedState implements PersistedState {
-            private PersistedState delegate;
+            private final PersistedState delegate;
 
-            MockPersistedState(PersistedState delegate) {
-                this.delegate = delegate;
+            MockPersistedState(Settings settings, DiscoveryNode localNode) throws IOException {
+                if (rarely()) {
+                        NodeEnvironment nodeEnvironment = newNodeEnvironment();
+                        nodeEnvironments.add(nodeEnvironment);
+                        delegate =  new MockGatewayMetaState(settings, nodeEnvironment, xContentRegistry(), localNode)
+                                .getPersistedState(settings, null);
+                } else {
+                    delegate = new InMemoryPersistedState(0L,
+                            clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L));
+                }
             }
 
             private void possiblyFail(String description) {
@@ -1498,12 +1507,9 @@ public class CoordinatorTests extends ESTestCase {
                 masterService.setClusterStatePublisher(coordinator);
 
                 try {
-                    NodeEnvironment nodeEnvironment = newNodeEnvironment();
-                    nodeEnvironments.add(nodeEnvironment);
-                    persistedState = new MockPersistedState(new MockGatewayMetaState(settings, nodeEnvironment, xContentRegistry(),
-                            localNode).getPersistedState(settings, null));
+                    persistedState = new MockPersistedState(settings, localNode);
                 } catch (IOException e) {
-                    fail("Unable to create node environment");
+                    fail("Unable to create MockPersistedState");
                 }
 
                 transportService.start();

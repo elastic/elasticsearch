@@ -245,11 +245,17 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         }
 
         List<String> removedRemoteClusters = new ArrayList<>();
-        for (String remoteCluster : autoFollowers.keySet()) {
+        for (Map.Entry<String, AutoFollower> entry : autoFollowers.entrySet()) {
+            String remoteCluster = entry.getKey();
+            AutoFollower autoFollower = entry.getValue();
             boolean exist = autoFollowMetadata.getPatterns().values().stream()
                 .anyMatch(pattern -> pattern.getRemoteCluster().equals(remoteCluster));
             if (exist == false) {
                 removedRemoteClusters.add(remoteCluster);
+            } else if (autoFollower.remoteClusterConnectionMissing) {
+                LOGGER.info("Retrying auto follower [{}] after remote cluster connection was missing", remoteCluster);
+                autoFollower.remoteClusterConnectionMissing = false;
+                autoFollower.start();
             }
         }
         this.autoFollowers = autoFollowers
@@ -281,6 +287,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
         private volatile long lastAutoFollowTimeInMillis = -1;
         private volatile long metadataVersion = 0;
+        private volatile boolean remoteClusterConnectionMissing = false;
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
 
@@ -327,6 +334,14 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     autoFollowIndices(autoFollowMetadata, clusterState, remoteClusterState, patterns);
                 } else {
                     assert remoteError != null;
+                    String expectedErrorMessage = "unknown cluster alias [" + remoteCluster + "]";
+                    if (remoteError instanceof IllegalArgumentException &&
+                        expectedErrorMessage.equals(remoteError.getMessage())) {
+                        LOGGER.info("AutoFollower for cluster [{}] has stopped, because remote connection is gone", remoteCluster);
+                        remoteClusterConnectionMissing = true;
+                        return;
+                    }
+
                     for (int i = 0; i < patterns.size(); i++) {
                         String autoFollowPatternName = patterns.get(i);
                         finalise(i, new AutoFollowResult(autoFollowPatternName, remoteError));

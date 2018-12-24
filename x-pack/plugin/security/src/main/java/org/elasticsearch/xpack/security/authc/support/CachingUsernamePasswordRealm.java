@@ -119,6 +119,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
      * @param listener to be called at completion
      */
     private void authenticateWithCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+        assert cache != null;
         try {
             final AtomicBoolean authenticationInCache = new AtomicBoolean(true);
             final ListenableFuture<UserWithHash> listenableCacheEntry = cache.computeIfAbsent(token.principal(), k -> {
@@ -200,7 +201,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     protected int getCacheSize() {
-        return cache.count();
+        return cache == null ? -1 : cache.count();
     }
 
     protected abstract void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener);
@@ -221,6 +222,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     private void lookupWithCache(String username, ActionListener<User> listener) {
+        assert cache != null;
         try {
             final AtomicBoolean lookupInCache = new AtomicBoolean(true);
             final ListenableFuture<UserWithHash> listenableCacheEntry = cache.computeIfAbsent(username, key -> {

@@ -28,12 +28,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -138,7 +136,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
-    private final boolean compressAllResponses;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
 
@@ -163,7 +160,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.compressAllResponses = TransportSettings.TRANSPORT_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
         this.transportLogger = new TransportLogger();
@@ -782,14 +778,36 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final String action,
         boolean compress,
         boolean isHandshake) {
-        boolean compressMessage = compress || compressAllResponses;
 
-        Version version = Version.min(this.version, nodeVersion);
-        NetworkMessage.Response message = new NetworkMessage.Response(threadPool.getThreadContext(), features, response, version, requestId,
-            isHandshake, compressMessage);
-        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
-        outboundHandler.sendMessage(channel, message, listener);
-
+//        Version version = Version.min(this.version, nodeVersion);
+//        NetworkMessage.Response message = new NetworkMessage.Response(threadPool.getThreadContext(), features, response, version, requestId,
+//            isHandshake, compress);
+//        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
+//        outboundHandler.sendMessage(channel, message, listener);
+//
+//        status = TransportStatus.setResponse(status);
+//        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
+//        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compress);
+//        boolean addedReleaseListener = false;
+//        try {
+//            if (compress) {
+//                status = TransportStatus.setCompress(status);
+//            }
+//            threadPool.getThreadContext().writeTo(stream);
+//            stream.setVersion(nodeVersion);
+//            stream.setFeatures(features);
+//            BytesReference message = buildMessage(requestId, status, nodeVersion, response, stream);
+//
+//            // this might be called in a different thread
+//            ReleaseListener releaseListener = new ReleaseListener(stream,
+//                () -> messageListener.onResponseSent(requestId, action, response));
+//            internalSendMessage(channel, message, releaseListener);
+//            addedReleaseListener = true;
+//        } finally {
+//            if (!addedReleaseListener) {
+//                IOUtils.close(stream);
+//            }
+//        }
     }
 
     /**

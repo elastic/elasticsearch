@@ -332,7 +332,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 source.endObject();
             }
             source.endObject();
-            return nestedMapper.parse(SourceToParse.source("test", "type", docId, BytesReference.bytes(source), XContentType.JSON));
+            return nestedMapper.parse(new SourceToParse("test", "type", docId, BytesReference.bytes(source), XContentType.JSON));
         };
     }
 

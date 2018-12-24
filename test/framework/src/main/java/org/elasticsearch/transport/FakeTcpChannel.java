@@ -19,11 +19,9 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.concurrent.CompletableContext;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -31,6 +29,8 @@ import java.util.function.Supplier;
 public class FakeTcpChannel implements TcpChannel {
 
     private final boolean isServer;
+    private final InetSocketAddress localAddress;
+    private final InetSocketAddress remoteAddress;
     private final String profile;
     private final AtomicReference<Supplier<BytesReference>> messageCaptor;
     private final ChannelStats stats = new ChannelStats();
@@ -48,9 +48,15 @@ public class FakeTcpChannel implements TcpChannel {
         this(isServer, "profile", messageCaptor);
     }
 
-
     public FakeTcpChannel(boolean isServer, String profile, AtomicReference<Supplier<BytesReference>> messageCaptor) {
+        this(isServer, null, null, profile, messageCaptor);
+    }
+
+    public FakeTcpChannel(boolean isServer, InetSocketAddress localAddress, InetSocketAddress remoteAddress, String profile,
+                          AtomicReference<Supplier<BytesReference>> messageCaptor) {
         this.isServer = isServer;
+        this.localAddress = localAddress;
+        this.remoteAddress = remoteAddress;
         this.profile = profile;
         this.messageCaptor = messageCaptor;
     }
@@ -67,12 +73,12 @@ public class FakeTcpChannel implements TcpChannel {
 
     @Override
     public InetSocketAddress getLocalAddress() {
-        return null;
+        return localAddress;
     }
 
     @Override
     public InetSocketAddress getRemoteAddress() {
-        return null;
+        return remoteAddress;
     }
 
     @Override

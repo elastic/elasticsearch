@@ -382,7 +382,7 @@ public class RelocationIT extends ESIntegTestCase {
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
         flush();
 
-        int allowedFailures = randomIntBetween(3, 10);
+        int allowedFailures = randomIntBetween(3, 5); // the default of the max_retry_allocation is 5.
         logger.info("--> blocking recoveries from primary (allowed failures: [{}])", allowedFailures);
         CountDownLatch corruptionCount = new CountDownLatch(allowedFailures);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, p_node);

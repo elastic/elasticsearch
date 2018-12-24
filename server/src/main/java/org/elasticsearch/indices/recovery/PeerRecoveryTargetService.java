@@ -596,8 +596,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 }
 
                 recoveryTarget.writeFileChunk(request.metadata(), request.position(), request.content(),
-                        request.lastChunk(), request.totalTranslogOps()
-                );
+                        request.lastChunk(), request.totalTranslogOps()).get();
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

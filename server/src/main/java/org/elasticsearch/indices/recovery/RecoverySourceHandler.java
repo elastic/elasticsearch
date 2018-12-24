@@ -68,6 +68,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -94,6 +95,7 @@ public class RecoverySourceHandler {
     private final StartRecoveryRequest request;
     private final int chunkSizeInBytes;
     private final RecoveryTargetHandler recoveryTarget;
+    private final int maxConcurrentFileChunks;
 
     protected final RecoveryResponse response;
 
@@ -113,16 +115,17 @@ public class RecoverySourceHandler {
         }
     };
 
-    public RecoverySourceHandler(final IndexShard shard, RecoveryTargetHandler recoveryTarget,
-                                 final StartRecoveryRequest request,
-                                 final int fileChunkSizeInBytes) {
+    public RecoverySourceHandler(final IndexShard shard, RecoveryTargetHandler recoveryTarget, final StartRecoveryRequest request,
+                                 final int chunkSizeInBytes, final int maxConcurrentFileChunks) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.request = request;
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
-        this.chunkSizeInBytes = fileChunkSizeInBytes;
+        this.chunkSizeInBytes = chunkSizeInBytes;
         this.response = new RecoveryResponse();
+        // if the target is on an old version, it won't be able to handle out-of-order file chunks.
+        this.maxConcurrentFileChunks = request.targetNode().getVersion().onOrAfter(Version.V_7_0_0) ? maxConcurrentFileChunks : 1;
     }
 
     public StartRecoveryRequest getRequest() {
@@ -366,7 +369,7 @@ public class RecoverySourceHandler {
                                 response.phase1ExistingFileSizes, translogOps.get()));
                 // How many bytes we've copied since we last called RateLimiter.pause
                 final Function<StoreFileMetaData, OutputStream> outputStreamFactories =
-                        md -> new BufferedOutputStream(new RecoveryOutputStream(md, translogOps), chunkSizeInBytes);
+                    md -> new BufferedOutputStream(new RecoveryOutputStream(md, translogOps), chunkSizeInBytes);
                 sendFiles(store, phase1Files.toArray(new StoreFileMetaData[phase1Files.size()]), outputStreamFactories);
                 // Send the CLEAN_FILES request, which takes all of the files that
                 // were transferred and renames them from their temporary file
@@ -639,8 +642,11 @@ public class RecoverySourceHandler {
         private final StoreFileMetaData md;
         private final Supplier<Integer> translogOps;
         private long position = 0;
+        private final Semaphore sendingTickets;
+        private volatile Exception error;
 
         RecoveryOutputStream(StoreFileMetaData md, Supplier<Integer> translogOps) {
+            this.sendingTickets = new Semaphore(maxConcurrentFileChunks);
             this.md = md;
             this.translogOps = translogOps;
         }
@@ -652,18 +658,62 @@ public class RecoverySourceHandler {
 
         @Override
         public void write(byte[] b, int offset, int length) throws IOException {
-            sendNextChunk(position, new BytesArray(b, offset, length), md.length() == position + length);
+            sendNextChunk(new BytesArray(b, offset, length), position, md.length() == position + length);
             position += length;
             assert md.length() >= position : "length: " + md.length() + " but positions was: " + position;
         }
 
-        private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {
-            // Actually send the file chunk to the target node, waiting for it to complete
-            cancellableThreads.executeIO(() ->
+        void sendNextChunk(BytesArray content, long position, boolean lastChunk) throws IOException {
+            // Actually send the file chunk to the target node.
+            cancellableThreads.executeIO(() -> {
+                sendingTickets.acquire();
+                try {
+                    throwAndClearErrorIfExist();
                     recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogOps.get())
-            );
+                        .whenComplete((res, ex) -> {
+                            if (ex != null) {
+                                synchronized (this) {
+                                    if (error == null) {
+                                        error = (Exception) ex;
+                                    } else {
+                                        error.addSuppressed(ex);
+                                    }
+                                }
+                            }
+                            sendingTickets.release();
+                        });
+                } catch (Exception e) {
+                    sendingTickets.release();
+                    throw e;
+                }
+            });
             if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
                 throw new IndexShardClosedException(request.shardId());
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                super.close();
+            } finally {
+                // wait for the completion of all ongoing chunks then check for the existing error.
+                cancellableThreads.execute(() -> sendingTickets.acquire(maxConcurrentFileChunks));
+                try {
+                    throwAndClearErrorIfExist();
+                } finally {
+                    sendingTickets.release(maxConcurrentFileChunks);
+                }
+            }
+        }
+
+        private void throwAndClearErrorIfExist() {
+            final Exception existingError = this.error;
+            if (existingError != null) {
+                synchronized (this) {
+                    this.error = null;
+                }
+                throw ExceptionsHelper.convertToRuntime(existingError);
             }
         }
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 
 public interface RecoveryTargetHandler {
@@ -89,7 +90,7 @@ public interface RecoveryTargetHandler {
     void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException;
 
     /** writes a partial file chunk to the target store */
-    void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                        boolean lastChunk, int totalTranslogOps) throws IOException;
+    CompletableFuture<Void> writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                                           boolean lastChunk, int totalTranslogOps) throws IOException;
 
 }

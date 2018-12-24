@@ -634,7 +634,7 @@ public final class ThreadContext implements Closeable, Writeable {
     /**
      * Wraps a Runnable to preserve the thread context.
      */
-    private class ContextPreservingRunnable implements Runnable {
+    private class ContextPreservingRunnable implements WrappedRunnable {
         private final Runnable in;
         private final ThreadContext.StoredContext ctx;
 
@@ -666,6 +666,7 @@ public final class ThreadContext implements Closeable, Writeable {
             return in.toString();
         }
 
+        @Override
         public Runnable unwrap() {
             return in;
         }

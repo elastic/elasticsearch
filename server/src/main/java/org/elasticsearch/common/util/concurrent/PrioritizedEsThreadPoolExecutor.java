@@ -96,13 +96,13 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                     /** innerRunnable can be null if task is finished but not removed from executor yet,
                      * see {@link TieBreakingPrioritizedRunnable#run} and {@link TieBreakingPrioritizedRunnable#runAndClean}
                      */
-                    pending.add(new Pending(unwrap(innerRunnable), t.priority(), t.insertionOrder, executing));
+                    pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing));
                 }
             } else if (runnable instanceof PrioritizedFutureTask) {
                 PrioritizedFutureTask t = (PrioritizedFutureTask) runnable;
                 Object task = t.task;
                 if (t.task instanceof Runnable) {
-                    task = unwrap((Runnable) t.task);
+                    task = super.unwrap((Runnable) t.task);
                 }
                 pending.add(new Pending(task, t.priority, t.insertionOrder, executing));
             }
@@ -152,7 +152,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
     @Override
     protected Runnable unwrap(Runnable runnable) {
         if (runnable instanceof WrappedRunnable) {
-            return ((WrappedRunnable) runnable).unwrap();
+            return super.unwrap(((WrappedRunnable) runnable).unwrap());
         } else {
             return super.unwrap(runnable);
         }

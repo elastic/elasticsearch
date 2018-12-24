@@ -109,7 +109,9 @@ nodes is not changing permanently.
 
 Nodes may join or leave the cluster, and Elasticsearch reacts by automatically
 making corresponding changes to the voting configuration in order to ensure that
-the cluster is as resilient as possible. The default auto-reconfiguration
+the cluster is as resilient as possible. 
+
+The default auto-reconfiguration
 behaviour is expected to give the best results in most situations. The current
 voting configuration is stored in the cluster state so you can inspect its
 current contents as follows:

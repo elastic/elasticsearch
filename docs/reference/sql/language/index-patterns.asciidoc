@@ -62,9 +62,11 @@ an empty table is returned.
 
 In a nutshell, the differences between the two type of patterns are:
 
-[cols="^h,^,^",options="header"]
+[cols="^h,^,^"]
 |===
-| Feature | Multi index | SQL `LIKE`
+s|Feature
+s|Multi index
+s|SQL `LIKE`
 
 | Type of quoting    | `"` | `'`
 | Inclusion          | Yes | Yes

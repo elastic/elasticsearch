@@ -10,7 +10,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -53,6 +56,24 @@ public class WaitForIndexingCompleteTests extends AbstractStepTestCase<WaitForIn
     public void testConditionMet() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom("ccr", Collections.emptyMap())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .metaData(MetaData.builder().put(indexMetadata, true).build())
+            .build();
+
+        WaitForIndexingComplete step = createRandomInstance();
+        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        assertThat(result.isComplete(), is(true));
+        assertThat(result.getInfomationContext(), nullValue());
+    }
+
+    public void testConditionMetNotAFollowerIndex() {
+        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+            .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -68,8 +89,13 @@ public class WaitForIndexingCompleteTests extends AbstractStepTestCase<WaitForIn
     }
 
     public void testConditionNotMet() {
+        Settings.Builder indexSettings = settings(Version.CURRENT);
+        if (randomBoolean()) {
+            indexSettings.put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false");
+        }
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false"))
+            .settings(indexSettings)
+            .putCustom("ccr", Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

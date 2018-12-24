@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -25,7 +23,6 @@ import java.util.stream.Collectors;
 
 final class WaitForFollowShardTasksStep extends AsyncWaitStep {
 
-    private static final Logger LOGGER = LogManager.getLogger(WaitForFollowShardTasksStep.class);
     static final String NAME = "wait-for-follow-shard-tasks";
 
     WaitForFollowShardTasksStep(StepKey key, StepKey nextStepKey, Client client) {
@@ -63,7 +60,6 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
                 .map(status -> new Info.ShardFollowTaskInfo(status.followerIndex(), status.getShardId(),
                     status.leaderGlobalCheckpoint(), status.followerGlobalCheckpoint()))
                 .collect(Collectors.toList());
-            LOGGER.error("Condition not met [{}]", Strings.toString(new Info(shardFollowTaskInfos)));
             listener.onResponse(false, new Info(shardFollowTaskInfos));
         }
     }

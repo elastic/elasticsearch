@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 final class WaitForIndexingComplete extends ClusterStateWaitStep {
@@ -26,9 +27,12 @@ final class WaitForIndexingComplete extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        // No need to check whether an index is a following index, just check whether indexing_complete setting has been set.
-        // (Either by user or rollover action)
         IndexMetaData followerIndex = clusterState.metaData().getIndexSafe(index);
+        Map<String, String> customIndexMetadata = followerIndex.getCustomData("ccr");
+        if (customIndexMetadata == null) {
+            return new Result(true, null);
+        }
+
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(followerIndex.getSettings());
         if (indexingComplete) {
             return new Result(true, null);

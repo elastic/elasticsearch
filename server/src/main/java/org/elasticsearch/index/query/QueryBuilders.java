@@ -122,6 +122,7 @@ public final class QueryBuilders {
      *
      * @param types The mapping/doc type
      */
+    @Deprecated
     public static IdsQueryBuilder idsQuery(String... types) {
         return new IdsQueryBuilder().types(types);
     }
@@ -648,6 +649,10 @@ public final class QueryBuilders {
 
     public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType) {
         return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType);
+    }
+
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId) {
+        return new GeoShapeQueryBuilder(name, indexedShapeId);
     }
 
     /**

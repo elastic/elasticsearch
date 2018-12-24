@@ -56,12 +56,11 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
+public class MoreLikeThisQueryBuilderTypedTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
 
     private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[]{MoreLikeThisQueryBuilder.DOC.getPreferredName()};
 
@@ -71,14 +70,11 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     @Before
     public void setup() {
-        // MLT only supports string fields, unsupported fields are tested below
         randomFields = randomStringFields();
-        // we also preset the item requests
         randomLikeItems = new Item[randomIntBetween(1, 3)];
         for (int i = 0; i < randomLikeItems.length; i++) {
             randomLikeItems[i] = generateRandomItem();
         }
-        // and for the unlike items too
         randomUnlikeItems = new Item[randomIntBetween(1, 3)];
         for (int i = 0; i < randomUnlikeItems.length; i++) {
             randomUnlikeItems[i] = generateRandomItem();
@@ -93,12 +89,13 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     private Item generateRandomItem() {
         String index = randomBoolean() ? getIndex().getName() : null;
+        String type = "doc";
         // indexed item or artificial document
         Item item;
         if (randomBoolean()) {
-            item = new Item(index, randomAlphaOfLength(10));
+            item = new Item(index, type, randomAlphaOfLength(10));
         } else {
-            item = new Item(index, randomArtificialDoc());
+            item = new Item(index, type, randomArtificialDoc());
         }
         // if no field is specified MLT uses all mapped fields for this item
         if (randomBoolean()) {
@@ -144,24 +141,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     @Override
     protected MoreLikeThisQueryBuilder doCreateTestQueryBuilder() {
-        MoreLikeThisQueryBuilder queryBuilder;
-        String[] likeTexts = null;
-        Item[] likeItems = null;
-        // like field is required
-        if (randomBoolean()) {
-            likeTexts = generateRandomStringArray(5, 5, false, false);
-        } else {
-            likeItems = randomLikeItems;
-        }
-        if (randomBoolean()) { // for the default field
-            queryBuilder = new MoreLikeThisQueryBuilder(likeTexts, likeItems);
-        } else {
-            queryBuilder = new MoreLikeThisQueryBuilder(randomFields, likeTexts, likeItems);
-        }
-
-        if (randomBoolean()) {
-            queryBuilder.unlike(generateRandomStringArray(5, 5, false, false));
-        }
+        MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder(randomFields, null, randomLikeItems);
         if (randomBoolean()) {
             queryBuilder.unlike(randomUnlikeItems);
         }
@@ -275,29 +255,6 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         }
     }
 
-    public void testValidateEmptyFields() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new MoreLikeThisQueryBuilder(new String[0], new String[]{"likeText"}, null));
-        assertThat(e.getMessage(), containsString("requires 'fields' to be specified"));
-    }
-
-    public void testValidateEmptyLike() {
-        String[] likeTexts = randomBoolean() ? null : new String[0];
-        Item[] likeItems = randomBoolean() ? null : new Item[0];
-        IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> new MoreLikeThisQueryBuilder(likeTexts, likeItems));
-        assertThat(e.getMessage(), containsString("requires either 'like' texts or items to be specified"));
-    }
-
-    public void testUnsupportedFields() throws IOException {
-        String unsupportedField = randomFrom(INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
-        MoreLikeThisQueryBuilder queryBuilder =
-            new MoreLikeThisQueryBuilder(new String[] {unsupportedField}, new String[]{"some text"}, null)
-                .failOnUnsupportedField(true);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("more_like_this only supports text/keyword fields"));
-    }
-
     public void testMoreLikeThisBuilder() throws Exception {
         Query parsedQuery =
             parseQuery(moreLikeThisQuery(new String[]{"name.first", "name.last"}, new String[]{"something"}, null)
@@ -330,10 +287,12 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         Item newItem = Item.parse(parser, new Item());
         assertEquals(expectedItem, newItem);
+
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
 
     @Override
-    protected boolean isCacheable(MoreLikeThisQueryBuilder queryBuilder) {
+    protected boolean isCachable(MoreLikeThisQueryBuilder queryBuilder) {
         return queryBuilder.likeItems().length == 0; // items are always fetched
     }
 
@@ -344,9 +303,11 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 "    \"fields\" : [ \"title\", \"description\" ],\n" +
                 "    \"like\" : [ \"and potentially some more text here as well\", {\n" +
                 "      \"_index\" : \"imdb\",\n" +
+                "      \"_type\" : \"movies\",\n" +
                 "      \"_id\" : \"1\"\n" +
                 "    }, {\n" +
                 "      \"_index\" : \"imdb\",\n" +
+                "      \"_type\" : \"movies\",\n" +
                 "      \"_id\" : \"2\"\n" +
                 "    } ],\n" +
                 "    \"max_query_terms\" : 12,\n" +
@@ -368,5 +329,31 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
         assertEquals(json, 2, parsed.fields().length);
         assertEquals(json, "and potentially some more text here as well", parsed.likeTexts()[0]);
+
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testUnknownField() throws IOException {
+        super.testUnknownField();
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testValidOutput() throws IOException {
+        super.testValidOutput();
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testUnknownObjectException() throws IOException {
+        super.testUnknownObjectException();
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
 }

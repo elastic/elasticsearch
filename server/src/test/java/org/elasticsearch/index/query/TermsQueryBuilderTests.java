@@ -97,8 +97,11 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     private TermsLookup randomTermsLookup() {
-        return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-                termsPath).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+        return new TermsLookup(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                termsPath
+            ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
     }
 
     @Override
@@ -178,7 +181,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 "    ],\n" +
                 "    \"field_lookup\": {\n" +
                 "      \"index\": \"pills\",\n" +
-                "      \"type\": \"red\",\n" +
                 "      \"id\": \"3\",\n" +
                 "      \"path\": \"white rabbit\"\n" +
                 "    }\n" +

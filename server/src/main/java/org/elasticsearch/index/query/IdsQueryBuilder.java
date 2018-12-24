@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,6 +53,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  */
 public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     public static final String NAME = "ids";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IdsQueryBuilder.class));
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField VALUES_FIELD = new ParseField("values");
@@ -84,10 +87,16 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     /**
      * Add types to query
      */
-    // TODO: Remove
+    // TODO: Remove in 8.0
+    @Deprecated
     public IdsQueryBuilder types(String... types) {
         if (types == null) {
             throw new IllegalArgumentException("[" + NAME + "] types cannot be null");
+        }
+        // Even if types are null, IdsQueryBuilder uses an empty array for decoding types.
+        // For this reason, issue deprecation warning if types contain something.
+        if (types.length > 0) {
+            deprecationLogger.deprecatedAndMaybeLog("ids_query_with_types", QueryShardContext.TYPES_DEPRECATION_MESSAGE);
         }
         this.types = types;
         return this;
@@ -96,6 +105,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     /**
      * Returns the types used in this query
      */
+    @Deprecated
     public String[] types() {
         return this.types;
     }

@@ -163,7 +163,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * parse exception. Some specific objects do not cause any exception as they can hold arbitrary content; they can be
      * declared by overriding {@link #getObjectsHoldingArbitraryContent()}.
      */
-    public final void testUnknownObjectException() throws IOException {
+    public void testUnknownObjectException() throws IOException {
         Set<String> candidates = new HashSet<>();
         // Adds the valid query to the list of queries to modify and test
         candidates.add(createTestQueryBuilder().toString());
@@ -321,7 +321,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Test that wraps the randomly generated query into an array as follows: { "query_name" : [{}]}
      * This causes unexpected situations in parser code that may not be handled properly.
      */
-    public final void testQueryWrappedInArray() {
+    public void testQueryWrappedInArray() {
         QB queryBuilder = createTestQueryBuilder();
         String queryName = queryBuilder.getName();
         String validQuery = queryBuilder.toString();

@@ -553,6 +553,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(queryBuilder, shardContext, future);
         assertQueryBuilder(qbSource, future.get());
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
 
 

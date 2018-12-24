@@ -23,6 +23,7 @@ import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.Line;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.geo.Rectangle;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -38,6 +39,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -48,6 +50,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -66,6 +69,7 @@ import java.util.function.Supplier;
  */
 public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuilder> {
     public static final String NAME = "geo_shape";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(GeoShapeQueryBuilder.class));
 
     public static final String DEFAULT_SHAPE_INDEX_NAME = "shapes";
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";
@@ -121,6 +125,19 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
 
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * field name and will use the Shape found with the given ID
+     *
+     * @param fieldName
+     *            Name of the field that will be filtered
+     * @param indexedShapeId
+     *            ID of the indexed Shape that will be used in the Query
+     */
+    public GeoShapeQueryBuilder(String fieldName, String indexedShapeId) {
+        this(fieldName, (ShapeBuilder) null, indexedShapeId, null);
+    }
+
+    /**
+     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
      * field name and will use the Shape found with the given ID in the given
      * type
      *
@@ -130,20 +147,19 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      *            ID of the indexed Shape that will be used in the Query
      * @param indexedShapeType
      *            Index type of the indexed Shapes
+     * @deprecated use {@link #GeoShapeQueryBuilder(String, String)} instead
      */
+    @Deprecated
     public GeoShapeQueryBuilder(String fieldName, String indexedShapeId, String indexedShapeType) {
         this(fieldName, (ShapeBuilder) null, indexedShapeId, indexedShapeType);
     }
 
-    private GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape, String indexedShapeId, String indexedShapeType) {
+    private GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape, String indexedShapeId, @Nullable String indexedShapeType) {
         if (fieldName == null) {
             throw new IllegalArgumentException("fieldName is required");
         }
         if (shape == null && indexedShapeId == null) {
-            throw new IllegalArgumentException("either shapeBytes or indexedShapeId and indexedShapeType are required");
-        }
-        if (indexedShapeId != null && indexedShapeType == null) {
-            throw new IllegalArgumentException("indexedShapeType is required if indexedShapeId is specified");
+            throw new IllegalArgumentException("either shapeBytes or indexedShapeId is required");
         }
         this.fieldName = fieldName;
         this.shape = shape;
@@ -152,7 +168,8 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         this.supplier = null;
     }
 
-    private GeoShapeQueryBuilder(String fieldName, Supplier<ShapeBuilder> supplier, String indexedShapeId, String indexedShapeType) {
+    private GeoShapeQueryBuilder(String fieldName, Supplier<ShapeBuilder> supplier, String indexedShapeId,
+            @Nullable String indexedShapeType) {
         this.fieldName = fieldName;
         this.shape = null;
         this.supplier = supplier;
@@ -239,6 +256,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      * @return the document type of the indexed Shape that will be used in the
      *         Query
      */
+    @Deprecated
     public String indexedShapeType() {
         return indexedShapeType;
     }
@@ -566,8 +584,10 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             shape.toXContent(builder, params);
         } else {
             builder.startObject(INDEXED_SHAPE_FIELD.getPreferredName())
-                    .field(SHAPE_ID_FIELD.getPreferredName(), indexedShapeId)
-                    .field(SHAPE_TYPE_FIELD.getPreferredName(), indexedShapeType);
+                    .field(SHAPE_ID_FIELD.getPreferredName(), indexedShapeId);
+            if (indexedShapeType != null) {
+                builder.field(SHAPE_TYPE_FIELD.getPreferredName(), indexedShapeType);
+            }
             if (indexedShapeIndex != null) {
                 builder.field(SHAPE_INDEX_FIELD.getPreferredName(), indexedShapeIndex);
             }
@@ -644,6 +664,8 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                                     if (SHAPE_ID_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         id = parser.text();
                                     } else if (SHAPE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                                        deprecationLogger.deprecatedAndMaybeLog(
+                                            "geo_share_query_with_types", QueryShardContext.TYPES_DEPRECATION_MESSAGE);
                                         type = parser.text();
                                     } else if (SHAPE_INDEX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         index = parser.text();
@@ -739,7 +761,12 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         } else if (this.shape == null) {
             SetOnce<ShapeBuilder> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> {
-                GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
+                GetRequest getRequest;
+                if (indexedShapeType == null) {
+                    getRequest = new GetRequest(indexedShapeIndex, indexedShapeId);
+                } else {
+                    getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
+                }
                 getRequest.routing(indexedShapeRouting);
                 fetch(client, getRequest, indexedShapePath, ActionListener.wrap(builder-> {
                     supplier.set(builder);

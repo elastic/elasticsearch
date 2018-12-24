@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.search.BooleanClause;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.XMoreLikeThis;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -76,6 +78,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MoreLikeThisQueryBuilder.class));
+
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
     public static final int DEFAULT_MIN_TERM_FREQ = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
@@ -178,6 +182,36 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             this.versionType = copy.versionType;
         }
 
+
+        /**
+         * Constructor for a given item / document request
+         *
+         * @param index the index where the document is located
+         * @param id and its id
+         */
+        public Item(@Nullable String index,String id) {
+            if (id == null) {
+                throw new IllegalArgumentException("Item requires id to be non-null");
+            }
+            this.index = index;
+            this.id = id;
+        }
+
+        /**
+         * Constructor for an artificial document request, that is not present in the index.
+         *
+         * @param index the index to be used for parsing the doc
+         * @param doc the document specification
+         */
+        public Item(@Nullable String index, XContentBuilder doc) {
+            if (doc == null) {
+                throw new IllegalArgumentException("Item requires doc to be non-null");
+            }
+            this.index = index;
+            this.doc = BytesReference.bytes(doc);
+            this.xContentType = doc.contentType();
+        }
+
         /**
          * Constructor for a given item / document request
          *
@@ -185,6 +219,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * @param type the type of the document
          * @param id and its id
          */
+        @Deprecated
         public Item(@Nullable String index, @Nullable String type, String id) {
             if (id == null) {
                 throw new IllegalArgumentException("Item requires id to be non-null");
@@ -201,6 +236,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * @param type the type to be used for parsing the doc
          * @param doc the document specification
          */
+        @Deprecated
         public Item(@Nullable String index, @Nullable String type, XContentBuilder doc) {
             if (doc == null) {
                 throw new IllegalArgumentException("Item requires doc to be non-null");
@@ -362,6 +398,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.index = parser.text();
                     } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        deprecationLogger.deprecatedAndMaybeLog(
+                            "more_like_this_query_with_types", QueryShardContext.TYPES_DEPRECATION_MESSAGE);
                         item.type = parser.text();
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.id = parser.text();

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.action.oidc;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -51,14 +52,17 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
         } else if (Strings.isNullOrEmpty(request.getState())) {
             listener.onFailure(new ElasticsearchSecurityException("State parameter cannot be empty"));
         } else {
-            prepareAuthenticationResponse(realms.get(0), request.getState(), listener);
+            prepareAuthenticationResponse(realms.get(0), request.getState(), request.getNonce(), listener);
         }
     }
 
-    private void prepareAuthenticationResponse(OpenIdConnectRealm realm, String state,
+    private void prepareAuthenticationResponse(OpenIdConnectRealm realm, String state, String nonce,
                                                ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener) {
-        //TODO: Generate the Authorization URL from the OP metadata and the configuration
-        final String authorizationEndpointURl = "";
-        listener.onResponse(new OpenIdConnectPrepareAuthenticationResponse(authorizationEndpointURl, state));
+        try {
+            final String authorizationEndpointURl = realm.buildAuthenticationRequestUri(state, nonce);
+            listener.onResponse(new OpenIdConnectPrepareAuthenticationResponse(authorizationEndpointURl, state));
+        } catch (ElasticsearchException e) {
+            listener.onFailure(e);
+        }
     }
 }

@@ -57,8 +57,8 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
                         ActionListener.wrap(tuple -> {
                             final String tokenString = tokenService.getUserTokenString(tuple.v1());
                             final TimeValue expiresIn = tokenService.getExpirationDelay();
-                            listener.onResponse(new OpenIdConnectAuthenticateResponse(authentication.getUser().principal(), tokenString, tuple.v2(), expiresIn)))
-                            ;
+                            listener.onResponse(new OpenIdConnectAuthenticateResponse(authentication.getUser().principal(), tokenString,
+                                tuple.v2(), expiresIn));
                         }, listener::onFailure), tokenMetadata, true);
                 }, e -> {
                     listener.onFailure(e);

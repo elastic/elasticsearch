@@ -52,9 +52,6 @@ import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -105,7 +102,6 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         this.clusterService = clusterService;
         this.indicesService = indicesService;
 
-        ensureNoPre019State(); //TODO remove this check, it's Elasticsearch version 7 already
         ensureAtomicMoveSupported(); //TODO move this check to NodeEnvironment, because it's related to all types of metadata
         upgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
         initializeClusterState(ClusterName.CLUSTER_NAME_SETTING.get(settings));
@@ -414,60 +410,8 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         return relevantIndices;
     }
 
-
     private static boolean isDataOnlyNode(ClusterState state) {
         return ((state.nodes().getLocalNode().isMasterNode() == false) && state.nodes().getLocalNode().isDataNode());
-    }
-
-
-    private void ensureNoPre019State() throws IOException {
-        if (DiscoveryNode.isDataNode(settings)) {
-            ensureNoPre019ShardState();
-        }
-        if (isMasterOrDataNode()) {
-            ensureNoPre019MetadataFiles();
-        }
-    }
-
-    /**
-     * Throws an IAE if a pre 0.19 state is detected
-     */
-    private void ensureNoPre019MetadataFiles() throws IOException {
-        for (Path dataLocation : nodeEnv.nodeDataPaths()) {
-            final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
-            if (!Files.exists(stateLocation)) {
-                continue;
-            }
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation)) {
-                for (Path stateFile : stream) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("[upgrade]: processing [{}]", stateFile.getFileName());
-                    }
-                    final String name = stateFile.getFileName().toString();
-                    if (name.startsWith("metadata-")) {
-                        throw new IllegalStateException("Detected pre 0.19 metadata file please upgrade to a version before "
-                                + Version.CURRENT.minimumIndexCompatibilityVersion()
-                                + " first to upgrade state structures - metadata found: [" + stateFile.getParent().toAbsolutePath());
-                    }
-                }
-            }
-        }
-    }
-
-    // shard state BWC
-    private void ensureNoPre019ShardState() throws IOException {
-        for (Path dataLocation : nodeEnv.nodeDataPaths()) {
-            final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
-            if (Files.exists(stateLocation)) {
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation, "shards-*")) {
-                    for (Path stateFile : stream) {
-                        throw new IllegalStateException("Detected pre 0.19 shard state file please upgrade to a version before "
-                                + Version.CURRENT.minimumIndexCompatibilityVersion()
-                                + " first to upgrade state structures - shard state found: [" + stateFile.getParent().toAbsolutePath());
-                    }
-                }
-            }
-        }
     }
 
     /**

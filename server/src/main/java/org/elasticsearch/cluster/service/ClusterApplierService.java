@@ -446,7 +446,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
             String summary = nodesDelta.shortSummary();
             if (summary.length() > 0) {
-                logger.info("{}, reason: {}", summary, task.source);
+                logger.info("{}, term: {}, version: {}, reason: {}",
+                    summary, newClusterState.term(), newClusterState.version(), task.source);
             }
         }
 

@@ -151,8 +151,8 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     @Override
     protected Runnable unwrap(Runnable runnable) {
-        if (runnable instanceof TieBreakingPrioritizedRunnable) {
-            return super.unwrap(((TieBreakingPrioritizedRunnable) runnable).unwrap());
+        if (runnable instanceof WrappedRunnable) {
+            return ((WrappedRunnable) runnable).unwrap();
         } else {
             return super.unwrap(runnable);
         }
@@ -189,7 +189,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         }
     }
 
-    private final class TieBreakingPrioritizedRunnable extends PrioritizedRunnable {
+    private final class TieBreakingPrioritizedRunnable extends PrioritizedRunnable implements WrappedRunnable {
 
         private Runnable runnable;
         private final long insertionOrder;
@@ -256,9 +256,11 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
             }
         }
 
-        Runnable unwrap() {
+        @Override
+        public Runnable unwrap() {
             return runnable;
         }
+
     }
 
     private static final class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask> {

@@ -347,11 +347,8 @@ public final class ThreadContext implements Closeable, Writeable {
      * Unwraps a command that was previously wrapped by {@link #preserveContext(Runnable)}.
      */
     public Runnable unwrap(Runnable command) {
-        if (command instanceof ContextPreservingAbstractRunnable) {
-            return ((ContextPreservingAbstractRunnable) command).unwrap();
-        }
-        if (command instanceof ContextPreservingRunnable) {
-            return ((ContextPreservingRunnable) command).unwrap();
+        if (command instanceof WrappedRunnable) {
+            return ((WrappedRunnable) command).unwrap();
         }
         return command;
     }
@@ -677,7 +674,7 @@ public final class ThreadContext implements Closeable, Writeable {
     /**
      * Wraps an AbstractRunnable to preserve the thread context.
      */
-    private class ContextPreservingAbstractRunnable extends AbstractRunnable {
+    private class ContextPreservingAbstractRunnable extends AbstractRunnable implements WrappedRunnable {
         private final AbstractRunnable in;
         private final ThreadContext.StoredContext creatorsContext;
 
@@ -738,6 +735,7 @@ public final class ThreadContext implements Closeable, Writeable {
             return in.toString();
         }
 
+        @Override
         public AbstractRunnable unwrap() {
             return in;
         }

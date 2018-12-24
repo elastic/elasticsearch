@@ -89,7 +89,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     @Override
-    public final void execute(Runnable command) {
+    public void execute(Runnable command) {
         command = wrapRunnable(command);
         try {
             super.execute(command);

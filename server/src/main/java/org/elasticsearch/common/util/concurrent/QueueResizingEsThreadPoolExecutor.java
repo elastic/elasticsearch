@@ -45,7 +45,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
     // The amount the queue size is adjusted by for each calcuation
     private static final int QUEUE_ADJUSTMENT_AMOUNT = 50;
 
-    private final Function<Runnable, Runnable> runnableWrapper;
+    private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ResizableBlockingQueue<Runnable> workQueue;
     private final int tasksPerFrame;
     private final int minQueueSize;
@@ -60,7 +60,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
 
     QueueResizingEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
                                       ResizableBlockingQueue<Runnable> workQueue, int minQueueSize, int maxQueueSize,
-                                      Function<Runnable, Runnable> runnableWrapper, final int tasksPerFrame,
+                                      Function<Runnable, WrappedRunnable> runnableWrapper, final int tasksPerFrame,
                                       TimeValue targetedResponseTime, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
                                       ThreadContext contextHolder) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit,
@@ -85,8 +85,8 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
     @Override
     protected Runnable unwrap(Runnable runnable) {
         final Runnable unwrapped = super.unwrap(runnable);
-        if (unwrapped instanceof TimedRunnable) {
-            return ((TimedRunnable) unwrapped).unwrap();
+        if (unwrapped instanceof WrappedRunnable) {
+            return ((WrappedRunnable) unwrapped).unwrap();
         } else {
             return unwrapped;
         }

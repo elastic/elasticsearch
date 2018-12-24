@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -39,7 +40,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -149,19 +149,14 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
     public void testDeleteCreateInOneBulk() throws Exception {
         internalCluster().startMasterOnlyNode(Settings.builder()
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
+            //short publish timeout is needed not to wait too long on operation ack during cluster disruption
+            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
             .build());
         String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
             .build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).addMapping("type").get();
         ensureGreen("test");
-
-        // now that the cluster is stable, remove publishing timeout
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")
-                .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s")));
 
         // block none master node.
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(dataNode, random());
@@ -195,9 +190,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // operation yet
 
         Settings settings = Settings.builder()
-            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
-            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
+            //short publish timeout is needed not to wait too long on operation ack during cluster disruption
+            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
             .build();
         final List<String> nodeNames = internalCluster().startNodes(2, settings);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
@@ -312,9 +306,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // time of indexing it
         final List<String> nodeNames = internalCluster().startNodes(2,
             Settings.builder()
-                .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // explicitly set so it won't default to publish timeout
-                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait post commit as we are blocking things by design
-                .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // TODO: convert test to support Zen2
+                //short publish timeout is needed not to wait too long on operation ack during cluster disruption
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
                 .build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 

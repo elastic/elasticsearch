@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,13 +28,30 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * and optionally an expiration time and permission limitation can be provided.
  */
 public final class CreateApiKeyRequest extends ActionRequest {
+    public static final WriteRequest.RefreshPolicy DEFAULT_REFRESH_POLICY = WriteRequest.RefreshPolicy.WAIT_UNTIL;
 
     private String name;
     private TimeValue expiration;
     private List<RoleDescriptor> roleDescriptors = Collections.emptyList();
-    private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
+    private WriteRequest.RefreshPolicy refreshPolicy = DEFAULT_REFRESH_POLICY;
 
     public CreateApiKeyRequest() {}
+
+    /**
+     * Create API Key request constructor
+     * @param name name for the API key
+     * @param roleDescriptors list of {@link RoleDescriptor}s
+     * @param expiration to specify expiration for the API key
+     */
+    public CreateApiKeyRequest(String name, List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration) {
+        if (Strings.hasText(name)) {
+            this.name = name;
+        } else {
+            throw new IllegalArgumentException("name must not be null or empty");
+        }
+        this.roleDescriptors = Objects.requireNonNull(roleDescriptors, "role descriptors may not be null");
+        this.expiration = expiration;
+    }
 
     public CreateApiKeyRequest(StreamInput in) throws IOException {
         super(in);

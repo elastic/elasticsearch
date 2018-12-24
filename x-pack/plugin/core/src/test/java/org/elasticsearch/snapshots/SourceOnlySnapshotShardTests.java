@@ -46,6 +46,7 @@ import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -66,8 +67,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-
-import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
@@ -294,8 +293,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                            source(index, uid.type(), uid.id(), rootFieldsVisitor.routing(), source, XContentHelper.xContentType(source)),
-                            SequenceNumbers.UNASSIGNED_SEQ_NO, 0, 1, false);
+                            new SourceToParse(index, uid.type(), uid.id(), source, XContentHelper.xContentType(source),
+                                rootFieldsVisitor.routing()), SequenceNumbers.UNASSIGNED_SEQ_NO, 0, 1, false);
                         if (result.getResultType() != Engine.Result.Type.SUCCESS) {
                             throw new IllegalStateException("failed applying post restore operation result: " + result
                                 .getResultType(), result.getFailure());

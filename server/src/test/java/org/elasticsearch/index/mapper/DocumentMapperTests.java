@@ -177,10 +177,10 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                     barrier.await();
                     for (int i = 0; i < 200 && stopped.get() == false; i++) {
                         final String fieldName = Integer.toString(i);
-                        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test",
+                        ParsedDocument doc = documentMapper.parse(new SourceToParse("test",
                                 "test",
                                 fieldName,
-                            null, new BytesArray("{ \"" + fieldName + "\" : \"test\" }"),
+                                new BytesArray("{ \"" + fieldName + "\" : \"test\" }"),
                                 XContentType.JSON));
                         Mapping update = doc.dynamicMappingsUpdate();
                         assert update != null;
@@ -200,10 +200,10 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
             while(stopped.get() == false) {
                 final String fieldName = lastIntroducedFieldName.get();
                 final BytesReference source = new BytesArray("{ \"" + fieldName + "\" : \"test\" }");
-                ParsedDocument parsedDoc = documentMapper.parse(SourceToParse.source("test",
+                ParsedDocument parsedDoc = documentMapper.parse(new SourceToParse("test",
                         "test",
                         "random",
-                    null, source,
+                        source,
                         XContentType.JSON));
                 if (parsedDoc.dynamicMappingsUpdate() != null) {
                     // not in the mapping yet, try again

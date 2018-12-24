@@ -35,8 +35,8 @@ public class CamelCaseFieldNameTests extends ESSingleNodeTestCase {
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
         DocumentMapper documentMapper = index.mapperService().documentMapper("type");
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "type", "1",
+                        BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                                 .field("thisIsCamelCase", "value1")
                                 .endObject()),
                         XContentType.JSON));

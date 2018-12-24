@@ -21,16 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import java.util.Objects;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 
 public class SourceToParse {
-
-    public static SourceToParse source(String index, String type, String id, String routing, BytesReference source,
-                                       XContentType contentType) {
-        return new SourceToParse(index, type, id, routing, source, contentType);
-    }
 
     private final BytesReference source;
 
@@ -40,19 +36,23 @@ public class SourceToParse {
 
     private final String id;
 
-    private final String routing;
+    private final @Nullable String routing;
 
     private final XContentType xContentType;
 
-    public SourceToParse(String index, String type, String id, String routing, BytesReference source, XContentType xContentType) {
+    public SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType, @Nullable String routing) {
         this.index = Objects.requireNonNull(index);
         this.type = Objects.requireNonNull(type);
         this.id = Objects.requireNonNull(id);
-        this.routing = routing;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.routing = routing;
+    }
+
+    public SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType) {
+        this(index, type, id, source, xContentType, null);
     }
 
     public BytesReference source() {
@@ -71,7 +71,7 @@ public class SourceToParse {
         return this.id;
     }
 
-    public String routing() {
+    public @Nullable String routing() {
         return this.routing;
     }
 

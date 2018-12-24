@@ -82,8 +82,8 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                             .field("a", "100")
                             .startObject("b")
@@ -106,8 +106,8 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertTrue(fieldNamesMapper.fieldType().isEnabled());
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()),
@@ -125,8 +125,8 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().isEnabled());
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()),

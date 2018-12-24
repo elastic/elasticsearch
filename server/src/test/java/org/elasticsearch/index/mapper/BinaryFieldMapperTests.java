@@ -91,8 +91,8 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue2)));
 
         for (byte[] value : Arrays.asList(binaryValue1, binaryValue2)) {
-            ParsedDocument doc = mapperService.documentMapper().parse(SourceToParse.source("test", "type", "id",
-                null, BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
+            ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "type", "id",
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                     XContentType.JSON));
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
             assertEquals(new BytesRef(value), indexedValue);

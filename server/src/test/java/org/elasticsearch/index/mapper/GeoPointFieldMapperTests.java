@@ -65,8 +65,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("point", stringEncode(1.3, 1.2))
                         .endObject()),
@@ -82,8 +82,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("point").field("lat", 1.2).field("lon", 1.3).endObject()
                         .endObject()),
@@ -99,8 +99,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startArray("point")
                         .startObject().field("lat", 1.2).field("lon", 1.3).endObject()
@@ -121,8 +121,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("point", "1.2,1.3")
                         .endObject()),
@@ -139,8 +139,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("point", "1.2,1.3,10.0")
                 .endObject()),
@@ -157,8 +157,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        SourceToParse source = SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        SourceToParse source = new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("point", "1.2,1.3,10.0")
                 .endObject()),
@@ -175,8 +175,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("point", "1.2,1.3")
                         .endObject()),
@@ -191,8 +191,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startArray("point")
                         .value("1.2,1.3")
@@ -213,8 +213,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startArray("point").value(1.3).value(1.2).endArray()
                         .endObject()),
@@ -231,8 +231,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startArray("point").value(1.3).value(1.2).endArray()
                         .endObject()),
@@ -248,8 +248,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startArray("point").value(1.3).value(1.2).endArray()
                         .endObject()),
@@ -268,8 +268,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startArray("point")
                         .startArray().value(1.3).value(1.2).endArray()
@@ -381,8 +381,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Object nullValue = ((GeoPointFieldMapper) fieldMapper).fieldType().nullValue();
         assertThat(nullValue, equalTo(new GeoPoint(1, 2)));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                     .startObject()
                     .nullField("location")
                     .endObject()),
@@ -391,8 +391,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("location"), notNullValue());
         BytesRef defaultValue = doc.rootDoc().getField("location").binaryValue();
 
-        doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("location", "1, 2")
                     .endObject()),
@@ -400,8 +400,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         // Shouldn't matter if we specify the value explicitly or use null value
         assertThat(defaultValue, equalTo(doc.rootDoc().getField("location").binaryValue()));
 
-        doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("location", "3, 4")
                     .endObject()),
@@ -422,8 +422,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("location", "1234.333")
                     .endObject()),
@@ -445,8 +445,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         MapperParsingException ex = expectThrows(MapperParsingException.class,
-            () -> defaultMapper.parse(SourceToParse.source("test", "type", "1",
-                null, BytesReference.bytes(XContentFactory.jsonBuilder()
+            () -> defaultMapper.parse(new SourceToParse("test", "type", "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("location", "1234.333")
                     .endObject()),
@@ -469,58 +469,58 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("location", "1234.333").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("lat", "-").field("lon", 1.3).endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("lat", 1.3).field("lon", "-").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("location", "-,1.3").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("location", "1.3,-").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("lat", "NaN").field("lon", "NaN").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("lat", 12).field("lon", "NaN").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("lat", "NaN").field("lon", 10).endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("location", "NaN,NaN").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("location", "10,NaN").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
-            null, BytesReference.bytes(XContentFactory.jsonBuilder()
+        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("location", "NaN,12").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
     }

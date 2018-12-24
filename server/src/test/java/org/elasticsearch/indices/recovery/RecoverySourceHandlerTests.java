@@ -116,7 +116,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request = getStartRecoveryRequest();
         Store store = newStore(createTempDir());
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-            recoverySettings.getChunkSize().bytesAsInt(), between(1, 10));
+            recoverySettings.getChunkSize().bytesAsInt(), between(1, 8));
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -290,7 +290,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-                recoverySettings.getChunkSize().bytesAsInt(), between(1, 10)) {
+                Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 8)) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());

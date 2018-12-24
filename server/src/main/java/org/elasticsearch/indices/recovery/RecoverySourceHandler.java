@@ -116,13 +116,13 @@ public class RecoverySourceHandler {
     };
 
     public RecoverySourceHandler(final IndexShard shard, RecoveryTargetHandler recoveryTarget, final StartRecoveryRequest request,
-                                 final int chunkSizeInBytes, final int maxConcurrentFileChunks) {
+                                 final int fileChunkSizeInBytes, final int maxConcurrentFileChunks) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.request = request;
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
-        this.chunkSizeInBytes = chunkSizeInBytes;
+        this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.response = new RecoveryResponse();
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
         this.maxConcurrentFileChunks = request.targetNode().getVersion().onOrAfter(Version.V_7_0_0) ? maxConcurrentFileChunks : 1;
@@ -369,7 +369,7 @@ public class RecoverySourceHandler {
                                 response.phase1ExistingFileSizes, translogOps.get()));
                 // How many bytes we've copied since we last called RateLimiter.pause
                 final Function<StoreFileMetaData, OutputStream> outputStreamFactories =
-                    md -> new BufferedOutputStream(new RecoveryOutputStream(md, translogOps), chunkSizeInBytes);
+                        md -> new BufferedOutputStream(new RecoveryOutputStream(md, translogOps), chunkSizeInBytes);
                 sendFiles(store, phase1Files.toArray(new StoreFileMetaData[phase1Files.size()]), outputStreamFactories);
                 // Send the CLEAN_FILES request, which takes all of the files that
                 // were transferred and renames them from their temporary file
@@ -658,12 +658,12 @@ public class RecoverySourceHandler {
 
         @Override
         public void write(byte[] b, int offset, int length) throws IOException {
-            sendNextChunk(new BytesArray(b, offset, length), position, md.length() == position + length);
+            sendNextChunk(position, new BytesArray(b, offset, length), md.length() == position + length);
             position += length;
             assert md.length() >= position : "length: " + md.length() + " but positions was: " + position;
         }
 
-        void sendNextChunk(BytesArray content, long position, boolean lastChunk) throws IOException {
+        private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {
             // Actually send the file chunk to the target node.
             cancellableThreads.executeIO(() -> {
                 sendingTickets.acquire();

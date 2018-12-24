@@ -491,8 +491,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         }
     }
 
-    private void innerWriteChunk(StoreFileMetaData fileMetaData, long position,
-                                 BytesReference content, boolean lastChunk) throws IOException {
+    private void innerWriteFileChunk(StoreFileMetaData fileMetaData, long position,
+                                     BytesReference content, boolean lastChunk) throws IOException {
         final Store store = store();
         final String name = fileMetaData.name();
         final RecoveryState.Index indexState = state().getIndex();
@@ -565,7 +565,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     }
                     pendingChunks.remove();
                 }
-                innerWriteChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
+                innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
                 synchronized (this) {
                     assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
                     lastPosition += chunk.content.length();

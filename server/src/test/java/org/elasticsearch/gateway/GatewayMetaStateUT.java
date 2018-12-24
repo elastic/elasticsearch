@@ -45,8 +45,7 @@ public class GatewayMetaStateUT extends GatewayMetaState {
     private final DiscoveryNode localNode;
 
     public GatewayMetaStateUT(Settings settings, NodeEnvironment nodeEnvironment,
-                              NamedXContentRegistry xContentRegistry,
-                       DiscoveryNode localNode) throws IOException {
+                              NamedXContentRegistry xContentRegistry, DiscoveryNode localNode) throws IOException {
         super(settings, nodeEnvironment, new MetaStateService(nodeEnvironment, xContentRegistry),
                 mock(MetaDataIndexUpgradeService.class), mock(MetaDataUpgrader.class),
                 mock(TransportService.class), mock(ClusterService.class),

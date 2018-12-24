@@ -166,7 +166,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                         )
                     )
                 ).build();
-        startServices(initialClusterState);
+        testClusterNodes.nodes.values().forEach(testClusterNode -> testClusterNode.start(initialClusterState));
 
         TestClusterNode masterNode = testClusterNodes.currentMaster(initialClusterState);
         ActionFuture<CreateIndexResponse> createIndexResponseActionFuture = masterNode.client.admin().indices().create(
@@ -203,12 +203,15 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         runOutstandingTasks();
 
-        assertNoSnapshotsInProgress(masterNode.currentState.get());
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.currentState.get().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
         SnapshotInfo data = repository.getSnapshotInfo(snapshotIds.iterator().next());
         assertEquals(SnapshotState.SUCCESS, data.state());
         assertThat(data.indices(), containsInAnyOrder(index));
+        assertEquals(shards, data.successfulShards());
+        assertEquals(0, data.failedShards());
     }
 
     /**
@@ -263,15 +266,6 @@ public class SnapshotsServiceTests extends ESTestCase {
                 Collections.singleton(role), Version.CURRENT),
             new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(), random())
         );
-    }
-
-    private static void assertNoSnapshotsInProgress(ClusterState clusterState) {
-        SnapshotsInProgress finalSnapshotsInProgress = clusterState.custom(SnapshotsInProgress.TYPE);
-        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> !entry.state().completed()));
-    }
-
-    private void startServices(ClusterState initialState) {
-        testClusterNodes.nodes.values().forEach(testClusterNode -> testClusterNode.start(initialState));
     }
 
     private static ClusterState stateForNode(ClusterState state, DiscoveryNode node) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -213,8 +214,20 @@ public interface Scheduler {
      * This subclass ensures to properly bubble up Throwable instances of type Error.
      */
     class SafeScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor {
+
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
         public SafeScheduledThreadPoolExecutor(int corePoolSize, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
             super(corePoolSize, threadFactory, handler);
+        }
+
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        public SafeScheduledThreadPoolExecutor(int corePoolSize, ThreadFactory threadFactory) {
+            super(corePoolSize, threadFactory);
+        }
+
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        public SafeScheduledThreadPoolExecutor(int corePoolSize) {
+            super(corePoolSize);
         }
 
         @Override

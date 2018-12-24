@@ -18,6 +18,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
@@ -81,7 +82,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        executor = new ScheduledThreadPoolExecutor(1);
+        executor = new Scheduler.SafeScheduledThreadPoolExecutor(1);
         client = mock(Client.class);
         threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);

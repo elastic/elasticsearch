@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -744,6 +745,7 @@ public class AutodetectProcessManager {
 
         private volatile boolean running = true;
 
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
         AutodetectWorkerExecutorService(ThreadContext contextHolder) {
             this.contextHolder = contextHolder;
         }

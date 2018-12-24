@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -146,7 +147,12 @@ public class EsExecutors {
         }
     }
 
-    private static final ExecutorService DIRECT_EXECUTOR_SERVICE = new AbstractExecutorService() {
+    private static final class DirectExecutorService extends AbstractExecutorService {
+
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        DirectExecutorService() {
+            super();
+        }
 
         @Override
         public void shutdown() {
@@ -178,7 +184,9 @@ public class EsExecutors {
             command.run();
             rethrowErrors(command);
         }
-    };
+    }
+
+    private static final ExecutorService DIRECT_EXECUTOR_SERVICE = new DirectExecutorService();
 
     /**
      * Returns an {@link ExecutorService} that executes submitted tasks on the current thread. This executor service does not support being

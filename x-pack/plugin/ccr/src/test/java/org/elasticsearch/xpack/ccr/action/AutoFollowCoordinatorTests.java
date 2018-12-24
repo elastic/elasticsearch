@@ -539,7 +539,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             null,
             mockClusterService(),
             new CcrLicenseChecker(() -> true, () -> false),
-            () -> 1L);
+            () -> 1L, () -> 1L);
 
         autoFollowCoordinator.updateStats(Collections.singletonList(
             new AutoFollowCoordinator.AutoFollowResult("_alias1"))
@@ -558,7 +558,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(1L));
         assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
         assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(1));
-        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias1").getCause().getMessage(), equalTo("error"));
+        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias1").v2().getCause().getMessage(), equalTo("error"));
 
         autoFollowCoordinator.updateStats(Arrays.asList(
             new AutoFollowCoordinator.AutoFollowResult("_alias1",
@@ -571,9 +571,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(1L));
         assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
         assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(3));
-        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias1").getCause().getMessage(), equalTo("error"));
-        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias1:index1").getCause().getMessage(), equalTo("error"));
-        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias2:index2").getCause().getMessage(), equalTo("error"));
+        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias1").v2().getCause().getMessage(), equalTo("error"));
+        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias1:index1").v2().getCause().getMessage(), equalTo("error"));
+        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias2:index2").v2().getCause().getMessage(), equalTo("error"));
 
         autoFollowCoordinator.updateStats(Arrays.asList(
             new AutoFollowCoordinator.AutoFollowResult("_alias1",
@@ -586,9 +586,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(1L));
         assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(2L));
         assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(3));
-        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias1").getCause().getMessage(), equalTo("error"));
-        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias1:index1").getCause().getMessage(), equalTo("error"));
-        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias2:index2").getCause().getMessage(), equalTo("error"));
+        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias1").v2().getCause().getMessage(), equalTo("error"));
+        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias1:index1").v2().getCause().getMessage(), equalTo("error"));
+        assertThat(autoFollowStats.getRecentAutoFollowErrors().get("_alias2:index2").v2().getCause().getMessage(), equalTo("error"));
     }
 
     public void testUpdateAutoFollowers() {
@@ -604,7 +604,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             null,
             clusterService,
             new CcrLicenseChecker(() -> true, () -> false),
-            () -> 1L);
+            () -> 1L, () -> 1L);
         // Add 3 patterns:
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("pattern1", new AutoFollowPattern("remote1", Collections.singletonList("logs-*"), null, null, null,
@@ -659,7 +659,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             null,
             mockClusterService(),
             new CcrLicenseChecker(() -> true, () -> false),
-            () -> 1L);
+            () -> 1L, () -> 1L);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
             .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
                 new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())))
@@ -674,7 +674,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             null,
             mockClusterService(),
             new CcrLicenseChecker(() -> true, () -> false),
-            () -> 1L);
+            () -> 1L, () -> 1L);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote")).build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));

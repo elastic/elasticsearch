@@ -70,8 +70,9 @@ different then set the `script.legacy.default_lang` setting to the language you 
 In order to make use of the new `percolator` field type all percolator queries should be reindexed into a new index.
 When reindexing percolator queries with scripts that have no explicit language defined into a new index, one of the
 following two things should be done in order to make the scripts work:
-* (Recommended approach) While reindexing the percolator documents, migrate the scripts to the Painless scripting language.
-* or add `lang` parameter on the script and set it the language these scripts were written in.
+
+- while reindexing the percolator documents, migrate the scripts to the Painless scripting language (recommended approach);
+- add `lang` parameter on the script and set it the language these scripts were written in.
 
 ==== Java client
 

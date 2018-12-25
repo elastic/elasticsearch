@@ -22,7 +22,7 @@ defined on the watch level:
 
 Like every other search based construct, one can make use of the full search
 API supported by Elasticsearch. For example, the following search transform
-execute a search over all events indices, matching events with `error` priority:
+executes a search over all events indices, matching events with `error` priority:
 
 [source,js]
 --------------------------------------------------

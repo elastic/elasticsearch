@@ -7,7 +7,7 @@ example:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_search
+POST /twitter/_search
 {
     "query" : {
         "term" : { "user" : "kimchy" }

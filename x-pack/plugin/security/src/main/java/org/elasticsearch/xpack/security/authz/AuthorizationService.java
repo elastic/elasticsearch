@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -87,7 +86,6 @@ public class AuthorizationService {
     public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
     public static final String ROLE_NAMES_KEY = "_effective_role_names";
 
-    private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
         ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
 
@@ -312,18 +310,10 @@ public class AuthorizationService {
 
         final Set<String> localIndices = new HashSet<>(resolvedIndices.getLocal());
         IndicesAccessControl indicesAccessControl = permission.authorize(action, localIndices, metaData, fieldPermissionsCache);
-        if (!indicesAccessControl.isGranted()) {
-            throw denial(auditId, authentication, action, request, permission.names());
-        } else if (hasSecurityIndexAccess(indicesAccessControl)
-            && MONITOR_INDEX_PREDICATE.test(action) == false
-            && isSuperuser(authentication.getUser()) == false) {
-            // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
-            // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
-            logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
-                authentication.getUser().principal(), action, SystemIndicesNames.SECURITY_INDEX_NAME);
-            throw denial(auditId, authentication, action, request, permission.names());
-        } else {
+        if (indicesAccessControl.isGranted()) {
             putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+        } else {
+            throw denial(auditId, authentication, action, request, permission.names());
         }
 
         //if we are creating an index we need to authorize potential aliases created at the same time
@@ -357,16 +347,6 @@ public class AuthorizationService {
 
     private boolean isInternalUser(User user) {
         return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user);
-    }
-
-    private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
-        for (String index : SystemIndicesNames.indexNames()) {
-            final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
-            if (indexPermissions != null && indexPermissions.isGranted()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**

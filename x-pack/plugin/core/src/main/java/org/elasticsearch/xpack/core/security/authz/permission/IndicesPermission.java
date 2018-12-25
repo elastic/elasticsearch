@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
@@ -35,7 +36,9 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
@@ -82,6 +85,20 @@ public final class IndicesPermission {
             return buildExactMatchPredicate(exactMatch);
         } else {
             return buildExactMatchPredicate(exactMatch).or(buildAutomataPredicate(nonExactMatch));
+        }
+    }
+
+    private static Predicate<String> indicesPatternsPredicate(Collection<String> indicesAndPatterns) {
+        final List<String> patterns = indicesAndPatterns.stream().filter(IndicesPermission::isIndexPattern).collect(Collectors.toList());
+        try {
+            return Automatons.predicate(patterns);
+        } catch (TooComplexToDeterminizeException e) {
+            logger.debug("Index pattern automaton [{}] is too complex", patterns);
+            String description = Strings.collectionToCommaDelimitedString(patterns);
+            if (description.length() > 80) {
+                description = Strings.cleanTruncate(description, 80) + "...";
+            }
+            throw new ElasticsearchSecurityException("The set of permitted index patterns [{}] is too complex to evaluate", e, description);
         }
     }
 
@@ -161,7 +178,7 @@ public final class IndicesPermission {
         return allowedIndicesMatchersForAction.computeIfAbsent(action, (theAction) -> {
             List<String> indices = new ArrayList<>();
             for (Group group : groups) {
-                if (group.check(theAction)) {
+                if (group.checkAction(theAction)) {
                     indices.addAll(Arrays.asList(group.indices));
                 }
             }
@@ -177,7 +194,7 @@ public final class IndicesPermission {
      */
     public boolean check(String action) {
         for (Group group : groups) {
-            if (group.check(action)) {
+            if (group.checkAction(action)) {
                 return true;
             }
         }
@@ -191,7 +208,7 @@ public final class IndicesPermission {
         assert false == isIndexPattern(index);
         List<Automaton> automatonList = new ArrayList<>();
         for (Group group : groups) {
-            if (group.indexNameMatcher.test(index)) {
+            if (group.checkIndex(index)) {
                 automatonList.add(group.privilege.getAutomaton());
             }
         }
@@ -311,20 +328,24 @@ public final class IndicesPermission {
 
     public static class Group {
         private final IndexPrivilege privilege;
-        private final Predicate<String> actionMatcher;
         private final String[] indices;
         private final Predicate<String> indexNameMatcher;
         private final FieldPermissions fieldPermissions;
         private final Set<BytesReference> query;
+        private final BiPredicate<String, String> implicitlyAuthorizeMonitorSystemIndices;
 
         public Group(IndexPrivilege privilege, FieldPermissions fieldPermissions, @Nullable Set<BytesReference> query, String... indices) {
             assert indices.length != 0;
             this.privilege = privilege;
-            this.actionMatcher = privilege.predicate();
             this.indices = indices;
             this.indexNameMatcher = indexMatcherPredicate(Arrays.asList(indices));
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
+            final Predicate<String> indicesPatternPredicate = indicesPatternsPredicate(Arrays.asList(indices));
+            this.implicitlyAuthorizeMonitorSystemIndices = (action, index) -> {
+                return SystemIndicesNames.indexNames().contains(index) && IndexPrivilege.MONITOR.predicate().test(action)
+                        && indicesPatternPredicate.test(index) && privilege.predicate().test(action);
+            };
         }
 
         public IndexPrivilege privilege() {
@@ -348,13 +369,24 @@ public final class IndicesPermission {
             return query;
         }
 
-        private boolean check(String action) {
-            return actionMatcher.test(action);
+        private boolean checkAction(String action) {
+            return privilege.predicate().test(action);
+        }
+
+        private boolean checkIndex(String index) {
+            return indexNameMatcher.test(index);
         }
 
         private boolean check(String action, String index) {
+            assert action != null;
             assert index != null;
-            return check(action) && indexNameMatcher.test(index);
+            if (implicitlyAuthorizeMonitorSystemIndices.test(action, index)) {
+                // we allow indices monitoring actions through for debugging purposes. These monitor requests resolve indices concretely and
+                // then requests them. WE SHOULD BREAK THIS BEHAVIOR
+                logger.debug("Granted monitoring passthrough for index [{}] and action [{}]", index, action);
+                return true;
+            }
+            return checkAction(action) && checkIndex(index);
         }
 
         boolean hasQuery() {

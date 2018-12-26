@@ -1,10 +1,10 @@
 [role="xpack"]
 [[tls-transport]]
-==== Encrypting Communications Between Nodes in a Cluster
+==== Encrypting communications between nodes in a cluster
 
 The transport networking layer is used for internal communication between nodes
-in a cluster. When {security} is enabled, you must use TLS to ensure that
-communication between the nodes is encrypted.
+in a cluster. When {security-features} are enabled, you must use TLS to ensure
+that communication between the nodes is encrypted.
 
 . <<node-certificates,Generate node certificates>>.
 

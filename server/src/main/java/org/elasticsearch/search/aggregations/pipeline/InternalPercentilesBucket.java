@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,9 +40,10 @@ import java.util.Objects;
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
     private double[] percents;
+    private boolean keyed = true;
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
-    InternalPercentilesBucket(String name, double[] percents, double[] percentiles,
+    InternalPercentilesBucket(String name, double[] percents, double[] percentiles, boolean keyed,
                                      DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
                                      Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
@@ -52,6 +54,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         this.format = formatter;
         this.percentiles = percentiles;
         this.percents = percents;
+        this.keyed = keyed;
         computeLookup();
     }
 
@@ -69,6 +72,11 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
+
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            keyed = in.readBoolean();
+        }
+
         computeLookup();
     }
 
@@ -77,6 +85,10 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         out.writeNamedWriteable(format);
         out.writeDoubleArray(percentiles);
         out.writeDoubleArray(percents);
+
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(keyed);
+        }
     }
 
     @Override
@@ -120,17 +132,33 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("values");
-        for (double percent : percents) {
-            double value = percentile(percent);
-            boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
-            String key = String.valueOf(percent);
-            builder.field(key, hasValue ? value : null);
-            if (hasValue && format != DocValueFormat.RAW) {
-                builder.field(key + "_as_string", percentileAsString(percent));
+        if (keyed) {
+            builder.startObject("values");
+            for (double percent : percents) {
+                double value = percentile(percent);
+                boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
+                String key = String.valueOf(percent);
+                builder.field(key, hasValue ? value : null);
+                if (hasValue && format != DocValueFormat.RAW) {
+                    builder.field(key + "_as_string", percentileAsString(percent));
+                }
             }
+            builder.endObject();
+        } else {
+            builder.startArray("values");
+            for (double percent : percents) {
+                double value = percentile(percent);
+                boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
+                builder.startObject();
+                builder.field("key", percent);
+                builder.field("value", hasValue ? value : null);
+                if (hasValue && format != DocValueFormat.RAW) {
+                    builder.field(String.valueOf(percent) + "_as_string", percentileAsString(percent));
+                }
+                builder.endObject();
+            }
+            builder.endArray();
         }
-        builder.endObject();
         return builder;
     }
 

@@ -300,6 +300,9 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ccr-resume-follow-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // Cleanup:
+        client.ccr().pauseFollow(new PauseFollowRequest(followIndex), RequestOptions.DEFAULT);
     }
 
     public void testUnfollow() throws Exception {

@@ -22,6 +22,8 @@ package org.elasticsearch.script;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTime;
 
@@ -42,11 +44,13 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalUnit;
 import java.time.temporal.WeekFields;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * A wrapper around ZonedDateTime that exposes joda methods for backcompat.
  */
 public class JodaCompatibleZonedDateTime {
+    private static final DateFormatter DATE_FORMATTER = DateFormatters.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
 
@@ -75,7 +79,10 @@ public class JodaCompatibleZonedDateTime {
 
     @Override
     public boolean equals(Object o) {
-        return dt.equals(o);
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        JodaCompatibleZonedDateTime that = (JodaCompatibleZonedDateTime) o;
+        return Objects.equals(dt, that.dt);
     }
 
     @Override
@@ -85,19 +92,19 @@ public class JodaCompatibleZonedDateTime {
 
     @Override
     public String toString() {
-        return dt.toString();
+        return DATE_FORMATTER.format(dt);
     }
 
-    public boolean isAfter(ZonedDateTime o) {
-        return dt.isAfter(o);
+    public boolean isAfter(JodaCompatibleZonedDateTime o) {
+        return dt.isAfter(o.getZonedDateTime());
     }
 
-    public boolean isBefore(ZonedDateTime o) {
-        return dt.isBefore(o);
+    public boolean isBefore(JodaCompatibleZonedDateTime o) {
+        return dt.isBefore(o.getZonedDateTime());
     }
 
-    public boolean isEqual(ZonedDateTime o) {
-        return dt.isEqual(o);
+    public boolean isEqual(JodaCompatibleZonedDateTime o) {
+        return dt.isEqual(o.getZonedDateTime());
     }
 
     public int getDayOfMonth() {

@@ -1,15 +1,18 @@
 [role="xpack"]
 [[security-api-put-privileges]]
 === Create or update application privileges API
+++++
+<titleabbrev>Create or update application privileges</titleabbrev>
+++++
 
 Adds or updates 
 {stack-ov}/security-privileges.html#application-privileges[application privileges].
 
 ==== Request
 
-`POST /_xpack/security/privilege` +
+`POST /_security/privilege` +
 
-`PUT /_xpack/security/privilege`
+`PUT /_security/privilege`
 
 
 ==== Description
@@ -70,11 +73,11 @@ To use this API, you must have either:
 ==== Examples
 
 To add a single privilege, submit a PUT or POST request to the
-`/_xpack/security/privilege/<application>/<privilege>` endpoint. For example:
+`/_security/privilege/<application>/<privilege>` endpoint. For example:
 
 [source,js]
 --------------------------------------------------
-PUT /_xpack/security/privilege
+PUT /_security/privilege
 {
   "myapp": {
     "read": {
@@ -116,11 +119,11 @@ been created or updated.
 <1> When an existing privilege is updated, `created` is set to false.
 
 To add multiple privileges, submit a POST request to the 
-`/_xpack/security/privilege/` endpoint. For example:
+`/_security/privilege/` endpoint. For example:
 
 [source,js]
 --------------------------------------------------
-PUT /_xpack/security/privilege
+PUT /_security/privilege
 {
   "app01": {
     "read": {

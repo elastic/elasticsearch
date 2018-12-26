@@ -20,6 +20,7 @@
 package org.elasticsearch.common.cache;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.util.Arrays;
@@ -27,7 +28,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -191,7 +191,7 @@ public class Cache<K, V> {
         ReleasableLock readLock = new ReleasableLock(segmentLock.readLock());
         ReleasableLock writeLock = new ReleasableLock(segmentLock.writeLock());
 
-        Map<K, CompletableFuture<Entry<K, V>>> map = new HashMap<>();
+        Map<K, BaseFuture<Entry<K, V>>> map = new HashMap<>();
 
         SegmentStats segmentStats = new SegmentStats();
 
@@ -206,7 +206,7 @@ public class Cache<K, V> {
          * @return the entry if there was one, otherwise null
          */
         Entry<K, V> get(K key, long now, Predicate<Entry<K, V>> isExpired, Consumer<Entry<K, V>> onExpiration) {
-            CompletableFuture<Entry<K, V>> future;
+            BaseFuture<Entry<K, V>> future;
             try (ReleasableLock ignored = readLock.acquire()) {
                 future = map.get(key);
             }
@@ -249,7 +249,7 @@ public class Cache<K, V> {
             Entry<K, V> existing = null;
             try (ReleasableLock ignored = writeLock.acquire()) {
                 try {
-                    CompletableFuture<Entry<K, V>> future = map.put(key, CompletableFuture.completedFuture(entry));
+                    BaseFuture<Entry<K, V>> future = map.put(key, BaseFuture.completedFuture(entry));
                     if (future != null) {
                         existing = future.handle((ok, ex) -> {
                             if (ok != null) {
@@ -272,8 +272,8 @@ public class Cache<K, V> {
          * @param key       the key of the entry to remove from the cache
          * @param onRemoval a callback for the removed entry
          */
-        void remove(K key, Consumer<CompletableFuture<Entry<K, V>>> onRemoval) {
-            CompletableFuture<Entry<K, V>> future;
+        void remove(K key, Consumer<BaseFuture<Entry<K, V>>> onRemoval) {
+            BaseFuture<Entry<K, V>> future;
             try (ReleasableLock ignored = writeLock.acquire()) {
                 future = map.remove(key);
             }
@@ -291,8 +291,8 @@ public class Cache<K, V> {
          * @param value the value expected to be associated with the key
          * @param onRemoval a callback for the removed entry
          */
-        void remove(K key, V value, Consumer<CompletableFuture<Entry<K, V>>> onRemoval) {
-            CompletableFuture<Entry<K, V>> future;
+        void remove(K key, V value, Consumer<BaseFuture<Entry<K, V>>> onRemoval) {
+            BaseFuture<Entry<K, V>> future;
             boolean removed = false;
             try (ReleasableLock ignored = writeLock.acquire()) {
                 future = map.get(key);
@@ -400,8 +400,8 @@ public class Cache<K, V> {
             // the segment lock; to do this, we atomically put a future in the map that can load the value, and then
             // get the value from this future on the thread that won the race to place the future into the segment map
             CacheSegment<K, V> segment = getCacheSegment(key);
-            CompletableFuture<Entry<K, V>> future;
-            CompletableFuture<Entry<K, V>> completableFuture = new CompletableFuture<>();
+            BaseFuture<Entry<K, V>> future;
+            BaseFuture<Entry<K, V>> completableFuture = new BaseFuture<>();
 
             try (ReleasableLock ignored = segment.writeLock.acquire()) {
                 future = segment.map.putIfAbsent(key, completableFuture);
@@ -415,7 +415,7 @@ public class Cache<K, V> {
                     return ok.value;
                 } else {
                     try (ReleasableLock ignored = segment.writeLock.acquire()) {
-                        CompletableFuture<Entry<K, V>> sanity = segment.map.get(key);
+                        BaseFuture<Entry<K, V>> sanity = segment.map.get(key);
                         if (sanity != null && sanity.isCompletedExceptionally()) {
                             segment.map.remove(key);
                         }
@@ -424,7 +424,7 @@ public class Cache<K, V> {
                 }
             };
 
-            CompletableFuture<V> completableValue;
+            BaseFuture<V> completableValue;
             if (future == null) {
                 future = completableFuture;
                 completableValue = future.handle(handler);
@@ -490,7 +490,7 @@ public class Cache<K, V> {
         }
     }
 
-    private final Consumer<CompletableFuture<Entry<K, V>>> invalidationConsumer = f -> {
+    private final Consumer<BaseFuture<Entry<K, V>>> invalidationConsumer = f -> {
         try {
             Entry<K, V> entry = f.get();
             try (ReleasableLock ignored = lruLock.acquire()) {

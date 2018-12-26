@@ -19,13 +19,13 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
@@ -38,7 +38,7 @@ public class PipelineProcessorTests extends ESTestCase {
     public void testExecutesPipeline() throws Exception {
         String pipelineId = "pipeline";
         IngestService ingestService = mock(IngestService.class);
-        CompletableFuture<IngestDocument> invoked = new CompletableFuture<>();
+        BaseFuture<IngestDocument> invoked = new BaseFuture<>();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Pipeline pipeline = new Pipeline(
             pipelineId, null, null,

@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -32,7 +33,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -135,7 +135,7 @@ public class ConditionalProcessorTests extends ESTestCase {
 
     private static void assertMutatingCtxThrows(Consumer<Map<String, Object>> mutation) throws Exception {
         String scriptName = "conditionalScript";
-        CompletableFuture<Exception> expectedException = new CompletableFuture<>();
+        BaseFuture<Exception> expectedException = new BaseFuture<>();
         ScriptService scriptService = new ScriptService(Settings.builder().build(),
             Collections.singletonMap(
                 Script.DEFAULT_SCRIPT_LANG,

@@ -22,6 +22,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
@@ -40,18 +41,13 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Wraps a CompletableFuture and ensures Errors are properly bubbled up
- * TODO:
- * - add CompletableFuture class and methods to forbidden APIs:
- *   - blacklist constructor methods of CompletableFuture and static methods that create CompletableFuture instances
- *   - blacklist methods that return MinimalStage (completedStage, failedStage, minimalCompletionStage(possibly override this one))
- *   - blacklist static methods on CompletableFuture (failedFuture, allOf, anyOf, 2 * supplyAsync, 2 * runAsync, completedFuture)
- * - provide corresponding methods for the forbidden static ones on BaseFuture
+ * Wraps a CompletableFuture and ensures Errors are properly bubbled up to the uncaught exception handler
  */
 public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     private final CompletableFuture<V> wrapped;
 
+    @SuppressForbidden(reason = "safely wraps CompletableFuture")
     public BaseFuture() {
         this(new CompletableFuture<>());
     }
@@ -84,7 +80,7 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     private static final String BLOCKING_OP_REASON = "Blocking operation";
 
-    private static boolean blockingAllowed() {
+    protected boolean blockingAllowed() {
         return Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
             ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
             ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON) &&
@@ -95,6 +91,7 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
         return wrapped.getNow(valueIfAbsent);
     }
 
+    @SuppressForbidden(reason = "just delegating")
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
         return wrapped.cancel(mayInterruptIfRunning);
@@ -127,26 +124,32 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
         return "BaseFuture{" + wrapped + "}";
     }
 
+    @SuppressForbidden(reason = "safely wraps CompletableFuture")
     public static BaseFuture<Void> allOf(BaseFuture<?>... cfs) {
         return new BaseFuture<>(CompletableFuture.allOf(Arrays.stream(cfs).map(bf -> bf.wrapped).toArray(CompletableFuture[]::new)));
     }
 
+    @SuppressForbidden(reason = "safely wraps CompletableFuture")
     public static BaseFuture<Object> anyOf(BaseFuture<?>... cfs) {
         return new BaseFuture<>(CompletableFuture.anyOf(Arrays.stream(cfs).map(bf -> bf.wrapped).toArray(CompletableFuture[]::new)));
     }
 
+    @SuppressForbidden(reason = "safely wraps CompletableFuture")
     public static <U> BaseFuture<U> supplyAsync(Supplier<U> supplier, Executor executor) {
         return new BaseFuture<>(CompletableFuture.supplyAsync(supplier, executor));
     }
 
+    @SuppressForbidden(reason = "safely wraps CompletableFuture")
     public static BaseFuture<Void> runAsync(Runnable runnable, Executor executor) {
         return new BaseFuture<>(CompletableFuture.runAsync(runnable, executor));
     }
 
+    @SuppressForbidden(reason = "safely wraps CompletableFuture")
     public static <U> BaseFuture<U> completedFuture(U value) {
         return new BaseFuture<>(CompletableFuture.completedFuture(value));
     }
 
+    @SuppressForbidden(reason = "safely wraps CompletableFuture")
     public static <U> BaseFuture<U> failedFuture(Throwable ex) {
         final BaseFuture fut = new BaseFuture<>();
         fut.completeExceptionally(ex);

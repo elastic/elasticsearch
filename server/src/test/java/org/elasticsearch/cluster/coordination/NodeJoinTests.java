@@ -200,11 +200,11 @@ public class NodeJoinTests extends ESTestCase {
         }
 
         public void markAsDone() {
-            set(null);
+            complete(null);
         }
 
         public void markAsFailed(Throwable t) {
-            setException(t);
+            completeExceptionally(t);
         }
 
         @Override

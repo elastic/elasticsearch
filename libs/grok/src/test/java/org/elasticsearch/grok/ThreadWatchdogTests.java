@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.grok;
 
+import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
+
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.elasticsearch.test.ESTestCase;
-import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
@@ -84,7 +85,7 @@ public class ThreadWatchdogTests extends ESTestCase {
             (delay, command) -> threadPool.schedule(command, delay, TimeUnit.MILLISECONDS));
         // Periodic action is not scheduled because no thread is registered
         verifyZeroInteractions(threadPool);
-        CompletableFuture<Runnable> commandFuture = new CompletableFuture<>();
+        BaseFuture<Runnable> commandFuture = new BaseFuture<>();
         // Periodic action is scheduled because a thread is registered
         doAnswer(invocationOnMock -> {
             commandFuture.complete((Runnable) invocationOnMock.getArguments()[0]);

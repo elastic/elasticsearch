@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.single;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,6 +26,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
@@ -44,7 +45,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Stack;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
@@ -103,7 +103,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 };
             unicastZenPing.start();
             closeables.push(unicastZenPing);
-            final CompletableFuture<ZenPing.PingCollection> responses = new CompletableFuture<>();
+            final BaseFuture<ZenPing.PingCollection> responses = new BaseFuture<>();
             unicastZenPing.ping(responses::complete, TimeValue.timeValueSeconds(3));
             latch.await();
             responses.get();

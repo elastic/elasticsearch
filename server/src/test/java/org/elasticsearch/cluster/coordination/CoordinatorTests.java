@@ -54,6 +54,7 @@ import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -901,6 +902,7 @@ public class CoordinatorTests extends ESTestCase {
      * does not notice the node disconnecting, it is important for the node not to be turned back into a follower but try
      * and join the leader again.
      */
+    @TestLogging("_root:TRACE")
     public void testStayCandidateAfterReceivingFollowerCheckFromKnownMaster() {
         final Cluster cluster = new Cluster(2, false);
         cluster.runRandomly();

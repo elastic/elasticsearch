@@ -454,11 +454,11 @@ public class InternalComposite
                 return 0;
             }
             int idx = 0;
-            int max = Math.min(keys.size(), that.keys.size());
+            int max = Math.min(this.keys.size(), that.keys.size());
             while (idx < max) {
                 int compare = Objects.compare(keys.get(idx),that.keys.get(idx),String::compareTo);
                 if (compare == 0) {
-                    compare = Objects.compare(values[idx], that.values[idx], Comparable::compareTo);
+                    compare = compareNullables(values[idx],that.values[idx]);
                 }
                 if (compare != 0) {
                     return compare;
@@ -473,5 +473,18 @@ public class InternalComposite
             }
             return 0;
         }
+    }
+
+    private static int compareNullables(Comparable a, Comparable b) {
+        if (a == b) {
+            return 0;
+        }
+        if (a == null) {
+            return -1;
+        }
+        if (b == null) {
+            return 1;
+        }
+        return a.compareTo(b);
     }
 }

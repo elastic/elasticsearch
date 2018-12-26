@@ -78,7 +78,7 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
         return wrapped.join();
     }
 
-    private static final String BLOCKING_OP_REASON = "Blocking operation";
+    protected static final String BLOCKING_OP_REASON = "Blocking operation";
 
     protected boolean blockingAllowed() {
         return Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&

@@ -19,9 +19,12 @@
 
 package org.elasticsearch.common.cache;
 
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -401,7 +404,14 @@ public class Cache<K, V> {
             // get the value from this future on the thread that won the race to place the future into the segment map
             CacheSegment<K, V> segment = getCacheSegment(key);
             BaseFuture<Entry<K, V>> future;
-            BaseFuture<Entry<K, V>> completableFuture = new BaseFuture<>();
+            BaseFuture<Entry<K, V>> completableFuture = new BaseFuture<Entry<K, V>>() {
+                @Override
+                protected boolean blockingAllowed() {
+                    return Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
+                        ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
+                        MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);
+                }
+            };
 
             try (ReleasableLock ignored = segment.writeLock.acquire()) {
                 future = segment.map.putIfAbsent(key, completableFuture);

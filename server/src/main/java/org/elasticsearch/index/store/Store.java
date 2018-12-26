@@ -91,7 +91,6 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -300,21 +299,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void renameTempFilesSafe(Map<String, String> tempFileMap) throws IOException {
         // this works just like a lucene commit - we rename all temp files and once we successfully
         // renamed all the segments we rename the commit to ensure we don't leave half baked commits behind.
-        final Map.Entry<String, String>[] entries = tempFileMap.entrySet().toArray(new Map.Entry[tempFileMap.size()]);
-        ArrayUtil.timSort(entries, new Comparator<Map.Entry<String, String>>() {
-            @Override
-            public int compare(Map.Entry<String, String> o1, Map.Entry<String, String> o2) {
-                String left = o1.getValue();
-                String right = o2.getValue();
-                if (left.startsWith(IndexFileNames.SEGMENTS) || right.startsWith(IndexFileNames.SEGMENTS)) {
-                    if (left.startsWith(IndexFileNames.SEGMENTS) == false) {
-                        return -1;
-                    } else if (right.startsWith(IndexFileNames.SEGMENTS) == false) {
-                        return 1;
-                    }
+        final Map.Entry<String, String>[] entries = tempFileMap.entrySet().toArray(new Map.Entry[0]);
+        ArrayUtil.timSort(entries, (o1, o2) -> {
+            String left = o1.getValue();
+            String right = o2.getValue();
+            if (left.startsWith(IndexFileNames.SEGMENTS) || right.startsWith(IndexFileNames.SEGMENTS)) {
+                if (left.startsWith(IndexFileNames.SEGMENTS) == false) {
+                    return -1;
+                } else if (right.startsWith(IndexFileNames.SEGMENTS) == false) {
+                    return 1;
                 }
-                return left.compareTo(right);
             }
+            return left.compareTo(right);
         });
         metadataLock.writeLock().lock();
         // we make sure that nobody fetches the metadata while we do this rename operation here to ensure we don't
@@ -452,22 +448,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             logger.info(() -> new ParameterizedMessage("{}: failed to obtain shard lock", shardId), ex);
         }
         return MetadataSnapshot.EMPTY;
-    }
-
-    /**
-     * Returns <code>true</code> iff the given location contains an index an the index
-     * can be successfully opened. This includes reading the segment infos and possible
-     * corruption markers.
-     */
-    public static boolean canOpenIndex(Logger logger, Path indexLocation,
-                                            ShardId shardId, NodeEnvironment.ShardLocker shardLocker) throws IOException {
-        try {
-            tryOpenIndex(indexLocation, shardId, shardLocker, logger);
-        } catch (Exception ex) {
-            logger.trace(() -> new ParameterizedMessage("Can't open index for path [{}]", indexLocation), ex);
-            return false;
-        }
-        return true;
     }
 
     /**
@@ -961,7 +941,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         private static final String DEL_FILE_EXTENSION = "del"; // legacy delete file
         private static final String LIV_FILE_EXTENSION = "liv"; // lucene 5 delete file
-        private static final String FIELD_INFOS_FILE_EXTENSION = "fnm";
         private static final String SEGMENT_INFO_EXTENSION = "si";
 
         /**
@@ -1015,12 +994,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // only treat del files as per-commit files fnm files are generational but only for upgradable DV
                     perCommitStoreFiles.add(meta);
                 } else {
-                    List<StoreFileMetaData> perSegStoreFiles = perSegment.get(segmentId);
-                    if (perSegStoreFiles == null) {
-                        perSegStoreFiles = new ArrayList<>();
-                        perSegment.put(segmentId, perSegStoreFiles);
-                    }
-                    perSegStoreFiles.add(meta);
+                    perSegment.computeIfAbsent(segmentId, k -> new ArrayList<>()).add(meta);
                 }
             }
             final ArrayList<StoreFileMetaData> identicalFiles = new ArrayList<>();
@@ -1070,13 +1044,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          */
         public String getHistoryUUID() {
             return commitUserData.get(Engine.HISTORY_UUID_KEY);
-        }
-
-        /**
-         * returns the translog uuid the store points at
-         */
-        public String getTranslogUUID() {
-            return commitUserData.get(Translog.TRANSLOG_UUID_KEY);
         }
 
         /**
@@ -1437,9 +1404,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
      */
-    public void createEmpty() throws IOException {
+    public void createEmpty(Version luceneVersion) throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.CREATE, directory, null)) {
+        try (IndexWriter writer = newEmptyIndexWriter(directory, luceneVersion)) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
@@ -1476,7 +1443,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void bootstrapNewHistory(long maxSeqNo) throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
+        try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
@@ -1494,7 +1461,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void associateIndexWithNewTranslog(final String translogUUID) throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
+        try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
             if (translogUUID.equals(getUserData(writer).get(Translog.TRANSLOG_UUID_KEY))) {
                 throw new IllegalArgumentException("a new translog uuid can't be equal to existing one. got [" + translogUUID + "]");
             }
@@ -1513,7 +1480,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void ensureIndexHasHistoryUUID() throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
+        try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
             final Map<String, String> userData = getUserData(writer);
             if (userData.containsKey(Engine.HISTORY_UUID_KEY) == false) {
                 updateCommitData(writer, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
@@ -1579,7 +1546,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     + translogUUID + "]");
             }
             if (startingIndexCommit.equals(existingCommits.get(existingCommits.size() - 1)) == false) {
-                try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, startingIndexCommit)) {
+                try (IndexWriter writer = newAppendingIndexWriter(directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened
                     // - deletes any other commit (by lucene standard deletion policy)
@@ -1598,33 +1565,41 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-
-    private void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
+    private static void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
         final Map<String, String> userData = getUserData(writer);
         userData.putAll(keysToUpdate);
         writer.setLiveCommitData(userData.entrySet());
         writer.commit();
     }
 
-    private Map<String, String> getUserData(IndexWriter writer) {
+    private static Map<String, String> getUserData(IndexWriter writer) {
         final Map<String, String> userData = new HashMap<>();
         writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
         return userData;
     }
 
-    private static IndexWriter newIndexWriter(final IndexWriterConfig.OpenMode openMode, final Directory dir, final IndexCommit commit)
-        throws IOException {
-        assert openMode == IndexWriterConfig.OpenMode.APPEND || commit == null : "can't specify create flag with a commit";
-        IndexWriterConfig iwc = new IndexWriterConfig(null)
-            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setCommitOnClose(false)
+    private static IndexWriter newAppendingIndexWriter(final Directory dir, final IndexCommit commit) throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig()
             .setIndexCommit(commit)
-            // we don't want merges to happen here - we call maybe merge on the engine
-            // later once we stared it up otherwise we would need to wait for it here
-            // we also don't specify a codec here and merges should use the engines for this index
-            .setMergePolicy(NoMergePolicy.INSTANCE)
-            .setOpenMode(openMode);
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         return new IndexWriter(dir, iwc);
+    }
+
+    private static IndexWriter newEmptyIndexWriter(final Directory dir, final Version luceneVersion) throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig()
+            .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
+            .setIndexCreatedVersionMajor(luceneVersion.major);
+        return new IndexWriter(dir, iwc);
+    }
+
+    private static IndexWriterConfig newIndexWriterConfig() {
+        return new IndexWriterConfig(null)
+                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                .setCommitOnClose(false)
+                // we don't want merges to happen here - we call maybe merge on the engine
+                // later once we stared it up otherwise we would need to wait for it here
+                // we also don't specify a codec here and merges should use the engines for this index
+                .setMergePolicy(NoMergePolicy.INSTANCE);
     }
 
 }

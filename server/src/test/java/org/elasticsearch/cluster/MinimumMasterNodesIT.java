@@ -25,8 +25,8 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -74,6 +74,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // Zen2 does not have minimum_master_nodes
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
     }
 
@@ -124,7 +125,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
             assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery())
-                .execute().actionGet().getHits().getTotalHits(), equalTo(100L));
+                .execute().actionGet().getHits().getTotalHits().value, equalTo(100L));
         }
 
         internalCluster().stopCurrentMasterNode();
@@ -414,7 +415,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         logger.debug("--> waiting for cluster state to be processed/rejected");
         latch.await();
 
-        assertThat(failure.get(), instanceOf(Discovery.FailedToCommitClusterStateException.class));
+        assertThat(failure.get(), instanceOf(FailedToCommitClusterStateException.class));
         assertBusy(() -> assertThat(masterClusterService.state().nodes().getMasterNode(), nullValue()));
 
         partition.stopDisrupting();

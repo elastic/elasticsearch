@@ -136,7 +136,7 @@ public class IndexResolver {
 
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
             EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES), EnumSet.of(WildcardStates.OPEN));
-
+    private static final List<String> FIELD_NAMES_BLACKLIST = Arrays.asList("_size");
 
     private final Client client;
     private final String clusterName;
@@ -272,8 +272,8 @@ public class IndexResolver {
 
             String name = entry.getKey();
 
-            // skip internal fields
-            if (!name.startsWith("_")) {
+            // Skip any of the blacklisted field names.
+            if (!FIELD_NAMES_BLACKLIST.contains(name)) {
                 Map<String, FieldCapabilities> types = entry.getValue();
                 // field is mapped differently across indices
                 if (types.size() > 1) {
@@ -297,6 +297,12 @@ public class IndexResolver {
                 // type is okay, check aggregation
                 else {
                     fieldCap = types.values().iterator().next();
+                    
+                    // Skip internal fields (name starting with underscore and its type reported by field_caps starts with underscore
+                    // as well). A meta field named "_version", for example, has the type named "_version".
+                    if (name.startsWith("_") && fieldCap.getType().startsWith("_")) {
+                        continue;
+                    }
                     // validate search/agg-able
                     if (fieldCap.isAggregatable() && fieldCap.nonAggregatableIndices() != null) {
                         errorMessage.append("mapped as aggregatable except in ");

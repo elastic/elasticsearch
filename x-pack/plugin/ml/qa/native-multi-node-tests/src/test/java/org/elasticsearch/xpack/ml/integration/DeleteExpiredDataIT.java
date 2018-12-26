@@ -95,8 +95,8 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testDeleteExpiredData() throws Exception {
-        registerJob(newJobBuilder("no-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(null));
-        registerJob(newJobBuilder("results-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(null));
+        registerJob(newJobBuilder("no-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(1000L));
+        registerJob(newJobBuilder("results-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(1000L));
         registerJob(newJobBuilder("snapshots-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
         registerJob(newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
         registerJob(newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L));
@@ -165,8 +165,8 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         long totalModelSizeStatsBeforeDelete = client().prepareSearch("*")
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
-                .get().getHits().totalHits;
-        long totalNotificationsCountBeforeDelete = client().prepareSearch(".ml-notifications").get().getHits().totalHits;
+                .get().getHits().getTotalHits().value;
+        long totalNotificationsCountBeforeDelete = client().prepareSearch(".ml-notifications").get().getHits().getTotalHits().value;
         assertThat(totalModelSizeStatsBeforeDelete, greaterThan(0L));
         assertThat(totalNotificationsCountBeforeDelete, greaterThan(0L));
 
@@ -223,8 +223,8 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         long totalModelSizeStatsAfterDelete = client().prepareSearch("*")
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
-                .get().getHits().totalHits;
-        long totalNotificationsCountAfterDelete = client().prepareSearch(".ml-notifications").get().getHits().totalHits;
+                .get().getHits().getTotalHits().value;
+        long totalNotificationsCountAfterDelete = client().prepareSearch(".ml-notifications").get().getHits().getTotalHits().value;
         assertThat(totalModelSizeStatsAfterDelete, equalTo(totalModelSizeStatsBeforeDelete));
         assertThat(totalNotificationsCountAfterDelete, greaterThanOrEqualTo(totalNotificationsCountBeforeDelete));
 
@@ -245,7 +245,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
                 .setFetchSource(false)
                 .setSize(10000)
                 .get();
-        assertThat(stateDocsResponse.getHits().getTotalHits(), lessThan(10000L));
+        assertThat(stateDocsResponse.getHits().getTotalHits().value, lessThan(10000L));
         for (SearchHit hit : stateDocsResponse.getHits().getHits()) {
             assertThat(hit.getId().startsWith("non_existing_job"), is(false));
         }

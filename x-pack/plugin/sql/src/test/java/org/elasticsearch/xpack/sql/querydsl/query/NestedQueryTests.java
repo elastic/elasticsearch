@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.LocationTests;
 
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -38,11 +40,11 @@ public class NestedQueryTests extends ESTestCase {
         return new NestedQuery(LocationTests.randomLocation(), randomAlphaOfLength(5), randomFields(), randomQuery(depth));
     }
 
-    private static Map<String, Boolean> randomFields() {
+    private static Map<String, Map.Entry<Boolean, String>> randomFields() {
         int size = between(0, 5);
-        Map<String, Boolean> fields = new HashMap<>(size);
+        Map<String, Map.Entry<Boolean, String>> fields = new HashMap<>(size);
         while (fields.size() < size) {
-            fields.put(randomAlphaOfLength(5), randomBoolean());
+            fields.put(randomAlphaOfLength(5), new SimpleImmutableEntry<>(randomBoolean(), DocValueFieldsContext.USE_DEFAULT_FORMAT));
         }
         return fields;
     }
@@ -77,20 +79,20 @@ public class NestedQueryTests extends ESTestCase {
         NestedQuery q = randomNestedQuery(0);
         for (String field : q.fields().keySet()) {
             // add does nothing if the field is already there
-            assertSame(q, q.addNestedField(q.path(), field, randomBoolean()));
+            assertSame(q, q.addNestedField(q.path(), field, DocValueFieldsContext.USE_DEFAULT_FORMAT, randomBoolean()));
             String otherPath = randomValueOtherThan(q.path(), () -> randomAlphaOfLength(5));
             // add does nothing if the path doesn't match
-            assertSame(q, q.addNestedField(otherPath, randomAlphaOfLength(5), randomBoolean()));
+            assertSame(q, q.addNestedField(otherPath, randomAlphaOfLength(5), DocValueFieldsContext.USE_DEFAULT_FORMAT, randomBoolean()));
         }
 
         // if the field isn't in the list then add rewrites to a query with all the old fields and the new one
         String newField = randomValueOtherThanMany(q.fields()::containsKey, () -> randomAlphaOfLength(5));
         boolean hasDocValues = randomBoolean();
-        NestedQuery added = (NestedQuery) q.addNestedField(q.path(), newField, hasDocValues);
+        NestedQuery added = (NestedQuery) q.addNestedField(q.path(), newField, DocValueFieldsContext.USE_DEFAULT_FORMAT, hasDocValues);
         assertNotSame(q, added);
-        assertThat(added.fields(), hasEntry(newField, hasDocValues));
+        assertThat(added.fields(), hasEntry(newField, new SimpleImmutableEntry<>(hasDocValues, DocValueFieldsContext.USE_DEFAULT_FORMAT)));
         assertTrue(added.containsNestedField(q.path(), newField));
-        for (Map.Entry<String, Boolean> field : q.fields().entrySet()) {
+        for (Map.Entry<String, Map.Entry<Boolean, String>> field : q.fields().entrySet()) {
             assertThat(added.fields(), hasEntry(field.getKey(), field.getValue()));
             assertTrue(added.containsNestedField(q.path(), field.getKey()));
         }
@@ -129,7 +131,9 @@ public class NestedQueryTests extends ESTestCase {
     }
 
     public void testToString() {
-        NestedQuery q = new NestedQuery(new Location(1, 1), "a.b", singletonMap("f", true), new MatchAll(new Location(1, 1)));
-        assertEquals("NestedQuery@1:2[a.b.{f=true}[MatchAll@1:2[]]]", q.toString());
+        NestedQuery q = new NestedQuery(new Location(1, 1), "a.b",
+                singletonMap("f", new SimpleImmutableEntry<>(true, DocValueFieldsContext.USE_DEFAULT_FORMAT)),
+                new MatchAll(new Location(1, 1)));
+        assertEquals("NestedQuery@1:2[a.b.{f=true=use_field_mapping}[MatchAll@1:2[]]]", q.toString());
     }
 }

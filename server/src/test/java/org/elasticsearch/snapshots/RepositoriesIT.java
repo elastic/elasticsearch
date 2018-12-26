@@ -97,6 +97,16 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-1"), notNullValue());
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-2"), notNullValue());
 
+        logger.info("--> check that trying to create a repository with the same settings repeatedly does not update cluster state");
+        String beforeStateUuid = clusterStateResponse.getState().stateUUID();
+        assertThat(
+            client.admin().cluster().preparePutRepository("test-repo-1")
+                .setType("fs").setSettings(Settings.builder()
+                .put("location", location)
+            ).get().isAcknowledged(),
+            equalTo(true));
+        assertEquals(beforeStateUuid, client.admin().cluster().prepareState().clear().get().getState().stateUUID());
+
         logger.info("--> delete repository test-repo-1");
         client.admin().cluster().prepareDeleteRepository("test-repo-1").get();
         repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();

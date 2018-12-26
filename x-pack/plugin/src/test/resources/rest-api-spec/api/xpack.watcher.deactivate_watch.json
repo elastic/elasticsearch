@@ -3,8 +3,8 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-deactivate-watch.html",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_xpack/watcher/watch/{watch_id}/_deactivate",
-      "paths": [ "/_xpack/watcher/watch/{watch_id}/_deactivate" ],
+      "path": "/_watcher/watch/{watch_id}/_deactivate",
+      "paths": [ "/_watcher/watch/{watch_id}/_deactivate" ],
       "parts": {
         "watch_id": {
           "type" : "string",

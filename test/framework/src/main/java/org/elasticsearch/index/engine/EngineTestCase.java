@@ -49,8 +49,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -315,24 +316,23 @@ public abstract class EngineTestCase extends ESTestCase {
                 mappingUpdate);
     }
 
-    public static CheckedFunction<String, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
+    public static CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
         final MapperService mapperService = createMapperService("type");
         final String nestedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("nested_field").field("type", "nested").endObject().endObject()
             .endObject().endObject());
         final DocumentMapper nestedMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(nestedMapping));
-        return docId -> {
+        return (docId, nestedFieldValues) -> {
             final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value");
-            final int nestedValues = between(0, 3);
-            if (nestedValues > 0) {
+            if (nestedFieldValues > 0) {
                 XContentBuilder nestedField = source.startObject("nested_field");
-                for (int i = 0; i < nestedValues; i++) {
+                for (int i = 0; i < nestedFieldValues; i++) {
                     nestedField.field("field-" + i, "value-" + i);
                 }
                 source.endObject();
             }
             source.endObject();
-            return nestedMapper.parse(SourceToParse.source("test", "type", docId, BytesReference.bytes(source), XContentType.JSON));
+            return nestedMapper.parse(new SourceToParse("test", "type", docId, BytesReference.bytes(source), XContentType.JSON));
         };
     }
 
@@ -499,7 +499,7 @@ public abstract class EngineTestCase extends ESTestCase {
         final Store store = config.getStore();
         final Directory directory = store.directory();
         if (Lucene.indexExists(directory) == false) {
-            store.createEmpty();
+            store.createEmpty(config.getIndexSettings().getIndexVersionCreated().luceneVersion);
             final String translogUuid = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
             store.associateIndexWithNewTranslog(translogUuid);
@@ -633,11 +633,12 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Engine.Index replicaIndexForDoc(ParsedDocument doc, long version, long seqNo,
                                             boolean isRetry) {
         return new Engine.Index(newUid(doc), doc, seqNo, primaryTerm.get(), version, null, Engine.Operation.Origin.REPLICA,
-            System.nanoTime(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, isRetry);
+            System.nanoTime(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, isRetry, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
     }
 
     protected Engine.Delete replicaDeleteForDoc(String id, long version, long seqNo, long startTime) {
-        return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, null, Engine.Operation.Origin.REPLICA, startTime);
+        return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, null, Engine.Operation.Origin.REPLICA, startTime,
+            SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
     }
     protected static void assertVisibleCount(InternalEngine engine, int numDocs) throws IOException {
         assertVisibleCount(engine, numDocs, true);
@@ -688,8 +689,8 @@ public abstract class EngineTestCase extends ESTestCase {
                     version,
                     forReplica ? null : versionType,
                     forReplica ? REPLICA : PRIMARY,
-                    System.currentTimeMillis(), -1, false
-                );
+                    System.currentTimeMillis(), -1, false,
+                    SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
             } else {
                 op = new Engine.Delete("test", docId, id,
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -697,11 +698,51 @@ public abstract class EngineTestCase extends ESTestCase {
                     version,
                     forReplica ? null : versionType,
                     forReplica ? REPLICA : PRIMARY,
-                    System.currentTimeMillis());
+                    System.currentTimeMillis(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
             }
             ops.add(op);
         }
         return ops;
+    }
+
+    public List<Engine.Operation> generateHistoryOnReplica(int numOps, boolean allowGapInSeqNo, boolean allowDuplicate,
+                                                           boolean includeNestedDocs) throws Exception {
+        long seqNo = 0;
+        final int maxIdValue = randomInt(numOps * 2);
+        final List<Engine.Operation> operations = new ArrayList<>(numOps);
+        CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory = nestedParsedDocFactory();
+        for (int i = 0; i < numOps; i++) {
+            final String id = Integer.toString(randomInt(maxIdValue));
+            final Engine.Operation.TYPE opType = randomFrom(Engine.Operation.TYPE.values());
+            final boolean isNestedDoc = includeNestedDocs && opType == Engine.Operation.TYPE.INDEX && randomBoolean();
+            final int nestedValues = between(0, 3);
+            final long startTime = threadPool.relativeTimeInMillis();
+            final int copies = allowDuplicate && rarely() ? between(2, 4) : 1;
+            for (int copy = 0; copy < copies; copy++) {
+                final ParsedDocument doc = isNestedDoc ? nestedParsedDocFactory.apply(id, nestedValues) : createParsedDoc(id, null);
+                switch (opType) {
+                    case INDEX:
+                        operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
+                            i, null, Engine.Operation.Origin.REPLICA, startTime, -1, true, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+                        break;
+                    case DELETE:
+                        operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
+                            i, null, Engine.Operation.Origin.REPLICA, startTime, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+                        break;
+                    case NO_OP:
+                        operations.add(new Engine.NoOp(seqNo, primaryTerm.get(), Engine.Operation.Origin.REPLICA, startTime, "test-" + i));
+                        break;
+                    default:
+                        throw new IllegalStateException("Unknown operation type [" + opType + "]");
+                }
+            }
+            seqNo++;
+            if (allowGapInSeqNo && rarely()) {
+                seqNo++;
+            }
+        }
+        Randomness.shuffle(operations);
+        return operations;
     }
 
     public static void assertOpsOnReplica(
@@ -788,14 +829,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 int docOffset;
                 while ((docOffset = offset.incrementAndGet()) < ops.size()) {
                     try {
-                        final Engine.Operation op = ops.get(docOffset);
-                        if (op instanceof Engine.Index) {
-                            engine.index((Engine.Index) op);
-                        } else if (op instanceof Engine.Delete){
-                            engine.delete((Engine.Delete) op);
-                        } else {
-                            engine.noOp((Engine.NoOp) op);
-                        }
+                        applyOperation(engine, ops.get(docOffset));
                         if ((docOffset + 1) % 4 == 0) {
                             engine.refresh("test");
                         }
@@ -812,6 +846,36 @@ public abstract class EngineTestCase extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
         }
+    }
+
+    public static void applyOperations(Engine engine, List<Engine.Operation> operations) throws IOException {
+        for (Engine.Operation operation : operations) {
+            applyOperation(engine, operation);
+            if (randomInt(100) < 10) {
+                engine.refresh("test");
+            }
+            if (rarely()) {
+                engine.flush();
+            }
+        }
+    }
+
+    public static Engine.Result applyOperation(Engine engine, Engine.Operation operation) throws IOException {
+        final Engine.Result result;
+        switch (operation.operationType()) {
+            case INDEX:
+                result = engine.index((Engine.Index) operation);
+                break;
+            case DELETE:
+                result = engine.delete((Engine.Delete) operation);
+                break;
+            case NO_OP:
+                result = engine.noOp((Engine.NoOp) operation);
+                break;
+            default:
+                throw new IllegalStateException("No operation defined for [" + operation + "]");
+        }
+        return result;
     }
 
     /**

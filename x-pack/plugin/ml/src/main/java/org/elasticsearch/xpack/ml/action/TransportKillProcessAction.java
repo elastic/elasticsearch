@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -22,8 +21,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-
-import java.io.IOException;
 
 public class TransportKillProcessAction extends TransportJobTaskAction<KillProcessAction.Request, KillProcessAction.Response> {
 
@@ -72,9 +69,4 @@ public class TransportKillProcessAction extends TransportJobTaskAction<KillProce
         super.doExecute(task, request, listener);
     }
 
-
-    @Override
-    protected KillProcessAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new KillProcessAction.Response(in);
-    }
 }

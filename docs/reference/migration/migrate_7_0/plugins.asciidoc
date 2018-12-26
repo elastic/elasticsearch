@@ -64,3 +64,9 @@ Setting.AffixSetting<String> MY_SETTING = Setting.affixKeySetting(
 
 The `RealmSettings.simpleString` method can be used as a convenience for the above.
 
+[float]
+==== Tribe node removed
+
+Tribe node functionality has been removed in favor of
+<<modules-cross-cluster-search,Cross Cluster Search>>.
+

@@ -232,12 +232,18 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private final List<SnapshotShardFailure> shardFailures;
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state) {
-        this(snapshotId, indices, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null);
+        this(snapshotId, indices, state, null, null, 0L, 0L, 0, 0,
+            Collections.emptyList(), null);
+    }
+
+    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state, Version version) {
+        this(snapshotId, indices, state, null, version, 0L, 0L, 0, 0,
+            Collections.emptyList(), null);
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime, Boolean includeGlobalState) {
-        this(snapshotId, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L, 0, 0,
-            Collections.emptyList(), includeGlobalState);
+        this(snapshotId, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L,
+            0, 0, Collections.emptyList(), includeGlobalState);
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime, String reason, long endTime,
@@ -302,7 +308,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public static SnapshotInfo incompatible(SnapshotId snapshotId) {
         return new SnapshotInfo(snapshotId, Collections.emptyList(), SnapshotState.INCOMPATIBLE,
                                 "the snapshot is incompatible with the current version of Elasticsearch and its exact version is unknown",
-                                null, 0L, 0L, 0, 0, Collections.emptyList(), null);
+                                null, 0L, 0L, 0, 0,
+                                Collections.emptyList(), null);
     }
 
     /**
@@ -556,14 +563,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.endArray();
         builder.endObject();
         return builder;
-    }
-
-    /**
-     * This method creates a SnapshotInfo from external x-content.  It does not
-     * handle x-content written with the internal version.
-     */
-    public static SnapshotInfo fromXContent(final XContentParser parser) throws IOException {
-        return SNAPSHOT_INFO_PARSER.parse(parser, null).build();
     }
 
     /**

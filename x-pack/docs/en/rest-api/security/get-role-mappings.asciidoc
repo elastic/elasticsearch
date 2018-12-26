@@ -1,14 +1,17 @@
 [role="xpack"]
 [[security-api-get-role-mapping]]
 === Get role mappings API
+++++
+<titleabbrev>Get role mappings</titleabbrev>
+++++
 
 Retrieves role mappings.
 
 ==== Request
 
-`GET /_xpack/security/role_mapping` +
+`GET /_security/role_mapping` +
 
-`GET /_xpack/security/role_mapping/<name>` 
+`GET /_security/role_mapping/<name>` 
 
 ==== Description
 
@@ -48,7 +51,7 @@ The following example retrieves information about the `mapping1` role mapping:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/security/role_mapping/mapping1
+GET /_security/role_mapping/mapping1
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:role_mapping]

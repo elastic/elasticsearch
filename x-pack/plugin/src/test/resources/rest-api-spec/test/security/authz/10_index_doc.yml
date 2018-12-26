@@ -8,7 +8,7 @@ setup:
           wait_for_status: yellow
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "mixed_role"
         body:  >
             {
@@ -21,7 +21,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "test_user"
         body:  >
           {
@@ -87,12 +87,12 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "test_user"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "mixed_role"
         ignore: 404
 
@@ -149,12 +149,14 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_index
 
   - match: { hits.total: 3 }
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: everything
 
   - match: { hits.total: 3 }
@@ -226,11 +228,13 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_read
   - match: { hits.total: 0 }
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_delete
   - match: { hits.total: 0 }
 
@@ -252,6 +256,7 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_index
         body: { "query": { "term": { "_id": "14" } } }
   - match: { hits.total: 1 }

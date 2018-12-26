@@ -52,7 +52,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(noneInput())
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L))
                         .metadata(metadata))
                         .get();
 
@@ -62,7 +62,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
         SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
                 .setQuery(termQuery("metadata.foo", "bar"))
                 .get();
-        assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
     }
 
     public void testWatchMetadataAvailableAtExecution() throws Exception {

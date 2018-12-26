@@ -27,6 +27,7 @@ setup:
 "Highlight query":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
          highlight:
           type: fvh

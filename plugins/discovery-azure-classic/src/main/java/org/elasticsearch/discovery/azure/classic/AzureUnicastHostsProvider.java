@@ -166,7 +166,7 @@ public class AzureUnicastHostsProvider implements UnicastHostsProvider {
         InetAddress ipAddress = null;
         try {
             ipAddress = networkService.resolvePublishHostAddresses(
-                NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
+                NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
             logger.trace("ip of current node: [{}]", ipAddress);
         } catch (IOException e) {
             // We can't find the publish host address... Hmmm. Too bad :-(

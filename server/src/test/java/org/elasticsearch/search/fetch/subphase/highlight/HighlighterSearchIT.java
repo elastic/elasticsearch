@@ -1615,7 +1615,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchQuery("text", "test"))
-            .highlighter(new HighlightBuilder().field("text")).execute().actionGet();
+            .highlighter(new HighlightBuilder().field("text")).get();
         // Mock tokenizer will throw an exception if it is resetted twice
         assertHitCount(response, 1L);
     }
@@ -2662,7 +2662,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             new SearchSourceBuilder().query(query)
                 .highlighter(new HighlightBuilder().field("*").highlighterType(highlighterType))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits(), equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
         assertThat(search.getHits().getAt(0).getHighlightFields().get("text").fragments().length, equalTo(1));
     }
 
@@ -2698,7 +2698,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = client().prepareSearch().setSource(
             new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().highlighterType("plain").field("jd"))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits(), equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
     }
 
 
@@ -2725,7 +2725,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(QueryBuilders.matchQuery("keyword_field", "some text"))
                 .highlighter(new HighlightBuilder().field("*"))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits(), equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
         assertThat(search.getHits().getAt(0).getHighlightFields().get("keyword_field").getFragments()[0].string(),
                 equalTo("<em>some text</em>"));
     }
@@ -2833,7 +2833,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .get();
 
             assertSearchResponse(r1);
-            assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+            assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
             assertHighlight(r1, 0, "field", 0, 1,
                 equalTo("<x>hello</x> world"));
         }

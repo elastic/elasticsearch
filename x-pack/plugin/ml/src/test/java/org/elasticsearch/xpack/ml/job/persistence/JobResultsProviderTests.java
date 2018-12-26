@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -856,7 +857,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
             list.add(hit);
         }
-        SearchHits hits = new SearchHits(list.toArray(new SearchHit[0]), source.size(), 1);
+        SearchHits hits = new SearchHits(list.toArray(new SearchHit[0]), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(response.getHits()).thenReturn(hits);
 
         return response;

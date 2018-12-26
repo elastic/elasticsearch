@@ -25,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -110,10 +109,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     //TODO this needs to be cleaned up: _timestamp and _ttl are not supported anymore, _field_names, _seq_no, _version and _source are
     //also missing, not sure if on purpose. See IndicesModule#getMetadataMappers
-    private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
-            "_id", "_type", "_routing", "_index",
-            "_size", "_timestamp", "_ttl", IgnoredFieldMapper.NAME
-    );
+    private static final String[] SORTED_META_FIELDS = new String[]{
+        "_id", IgnoredFieldMapper.NAME, "_index", "_routing", "_size", "_timestamp", "_ttl", "_type"
+    };
+
+    private static final ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(SORTED_META_FIELDS);
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MapperService.class));
 
@@ -218,7 +218,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         for (DocumentMapper documentMapper : updatedEntries.values()) {
             String mappingType = documentMapper.type();
-            CompressedXContent incomingMappingSource = newIndexMetaData.mapping(mappingType).source();
+            MappingMetaData mappingMetaData;
+            if (mappingType.equals(MapperService.DEFAULT_MAPPING)) {
+                mappingMetaData = newIndexMetaData.defaultMapping();
+            } else {
+                mappingMetaData = newIndexMetaData.mapping();
+                assert mappingType.equals(mappingMetaData.type());
+            }
+            CompressedXContent incomingMappingSource = mappingMetaData.source();
 
             String op = existingMappers.contains(mappingType) ? "updated" : "added";
             if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
@@ -254,13 +261,25 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (currentIndexMetaData.getMappingVersion() == newIndexMetaData.getMappingVersion()) {
                 // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
                 assert updatedEntries.isEmpty() : updatedEntries;
-                for (final ObjectCursor<MappingMetaData> mapping : newIndexMetaData.getMappings().values()) {
-                    final CompressedXContent currentSource = currentIndexMetaData.mapping(mapping.value.type()).source();
-                    final CompressedXContent newSource = mapping.value.source();
+
+                MappingMetaData defaultMapping = newIndexMetaData.defaultMapping();
+                if (defaultMapping != null) {
+                    final CompressedXContent currentSource = currentIndexMetaData.defaultMapping().source();
+                    final CompressedXContent newSource = defaultMapping.source();
                     assert currentSource.equals(newSource) :
-                            "expected current mapping [" + currentSource + "] for type [" + mapping.value.type() + "] "
+                            "expected current mapping [" + currentSource + "] for type [" + defaultMapping.type() + "] "
                                     + "to be the same as new mapping [" + newSource + "]";
                 }
+
+                MappingMetaData mapping = newIndexMetaData.mapping();
+                if (mapping != null) {
+                    final CompressedXContent currentSource = currentIndexMetaData.mapping().source();
+                    final CompressedXContent newSource = mapping.source();
+                    assert currentSource.equals(newSource) :
+                            "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
+                                    + "to be the same as new mapping [" + newSource + "]";
+                }
+
             } else {
                 // if the mapping version is changed, it should increase, there should be updates, and the mapping should be different
                 final long currentMappingVersion = currentIndexMetaData.getMappingVersion();
@@ -270,7 +289,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                                 + "to be less than new mapping version [" + newMappingVersion + "]";
                 assert updatedEntries.isEmpty() == false;
                 for (final DocumentMapper documentMapper : updatedEntries.values()) {
-                    final MappingMetaData currentMapping = currentIndexMetaData.mapping(documentMapper.type());
+                    final MappingMetaData currentMapping;
+                    if (documentMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
+                        currentMapping = currentIndexMetaData.defaultMapping();
+                    } else {
+                        currentMapping = currentIndexMetaData.mapping();
+                        assert currentMapping == null || documentMapper.type().equals(currentMapping.type());
+                    }
                     if (currentMapping != null) {
                         final CompressedXContent currentSource = currentMapping.source();
                         final CompressedXContent newSource = documentMapper.mappingSource();
@@ -738,7 +763,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static String[] getAllMetaFields() {
-        return META_FIELDS.toArray(String.class);
+        return Arrays.copyOf(SORTED_META_FIELDS, SORTED_META_FIELDS.length);
     }
 
     /** An analyzer wrapper that can lookup fields within the index mappings */
@@ -764,13 +789,5 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
             return defaultAnalyzer;
         }
-    }
-
-    /** Return a term that uniquely identifies the document, or {@code null} if the type is not allowed. */
-    public Term createUidTerm(String type, String id) {
-        if (mapper == null || mapper.type().equals(type) == false) {
-            return null;
-        }
-        return new Term(IdFieldMapper.NAME, Uid.encodeId(id));
     }
 }

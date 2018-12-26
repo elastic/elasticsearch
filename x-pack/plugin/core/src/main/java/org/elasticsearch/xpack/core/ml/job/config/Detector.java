@@ -283,7 +283,7 @@ public class Detector implements ToXContentObject, Writeable {
         // negative means "unknown", which should only happen for a 5.4 job
         if (detectorIndex >= 0
                 // no point writing this to cluster state, as the indexes will get reassigned on reload anyway
-                && params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == false) {
+                && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
             builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         }
         builder.endObject();

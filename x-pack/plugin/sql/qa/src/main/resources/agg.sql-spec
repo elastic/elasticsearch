@@ -280,6 +280,8 @@ aggMaxWithAlias
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
 aggMaxOnDate
 SELECT gender, MAX(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
+aggAvgAndMaxWithLikeFilter
+SELECT CAST(AVG(salary) AS LONG) AS avg, CAST(SUM(salary) AS LONG) AS s FROM "test_emp" WHERE first_name LIKE 'G%';
 
 // Conditional MAX
 aggMaxWithHaving

@@ -136,7 +136,7 @@ public class LongTermsAggregator extends TermsAggregator {
             }
         }
 
-        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
+        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());   //取请求size和bucket里的最小值
         long otherDocCount = 0;
         BucketPriorityQueue<LongTerms.Bucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
         LongTerms.Bucket spare = null;

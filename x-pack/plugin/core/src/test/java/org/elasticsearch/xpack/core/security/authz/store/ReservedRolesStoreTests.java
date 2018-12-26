@@ -661,8 +661,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Sets.newHashSet(SystemIndicesNames.SECURITY_INDEX_NAME), metaData, fieldPermissionsCache);
         assertThat(authzMap.get(SystemIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(true));
         assertThat(authzMap.get(SystemIndicesNames.INTERNAL_SECURITY_INDEX).isGranted(), is(true));
-        assertTrue(superuserRole.indices().check(SearchAction.NAME));
-        assertFalse(superuserRole.indices().check("unknown"));
+        assertTrue(superuserRole.indices().checkAction(SearchAction.NAME));
+        assertFalse(superuserRole.indices().checkAction("unknown"));
 
         assertThat(superuserRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(true));
         

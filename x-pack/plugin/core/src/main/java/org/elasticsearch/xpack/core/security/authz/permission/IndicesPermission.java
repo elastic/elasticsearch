@@ -192,7 +192,7 @@ public final class IndicesPermission {
      * The usecase for this is composite actions that are initially only authorized based on the action name (indices are not
      * checked on the coordinating node), and properly authorized later at the shard level checking their indices as well.
      */
-    public boolean check(String action) {
+    public boolean checkAction(String action) {
         for (Group group : groups) {
             if (group.checkAction(action)) {
                 return true;
@@ -341,10 +341,10 @@ public final class IndicesPermission {
             this.indexNameMatcher = indexMatcherPredicate(Arrays.asList(indices));
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
-            final Predicate<String> indicesPatternPredicate = indicesPatternsPredicate(Arrays.asList(indices));
+            final Predicate<String> indicesPatternsPredicate = indicesPatternsPredicate(Arrays.asList(indices));
             this.implicitlyAuthorizeMonitorSystemIndices = (action, index) -> {
                 return SystemIndicesNames.indexNames().contains(index) && IndexPrivilege.MONITOR.predicate().test(action)
-                        && indicesPatternPredicate.test(index) && privilege.predicate().test(action);
+                        && indicesPatternsPredicate.test(index) && privilege.predicate().test(action);
             };
         }
 

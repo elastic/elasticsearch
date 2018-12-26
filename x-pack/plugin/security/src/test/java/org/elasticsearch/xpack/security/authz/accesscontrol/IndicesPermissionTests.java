@@ -232,8 +232,8 @@ public class IndicesPermissionTests extends ESTestCase {
         // did not define anything for ba so we allow all
         assertFalse(authzMap.get("ba").getFieldPermissions().hasFieldLevelSecurity());
 
-        assertTrue(core.check(SearchAction.NAME));
-        assertFalse(core.check("unknown"));
+        assertTrue(core.checkAction(SearchAction.NAME));
+        assertFalse(core.checkAction("unknown"));
 
         // test with two indices
         group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, "a1");
@@ -252,8 +252,8 @@ public class IndicesPermissionTests extends ESTestCase {
         assertTrue(authzMap.get("a2").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5) + "_field2"));
         assertTrue(authzMap.get("a2").getFieldPermissions().hasFieldLevelSecurity());
 
-        assertTrue(core.check(SearchAction.NAME));
-        assertFalse(core.check("unknown"));
+        assertTrue(core.checkAction(SearchAction.NAME));
+        assertFalse(core.checkAction("unknown"));
     }
 
     public void testErrorMessageIfIndexPatternIsTooComplex() {

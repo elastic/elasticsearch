@@ -16,6 +16,8 @@ import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -41,6 +43,8 @@ public class TestEsSearch {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.from(0).size(100);
 
+        searchSourceBuilder.aggregation(AggregationBuilders.terms("test_brand_agg").field("brand_id").size(23));
+
         Script script = new Script(ScriptType.INLINE, "expression", "doc['s1'].value+doc['s2'].value", Collections.emptyMap());
         ScriptScoreFunctionBuilder scriptBuilder = ScoreFunctionBuilders.scriptFunction(script);
 
@@ -50,6 +54,8 @@ public class TestEsSearch {
         searchSourceBuilder.query(functionScoreQueryBuilder);
         searchRequest.source(searchSourceBuilder);                  /**{@link org.elasticsearch.search.SearchService#parseSource(DefaultSearchContext, SearchSourceBuilder)}
                                                                         会将source转换为query等信息。这里如果用到了Script,会将调用{@link org.elasticsearch.script.ScriptService#getEngine(String)} 获取对应的script插件}**/
+
+
 
         SearchResponse searchResponse = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);  /**查询首先执行{@link org.elasticsearch.search.SearchService#executeQueryPhase},
                                                                                                             然后就是{@link org.elasticsearch.search.query.QueryPhase#execute(SearchContext)}**/

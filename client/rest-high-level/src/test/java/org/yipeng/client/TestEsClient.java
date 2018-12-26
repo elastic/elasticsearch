@@ -37,7 +37,7 @@ public class TestEsClient {
 
     public static void main(String[] args) throws IOException, InterruptedException {
 //
-        deleteIndex();
+//        deleteIndex();
         createIndex();
         putFullIndex();
     }
@@ -103,7 +103,7 @@ public class TestEsClient {
         XContentBuilder settingBuilder = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("index")
-            .field("number_of_shards", 5)
+            .field("number_of_shards", 1)
             .field("number_of_replicas", 1)
             .endObject()
             .endObject();

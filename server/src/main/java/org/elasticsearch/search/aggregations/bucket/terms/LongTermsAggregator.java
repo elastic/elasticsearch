@@ -20,7 +20,11 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
@@ -43,6 +47,10 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * {@link org.apache.lucene.search.Weight.DefaultBulkScorer#scoreRange(LeafCollector, DocIdSetIterator, TwoPhaseIterator, Bits, int, int)}
+ * MultiCollector 包含这个，来collect
+ */
 public class LongTermsAggregator extends TermsAggregator {
 
     protected final ValuesSource.Numeric valuesSource;

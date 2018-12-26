@@ -341,7 +341,7 @@ public class InternalComposite
                 }
                 assert key.get(i).getClass() == other.key.get(i).getClass();
                 @SuppressWarnings("unchecked")
-                int cmp = ((Comparable) key.get(i)).compareTo(other.key.get(i)) * reverseMuls[i];
+                int cmp = key.get(i).compareTo(other.key.get(i)) * reverseMuls[i];
                 if (cmp != 0) {
                     return cmp;
                 }
@@ -394,10 +394,10 @@ public class InternalComposite
 
     static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
-        final Comparable<?>[] values;
+        final Comparable[] values;
         final List<DocValueFormat> formats;
 
-        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable<?>[] values) {
+        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
             this.formats = formats;
@@ -448,37 +448,24 @@ public class InternalComposite
             };
         }
 
-        private int compareNullables(Comparable a, Comparable b) {
-            if (a == b) {
-                return 0;
-            }
-            if (a == null) {
-                return -1;
-            }
-            if (b == null) {
-                return 1;
-            }
-            return a.compareTo(b);
-        }
-
         @Override
         public int compareTo(ArrayMap that) {
             if (that == this) {
                 return 0;
             }
             int idx = 0;
-            int max = Math.min(this.keys.size(), that.keys.size());
+            int max = Math.min(keys.size(), that.keys.size());
             while (idx < max) {
-                int compare = Objects.compare(this.keys.get(idx),that.keys.get(idx),String::compareTo);
+                int compare = Objects.compare(keys.get(idx),that.keys.get(idx),String::compareTo);
                 if (compare == 0) {
-                    compare = compareNullables(this.values[idx],that.values[idx]);
+                    compare = Objects.compare(values[idx], that.values[idx], Comparable::compareTo);
                 }
                 if (compare != 0) {
                     return compare;
                 }
                 idx++;
             }
-            if (idx < this.keys.size()) {
+            if (idx < keys.size()) {
                 return 1;
             }
             if (idx < that.keys.size()) {

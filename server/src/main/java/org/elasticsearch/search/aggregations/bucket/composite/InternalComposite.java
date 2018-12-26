@@ -453,12 +453,13 @@ public class InternalComposite
             if (that == this) {
                 return 0;
             }
+
             int idx = 0;
             int max = Math.min(this.keys.size(), that.keys.size());
             while (idx < max) {
-                int compare = Objects.compare(keys.get(idx),that.keys.get(idx),String::compareTo);
+                int compare = compareNullables(keys.get(idx), that.keys.get(idx));
                 if (compare == 0) {
-                    compare = compareNullables(values[idx],that.values[idx]);
+                    compare = compareNullables(values[idx], that.values[idx]);
                 }
                 if (compare != 0) {
                     return compare;

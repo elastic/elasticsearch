@@ -22,13 +22,13 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -42,11 +42,8 @@ import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -87,7 +84,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
@@ -102,6 +98,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -115,14 +112,17 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SnapshotsServiceTests extends ESTestCase {
+
+    private DeterministicTaskQueue deterministicTaskQueue;
 
     private TestClusterNodes testClusterNodes;
 
     @Before
     public void createServices() {
+        deterministicTaskQueue =
+            new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "shared").build(), random());
         // TODO: Random number of master nodes and simulate master failover states
         testClusterNodes = new TestClusterNodes(1, randomIntBetween(2, 10));
     }
@@ -140,105 +140,78 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     public void testSuccessfulSnapshot() {
-
         String repoName = "repo";
         String snapshotName = "snapshot";
         final String index = "test";
 
         final int shards = randomIntBetween(1, 10);
-        final Repository repository = createRepository();
-        testClusterNodes.nodes.values().forEach(
-            node -> when(node.repositoriesService.repository(repoName)).thenReturn(repository)
-        );
 
         ClusterState initialClusterState =
-            new ClusterState.Builder(ClusterName.DEFAULT)
-                .nodes(testClusterNodes.randomDiscoveryNodes())
-                .metaData(
-                    MetaData.builder().putCustom(
-                        RepositoriesMetaData.TYPE,
-                        new RepositoriesMetaData(
-                            Collections.singletonList(
-                                new RepositoryMetaData(
-                                    repoName, randomAlphaOfLength(10), Settings.EMPTY
-                                )
-                            )
-                        )
-                    )
-                ).build();
+            new ClusterState.Builder(ClusterName.DEFAULT).nodes(testClusterNodes.randomDiscoveryNodes()).build();
         testClusterNodes.nodes.values().forEach(testClusterNode -> testClusterNode.start(initialClusterState));
 
         TestClusterNode masterNode = testClusterNodes.currentMaster(initialClusterState);
-        ActionFuture<CreateIndexResponse> createIndexResponseActionFuture = masterNode.client.admin().indices().create(
-            new CreateIndexRequest(index).settings(
-                Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+
+        final AtomicBoolean createdSnapshot = new AtomicBoolean(false);
+        masterNode.repositoriesService.registerRepository(
+            new RepositoriesService.RegisterRepositoryRequest(
+                "test repository", repoName, FsRepository.TYPE, true
+            ).settings(Settings.builder().put("location", randomAlphaOfLength(10)).build()),
+            assertingListener(
+                () -> masterNode.client.admin().indices().create(
+                    new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
+                        Settings.builder()
+                            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
+                            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    ),
+                    assertingListener(
+                        () -> masterNode.snapshotsService.createSnapshot(
+                            new SnapshotsService.SnapshotRequest(repoName, snapshotName, ""),
+                            new SnapshotsService.CreateSnapshotListener() {
+                                @Override
+                                public void onResponse() {
+                                    createdSnapshot.set(true);
+                                }
+
+                                @Override
+                                public void onFailure(final Exception e) {
+                                    throw new AssertionError("Snapshot failed.");
+                                }
+                            }
+                        )
+                    )
+                )
             )
         );
 
-        runOutstandingTasks();
+        deterministicTaskQueue.runAllRunnableTasks();
 
-        assertNotNull(createIndexResponseActionFuture.actionGet(0L));
-
-        SetOnce<Boolean> successfulSnapshotStart = new SetOnce<>();
-        masterNode.snapshotsService.createSnapshot(
-            new SnapshotsService.SnapshotRequest(repoName, snapshotName, ""),
-            new SnapshotsService.CreateSnapshotListener() {
-                @Override
-                public void onResponse() {
-                    successfulSnapshotStart.set(true);
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    throw new AssertionError("Snapshot failed.");
-                }
-            });
-
-        while (successfulSnapshotStart.get() == null || masterNode.deterministicTaskQueue.hasRunnableTasks()) {
-            masterNode.deterministicTaskQueue.runRandomTask();
-        }
-        assertTrue("Snapshot did not start successfully.", successfulSnapshotStart.get());
-
-        runOutstandingTasks();
-
+        assertTrue(createdSnapshot.get());
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.currentState.get().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
-        SnapshotInfo data = repository.getSnapshotInfo(snapshotIds.iterator().next());
-        assertEquals(SnapshotState.SUCCESS, data.state());
-        assertThat(data.indices(), containsInAnyOrder(index));
-        assertEquals(shards, data.successfulShards());
-        assertEquals(0, data.failedShards());
+
+        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
+        assertEquals(shards, snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
     }
 
-    /**
-     * Run all outstanding tasks on all cluster nodes in random order.
-     */
-    private void runOutstandingTasks() {
-        final Collection<TestClusterNode> nodes = testClusterNodes.nodes.values();
-        while (nodes.stream().anyMatch(node -> node.deterministicTaskQueue.hasRunnableTasks())) {
-            nodes.stream().filter(n -> n.deterministicTaskQueue.hasRunnableTasks())
-                .forEach(node -> node.deterministicTaskQueue.runRandomTask());
-        }
-    }
-
-    /**
-     * Create a {@link Repository} with a random name
-     **/
-    private Repository createRepository() {
-        Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
-        RepositoryMetaData repositoryMetaData = new RepositoryMetaData(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        final FsRepository repository = new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry()) {
+    private static <T> ActionListener<T> assertingListener(Runnable r) {
+        return new ActionListener<T>() {
             @Override
-            protected void assertSnapshotOrGenericThread() {
-                // eliminate thread name check as we create repo manually
+            public void onResponse(final T t) {
+                r.run();
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+                throw new AssertionError(e);
             }
         };
-        repository.start();
-        return repository;
     }
 
     /**
@@ -263,8 +236,7 @@ public class SnapshotsServiceTests extends ESTestCase {
     private TestClusterNode newNode(String nodeName, DiscoveryNode.Role role) throws IOException {
         return new TestClusterNode(
             new DiscoveryNode(nodeName, randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(),
-                Collections.singleton(role), Version.CURRENT),
-            new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(), random())
+                Collections.singleton(role), Version.CURRENT)
         );
     }
 
@@ -331,13 +303,11 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     private final class TestClusterNode {
 
-        private final DeterministicTaskQueue deterministicTaskQueue;
-
         private final TransportService transportService;
 
         private final ClusterService clusterService;
 
-        private final RepositoriesService repositoriesService = mock(RepositoriesService.class);
+        private final RepositoriesService repositoriesService;
 
         private final SnapshotsService snapshotsService;
 
@@ -362,34 +332,9 @@ public class SnapshotsServiceTests extends ESTestCase {
         /**
          * Short circuit mock transport that simply invokes handlers on the discovery nodes directly.
          */
-        private final MockTransport mockTransport = new MockTransport() {
-            @Override
-            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-                assertFalse(TestClusterNode.this.node.equals(node));
-                final RequestHandlerRegistry<TransportRequest> handlerRegistry =
-                    testClusterNodes.nodes.get(node.getName()).mockTransport.getRequestHandler(action);
-                try {
-                    SetOnce<TransportResponse> responseSetOnce = new SetOnce<>();
-                    TransportChannel channel = mock(TransportChannel.class);
-                    doAnswer(invocation -> {
-                            try {
-                                // We expect to only send one response per request
-                                responseSetOnce.set((TransportResponse) invocation.getArguments()[0]);
-                                handleResponse(requestId, responseSetOnce.get());
-                                return null;
-                            } catch (Exception e) {
-                                throw new AssertionError(e);
-                            }
-                        }
-                    ).when(channel).sendResponse(any(TransportResponse.class));
-                    handlerRegistry.processMessageReceived(request, channel);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-            }
-        };
+        private final MockTransport mockTransport;
 
-        TestClusterNode(DiscoveryNode node, DeterministicTaskQueue deterministicTaskQueue) throws IOException {
+        TestClusterNode(DiscoveryNode node) throws IOException {
             this.node = node;
             masterService = new FakeThreadPoolMasterService(node.getName(), "test", deterministicTaskQueue::scheduleNow);
             final Settings settings = Settings.builder()
@@ -400,7 +345,43 @@ public class SnapshotsServiceTests extends ESTestCase {
             final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
             clusterService = new ClusterService(settings, clusterSettings, threadPool, masterService);
-            this.deterministicTaskQueue = deterministicTaskQueue;
+            mockTransport = new MockTransport() {
+                @Override
+                protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                    assertFalse(TestClusterNode.this.node.equals(node));
+                    try {
+                        SetOnce<TransportResponse> responseSetOnce = new SetOnce<>();
+                        TransportChannel channel = mock(TransportChannel.class);
+                        doAnswer(invocation -> {
+                                try {
+                                    // We expect to only send one response per request
+                                    responseSetOnce.set((TransportResponse) invocation.getArguments()[0]);
+                                    handleResponse(requestId, responseSetOnce.get());
+                                    return null;
+                                } catch (Exception e) {
+                                    throw new AssertionError(e);
+                                }
+                            }
+                        ).when(channel).sendResponse(any(TransportResponse.class));
+                        final Runnable transportAction = () -> {
+                            try {
+                                testClusterNodes.nodes.get(node.getName()).mockTransport.getRequestHandler(action)
+                                    .processMessageReceived(request, channel);
+                            } catch (Exception e) {
+                                throw new AssertionError(e);
+                            }
+                        };
+                        // Don't run recovery actions in the deterministic task queue since they can block
+                        if (action.startsWith("internal:index/shard/recovery/")) {
+                            transportAction.run();
+                        } else {
+                            deterministicTaskQueue.scheduleNow(transportAction);
+                        }
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            };
             transportService = mockTransport.createTransportService(
                 settings, deterministicTaskQueue.getThreadPool(
                     runnable -> () -> {
@@ -413,6 +394,22 @@ public class SnapshotsServiceTests extends ESTestCase {
                 a -> node, null, emptySet()
             );
             final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+            repositoriesService = new RepositoriesService(
+                settings, clusterService, transportService,
+                Collections.singletonMap(FsRepository.TYPE, metaData -> {
+                        final Repository repository = new FsRepository(metaData, createEnvironment(), xContentRegistry()) {
+                            @Override
+                            protected void assertSnapshotOrGenericThread() {
+                                // eliminate thread name check as we create repo manually
+                            }
+                        };
+                        repository.start();
+                        return repository;
+                    }
+                ),
+                emptyMap(),
+                threadPool
+            );
             snapshotsService =
                 new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService, threadPool);
             final Environment environment = new Environment(settings, createTempDir());
@@ -498,16 +495,23 @@ public class SnapshotsServiceTests extends ESTestCase {
             snapshotShardsService.start();
             masterService.setClusterStatePublisher((clusterChangedEvent, publishListener, ackListener) -> {
                 // Mock publisher that invokes other cluster change listeners directly
-                // TODO: Use actual discovery here?
-                testClusterNodes.nodes.values().forEach(n -> {
-                    ClusterChangedEvent adjustedEvent = changeEventForNode(clusterChangedEvent, n.node);
-                    n.snapshotsService.applyClusterState(adjustedEvent);
-                    n.snapshotShardsService.clusterChanged(adjustedEvent);
-                    n.indicesClusterStateService.applyClusterState(adjustedEvent);
-                    n.currentState.set(adjustedEvent.state());
+                // TODO: Run state updates on the individual nodes out of order, this is currently not possible
+                // TODO: because it can lead to running the blocking recovery tasks on the deterministicTaskQueue
+                // TODO: when a DelayRecoveryException is thrown on the transport layer as a result of
+                // TODO: a data node not having realized a shard assignment before another started recovery.
+                deterministicTaskQueue.scheduleNow(() -> {
+                    testClusterNodes.nodes.values().forEach(
+                        n -> {
+                            ClusterChangedEvent adjustedEvent = changeEventForNode(clusterChangedEvent, n.node);
+                            n.repositoriesService.applyClusterState(adjustedEvent);
+                            n.snapshotsService.applyClusterState(adjustedEvent);
+                            n.snapshotShardsService.clusterChanged(adjustedEvent);
+                            n.indicesClusterStateService.applyClusterState(adjustedEvent);
+                            n.currentState.set(adjustedEvent.state());
+                        });
+                    publishListener.onResponse(null);
+                    ackListener.onCommit(TimeValue.timeValueMillis(deterministicTaskQueue.getLatestDeferredExecutionTime()));
                 });
-                publishListener.onResponse(null);
-                ackListener.onCommit(TimeValue.timeValueMillis(deterministicTaskQueue.getLatestDeferredExecutionTime()));
             });
             masterService.setClusterStateSupplier(currentState::get);
             if (node.isMasterNode()) {

@@ -72,7 +72,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", 10)
@@ -84,7 +84,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
         FeatureField featureField1 = (FeatureField) fields[0];
 
-        ParsedDocument doc2 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc2 = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", 12)
@@ -108,7 +108,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", 10)
@@ -120,7 +120,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
         FeatureField featureField1 = (FeatureField) fields[0];
 
-        ParsedDocument doc2 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc2 = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", 12)
@@ -145,7 +145,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(mapping, mapper.mappingSource().toString());
 
         MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                () -> mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                         .bytes(XContentFactory.jsonBuilder()
                                 .startObject()
                                 .field("field", Arrays.asList(10, 20))
@@ -155,7 +155,7 @@ public class FeatureFieldMapperTests extends ESSingleNodeTestCase {
                 e.getCause().getMessage());
 
         e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                () -> mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                         .bytes(XContentFactory.jsonBuilder()
                                 .startObject()
                                     .startArray("foo")

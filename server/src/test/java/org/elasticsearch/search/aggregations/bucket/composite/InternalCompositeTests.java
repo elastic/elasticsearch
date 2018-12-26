@@ -46,12 +46,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.startsWith;
 
 public class InternalCompositeTests extends InternalMultiBucketAggregationTestCase<InternalComposite> {
     private List<String> sourceNames;
@@ -367,7 +367,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
         ClassCastException exception = expectThrows(ClassCastException.class, () -> key1.compareTo(key2));
         assertThat(exception.getMessage(),
-            startsWith("class java.lang.String cannot be cast to class java.lang.Integer"));
+            containsString("java.lang.String cannot be cast to"));
     }
 
     private InternalComposite.ArrayMap createMap(List<String> fields, Comparable[] values) {

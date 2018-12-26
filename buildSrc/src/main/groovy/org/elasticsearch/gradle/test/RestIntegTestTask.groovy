@@ -19,14 +19,10 @@
 package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.DefaultTask
-import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
-import org.gradle.api.provider.Property
-import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
@@ -36,7 +32,6 @@ import org.gradle.plugins.ide.idea.IdeaPlugin
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.stream.Stream
-
 /**
  * A wrapper task around setting up a cluster and running rest tests.
  */
@@ -60,8 +55,6 @@ public class RestIntegTestTask extends DefaultTask {
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
         runner.dependsOn(clusterInit)
-        runner.classpath = project.sourceSets.test.runtimeClasspath
-        runner.testClassesDirs = project.sourceSets.test.output.classesDirs
         clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
 
         // override/add more for rest tests

@@ -5,7 +5,7 @@ setup:
 "Test new fields are mapped as keyword":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: ml-anomalies-default-mappings-job
         body:  >
           {
@@ -51,7 +51,7 @@ setup:
 "Test _meta exists when two jobs share an index":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: ml-anomalies-shared-mappings-job1
         body:  >
           {
@@ -79,7 +79,7 @@ setup:
   - is_true: \.ml-anomalies-shared.mappings.doc._meta.version
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: ml-anomalies-shared-mappings-job2
         body:  >
           {

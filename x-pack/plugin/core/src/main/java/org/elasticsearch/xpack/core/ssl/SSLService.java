@@ -619,12 +619,19 @@ public class SSLService {
         final Map<String, Settings> sslSettings = new HashMap<>();
         final String prefix = "xpack.security.authc.realms.";
         final Map<String, Settings> settingsByRealmType = settings.getGroups(prefix);
-        settingsByRealmType.forEach((realmType, typeSettings) ->
-            typeSettings.getAsGroups().forEach((realmName, realmSettings) -> {
-                Settings realmSSLSettings = realmSettings.getByPrefix("ssl.");
-                // Put this even if empty, so that the name will be mapped to the global SSL configuration
-                sslSettings.put(prefix + realmType + "." + realmName + ".ssl", realmSSLSettings);
-            })
+        settingsByRealmType.forEach((realmType, typeSettings) -> {
+                final Optional<String> nonDottedSetting = typeSettings.keySet().stream().filter(k -> k.indexOf('.') == -1).findAny();
+                if (nonDottedSetting.isPresent()) {
+                    logger.warn("Skipping any SSL configuration from realm [{}{}] because the key [{}] is not in the correct format",
+                        prefix, realmType, nonDottedSetting.get());
+                } else {
+                    typeSettings.getAsGroups().forEach((realmName, realmSettings) -> {
+                        Settings realmSSLSettings = realmSettings.getByPrefix("ssl.");
+                        // Put this even if empty, so that the name will be mapped to the global SSL configuration
+                        sslSettings.put(prefix + realmType + "." + realmName + ".ssl", realmSSLSettings);
+                    });
+                }
+            }
         );
         return sslSettings;
     }

@@ -14,16 +14,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor.quarter;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public class Quarter extends BaseDateTimeFunction {
 
-    public Quarter(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+    public Quarter(Location location, Expression field, ZoneId zoneId) {
+        super(location, field, zoneId);
     }
 
     @Override
@@ -36,24 +36,24 @@ public class Quarter extends BaseDateTimeFunction {
         return new ScriptTemplate(formatTemplate("{sql}.quarter(doc[{}].value, {})"),
                 paramsBuilder()
                   .variable(field.name())
-                  .variable(timeZone().getID())
+                  .variable(zoneId().getId())
                   .build(),
                 dataType());
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return Quarter::new;
     }
 
     @Override
     protected Quarter replaceChild(Expression newChild) {
-        return new Quarter(location(), newChild, timeZone());
+        return new Quarter(location(), newChild, zoneId());
     }
 
     @Override
     protected Processor makeProcessor() {
-        return new QuarterProcessor(timeZone());
+        return new QuarterProcessor(zoneId());
     }
 
     @Override

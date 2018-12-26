@@ -263,7 +263,7 @@ public class Querier {
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
             if (ref instanceof GroupByRef) {
                 GroupByRef r = (GroupByRef) ref;
-                return new CompositeKeyExtractor(r.key(), r.property(), r.timeZone());
+                return new CompositeKeyExtractor(r.key(), r.property(), r.zoneId());
             }
 
             if (ref instanceof MetricAggRef) {

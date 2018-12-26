@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -29,6 +30,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationState;
+import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
+import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -36,6 +39,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
@@ -48,9 +52,6 @@ import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -101,11 +102,21 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         this.clusterService = clusterService;
         this.indicesService = indicesService;
 
-        ensureNoPre019State(); //TODO remove this check, it's Elasticsearch version 7 already
         ensureAtomicMoveSupported(); //TODO move this check to NodeEnvironment, because it's related to all types of metadata
         upgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
         initializeClusterState(ClusterName.CLUSTER_NAME_SETTING.get(settings));
         incrementalWrite = false;
+    }
+
+    public PersistedState getPersistedState(Settings settings, ClusterApplierService clusterApplierService) {
+        applyClusterStateUpdaters();
+        if (DiscoveryNode.isMasterNode(settings) == false) {
+            // use Zen1 way of writing cluster state for non-master-eligible nodes
+            // this avoids concurrent manipulating of IndexMetadata with IndicesStore
+            clusterApplierService.addLowPriorityApplier(this);
+            return new InMemoryPersistedState(getCurrentTerm(), getLastAcceptedState());
+        }
+        return this;
     }
 
     private void initializeClusterState(ClusterName clusterName) throws IOException {
@@ -235,8 +246,8 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         try {
             innerSetCurrentTerm(currentTerm);
         } catch (WriteStateException e) {
-            logger.warn("Exception occurred when setting current term", e);
-            //TODO re-throw exception
+            logger.error(new ParameterizedMessage("Failed to set current term to {}", currentTerm), e);
+            e.rethrowAsErrorOrUncheckedException();
         }
     }
 
@@ -253,8 +264,8 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
             incrementalWrite = previousClusterState.term() == clusterState.term();
             updateClusterState(clusterState, previousClusterState);
         } catch (WriteStateException e) {
-            logger.warn("Exception occurred when setting last accepted state", e);
-            //TODO re-throw exception
+            logger.error(new ParameterizedMessage("Failed to set last accepted state with version {}", clusterState.version()), e);
+            e.rethrowAsErrorOrUncheckedException();
         }
     }
 
@@ -399,60 +410,8 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         return relevantIndices;
     }
 
-
     private static boolean isDataOnlyNode(ClusterState state) {
         return ((state.nodes().getLocalNode().isMasterNode() == false) && state.nodes().getLocalNode().isDataNode());
-    }
-
-
-    private void ensureNoPre019State() throws IOException {
-        if (DiscoveryNode.isDataNode(settings)) {
-            ensureNoPre019ShardState();
-        }
-        if (isMasterOrDataNode()) {
-            ensureNoPre019MetadataFiles();
-        }
-    }
-
-    /**
-     * Throws an IAE if a pre 0.19 state is detected
-     */
-    private void ensureNoPre019MetadataFiles() throws IOException {
-        for (Path dataLocation : nodeEnv.nodeDataPaths()) {
-            final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
-            if (!Files.exists(stateLocation)) {
-                continue;
-            }
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation)) {
-                for (Path stateFile : stream) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("[upgrade]: processing [{}]", stateFile.getFileName());
-                    }
-                    final String name = stateFile.getFileName().toString();
-                    if (name.startsWith("metadata-")) {
-                        throw new IllegalStateException("Detected pre 0.19 metadata file please upgrade to a version before "
-                                + Version.CURRENT.minimumIndexCompatibilityVersion()
-                                + " first to upgrade state structures - metadata found: [" + stateFile.getParent().toAbsolutePath());
-                    }
-                }
-            }
-        }
-    }
-
-    // shard state BWC
-    private void ensureNoPre019ShardState() throws IOException {
-        for (Path dataLocation : nodeEnv.nodeDataPaths()) {
-            final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
-            if (Files.exists(stateLocation)) {
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation, "shards-*")) {
-                    for (Path stateFile : stream) {
-                        throw new IllegalStateException("Detected pre 0.19 shard state file please upgrade to a version before "
-                                + Version.CURRENT.minimumIndexCompatibilityVersion()
-                                + " first to upgrade state structures - shard state found: [" + stateFile.getParent().toAbsolutePath());
-                    }
-                }
-            }
-        }
     }
 
     /**

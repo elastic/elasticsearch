@@ -78,6 +78,8 @@ public class RestSearchAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
         controller.registerHandler(POST, "/{index}/_search", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/_search", this);
         controller.registerHandler(POST, "/{index}/{type}/_search", this);
     }
@@ -164,7 +166,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("search_with_types", TYPES_DEPRECATION_MESSAGE);
             searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
         searchRequest.routing(request.param("routing"));

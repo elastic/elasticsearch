@@ -108,7 +108,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
 
         @Override
         public double execute() {
-            return ((Number) ((ScriptDocValues) getDoc().get("number_field")).getValues().get(0)).doubleValue();
+            return ((Number) ((ScriptDocValues) getDoc().get("number_field")).get(0)).doubleValue();
         }
     }
 
@@ -124,7 +124,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                     jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject()));
         }
         indexRandom(true, true, indexRequests);
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().get();
         ensureYellow();
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(

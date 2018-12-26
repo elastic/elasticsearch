@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,8 +40,11 @@ import static org.hamcrest.Matchers.startsWith;
 public class BootstrapConfigurationTests extends ESTestCase {
 
     public void testEqualsHashcodeSerialization() {
+        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(randomBootstrapConfiguration(),
-            bootstrapConfiguration -> copyWriteable(bootstrapConfiguration, writableRegistry(), BootstrapConfiguration::new), this::mutate);
+                (CopyFunction<BootstrapConfiguration>) bootstrapConfiguration -> copyWriteable(bootstrapConfiguration, writableRegistry(),
+                        BootstrapConfiguration::new),
+                this::mutate);
     }
 
     public void testNodeDescriptionResolvedByName() {

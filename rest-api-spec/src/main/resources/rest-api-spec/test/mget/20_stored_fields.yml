@@ -1,12 +1,15 @@
 ---
 "Stored fields":
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
 
   - do:
       indices.create:
         index: test_1
         body:
           mappings:
-            test:
+            _doc:
               properties:
                 foo:
                   type: keyword
@@ -18,14 +21,13 @@
   - do:
       index:
           index:  test_1
-          type:   test
+          type:   _doc
           id:     1
           body:   { foo: bar }
 
   - do:
       mget:
         index: test_1
-        type:  test
         body:
           docs:
             - { _id: 1                         }
@@ -48,7 +50,6 @@
   - do:
       mget:
         index: test_1
-        type:  test
         stored_fields: foo
         body:
           docs:
@@ -72,7 +73,6 @@
   - do:
       mget:
         index:  test_1
-        type:   test
         stored_fields: [foo]
         body:
           docs:
@@ -96,7 +96,6 @@
   - do:
       mget:
         index:  test_1
-        type:   test
         stored_fields: [foo, _source]
         body:
           docs:

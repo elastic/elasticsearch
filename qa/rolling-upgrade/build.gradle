@@ -78,6 +78,7 @@ for (Version version : bwcVersions.wireCompatible) {
       clusterName = 'rolling-upgrade'
       otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
       minimumMasterNodes = { 2 }
+      autoSetInitialMasterNodes = false
       /* Override the data directory so the new node always gets the node we
       * just stopped's data directory. */
       dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
@@ -139,7 +140,7 @@ for (Version version : bwcVersions.wireCompatible) {
   }
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {

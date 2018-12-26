@@ -134,16 +134,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         return this.patterns;
     }
 
-    public List<String> getPatterns() {
-        return this.patterns;
-    }
-
     public Settings settings() {
         return this.settings;
-    }
-
-    public Settings getSettings() {
-        return settings();
     }
 
     public ImmutableOpenMap<String, CompressedXContent> mappings() {
@@ -314,12 +306,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return this;
         }
 
-        public Builder removeMapping(String mappingType) {
-            mappings.remove(mappingType);
-            return this;
-        }
-
-        public Builder putMapping(String mappingType, CompressedXContent mappingSource) throws IOException {
+        public Builder putMapping(String mappingType, CompressedXContent mappingSource) {
             mappings.put(mappingType, mappingSource);
             return this;
         }
@@ -465,7 +452,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         private static String skipTemplateName(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.nextToken();
-            if (token != null && token == XContentParser.Token.START_OBJECT) {
+            if (token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String currentFieldName = parser.currentName();

@@ -904,3 +904,36 @@ setup:
                  interval: "1h"
                  time_zone: "UTC"
 
+
+---
+"Search with typed_keys":
+
+  - do:
+      xpack.rollup.rollup_search:
+        index: "foo_rollup"
+        typed_keys: true
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "1h"
+                time_zone: "UTC"
+              aggs:
+                the_max:
+                  max:
+                    field: "price"
+
+  - match: { aggregations.date_histogram#histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram#histo.buckets.0.max#the_max.value: 1 }
+  - match: { aggregations.date_histogram#histo.buckets.1.key_as_string: "2017-01-01T06:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.date_histogram#histo.buckets.1.max#the_max.value: 2 }
+  - match: { aggregations.date_histogram#histo.buckets.2.key_as_string: "2017-01-01T07:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.date_histogram#histo.buckets.2.max#the_max.value: 3 }
+  - match: { aggregations.date_histogram#histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.3.doc_count: 20 }
+  - match: { aggregations.date_histogram#histo.buckets.3.max#the_max.value: 4 }

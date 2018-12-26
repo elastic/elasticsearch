@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -44,8 +43,10 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.core.Is.is;
 
@@ -59,14 +60,27 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         final Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
-            .put(GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING.getKey(), 1)
             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE);
 
-        if (nodeOrdinal == 0) {
-            builder.put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 2);
-        }
-
         return builder.build();
+    }
+
+    @Override
+    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+        final Settings firstNodeSettings = allNodesSettings.get(0);
+        final List<Settings> otherNodesSettings = allNodesSettings.subList(1, allNodesSettings.size());
+        final List<String> masterNodeNames = allNodesSettings.stream()
+                .filter(org.elasticsearch.node.Node.NODE_MASTER_SETTING::get)
+                .map(org.elasticsearch.node.Node.NODE_NAME_SETTING::get)
+                .collect(Collectors.toList());
+        final List<Settings> updatedSettings = new ArrayList<>();
+
+        updatedSettings.add(Settings.builder().put(firstNodeSettings)
+                .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), masterNodeNames)
+                .build());
+        updatedSettings.addAll(otherNodesSettings);
+
+        return updatedSettings;
     }
 
     @Override

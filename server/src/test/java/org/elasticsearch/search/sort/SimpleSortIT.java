@@ -87,7 +87,7 @@ public class SimpleSortIT extends ESIntegTestCase {
 
             scripts.put("doc['id'][0]", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
-                return ((ScriptDocValues.Strings) doc.get("id")).getValues().get(0);
+                return ((ScriptDocValues.Strings) doc.get("id")).get(0);
             });
 
             scripts.put("get min long", vars -> getMinValueScript(vars, Long.MAX_VALUE, "lvalue", l -> (Long) l));
@@ -108,7 +108,7 @@ public class SimpleSortIT extends ESIntegTestCase {
             T retval = initialValue;
             Map<?, ?> doc = (Map) vars.get("doc");
             ScriptDocValues<?> values = (ScriptDocValues<?>) doc.get(fieldName);
-            for (Object v : values.getValues()) {
+            for (Object v : values) {
                 T value = converter.apply(v);
                 retval = (value.compareTo(retval) < 0) ? value : retval;
             }
@@ -169,7 +169,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         }
         Collections.shuffle(builders, random);
         for (IndexRequestBuilder builder : builders) {
-            builder.execute().actionGet();
+            builder.get();
             if (random.nextBoolean()) {
                 if (random.nextInt(5) != 0) {
                     refresh();

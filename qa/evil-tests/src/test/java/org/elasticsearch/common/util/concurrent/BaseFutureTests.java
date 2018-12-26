@@ -53,11 +53,21 @@ public class BaseFutureTests extends ESTestCase {
             assertThat(t, hasToString(containsString("future error")));
         };
 
-        runExecutionTest(
+        runFutureTest(
             () -> new BaseFuture<>().completeExceptionally(new Error("future error")),
             expected);
 
-        runExecutionTest(
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut = new BaseFuture<>();
+                fut.exceptionally(t -> {
+                    throw new Error("future error");
+                });
+                fut.completeExceptionally(new RuntimeException("test"));
+            },
+            expected);
+
+        runFutureTest(
             () -> {
                 BaseFuture<Object> fut = new BaseFuture<>();
                 fut.thenRun(() -> {
@@ -67,7 +77,7 @@ public class BaseFutureTests extends ESTestCase {
             },
             expected);
 
-        runExecutionTest(
+        runFutureTest(
             () -> {
                 BaseFuture<Object> fut = new BaseFuture<>();
                 fut.thenRunAsync(() -> {
@@ -76,9 +86,293 @@ public class BaseFutureTests extends ESTestCase {
                 fut.complete(new Object());
             },
             expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut = new BaseFuture<>();
+                fut.thenApply(o -> {
+                    throw new Error("future error");
+                });
+                fut.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut = new BaseFuture<>();
+                fut.thenApplyAsync(o -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut = new BaseFuture<>();
+                fut.handle((o, t) -> {
+                    throw new Error("future error");
+                });
+                fut.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut = new BaseFuture<>();
+                fut.handleAsync((o, t) -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.acceptEither(fut2, o -> {
+                    throw new Error("future error");
+                });
+                fut1.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.acceptEither(fut2, o -> {
+                    throw new Error("future error");
+                });
+                fut2.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.acceptEitherAsync(fut2, o -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut1.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.acceptEitherAsync(fut2, o -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut2.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.applyToEither(fut2, o -> {
+                    throw new Error("future error");
+                });
+                fut1.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.applyToEither(fut2, o -> {
+                    throw new Error("future error");
+                });
+                fut2.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.applyToEitherAsync(fut2, o -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut1.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.applyToEitherAsync(fut2, o -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut2.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                fut1.whenComplete((o, t) -> {
+                    throw new Error("future error");
+                });
+                fut1.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                fut1.whenCompleteAsync((o, t) -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut1.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                fut1.thenAccept(o -> {
+                    throw new Error("future error");
+                });
+                fut1.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                fut1.thenAcceptAsync(o -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut1.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.runAfterBoth(fut2, () -> {
+                    throw new Error("future error");
+                });
+                fut1.complete(new Object());
+                fut2.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.runAfterBothAsync(fut2, () -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut1.complete(new Object());
+                fut2.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.runAfterEither(fut2, () -> {
+                    throw new Error("future error");
+                });
+                fut1.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.runAfterEither(fut2, () -> {
+                    throw new Error("future error");
+                });
+                fut2.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.runAfterEitherAsync(fut2, () -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut1.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.runAfterEitherAsync(fut2, () -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut2.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.thenCombine(fut2, (o1, o2) -> {
+                    throw new Error("future error");
+                });
+                fut1.complete(new Object());
+                fut2.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.thenCombineAsync(fut2, (o1, o2) -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut1.complete(new Object());
+                fut2.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.thenAcceptBoth(fut2, (o1, o2) -> {
+                    throw new Error("future error");
+                });
+                fut1.complete(new Object());
+                fut2.complete(new Object());
+            },
+            expected);
+
+        runFutureTest(
+            () -> {
+                BaseFuture<Object> fut1 = new BaseFuture<>();
+                BaseFuture<Object> fut2 = new BaseFuture<>();
+                fut1.thenAcceptBothAsync(fut2, (o1, o2) -> {
+                    throw new Error("future error");
+                }, threadPool.generic());
+                fut1.complete(new Object());
+                fut2.complete(new Object());
+            },
+            expected);
     }
 
-    private void runExecutionTest(final Runnable runnable, final Consumer<Throwable> consumer) throws InterruptedException {
+    private void runFutureTest(final Runnable runnable, final Consumer<Throwable> consumer) throws InterruptedException {
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         final CountDownLatch uncaughtExceptionHandlerLatch = new CountDownLatch(1);

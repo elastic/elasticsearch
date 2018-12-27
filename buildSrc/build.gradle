@@ -225,7 +225,7 @@ if (project != rootProject) {
   }
 
   /*
-   * We alread configure publication and we don't need or want this one that
+   * We already configure publication and we don't need or want this one that
    * comes from the java-gradle-plugin.
    */
   afterEvaluate {

@@ -3,17 +3,14 @@
 [[index-lifecycle-management]]
 = Managing the index lifecycle
 
-:ilm:             index lifecycle management
-:Ilm:             Index lifecycle management
-:ILM:             ILM
 [partintro]
 --
 beta[]
 
-The <<index-lifecycle-management-api, {ilm} (ILM) APIs>> enable you to automate how you
-want to manage your indices over time. Rather than simply performing management
-actions on your indices on a set schedule, you can base actions on other factors
-such as shard size and performance requirements.
+The <<index-lifecycle-management-api,{ilm} ({ilm-init}) APIs>> enable you to
+automate how you want to manage your indices over time. Rather than simply
+performing management actions on your indices on a set schedule, you can base
+actions on other factors such as shard size and performance requirements.
 
 You control how indices are handled as they age by attaching a
 lifecycle policy to the index template used to create them. You can update

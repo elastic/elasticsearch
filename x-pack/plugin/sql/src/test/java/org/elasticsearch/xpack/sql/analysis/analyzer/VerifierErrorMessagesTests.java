@@ -455,10 +455,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT 1 = 1  OR " + function + "(3, '4') > 1"));
 
         @SuppressWarnings("unchecked")
-        String arbirtraryArgsfunction = randomFrom(Coalesce.class, Greatest.class, Least.class).getSimpleName();
-        assertEquals("1:" + (34 + arbirtraryArgsfunction.length()) +
+        String arbitraryArgsfunction = randomFrom(Coalesce.class, Greatest.class, Least.class).getSimpleName();
+        assertEquals("1:" + (34 + arbitraryArgsfunction.length()) +
                 ": expected data type [INTEGER], value provided is of type [KEYWORD]",
-            error("SELECT 1 = 1  OR " + arbirtraryArgsfunction + "(null, null, 3, '4') > 1"));
+            error("SELECT 1 = 1  OR " + arbitraryArgsfunction + "(null, null, 3, '4') > 1"));
     }
 
     public void testConditionalWithDifferentDataTypes_WhereClause() {
@@ -469,10 +469,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT * FROM test WHERE " + function + "('foo', 4) > 1"));
 
         @SuppressWarnings("unchecked")
-        String arbirtraryArgsfunction = randomFrom(Coalesce.class, Greatest.class, Least.class).getSimpleName();
-        assertEquals("1:" + (46 + arbirtraryArgsfunction.length()) +
+        String arbitraryArgsfunction = randomFrom(Coalesce.class, Greatest.class, Least.class).getSimpleName();
+        assertEquals("1:" + (46 + arbitraryArgsfunction.length()) +
                 ": expected data type [KEYWORD], value provided is of type [INTEGER]",
-            error("SELECT * FROM test WHERE " + arbirtraryArgsfunction + "(null, null, 'foo', 4) > 1"));
+            error("SELECT * FROM test WHERE " + arbitraryArgsfunction + "(null, null, 'foo', 4) > 1"));
     }
 
     public void testAggsInWhere() {

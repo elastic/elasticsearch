@@ -496,7 +496,7 @@ allprojects {
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 
-  // work arround https://github.com/gradle/gradle/issues/6582 
+  // work around https://github.com/gradle/gradle/issues/6582 
   tasks.eclipseProject.mustRunAfter tasks.cleanEclipseProject
   tasks.matching { it.name == 'eclipseClasspath' }.all {
     it.mustRunAfter { tasks.cleanEclipseClasspath }

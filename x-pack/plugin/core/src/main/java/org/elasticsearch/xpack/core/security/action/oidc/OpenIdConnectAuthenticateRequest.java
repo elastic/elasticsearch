@@ -7,6 +7,10 @@ package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * Represents a request for authentication using OpenID Connect
@@ -26,7 +30,7 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
     private String state;
 
     /**
-     * The nonce value that  the facilitator generated for this specific flow and that was stored at the user's session with
+     * The nonce value that the facilitator generated for this specific flow and that was stored at the user's session with
      * the facilitator
      */
     private String nonce;
@@ -61,6 +65,22 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(redirectUri);
+        out.writeString(state);
+        out.writeOptionalString(nonce);
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        redirectUri = in.readString();
+        state = in.readString();
+        nonce = in.readOptionalString();
     }
 
     public String toString() {

@@ -27,7 +27,7 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
- * Rest handler that authenticates the user based on the provided oauth2 code
+ * Rest handler that authenticates the user based on the information provided as parameters of the redirect_uri
  */
 public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHandler {
 

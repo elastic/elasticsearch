@@ -421,7 +421,7 @@ public class BCrypt {
 
     /**
      * Look up the 3 bits base64-encoded by the specified character,
-     * range-checking againt conversion table
+     * range-checking against conversion table
      * @param x the base64-encoded value
      * @return  the decoded value of x
      */

@@ -10,24 +10,24 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDate
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * Extract the month from a datetime in text format (January, February etc.)
  */
 public class MonthName extends NamedDateTimeFunction {
     
-    public MonthName(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone, NameExtractor.MONTH_NAME);
+    public MonthName(Location location, Expression field, ZoneId zoneId) {
+        super(location, field, zoneId, NameExtractor.MONTH_NAME);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return MonthName::new;
     }
 
     @Override
     protected MonthName replaceChild(Expression newChild) {
-        return new MonthName(location(), newChild, timeZone());
+        return new MonthName(location(), newChild, zoneId());
     }
 }

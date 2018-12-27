@@ -65,6 +65,8 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_msearch/template", this);
         controller.registerHandler(GET, "/{index}/_msearch/template", this);
         controller.registerHandler(POST, "/{index}/_msearch/template", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/_msearch/template", this);
         controller.registerHandler(POST, "/{index}/{type}/_msearch/template", this);
     }

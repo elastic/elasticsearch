@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-clear-role-cache]]
 === Clear roles cache API
+++++
+<titleabbrev>Clear roles cache</titleabbrev>
+++++
 
 Evicts roles from the native role cache. 
 

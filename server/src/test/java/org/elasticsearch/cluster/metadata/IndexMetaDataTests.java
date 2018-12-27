@@ -227,7 +227,7 @@ public class IndexMetaDataTests extends ESTestCase {
         assertEquals("the number of target shards (0) must be greater than the shard id: 0",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectSplitShard(0, metaData, 0)).getMessage());
 
-        assertEquals("the number of source shards [2] must be a must be a factor of [3]",
+        assertEquals("the number of source shards [2] must be a factor of [3]",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectSplitShard(0, metaData, 3)).getMessage());
 
         assertEquals("the number of routing shards [4] must be a multiple of the target shards [8]",
@@ -285,6 +285,6 @@ public class IndexMetaDataTests extends ESTestCase {
         Settings notAFactorySettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_routing_shards", 3).build();
         iae = expectThrows(IllegalArgumentException.class,
             () -> IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings));
-        assertEquals("the number of source shards [2] must be a must be a factor of [3]", iae.getMessage());
+        assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
     }
 }

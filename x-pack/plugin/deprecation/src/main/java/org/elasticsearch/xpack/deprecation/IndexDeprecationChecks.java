@@ -26,6 +26,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.MapperService.DEFAULT_MAPPING;
+
 /**
  * Index-specific deprecation checks
  */
@@ -100,8 +102,11 @@ public class IndexDeprecationChecks {
 
     static DeprecationIssue oldIndicesCheck(IndexMetaData indexMetaData) {
         Version createdWith = indexMetaData.getCreationVersion();
+        boolean hasDefaultMapping = indexMetaData.getMappings().containsKey(DEFAULT_MAPPING);
+        int mappingCount = indexMetaData.getMappings().size();
         if (createdWith.before(Version.V_6_0_0)) {
-            if (indexMetaData.getMappings().size() > 1) {
+            if ((mappingCount == 2 && !hasDefaultMapping)
+                || mappingCount > 2) {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                     "Index has more than one mapping type",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html" +

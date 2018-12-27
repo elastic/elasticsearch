@@ -79,7 +79,7 @@ public interface Action extends ToXContentObject {
         }
 
         /**
-         * {@code Failure} is a {@link StoppedResult} with a status of {@link Status#FAILURE} for actiosn that have failed unexpectedly
+         * {@code Failure} is a {@link StoppedResult} with a status of {@link Status#FAILURE} for actions that have failed unexpectedly
          * (e.g., an exception was thrown in a place that wouldn't expect one, like transformation or an HTTP request).
          */
         public static class Failure extends StoppedResult {

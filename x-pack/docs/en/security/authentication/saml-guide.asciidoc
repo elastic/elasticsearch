@@ -728,7 +728,7 @@ the certificates that {es} has been configured to use.
 
 SAML authentication in {kib} is also subject to the
 `xpack.security.sessionTimeout` setting that is described in the {kib} security
-documentation, and you may wish to adjst this timeout to meet your local needs.
+documentation, and you may wish to adjust this timeout to meet your local needs.
 
 The two additional settings that are required for SAML support are shown below:
 

@@ -19,7 +19,7 @@ public interface CachingRealm {
     String name();
 
     /**
-     * Expires a single user from the cache identified by the String agument
+     * Expires a single user from the cache identified by the String argument
      * @param username the identifier of the user to be cleared
      */
     void expire(String username);

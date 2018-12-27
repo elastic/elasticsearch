@@ -23,6 +23,8 @@ import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -33,12 +35,11 @@ import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportFuture;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -146,8 +147,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public CompletableFuture<Void> writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                                                  boolean lastChunk, int totalTranslogOps) throws IOException {
+    public ListenableFuture<Long> writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                                                 boolean lastChunk, int totalTranslogOps) throws IOException {
         // Pause using the rate limiter, if desired, to throttle the recovery
         final long throttleTimeInNanos;
         // always fetch the ratelimiter - it might be updated in real-time on the recovery settings
@@ -170,7 +171,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             throttleTimeInNanos = 0;
         }
 
-        final CompletableFuture<Void> future = new CompletableFuture<>();
+        final ListenableFuture<Long> future = new ListenableFuture<>();
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FILE_CHUNK,
             new RecoveryFileChunkRequest(recoveryId, shardId, fileMetaData, position, content, lastChunk,
                 totalTranslogOps,
@@ -178,14 +179,25 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                  * see how many translog ops we accumulate while copying files across the network. A future optimization
                  * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
                  */
-                throttleTimeInNanos), fileChunkRequestOptions, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                throttleTimeInNanos), fileChunkRequestOptions, new TransportResponseHandler<RecoveryFileChunkResponse>() {
                 @Override
-                public void handleResponse(TransportResponse.Empty response) {
-                    future.complete(null);
+                public String executor() {
+                    return ThreadPool.Names.SAME;
                 }
+
+                @Override
+                public RecoveryFileChunkResponse read(StreamInput in) throws IOException {
+                    return new RecoveryFileChunkResponse(in);
+                }
+
+                @Override
+                public void handleResponse(RecoveryFileChunkResponse response) {
+                    future.onResponse(response.lastWrittenPosition);
+                }
+
                 @Override
                 public void handleException(TransportException exp) {
-                    future.completeExceptionally(exp);
+                    future.onFailure(exp);
                 }
             });
         return future;

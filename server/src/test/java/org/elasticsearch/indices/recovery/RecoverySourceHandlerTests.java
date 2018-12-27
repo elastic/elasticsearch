@@ -47,6 +47,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -71,6 +72,10 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -80,7 +85,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -108,6 +112,17 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    private ThreadPool threadPool;
+
+    @Before
+    public void createThreadPool() throws Exception {
+        threadPool = new TestThreadPool(getClass().getName());
+    }
+
+    @After
+    public void terminateThreadPool() throws Exception {
+        terminate(threadPool);
+    }
 
     public void testSendFiles() throws Throwable {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
@@ -115,8 +130,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         Store store = newStore(createTempDir());
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-            recoverySettings.getChunkSize().bytesAsInt(), between(1, 8));
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, threadPool,
+            Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 8));
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -182,7 +197,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         final RecoveryTargetHandler recoveryTarget = mock(RecoveryTargetHandler.class);
         final RecoverySourceHandler handler =
-            new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes, between(1, 10));
+            new RecoverySourceHandler(shard, recoveryTarget, request, threadPool, fileChunkSizeInBytes, between(1, 10));
         final List<Translog.Operation> operations = new ArrayList<>();
         final int initialNumberOfDocs = randomIntBetween(16, 64);
         for (int i = 0; i < initialNumberOfDocs; i++) {
@@ -289,8 +304,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-                Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 8)) {
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, threadPool,
+            Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 8)) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -348,7 +363,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, threadPool,
                 Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 10)) {
             @Override
             protected void failEngine(IOException cause) {
@@ -417,6 +432,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 shard,
                 mock(RecoveryTargetHandler.class),
                 request,
+                threadPool,
                 Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
                 between(1, 8)) {
 
@@ -475,8 +491,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int maxConcurrentChunks = between(1, 8);
         final int chunkSize = between(1, 128);
         final RecoverySourceHandler handler = new RecoverySourceHandler(shard, recoveryTarget, getStartRecoveryRequest(),
-            chunkSize, maxConcurrentChunks);
-        final List<CompletableFuture<Void>> unackedChunks = recoveryTarget.unacknowledgedChunks;
+            threadPool, chunkSize, maxConcurrentChunks);
+        final List<SendChunkFuture> unackedChunks = recoveryTarget.unacknowledgedChunks;
 
         int totalChunks = between(1, 100);
         AtomicInteger sentChunks = new AtomicInteger();
@@ -500,13 +516,29 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             assertThat(unackedChunks, hasSize(sentChunks.get()));
         });
 
+        long lastWrittenPosition = 0;
+        List<SendChunkFuture> ackedChunks = new ArrayList<>();
         while (sentChunks.get() < totalChunks || unackedChunks.isEmpty() == false) {
-            List<CompletableFuture<Void>> chunksToAck = randomSubsetOf(between(1, unackedChunks.size()), unackedChunks);
+            List<SendChunkFuture> chunksToAck = randomSubsetOf(between(1, unackedChunks.size()), unackedChunks);
             unackedChunks.removeAll(chunksToAck);
-            int chunksToSend = Math.min(totalChunks - sentChunks.get(), chunksToAck.size());
+            ackedChunks.addAll(chunksToAck);
+            ackedChunks.sort(Comparator.comparing(c -> c.position));
+            for (SendChunkFuture chunk : ackedChunks) {
+                if (chunk.position == lastWrittenPosition) {
+                    lastWrittenPosition += chunk.contentLength;
+                }
+            }
+            int writtenChunks = Math.toIntExact(lastWrittenPosition / chunkSize);
+            int chunksToSend = Collections.min(Arrays.asList(
+                totalChunks - sentChunks.get(),                               // limited by the remaining chunks
+                maxConcurrentChunks - unackedChunks.size(),                   // limited by the sending tickets
+                2 * maxConcurrentChunks - (sentChunks.get() - writtenChunks)) // limited by max allowed buffering requests on target
+            );
             int expectedSentChunks = sentChunks.get() + chunksToSend;
             int expectedUnackedChunks = unackedChunks.size() + chunksToSend;
-            chunksToAck.forEach(f -> f.complete(null));
+            for (SendChunkFuture c : chunksToAck) {
+                c.future.onResponse(lastWrittenPosition);
+            }
             assertBusy(() -> {
                 assertThat(sentChunks.get(), equalTo(expectedSentChunks));
                 assertThat(unackedChunks, hasSize(expectedUnackedChunks));
@@ -519,11 +551,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         final TestRecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler();
-        final List<CompletableFuture<Void>> unackedChunks = recoveryTarget.unacknowledgedChunks;
+        final List<SendChunkFuture> unackedChunks = recoveryTarget.unacknowledgedChunks;
         final int maxConcurrentChunks = between(1, 4);
         final int chunkSize = between(1, 16);
         final RecoverySourceHandler handler = new RecoverySourceHandler(shard, recoveryTarget, getStartRecoveryRequest(),
-            chunkSize, maxConcurrentChunks);
+            threadPool, chunkSize, maxConcurrentChunks);
         int totalChunks = between(1, 128);
         AtomicInteger sentChunks = new AtomicInteger();
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -543,10 +575,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         });
         sender.start();
         assertBusy(() -> assertThat(sentChunks.get(), equalTo(Math.min(totalChunks, maxConcurrentChunks))));
-        List<CompletableFuture<Void>> failedChunks = randomSubsetOf(between(1, unackedChunks.size()), unackedChunks);
-        failedChunks.forEach(c -> c.completeExceptionally(new RuntimeException("test chunk exception")));
+        List<SendChunkFuture> failedChunks = randomSubsetOf(between(1, unackedChunks.size()), unackedChunks);
+        failedChunks.forEach(c -> c.future.onFailure(new RuntimeException("test chunk exception")));
         unackedChunks.removeAll(failedChunks);
-        unackedChunks.forEach(c -> c.complete(null));
+        unackedChunks.forEach(c -> c.future.onResponse(randomNonNegativeLong()));
         assertBusy(() -> {
             assertThat(error.get(), notNullValue());
             assertThat(error.get().getMessage(), containsString("test chunk exception"));
@@ -558,6 +590,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     private Store newStore(Path path) throws IOException {
         return newStore(path, true);
     }
+
     private Store newStore(Path path, boolean checkIndex) throws IOException {
         BaseDirectoryWrapper baseDirectoryWrapper = RecoverySourceHandlerTests.newFSDirectory(path);
         if (checkIndex == false) {
@@ -566,8 +599,18 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         return new Store(shardId,  INDEX_SETTINGS, baseDirectoryWrapper, new DummyShardLock(shardId));
     }
 
+    static final class SendChunkFuture {
+        final ListenableFuture<Long> future = new ListenableFuture<>();
+        final long position;
+        final long contentLength;
+        SendChunkFuture(long position, long contentLength) {
+            this.position = position;
+            this.contentLength = contentLength;
+        }
+    }
+
     static final class TestRecoveryTargetHandler implements RecoveryTargetHandler {
-        final List<CompletableFuture<Void>> unacknowledgedChunks = new CopyOnWriteArrayList<>();
+        final List<SendChunkFuture> unacknowledgedChunks = new CopyOnWriteArrayList<>();
 
         @Override
         public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) {
@@ -600,11 +643,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         @Override
-        public CompletableFuture<Void> writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                                                      boolean lastChunk, int totalTranslogOps) {
-            CompletableFuture<Void> future = new CompletableFuture<>();
+        public ListenableFuture<Long> writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                                                     boolean lastChunk, int totalTranslogOps) {
+            SendChunkFuture future = new SendChunkFuture(position, content.length());
             unacknowledgedChunks.add(future);
-            return future;
+            return future.future;
         }
     }
 }

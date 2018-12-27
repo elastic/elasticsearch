@@ -39,6 +39,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -61,7 +62,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.PriorityQueue;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -342,6 +342,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 logger.trace("cleaning temporary file [{}]", file);
                 store.deleteQuiet(file);
             }
+            fileChunkWriters.clear();
         } finally {
             // free store. increment happens in constructor
             store.decRef();
@@ -526,12 +527,14 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public CompletableFuture<Void> writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                                                  boolean lastChunk, int totalTranslogOps) throws IOException {
+    public ListenableFuture<Long> writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                                                 boolean lastChunk, int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetaData.name(), name -> new FileChunkWriter());
-        writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
-        return CompletableFuture.completedFuture(null);
+        final long writtenPosition = writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
+        final ListenableFuture<Long> future = new ListenableFuture<>();
+        future.onResponse(writtenPosition);
+        return future;
     }
 
     private static final class FileChunk {
@@ -552,7 +555,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         final PriorityQueue<FileChunk> pendingChunks = new PriorityQueue<>(Comparator.comparing(fc -> fc.position));
         long lastPosition = 0;
 
-        void writeChunk(FileChunk newChunk) throws IOException {
+        long writeChunk(FileChunk newChunk) throws IOException {
             synchronized (this) {
                 pendingChunks.add(newChunk);
             }
@@ -561,7 +564,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 synchronized (this) {
                     chunk = pendingChunks.peek();
                     if (chunk == null || chunk.position != lastPosition) {
-                        return;
+                        return lastPosition;
                     }
                     pendingChunks.remove();
                 }
@@ -572,6 +575,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     if (chunk.lastChunk) {
                         assert pendingChunks.isEmpty() == true : "still have pending chunks [" + pendingChunks + "]";
                         fileChunkWriters.remove(chunk.md.name());
+                        assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
                     }
                 }
             }

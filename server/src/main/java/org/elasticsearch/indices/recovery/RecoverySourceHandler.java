@@ -36,12 +36,14 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.io.Streams;
@@ -70,7 +72,9 @@ import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
 
@@ -95,6 +99,7 @@ public class RecoverySourceHandler {
     private final StartRecoveryRequest request;
     private final int chunkSizeInBytes;
     private final RecoveryTargetHandler recoveryTarget;
+    private final ThreadPool threadPool;
     private final int maxConcurrentFileChunks;
 
     protected final RecoveryResponse response;
@@ -116,12 +121,13 @@ public class RecoverySourceHandler {
     };
 
     public RecoverySourceHandler(final IndexShard shard, RecoveryTargetHandler recoveryTarget, final StartRecoveryRequest request,
-                                 final int fileChunkSizeInBytes, final int maxConcurrentFileChunks) {
+                                 final ThreadPool threadPool, final int fileChunkSizeInBytes, final int maxConcurrentFileChunks) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.request = request;
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
+        this.threadPool = threadPool;
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.response = new RecoveryResponse();
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
@@ -643,12 +649,16 @@ public class RecoverySourceHandler {
         private final Supplier<Integer> translogOps;
         private long position = 0;
         private final Semaphore sendingTickets;
-        private volatile Exception error;
+        private final AtomicLong writtenPositionOnTarget;
+        private final int maxAllowedBufferingRequestsOnTarget;
+        private final AtomicReference<Exception> error = new AtomicReference<>();
 
         RecoveryOutputStream(StoreFileMetaData md, Supplier<Integer> translogOps) {
             this.sendingTickets = new Semaphore(maxConcurrentFileChunks);
             this.md = md;
             this.translogOps = translogOps;
+            this.writtenPositionOnTarget = new AtomicLong();
+            this.maxAllowedBufferingRequestsOnTarget = 2 * maxConcurrentFileChunks;
         }
 
         @Override
@@ -666,22 +676,22 @@ public class RecoverySourceHandler {
         private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {
             // Actually send the file chunk to the target node.
             cancellableThreads.executeIO(() -> {
-                sendingTickets.acquire();
+                acquireSendingTicket(position);
                 try {
-                    throwAndClearErrorIfExist();
+                    // clear the error so the "close" method won't rethrow the same exception which is not allowed in try-with-resource.
+                    ExceptionsHelper.reThrowIfNotNull(error.getAndSet(null));
                     recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogOps.get())
-                        .whenComplete((res, ex) -> {
-                            if (ex != null) {
-                                synchronized (this) {
-                                    if (error == null) {
-                                        error = (Exception) ex;
-                                    } else {
-                                        error.addSuppressed(ex);
-                                    }
-                                }
+                        .addListener(new ActionListener<Long>() {
+                            @Override
+                            public void onResponse(Long respondedPosition) {
+                                releaseSendingTicket(respondedPosition);
                             }
-                            sendingTickets.release();
-                        });
+                            @Override
+                            public void onFailure(Exception e) {
+                                error.compareAndSet(null, e);
+                                releaseSendingTicket(md.length()); // use max_position so the sender can abort
+                            }
+                        }, EsExecutors.newDirectExecutorService(), threadPool.getThreadContext());
                 } catch (Exception e) {
                     sendingTickets.release();
                     throw e;
@@ -697,19 +707,31 @@ public class RecoverySourceHandler {
             // wait for the completion of all ongoing chunks then check for the existing error.
             cancellableThreads.execute(() -> sendingTickets.acquire(maxConcurrentFileChunks));
             try {
-                throwAndClearErrorIfExist();
+                ExceptionsHelper.reThrowIfNotNull(error.get());
             } finally {
                 sendingTickets.release(maxConcurrentFileChunks);
             }
         }
 
-        private void throwAndClearErrorIfExist() {
-            final Exception existingError = this.error;
-            if (existingError != null) {
+        @SuppressForbidden(reason = "Object#wait")
+        private void acquireSendingTicket(long requestPosition) throws InterruptedException {
+            final LongSupplier unwrittenRequests = () -> (requestPosition - writtenPositionOnTarget.get()) / chunkSizeInBytes;
+            if (unwrittenRequests.getAsLong() >= maxAllowedBufferingRequestsOnTarget) {
                 synchronized (this) {
-                    this.error = null;
+                    while (unwrittenRequests.getAsLong() >= maxAllowedBufferingRequestsOnTarget) {
+                        this.wait(); // notified by #releaseSendingTicket
+                    }
                 }
-                throw ExceptionsHelper.convertToRuntime(existingError);
+            }
+            sendingTickets.acquire();
+        }
+
+        @SuppressForbidden(reason = "Object#notify")
+        private void releaseSendingTicket(long respondedPosition) {
+            writtenPositionOnTarget.updateAndGet(curr -> Math.max(curr, respondedPosition));
+            sendingTickets.release();
+            synchronized (this) {
+                this.notify(); // we have only one sender.
             }
         }
     }

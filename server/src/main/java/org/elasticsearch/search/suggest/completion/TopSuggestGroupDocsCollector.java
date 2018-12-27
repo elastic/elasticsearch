@@ -29,13 +29,11 @@ import java.util.Map;
 
 /**
  *
- * Custom {@link TopSuggestDocsCollector} that returns top documents from the completion suggester.
+ * Extension of the {@link TopSuggestDocsCollector} that returns top documents from the completion suggester.
  *
- * <p>
  * This collector groups suggestions coming from the same document but matching different contexts
  * or surface form together. When different contexts or surface forms match the same suggestion form only
  * the best one per document (sorted by weight) is kept.
- * <p>
  **/
 class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
     private Map<Integer, List<CharSequence>> docContexts = new HashMap<>();

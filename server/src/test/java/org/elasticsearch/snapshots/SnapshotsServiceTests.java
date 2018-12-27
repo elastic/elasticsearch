@@ -19,16 +19,21 @@
 
 package org.elasticsearch.snapshots;
 
-import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -38,6 +43,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.CoordinatorTests;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -96,6 +102,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -119,8 +126,11 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     private TestClusterNodes testClusterNodes;
 
+    private Path tempDir;
+
     @Before
     public void createServices() {
+        tempDir = createTempDir();
         deterministicTaskQueue =
             new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "shared").build(), random());
         // TODO: Random number of master nodes and simulate master failover states
@@ -153,36 +163,18 @@ public class SnapshotsServiceTests extends ESTestCase {
         TestClusterNode masterNode = testClusterNodes.currentMaster(initialClusterState);
 
         final AtomicBoolean createdSnapshot = new AtomicBoolean(false);
-        masterNode.repositoriesService.registerRepository(
-            new RepositoriesService.RegisterRepositoryRequest(
-                "test repository", repoName, FsRepository.TYPE, true
-            ).settings(Settings.builder().put("location", randomAlphaOfLength(10)).build()),
-            assertingListener(
-                () -> masterNode.client.admin().indices().create(
-                    new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
-                        Settings.builder()
-                            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-                            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                    ),
-                    assertingListener(
-                        () -> masterNode.snapshotsService.createSnapshot(
-                            new SnapshotsService.SnapshotRequest(repoName, snapshotName, ""),
-                            new SnapshotsService.CreateSnapshotListener() {
-                                @Override
-                                public void onResponse() {
-                                    createdSnapshot.set(true);
-                                }
-
-                                @Override
-                                public void onFailure(final Exception e) {
-                                    throw new AssertionError("Snapshot failed.");
-                                }
-                            }
-                        )
-                    )
-                )
-            )
-        );
+        masterNode.client.admin().cluster().preparePutRepository(repoName)
+            .setType(FsRepository.TYPE).setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+            .execute(
+                assertingListener(
+                    () -> masterNode.client.admin().indices().create(
+                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
+                            Settings.builder()
+                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)),
+                        assertingListener(
+                            () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                .execute(assertingListener(() -> createdSnapshot.set(true)))))));
 
         deterministicTaskQueue.runAllRunnableTasks();
 
@@ -217,11 +209,11 @@ public class SnapshotsServiceTests extends ESTestCase {
     /**
      * Create a {@link Environment} with random path.home and path.repo
      **/
-    private static Environment createEnvironment() {
-        Path home = createTempDir();
+    private Environment createEnvironment(String nodeName) {
         return TestEnvironment.newEnvironment(Settings.builder()
-            .put(PATH_HOME_SETTING.getKey(), home.toAbsolutePath())
-            .put(Environment.PATH_REPO_SETTING.getKey(), home.resolve("repo").toAbsolutePath())
+            .put(NODE_NAME_SETTING.getKey(), nodeName)
+            .put(PATH_HOME_SETTING.getKey(), tempDir.resolve(nodeName).toAbsolutePath())
+            .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo").toAbsolutePath())
             .build());
     }
 
@@ -336,11 +328,9 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         TestClusterNode(DiscoveryNode node) throws IOException {
             this.node = node;
+            final Environment environment = createEnvironment(node.getName());
             masterService = new FakeThreadPoolMasterService(node.getName(), "test", deterministicTaskQueue::scheduleNow);
-            final Settings settings = Settings.builder()
-                .put(NODE_NAME_SETTING.getKey(), node.getName())
-                .put(PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .build();
+            final Settings settings = environment.settings();
             allocationService = ESAllocationTestCase.createAllocationService(settings);
             final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
@@ -383,24 +373,18 @@ public class SnapshotsServiceTests extends ESTestCase {
                 }
             };
             transportService = mockTransport.createTransportService(
-                settings, deterministicTaskQueue.getThreadPool(
-                    runnable -> () -> {
-                        try (CloseableThreadContext.Instance ignored =
-                                 CloseableThreadContext.put("nodeId", '{' + node.getId() + "}{" + node.getEphemeralId() + '}')) {
-                            runnable.run();
-                        }
-                    }
-                ), NOOP_TRANSPORT_INTERCEPTOR,
+                settings, deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNode(node, runnable)),
+                NOOP_TRANSPORT_INTERCEPTOR,
                 a -> node, null, emptySet()
             );
             final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
             repositoriesService = new RepositoriesService(
                 settings, clusterService, transportService,
                 Collections.singletonMap(FsRepository.TYPE, metaData -> {
-                        final Repository repository = new FsRepository(metaData, createEnvironment(), xContentRegistry()) {
+                        final Repository repository = new FsRepository(metaData, environment, xContentRegistry()) {
                             @Override
                             protected void assertSnapshotOrGenericThread() {
-                                // eliminate thread name check as we create repo manually
+                                // eliminate thread name check as we create repo in the test thread
                             }
                         };
                         repository.start();
@@ -412,7 +396,6 @@ public class SnapshotsServiceTests extends ESTestCase {
             );
             snapshotsService =
                 new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService, threadPool);
-            final Environment environment = new Environment(settings, createTempDir());
             nodeEnv = new NodeEnvironment(settings, environment);
             final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
             final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
@@ -472,20 +455,26 @@ public class SnapshotsServiceTests extends ESTestCase {
                     settings, transportService, clusterService, indicesService, threadPool,
                     shardStateAction, actionFilters, indexNameExpressionResolver)
             );
-            client.initialize(
-                Collections.singletonMap(
-                    CreateIndexAction.INSTANCE,
-                    new TransportCreateIndexAction(
-                        transportService, clusterService, threadPool,
-                        new MetaDataCreateIndexService(settings, clusterService, indicesService,
-                            allocationService, new AliasValidator(), environment, indexScopedSettings,
-                            threadPool, namedXContentRegistry, false),
-                        actionFilters, indexNameExpressionResolver
-                    )
-                ),
-                () -> clusterService.localNode().getId(),
-                transportService.getRemoteClusterService()
-            );
+            Map<Action, TransportAction> actions = new HashMap<>();
+            actions.put(CreateIndexAction.INSTANCE,
+                new TransportCreateIndexAction(
+                    transportService, clusterService, threadPool,
+                    new MetaDataCreateIndexService(settings, clusterService, indicesService,
+                        allocationService, new AliasValidator(), environment, indexScopedSettings,
+                        threadPool, namedXContentRegistry, false),
+                    actionFilters, indexNameExpressionResolver
+                ));
+            actions.put(PutRepositoryAction.INSTANCE,
+                new TransportPutRepositoryAction(
+                    transportService, clusterService, repositoriesService, threadPool,
+                    actionFilters, indexNameExpressionResolver
+                ));
+            actions.put(CreateSnapshotAction.INSTANCE,
+                new TransportCreateSnapshotAction(
+                    transportService, clusterService, threadPool,
+                    snapshotsService, actionFilters, indexNameExpressionResolver
+                ));
+            client.initialize(actions, () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
         }
 
         public void start(ClusterState initialState) {

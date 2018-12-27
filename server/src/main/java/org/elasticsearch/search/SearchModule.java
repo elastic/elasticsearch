@@ -466,7 +466,7 @@ public class SearchModule {
                 MaxBucketPipelineAggregationBuilder::new,
                 MaxBucketPipelineAggregator::new,
                 MaxBucketPipelineAggregationBuilder.PARSER)
-                    // This bucket is used by many pipeline aggreations.
+                    // This bucket is used by many pipeline aggregations.
                     .addResultReader(InternalBucketMetricValue.NAME, InternalBucketMetricValue::new));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 MinBucketPipelineAggregationBuilder.NAME,
@@ -479,7 +479,7 @@ public class SearchModule {
                 AvgBucketPipelineAggregationBuilder::new,
                 AvgBucketPipelineAggregator::new,
                 AvgBucketPipelineAggregationBuilder.PARSER)
-                    // This bucket is used by many pipeline aggreations.
+                    // This bucket is used by many pipeline aggregations.
                     .addResultReader(InternalSimpleValue.NAME, InternalSimpleValue::new));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 SumBucketPipelineAggregationBuilder.NAME,

@@ -575,7 +575,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     }
                 }
             }
-
         }
     }
 

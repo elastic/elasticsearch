@@ -485,7 +485,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 byte[] buffer = randomByteArrayOfLength(totalChunks * chunkSize);
                 StoreFileMetaData md = new StoreFileMetaData("test", buffer.length, "checksum", org.apache.lucene.util.Version.LATEST);
                 try (RecoverySourceHandler.RecoveryOutputStream out = handler.new RecoveryOutputStream(md, () -> 1)) {
-                    while(sentChunks.get() < totalChunks) {
+                    while (sentChunks.get() < totalChunks) {
                         out.write(buffer, sentChunks.get() * chunkSize, chunkSize);
                         sentChunks.incrementAndGet();
                     }

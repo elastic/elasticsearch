@@ -46,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
@@ -150,28 +150,27 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         );
         List<RecoveryFileChunkRequest> requests = new ArrayList<>();
         for (StoreFileMetaData md : mdFiles) {
-            int pos = 0;
-            IndexInput in = sourceShard.store().directory().openInput(md.name(), IOContext.READONCE);
-            while (pos < md.length()) {
-                int length = between(1, Math.toIntExact(md.length() - pos));
-                byte[] buffer = new byte[length];
-                in.readBytes(buffer, 0, length);
-                requests.add(new RecoveryFileChunkRequest(0, sourceShard.shardId(), md, pos, new BytesArray(buffer),
-                    pos + length == md.length(), 1, 1));
-                pos += length;
+            try (IndexInput in = sourceShard.store().directory().openInput(md.name(), IOContext.READONCE)) {
+                int pos = 0;
+                while (pos < md.length()) {
+                    int length = between(1, Math.toIntExact(md.length() - pos));
+                    byte[] buffer = new byte[length];
+                    in.readBytes(buffer, 0, length);
+                    requests.add(new RecoveryFileChunkRequest(0, sourceShard.shardId(), md, pos, new BytesArray(buffer),
+                        pos + length == md.length(), 1, 1));
+                    pos += length;
+                }
             }
-            in.close();
         }
         Randomness.shuffle(requests);
         BlockingQueue<RecoveryFileChunkRequest> queue = new ArrayBlockingQueue<>(requests.size());
         queue.addAll(requests);
         Thread[] senders = new Thread[between(1, 4)];
-        CountDownLatch latch = new CountDownLatch(senders.length + 1);
+        CyclicBarrier barrier = new CyclicBarrier(senders.length);
         for (int i = 0; i < senders.length; i++) {
             senders[i] = new Thread(() -> {
-                latch.countDown();
                 try {
-                    latch.await();
+                    barrier.await();
                     RecoveryFileChunkRequest r;
                     while ((r = queue.poll()) != null) {
                         recoveryTarget.writeFileChunk(r.metadata(), r.position(), r.content(), r.lastChunk(), r.totalTranslogOps()).get();
@@ -182,7 +181,6 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             });
             senders[i].start();
         }
-        latch.countDown();
         for (Thread sender : senders) {
             sender.join();
         }

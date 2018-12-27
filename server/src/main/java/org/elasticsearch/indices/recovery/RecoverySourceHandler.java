@@ -693,17 +693,13 @@ public class RecoverySourceHandler {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
+            // wait for the completion of all ongoing chunks then check for the existing error.
+            cancellableThreads.execute(() -> sendingTickets.acquire(maxConcurrentFileChunks));
             try {
-                super.close();
+                throwAndClearErrorIfExist();
             } finally {
-                // wait for the completion of all ongoing chunks then check for the existing error.
-                cancellableThreads.execute(() -> sendingTickets.acquire(maxConcurrentFileChunks));
-                try {
-                    throwAndClearErrorIfExist();
-                } finally {
-                    sendingTickets.release(maxConcurrentFileChunks);
-                }
+                sendingTickets.release(maxConcurrentFileChunks);
             }
         }
 

@@ -181,12 +181,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                 throttleTimeInNanos), fileChunkRequestOptions, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleResponse(TransportResponse.Empty response) {
-                    super.handleResponse(response);
                     future.complete(null);
                 }
                 @Override
                 public void handleException(TransportException exp) {
-                    super.handleException(exp);
                     future.completeExceptionally(exp);
                 }
             });

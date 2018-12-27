@@ -124,13 +124,23 @@ public class BytesRestResponse extends RestResponse {
         if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
             params =  new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         } else if (e != null) {
-            Supplier<?> messageSupplier = () -> new ParameterizedMessage("path: {}, params: {}",
-                    channel.request().rawPath(), channel.request().params());
+
+
+            XContentBuilder builder = channel.newErrorBuilder().startObject();
+            ToXContent.DelegatingMapParams generateStacktraceParams =
+                new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
+            ElasticsearchException.generateFailureXContent(builder, generateStacktraceParams, e, channel.detailedErrorsEnabled());
+            builder.endObject();
+            String exceptionStacktrace = BytesReference.bytes(builder).utf8ToString();
+
+            Supplier<?> messageSupplier = () -> new ParameterizedMessage("\", \"path\": \"{}\", \"params\": \"{}\", \n\"details\":{} ",
+                channel.request().rawPath(), channel.request().params(), exceptionStacktrace);
 
             if (status.getStatus() < 500) {
-                SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
+                SUPPRESSED_ERROR_LOGGER.debug(messageSupplier);
             } else {
-                SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
+
+                SUPPRESSED_ERROR_LOGGER.warn(messageSupplier);
             }
         }
 

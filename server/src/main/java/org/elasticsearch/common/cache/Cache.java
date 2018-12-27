@@ -19,12 +19,9 @@
 
 package org.elasticsearch.common.cache;
 
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transports;
 
 import java.util.Arrays;
 import java.util.HashMap;

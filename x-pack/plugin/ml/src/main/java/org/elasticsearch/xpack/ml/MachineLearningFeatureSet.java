@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -61,17 +62,17 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
     private final Client client;
-    private final JobManager jobManager;
+    private final JobManagerHolder jobManagerHolder;
     private final Map<String, Object> nativeCodeInfo;
 
     @Inject
     public MachineLearningFeatureSet(Environment environment, ClusterService clusterService, Client client,
-                                     @Nullable XPackLicenseState licenseState, JobManager jobManager) {
+                                     @Nullable XPackLicenseState licenseState, JobManagerHolder jobManagerHolder) {
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
         this.licenseState = licenseState;
-        this.jobManager = jobManager;
+        this.jobManagerHolder = jobManagerHolder;
         Map<String, Object> nativeCodeInfo = NativeController.UNKNOWN_NATIVE_CODE_INFO;
         // Don't try to get the native code version if ML is disabled - it causes too much controversy
         // if ML has been disabled because of some OS incompatibility.  Also don't try to get the native
@@ -136,7 +137,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         ClusterState state = clusterService.state();
-        new Retriever(client, jobManager, available(), enabled(), mlNodeCount(state)).execute(listener);
+        new Retriever(client, jobManagerHolder, available(), enabled(), mlNodeCount(state)).execute(listener);
     }
 
     private int mlNodeCount(final ClusterState clusterState) {
@@ -156,16 +157,16 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     public static class Retriever {
 
         private final Client client;
-        private final JobManager jobManager;
+        private final JobManagerHolder jobManagerHolder;
         private final boolean available;
         private final boolean enabled;
         private Map<String, Object> jobsUsage;
         private Map<String, Object> datafeedsUsage;
         private int nodeCount;
 
-        public Retriever(Client client, JobManager jobManager, boolean available, boolean enabled, int nodeCount) {
+        public Retriever(Client client, JobManagerHolder jobManagerHolder, boolean available, boolean enabled, int nodeCount) {
             this.client = Objects.requireNonNull(client);
-            this.jobManager = jobManager;
+            this.jobManagerHolder = jobManagerHolder;
             this.available = available;
             this.enabled = enabled;
             this.jobsUsage = new LinkedHashMap<>();
@@ -193,8 +194,8 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
             // Step 1. Extract usage from jobs stats and then request stats for all datafeeds
             GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(MetaData.ALL);
             ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(
-                response -> {
-                        jobManager.expandJobs(MetaData.ALL, true, ActionListener.wrap(jobs -> {
+                    response -> {
+                        jobManagerHolder.getJobManager().expandJobs(MetaData.ALL, true, ActionListener.wrap(jobs -> {
                             addJobsUsage(response, jobs.results());
                             GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(
                                     GetDatafeedsStatsAction.ALL);

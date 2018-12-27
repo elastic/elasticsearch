@@ -369,22 +369,22 @@ public class IndexResolver {
         return esField;
     }
     
-    private static EsField createField(String fieldName, String typeName, Map<String, EsField> props, boolean isAggregateable) {
+    private static EsField createField(String fieldName, String typeName, Map<String, EsField> props, boolean isAggregatable) {
         DataType esType = DataType.fromTypeName(typeName);
         switch (esType) {
             case TEXT:
                 return new TextEsField(fieldName, props, false);
             case KEYWORD:
                 int length = DataType.KEYWORD.defaultPrecision;
-                // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
+                // TODO: to check whether isSearchable/isAggregatable takes into account the presence of the normalizer
                 boolean normalized = false;
-                return new KeywordEsField(fieldName, props, isAggregateable, length, normalized);
+                return new KeywordEsField(fieldName, props, isAggregatable, length, normalized);
             case DATE:
-                return new DateEsField(fieldName, props, isAggregateable);
+                return new DateEsField(fieldName, props, isAggregatable);
             case UNSUPPORTED:
                 return new UnsupportedEsField(fieldName, typeName);
             default:
-                return new EsField(fieldName, esType, props, isAggregateable);
+                return new EsField(fieldName, esType, props, isAggregatable);
         }
     }
     

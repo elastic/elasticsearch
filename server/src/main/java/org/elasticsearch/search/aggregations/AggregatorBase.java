@@ -73,7 +73,7 @@ public abstract class AggregatorBase extends Aggregator {
         this.parent = parent;
         this.context = context;
         this.breakerService = context.bigArrays().breakerService();
-        assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
+        assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggregatorFactories.EMPTY instead";
         this.subAggregators = factories.createSubAggregators(this);
         context.addReleasable(this, Lifetime.PHASE);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)

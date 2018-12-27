@@ -2630,7 +2630,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     public void testGeoFieldHighlightingWithDifferentHighlighters() throws IOException {
         // check that we do not get an exception for geo_point fields in case someone tries to highlight
-        // it accidentially with a wildcard
+        // it accidentally with a wildcard
         // see https://github.com/elastic/elasticsearch/issues/17537
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();

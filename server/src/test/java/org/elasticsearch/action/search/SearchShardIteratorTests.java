@@ -46,7 +46,8 @@ public class SearchShardIteratorTests extends ESTestCase {
     public void testGetClusterAlias() {
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
-        SearchShardIterator searchShardIterator = new SearchShardIterator(clusterAlias, shardId, Collections.emptyList(), OriginalIndices.NONE);
+        SearchShardIterator searchShardIterator = new SearchShardIterator(clusterAlias, shardId, Collections.emptyList(),
+            OriginalIndices.NONE);
         assertEquals(clusterAlias, searchShardIterator.getClusterAlias());
     }
 

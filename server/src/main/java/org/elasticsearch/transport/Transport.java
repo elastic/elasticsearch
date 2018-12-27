@@ -74,7 +74,7 @@ public interface Transport extends LifecycleComponent {
     TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException;
 
     /**
-     * Returns a list of all local adresses for this transport
+     * Returns a list of all local addresses for this transport
      */
     List<String> getLocalAddresses();
 

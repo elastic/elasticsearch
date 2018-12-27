@@ -72,7 +72,7 @@ public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCa
     }
 
     /**
-     * Like {@code assertAcessIsDenied}, but for _bulk requests since the entire
+     * Like {@code assertAccessIsDenied}, but for _bulk requests since the entire
      * request will not be failed, just the individual ones
      */
     protected void assertBodyHasAccessIsDenied(String user, Request request) throws IOException {

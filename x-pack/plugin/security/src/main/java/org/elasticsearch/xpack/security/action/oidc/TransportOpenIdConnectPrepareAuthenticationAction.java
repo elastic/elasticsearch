@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -59,8 +58,8 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
     private void prepareAuthenticationResponse(OpenIdConnectRealm realm, @Nullable String state, @Nullable String nonce,
                                                ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener) {
         try {
-            final Tuple<String, String> authenticationRequest = realm.buildAuthenticationRequest(state, nonce);
-            listener.onResponse(new OpenIdConnectPrepareAuthenticationResponse(authenticationRequest.v1(), authenticationRequest.v2()));
+            final OpenIdConnectPrepareAuthenticationResponse authenticationResponse = realm.buildAuthenticationRequestUri(state, nonce);
+            listener.onResponse(authenticationResponse);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         }

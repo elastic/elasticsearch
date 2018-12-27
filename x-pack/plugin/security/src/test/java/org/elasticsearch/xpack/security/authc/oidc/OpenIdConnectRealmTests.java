@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.security.authc.oidc;
 
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.hamcrest.Matchers;
@@ -134,10 +134,11 @@ public class OpenIdConnectRealmTests extends ESTestCase {
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
         final String nonce = randomAlphaOfLength(12);
         final String state = randomAlphaOfLength(12);
-        final Tuple authenticationRequest = realm.buildAuthenticationRequest(state, nonce);
-        assertThat(authenticationRequest.v1(), equalTo("https://op.example.com/login?response_type=code&scope=openid+scope1+scope2"
-            + "&client_id=rp-my&state=" + state + "&nonce=" + nonce + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb"));
-        assertThat(authenticationRequest.v2(), equalTo(state));
+        final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(state, nonce);
+        assertThat(response.getAuthenticationRequestUrl(),
+            equalTo("https://op.example.com/login?response_type=code&scope=openid+scope1+scope2&client_id=rp-my&state=" + state
+                + "&nonce=" + nonce + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb"));
+        assertThat(response.getState(), equalTo(state));
     }
 
     public void testBuilidingAuthenticationRequestWithoutState() {
@@ -152,10 +153,11 @@ public class OpenIdConnectRealmTests extends ESTestCase {
                 Arrays.asList("openid", "scope1", "scope2"));
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
         final String nonce = randomAlphaOfLength(12);
-        final Tuple<String, String> authenticationRequest = realm.buildAuthenticationRequest(null, nonce);
-        final String generatedState = authenticationRequest.v2();
-        assertThat(authenticationRequest.v1(), equalTo("https://op.example.com/login?response_type=code&scope=openid+scope1+scope2"
-            + "&client_id=rp-my&state=" + generatedState + "&nonce=" + nonce + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb"));
+        final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, nonce);
+        final String generatedState = response.getState();
+        assertThat(response.getAuthenticationRequestUrl(),
+            equalTo("https://op.example.com/login?response_type=code&scope=openid+scope1+scope2&client_id=rp-my&state="
+                + generatedState + "&nonce=" + nonce + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb"));
     }
 
     public void testBuilidingAuthenticationRequestWithoutStateAndNonce() {
@@ -169,10 +171,11 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES),
                 Arrays.asList("openid", "scope1", "scope2"));
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        final Tuple<String, String> authenticationRequest = realm.buildAuthenticationRequest(null, null);
-        final String generatedState = authenticationRequest.v2();
-        assertThat(authenticationRequest.v1(), equalTo("https://op.example.com/login?response_type=code&scope=openid+scope1+scope2"
-            + "&client_id=rp-my&state=" + generatedState + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb"));
+        final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null);
+        final String generatedState = response.getState();
+        assertThat(response.getAuthenticationRequestUrl(),
+            equalTo("https://op.example.com/login?response_type=code&scope=openid+scope1+scope2&client_id=rp-my&state="
+                + generatedState + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb"));
     }
 
     public void testBuilidingAuthenticationRequestWithDefaultScope() {
@@ -184,9 +187,9 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
-        final Tuple<String, String> authenticationRequest = realm.buildAuthenticationRequest(null, null);
-        final String generatedState = authenticationRequest.v2();
-        assertThat(authenticationRequest.v1(), equalTo("https://op.example.com/login?response_type=code&scope=openid"
+        final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null);
+        final String generatedState = response.getState();
+        assertThat(response.getAuthenticationRequestUrl(), equalTo("https://op.example.com/login?response_type=code&scope=openid"
             + "&client_id=rp-my&state=" + generatedState + "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb"));
     }
 

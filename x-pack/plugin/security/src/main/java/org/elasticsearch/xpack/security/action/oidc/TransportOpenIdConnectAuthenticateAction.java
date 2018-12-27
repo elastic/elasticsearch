@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.action.oidc;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -22,7 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
-import org.elasticsearch.xpack.security.authc.saml.OpenIdConnectToken;
+import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectToken;
 
 import java.util.Map;
 
@@ -67,6 +68,7 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
                                 tuple.v2(), expiresIn));
                         }, listener::onFailure), tokenMetadata, true);
                 }, e -> {
+                    logger.debug(() -> new ParameterizedMessage("OpenIDConnectToken [{}] could not be authenticated", token), e);
                     listener.onFailure(e);
                 }
             ));

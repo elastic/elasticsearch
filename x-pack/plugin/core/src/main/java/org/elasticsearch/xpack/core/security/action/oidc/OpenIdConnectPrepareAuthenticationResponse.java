@@ -16,19 +16,19 @@ import java.io.IOException;
  */
 public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse {
 
-    private String authorizationEndpointUrl;
+    private String authenticationRequestUrl;
     private String state;
 
     public OpenIdConnectPrepareAuthenticationResponse(String authorizationEndpointUrl, String state) {
-        this.authorizationEndpointUrl = authorizationEndpointUrl;
+        this.authenticationRequestUrl = authorizationEndpointUrl;
         this.state = state;
     }
 
     public OpenIdConnectPrepareAuthenticationResponse() {
     }
 
-    public String getAuthorizationEndpointUrl() {
-        return authorizationEndpointUrl;
+    public String getAuthenticationRequestUrl() {
+        return authenticationRequestUrl;
     }
 
     public String getState() {
@@ -38,12 +38,16 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        authorizationEndpointUrl = in.readString();
+        authenticationRequestUrl = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(authorizationEndpointUrl);
+        out.writeString(authenticationRequestUrl);
+    }
+
+    public String toString() {
+        return "{authenticationRequestUrl=" + authenticationRequestUrl + ", state=" + state + "}";
     }
 }

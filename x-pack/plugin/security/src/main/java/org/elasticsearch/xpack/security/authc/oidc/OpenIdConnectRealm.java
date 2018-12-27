@@ -11,12 +11,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -110,17 +110,19 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
     }
 
     /**
-     * Creates the URI for an OIDC Authentication Request from the realm configuration using URI Query String Serialization
+     * Creates the URI for an OIDC Authentication Request from the realm configuration using URI Query String Serialization and possibly
+     * generates a state parameter. It then returns the URI and state encapsulated in a {@link OpenIdConnectPrepareAuthenticationResponse}
      *
      * @param state The oAuth2 state parameter used for CSRF protection. If the facilitator doesn't supply one, we generate one ourselves
      * @param nonce String value used to associate a Client session with an ID Token, and to mitigate replay attacks. If the facilitator
      *              doesn't supply one, we don't set one for the authentication request
-     * @return a Tuple of Strings with the URI at the OP where the user's browser should be redirected for authentication and the state
+     * @return an {@link OpenIdConnectPrepareAuthenticationResponse}
      */
-    public Tuple<String, String> buildAuthenticationRequest(@Nullable String state, @Nullable String nonce) throws ElasticsearchException {
+    public OpenIdConnectPrepareAuthenticationResponse buildAuthenticationRequestUri(@Nullable String state, @Nullable String nonce)
+        throws ElasticsearchException {
         try {
             if (Strings.hasText(state) == false) {
-                state = createNonce();
+                state = createNonceValue();
             }
             StringBuilder builder = new StringBuilder();
             builder.append(opConfiguration.getAuthorizationEndpoint());
@@ -132,7 +134,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                 addParameter(builder, "nonce", nonce);
             }
             addParameter(builder, "redirect_uri", rpConfiguration.getRedirectUri());
-            return new Tuple<>(builder.toString(), state);
+            return new OpenIdConnectPrepareAuthenticationResponse(builder.toString(), state);
         } catch (UnsupportedEncodingException e) {
             throw new ElasticsearchException("Cannot build OIDC Authentication Request", e);
         }
@@ -154,7 +156,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
      *
      * @return an alphanumeric string
      */
-    static String createNonce() {
+    private static String createNonceValue() {
         final byte[] randomBytes = new byte[16];
         RANDOM_INSTANCE.nextBytes(randomBytes);
         return MessageDigests.toHexString(randomBytes);

@@ -62,5 +62,9 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         return null;
     }
+
+    public String toString() {
+        return "{redirectUri=" + redirectUri + ", state=" + state + ", nonce=" + nonce + "}";
+    }
 }
 

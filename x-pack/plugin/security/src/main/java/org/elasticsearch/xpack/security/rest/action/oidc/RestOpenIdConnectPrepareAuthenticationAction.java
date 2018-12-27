@@ -48,14 +48,17 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final OpenIdConnectPrepareAuthenticationRequest authenticationRequest = PARSER.parse(parser, null);
-            return channel -> client.execute(OpenIdConnectPrepareAuthenticationAction.INSTANCE, authenticationRequest,
+            final OpenIdConnectPrepareAuthenticationRequest prepareAuthenticationRequest = PARSER.parse(parser, null);
+            logger.trace("OIDC Prepare Authentication: " + prepareAuthenticationRequest);
+            return channel -> client.execute(OpenIdConnectPrepareAuthenticationAction.INSTANCE, prepareAuthenticationRequest,
                 new RestBuilderListener<OpenIdConnectPrepareAuthenticationResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(OpenIdConnectPrepareAuthenticationResponse response, XContentBuilder builder)
                         throws Exception {
+                        logger.trace("OIDC Prepare Authentication Response: " + response);
                         builder.startObject();
-                        builder.field("authorization_endpoint_url", response.getAuthorizationEndpointUrl());
+                        builder.field("authentication_request_url", response.getAuthenticationRequestUrl());
+                        builder.field("state", response.getState());
                         builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }

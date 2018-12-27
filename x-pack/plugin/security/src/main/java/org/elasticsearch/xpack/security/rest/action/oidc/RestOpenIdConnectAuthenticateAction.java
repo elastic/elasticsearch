@@ -49,6 +49,7 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final OpenIdConnectAuthenticateRequest authenticateRequest = PARSER.parse(parser, null);
+            logger.trace("OIDC Authenticate: " + authenticateRequest);
             return channel -> client.execute(OpenIdConnectAuthenticateAction.INSTANCE, authenticateRequest,
                 new RestBuilderListener<OpenIdConnectAuthenticateResponse>(channel) {
                     @Override

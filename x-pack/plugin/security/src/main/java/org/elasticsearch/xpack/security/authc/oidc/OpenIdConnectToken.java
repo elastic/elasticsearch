@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.authc.saml;
+package org.elasticsearch.xpack.security.authc.oidc;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -55,5 +55,9 @@ public class OpenIdConnectToken implements AuthenticationToken {
 
     public String getNonce() {
         return nonce;
+    }
+
+    public String toString() {
+        return getClass().getSimpleName() + "{ redirectUri=" + redirectUri + ", state=" + state + ", nonce=" + nonce + "}";
     }
 }

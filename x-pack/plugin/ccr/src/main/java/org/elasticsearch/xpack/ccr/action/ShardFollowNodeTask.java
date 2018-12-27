@@ -419,7 +419,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
-        if (shouldRetry(e) && isStopped() == false) {
+        if (shouldRetry(params.getRemoteCluster(), e) && isStopped() == false) {
             int currentRetry = retryCounter.incrementAndGet();
             LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
                 params.getFollowShardId(), currentRetry), e);
@@ -441,13 +441,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return Math.min(backOffDelay, maxRetryDelayInMillis);
     }
 
-    static boolean shouldRetry(Exception e) {
+    static boolean shouldRetry(String remoteCluster, Exception e) {
         if (NetworkExceptionHelper.isConnectException(e)) {
             return true;
         } else if (NetworkExceptionHelper.isCloseConnectionException(e)) {
             return true;
         }
 
+        String noSuchRemoteClusterMessage = "no such remote cluster: " + remoteCluster;
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
         return actual instanceof ShardNotFoundException ||
             actual instanceof IllegalIndexShardStateException ||
@@ -460,7 +461,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof NodeDisconnectedException ||
             actual instanceof NodeNotConnectedException ||
             actual instanceof NodeClosedException ||
-            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
+            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed")) ||
+            (actual instanceof IllegalArgumentException && noSuchRemoteClusterMessage.equals(actual.getMessage()));
     }
 
     // These methods are protected for testing purposes:

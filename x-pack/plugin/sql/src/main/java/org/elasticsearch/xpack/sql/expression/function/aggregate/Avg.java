@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import java.util.List;
 
 /**
- * Find the arithmatic mean of a field.
+ * Find the arithmetic mean of a field.
  */
 public class Avg extends NumericAggregate implements EnclosedAgg {
 

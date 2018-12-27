@@ -39,7 +39,7 @@ public class BaseFutureTests extends ESTestCase {
 
     @Before
     public void setUpThreadPool() {
-        threadPool = new TestThreadPool(EvilThreadPoolTests.class.getName());
+        threadPool = new TestThreadPool(BaseFutureTests.class.getName());
     }
 
     @After

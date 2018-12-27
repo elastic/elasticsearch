@@ -21,7 +21,7 @@ package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
+import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,10 +61,10 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }
-            } else {
-                assert throwable instanceof Exception : "Expected exception but was: " + throwable.getClass();
-                ExceptionsHelper.maybeDieOnAnotherThread(throwable);
+            } else if (throwable instanceof Exception) {
                 listener.onFailure((Exception) throwable);
+            } else {
+                Throwables.rethrow(throwable);
             }
         });
     }

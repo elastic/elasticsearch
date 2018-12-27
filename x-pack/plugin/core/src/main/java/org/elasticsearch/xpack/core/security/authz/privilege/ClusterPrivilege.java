@@ -71,7 +71,7 @@ public final class ClusterPrivilege extends Privilege {
     public static final ClusterPrivilege TRANSPORT_CLIENT =      new ClusterPrivilege("transport_client",    TRANSPORT_CLIENT_AUTOMATON);
     public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",     MANAGE_SECURITY_AUTOMATON);
     public static final ClusterPrivilege MANAGE_SAML =           new ClusterPrivilege("manage_saml",         MANAGE_SAML_AUTOMATON);
-    public static final ClusterPrivilege MANAGE_OIDC = new ClusterPrivilege("manage_oidc", MANAGE_OIDC_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_OIDC =           new ClusterPrivilege("manage_oidc", MANAGE_OIDC_AUTOMATON);
     public static final ClusterPrivilege MANAGE_PIPELINE =       new ClusterPrivilege("manage_pipeline", "cluster:admin/ingest/pipeline/*");
     public static final ClusterPrivilege MANAGE_CCR =            new ClusterPrivilege("manage_ccr", MANAGE_CCR_AUTOMATON);
     public static final ClusterPrivilege READ_CCR =              new ClusterPrivilege("read_ccr", READ_CCR_AUTOMATON);
@@ -96,7 +96,7 @@ public final class ClusterPrivilege extends Privilege {
             .put("transport_client", TRANSPORT_CLIENT)
             .put("manage_security", MANAGE_SECURITY)
             .put("manage_saml", MANAGE_SAML)
-        .put("manage_oidc", MANAGE_OIDC)
+            .put("manage_oidc", MANAGE_OIDC)
             .put("manage_pipeline", MANAGE_PIPELINE)
             .put("manage_rollup", MANAGE_ROLLUP)
             .put("manage_ccr", MANAGE_CCR)

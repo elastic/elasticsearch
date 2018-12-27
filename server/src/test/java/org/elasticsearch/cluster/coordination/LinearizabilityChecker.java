@@ -67,7 +67,7 @@ public class LinearizabilityChecker {
          * For compositional checking, the history can be partitioned into sub-histories
          *
          * @param events the history of events to partition
-         * @return
+         * @return the partitioned history
          */
         default Collection<List<Event>> partition(List<Event> events) {
             return Collections.singleton(events);

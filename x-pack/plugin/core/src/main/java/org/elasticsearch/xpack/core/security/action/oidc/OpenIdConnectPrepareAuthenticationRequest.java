@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.action.ActionRequest;
@@ -49,12 +54,6 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         if (Strings.hasText(realmName) == false) {
             validationException = addValidationError("realm name must be provided", null);
         }
-        if (Strings.hasText(state) == false) {
-            validationException = addValidationError("state must be provided", validationException);
-        }
-        if (Strings.hasText(nonce) == false) {
-            validationException = addValidationError("nonce must be provided", validationException);
-        }
         return validationException;
     }
 
@@ -62,16 +61,16 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(realmName);
-        out.writeString(state);
-        out.writeString(nonce);
+        out.writeOptionalString(state);
+        out.writeOptionalString(nonce);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         realmName = in.readString();
-        state = in.readString();
-        nonce = in.readString();
+        state = in.readOptionalString();
+        nonce = in.readOptionalString();
     }
 
     public String toString() {

@@ -35,8 +35,9 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
         OpenIdConnectAuthenticateRequest::new);
 
     static {
-        PARSER.declareString(OpenIdConnectAuthenticateRequest::setCode, new ParseField("code"));
+        PARSER.declareString(OpenIdConnectAuthenticateRequest::setRedirectUri, new ParseField("redirect_uri"));
         PARSER.declareString(OpenIdConnectAuthenticateRequest::setState, new ParseField("state"));
+        PARSER.declareString(OpenIdConnectAuthenticateRequest::setNonce, new ParseField("nonce"));
     }
 
     public RestOpenIdConnectAuthenticateAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
@@ -51,7 +52,8 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
             return channel -> client.execute(OpenIdConnectAuthenticateAction.INSTANCE, authenticateRequest,
                 new RestBuilderListener<OpenIdConnectAuthenticateResponse>(channel) {
                     @Override
-                    public RestResponse buildResponse(OpenIdConnectAuthenticateResponse response, XContentBuilder builder) throws Exception {
+                    public RestResponse buildResponse(OpenIdConnectAuthenticateResponse response, XContentBuilder builder)
+                        throws Exception {
                         builder.startObject();
                         builder.startObject()
                             .field("username", response.getPrincipal())

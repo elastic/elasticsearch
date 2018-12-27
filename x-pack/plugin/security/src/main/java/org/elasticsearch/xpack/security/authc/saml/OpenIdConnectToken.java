@@ -15,25 +15,45 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
  */
 public class OpenIdConnectToken implements AuthenticationToken {
 
+    private String redirectUri;
+    private String state;
     @Nullable
-    private String code;
+    private String nonce;
 
-    public OpenIdConnectToken(String code) {
-        this.code = code;
+    /**
+     * @param redirectUri The URI were the OP redirected the browser after the authentication attempt. This is passed as is from the
+     *                    facilitator entity (i.e. Kibana), so it is URL Encoded
+     * @param state       The state value that either we or the facilitator generated for this specific flow and that was stored
+     *                    at the user's session with the facilitator
+     * @param nonce       The nonce value that  the facilitator generated for this specific flow and that was stored at the user's
+     *                    session with the facilitator
+     */
+    public OpenIdConnectToken(String redirectUri, String state, String nonce) {
+        this.redirectUri = redirectUri;
+        this.state = state;
+        this.nonce = nonce;
     }
 
     @Override
     public String principal() {
-        return "<unauthenticated-didc-user>";
+        return "<unauthenticated-oidc-user>";
     }
 
     @Override
     public Object credentials() {
-        return code;
+        return redirectUri;
     }
 
     @Override
     public void clearCredentials() {
-        this.code = null;
+        this.redirectUri = null;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public String getNonce() {
+        return nonce;
     }
 }

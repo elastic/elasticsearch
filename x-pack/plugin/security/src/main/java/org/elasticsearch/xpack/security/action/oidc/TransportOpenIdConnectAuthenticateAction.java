@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.security.action.oidc;
 
 import org.elasticsearch.action.ActionListener;
@@ -30,17 +35,18 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
 
     @Inject
     public TransportOpenIdConnectAuthenticateAction(ThreadPool threadPool, TransportService transportService,
-                                                             ActionFilters actionFilters, AuthenticationService authenticationService,
-                                                             TokenService tokenService) {
+                                                    ActionFilters actionFilters, AuthenticationService authenticationService,
+                                                    TokenService tokenService) {
         super(OpenIdConnectAuthenticateAction.NAME, transportService, actionFilters, OpenIdConnectAuthenticateRequest::new);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
     }
-    @Override
-    protected void doExecute(Task task, OpenIdConnectAuthenticateRequest request, ActionListener<OpenIdConnectAuthenticateResponse> listener) {
-        final OpenIdConnectToken token = new OpenIdConnectToken(request.getCode());
 
+    @Override
+    protected void doExecute(Task task, OpenIdConnectAuthenticateRequest request,
+                             ActionListener<OpenIdConnectAuthenticateResponse> listener) {
+        final OpenIdConnectToken token = new OpenIdConnectToken(request.getRedirectUri(), request.getState(), request.getNonce());
         final ThreadContext threadContext = threadPool.getThreadContext();
         Authentication originatingAuthentication = Authentication.getAuthentication(threadContext);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

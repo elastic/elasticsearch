@@ -9,9 +9,13 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -23,6 +27,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.Collections;
 import java.util.List;
 
@@ -39,6 +44,7 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 public class OpenIdConnectRealm extends Realm implements Releasable {
 
     public static final String CONTEXT_TOKEN_DATA = "_oidc_tokendata";
+    private static final SecureRandom RANDOM_INSTANCE = new SecureRandom();
     private static final Logger logger = LogManager.getLogger(OpenIdConnectRealm.class);
     private final OPConfiguration opConfiguration;
     private final RPConfiguration rpConfiguration;
@@ -97,7 +103,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
     static String require(RealmConfig config, Setting.AffixSetting<String> setting) {
         final String value = config.getSetting(setting);
         if (value.isEmpty()) {
-            throw new IllegalArgumentException("The configuration setting [" + RealmSettings.getFullSettingKey(config, setting)
+            throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, setting)
                 + "] is required");
         }
         return value;
@@ -106,28 +112,51 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
     /**
      * Creates the URI for an OIDC Authentication Request from the realm configuration using URI Query String Serialization
      *
-     * @param state The oAuth2 state parameter used for CSRF protection
-     * @return a URI at the OP where the user's browser should be redirected for authentication
+     * @param state The oAuth2 state parameter used for CSRF protection. If the facilitator doesn't supply one, we generate one ourselves
+     * @param nonce String value used to associate a Client session with an ID Token, and to mitigate replay attacks. If the facilitator
+     *              doesn't supply one, we don't set one for the authentication request
+     * @return a Tuple of Strings with the URI at the OP where the user's browser should be redirected for authentication and the state
      */
-    public String buildAuthenticationRequestUri(String state, String nonce) throws ElasticsearchException {
+    public Tuple<String, String> buildAuthenticationRequest(@Nullable String state, @Nullable String nonce) throws ElasticsearchException {
         try {
+            if (Strings.hasText(state) == false) {
+                state = createNonce();
+            }
             StringBuilder builder = new StringBuilder();
             builder.append(opConfiguration.getAuthorizationEndpoint());
+            addParameter(builder, "response_type", rpConfiguration.getResponseType(), true);
             addParameter(builder, "scope", Strings.collectionToDelimitedString(rpConfiguration.getRequestedScopes(), " "));
-            addParameter(builder, "response_type", rpConfiguration.getResponseType());
             addParameter(builder, "client_id", rpConfiguration.getClientId());
-            addParameter(builder, "redirect_uri", rpConfiguration.getRedirectUri());
             addParameter(builder, "state", state);
-            addParameter(builder, "nonce", nonce);
-            return builder.toString();
+            if (Strings.hasText(nonce)) {
+                addParameter(builder, "nonce", nonce);
+            }
+            addParameter(builder, "redirect_uri", rpConfiguration.getRedirectUri());
+            return new Tuple<>(builder.toString(), state);
         } catch (UnsupportedEncodingException e) {
             throw new ElasticsearchException("Cannot build OIDC Authentication Request", e);
         }
     }
 
-    private StringBuilder addParameter(StringBuilder builder, String parameter, String value) throws UnsupportedEncodingException {
-        builder.append("&").append(parameter).append("=");
+    private void addParameter(StringBuilder builder, String parameter, String value, boolean isFirstParameter)
+        throws UnsupportedEncodingException {
+        char prefix = isFirstParameter ? '?' : '&';
+        builder.append(prefix).append(parameter).append("=");
         builder.append(URLEncoder.encode(value, StandardCharsets.UTF_8.name()));
-        return builder;
+    }
+
+    private void addParameter(StringBuilder builder, String parameter, String value) throws UnsupportedEncodingException {
+        addParameter(builder, parameter, value, false);
+    }
+
+    /**
+     * Creates a cryptographically secure alphanumeric string to be used as a nonce
+     *
+     * @return an alphanumeric string
+     */
+    static String createNonce() {
+        final byte[] randomBytes = new byte[16];
+        RANDOM_INSTANCE.nextBytes(randomBytes);
+        return MessageDigests.toHexString(randomBytes);
     }
 }

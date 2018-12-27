@@ -11,13 +11,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-
+/**
+ * A response containing the authorization endpoint URL and the appropriate request parameters as URL parameters
+ */
 public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse {
 
     private String authorizationEndpointUrl;
+    private String state;
 
     public OpenIdConnectPrepareAuthenticationResponse(String authorizationEndpointUrl, String state) {
         this.authorizationEndpointUrl = authorizationEndpointUrl;
+        this.state = state;
     }
 
     public OpenIdConnectPrepareAuthenticationResponse() {
@@ -25,6 +29,10 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse {
 
     public String getAuthorizationEndpointUrl() {
         return authorizationEndpointUrl;
+    }
+
+    public String getState() {
+        return state;
     }
 
     @Override

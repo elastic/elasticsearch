@@ -10,7 +10,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -31,7 +32,8 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
     @Inject
     public TransportOpenIdConnectPrepareAuthenticationAction(TransportService transportService,
                                                              ActionFilters actionFilters, Realms realms) {
-        super(OpenIdConnectPrepareAuthenticationAction.NAME, transportService, actionFilters, OpenIdConnectPrepareAuthenticationRequest::new);
+        super(OpenIdConnectPrepareAuthenticationAction.NAME, transportService, actionFilters,
+            OpenIdConnectPrepareAuthenticationRequest::new);
         this.realms = realms;
     }
 
@@ -49,18 +51,16 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
             // Can't define multiple realms with the same name in configuration, but check, still.
             listener.onFailure(new ElasticsearchSecurityException("Found multiple ([{}]) OIDC realms with name [{}]", realms.size(),
                 request.getRealmName()));
-        } else if (Strings.isNullOrEmpty(request.getState())) {
-            listener.onFailure(new ElasticsearchSecurityException("State parameter cannot be empty"));
         } else {
             prepareAuthenticationResponse(realms.get(0), request.getState(), request.getNonce(), listener);
         }
     }
 
-    private void prepareAuthenticationResponse(OpenIdConnectRealm realm, String state, String nonce,
+    private void prepareAuthenticationResponse(OpenIdConnectRealm realm, @Nullable String state, @Nullable String nonce,
                                                ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener) {
         try {
-            final String authorizationEndpointURl = realm.buildAuthenticationRequestUri(state, nonce);
-            listener.onResponse(new OpenIdConnectPrepareAuthenticationResponse(authorizationEndpointURl, state));
+            final Tuple<String, String> authenticationRequest = realm.buildAuthenticationRequest(state, nonce);
+            listener.onResponse(new OpenIdConnectPrepareAuthenticationResponse(authenticationRequest.v1(), authenticationRequest.v2()));
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         }

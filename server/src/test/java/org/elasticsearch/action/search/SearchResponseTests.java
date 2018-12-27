@@ -182,7 +182,7 @@ public class SearchResponseTests extends ESTestCase {
         int numFailures = randomIntBetween(1, 5);
         ShardSearchFailure[] failures = new ShardSearchFailure[numFailures];
         for (int i = 0; i < failures.length; i++) {
-            failures[i] = ShardSearchFailureTests.createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE, false);
+            failures[i] = ShardSearchFailureTests.createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE);
         }
         SearchResponse response = createTestItem(failures);
         XContentType xcontentType = randomFrom(XContentType.values());

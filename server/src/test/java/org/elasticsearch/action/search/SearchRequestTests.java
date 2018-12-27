@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
+import org.elasticsearch.search.RandomSearchRequestGenerator;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
@@ -44,9 +45,12 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     @Override
     protected SearchRequest createSearchRequest() throws IOException {
-        SearchRequest searchRequest = super.createSearchRequest();
+        if (randomBoolean()) {
+            return super.createSearchRequest();
+        }
         //clusterAlias does not have public getter/setter hence we randomize it only in this test specifically.
-        searchRequest.setClusterAlias(randomAlphaOfLengthBetween(5, 10));
+        SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(5, 10));
+        RandomSearchRequestGenerator.randomSearchRequest(searchRequest, this::createSearchSourceBuilder);
         return searchRequest;
     }
 
@@ -192,8 +196,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(),
             () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
-        mutators.add(() -> mutation.setClusterAlias(randomValueOtherThan(searchRequest.getClusterAlias(),
-            () -> randomAlphaOfLengthBetween(3, 10))));
         randomFrom(mutators).run();
         return mutation;
     }

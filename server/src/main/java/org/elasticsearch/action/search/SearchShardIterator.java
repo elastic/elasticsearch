@@ -63,7 +63,7 @@ public final class SearchShardIterator extends PlainShardIterator {
     }
 
     /**
-     * Returns the alias of the cluster where the shard is located
+     * Returns the alias of the cluster where the shard is located.
      */
     @Nullable
     public String getClusterAlias() {

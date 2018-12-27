@@ -50,7 +50,7 @@ public class CryptoService {
     // also provides authentication of the encrypted data, which is something that we are
     // missing here.
     private static final String DEFAULT_ENCRYPTION_ALGORITHM = "AES/CTR/NoPadding";
-    private static final String DEFAULT_KEY_ALGORITH = "AES";
+    private static final String DEFAULT_KEY_ALGORITHM = "AES";
     private static final int DEFAULT_KEY_LENGTH = 128;
 
     private static final Setting<String> ENCRYPTION_ALGO_SETTING =
@@ -58,7 +58,7 @@ public class CryptoService {
     private static final Setting<Integer> ENCRYPTION_KEY_LENGTH_SETTING =
             Setting.intSetting(SecurityField.setting("encryption_key.length"), DEFAULT_KEY_LENGTH, Property.NodeScope);
     private static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING =
-            new Setting<>(SecurityField.setting("encryption_key.algorithm"), DEFAULT_KEY_ALGORITH, s -> s, Property.NodeScope);
+            new Setting<>(SecurityField.setting("encryption_key.algorithm"), DEFAULT_KEY_ALGORITHM, s -> s, Property.NodeScope);
     private static final Logger logger = LogManager.getLogger(CryptoService.class);
 
     private final SecureRandom secureRandom = new SecureRandom();

@@ -30,7 +30,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.test.AbstractQueryTestCase.alterateQueries;
+import static org.elasticsearch.test.AbstractQueryTestCase.alternateQueries;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
@@ -40,17 +40,17 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class AbstractQueryTestCaseTests extends ESTestCase {
 
-    public void testAlterateQueries() throws IOException {
-        List<Tuple<String, Boolean>> alterations = alterateQueries(singleton("{\"field\": \"value\"}"), null);
+    public void testAlternateQueries() throws IOException {
+        List<Tuple<String, Boolean>> alterations = alternateQueries(singleton("{\"field\": \"value\"}"), null);
         assertAlterations(alterations, allOf(notNullValue(), hasEntry("{\"newField\":{\"field\":\"value\"}}", true)));
 
-        alterations = alterateQueries(singleton("{\"term\":{\"field\": \"value\"}}"), null);
+        alterations = alternateQueries(singleton("{\"term\":{\"field\": \"value\"}}"), null);
         assertAlterations(alterations, allOf(
             hasEntry("{\"newField\":{\"term\":{\"field\":\"value\"}}}", true),
             hasEntry("{\"term\":{\"newField\":{\"field\":\"value\"}}}", true))
         );
 
-        alterations = alterateQueries(singleton("{\"bool\":{\"must\": [{\"match\":{\"field\":\"value\"}}]}}"), null);
+        alterations = alternateQueries(singleton("{\"bool\":{\"must\": [{\"match\":{\"field\":\"value\"}}]}}"), null);
         assertAlterations(alterations, allOf(
                 hasEntry("{\"newField\":{\"bool\":{\"must\":[{\"match\":{\"field\":\"value\"}}]}}}", true),
                 hasEntry("{\"bool\":{\"newField\":{\"must\":[{\"match\":{\"field\":\"value\"}}]}}}", true),
@@ -58,7 +58,7 @@ public class AbstractQueryTestCaseTests extends ESTestCase {
                 hasEntry("{\"bool\":{\"must\":[{\"match\":{\"newField\":{\"field\":\"value\"}}}]}}", true)
         ));
 
-        alterations = alterateQueries(singleton("{\"function_score\":" +
+        alterations = alternateQueries(singleton("{\"function_score\":" +
                 "{\"query\": {\"term\":{\"foo\": \"bar\"}}, \"script_score\": {\"script\":\"a + 1\", \"params\": {\"a\":0}}}}"), null);
         assertAlterations(alterations, allOf(
                 hasEntry("{\"newField\":{\"function_score\":{\"query\":{\"term\":{\"foo\":\"bar\"}},\"script_score\":{\"script\":\"a + " +
@@ -76,14 +76,14 @@ public class AbstractQueryTestCaseTests extends ESTestCase {
         ));
     }
 
-    public void testAlterateQueriesWithArbitraryContent() throws IOException {
+    public void testAlternateQueriesWithArbitraryContent() throws IOException {
         Set<String> arbitraryContentHolders = Sets.newHashSet("params", "doc");
         Set<String> queries = Sets.newHashSet(
                 "{\"query\":{\"script\":\"test\",\"params\":{\"foo\":\"bar\"}}}",
                 "{\"query\":{\"more_like_this\":{\"fields\":[\"a\",\"b\"],\"like\":{\"doc\":{\"c\":\"d\"}}}}}"
         );
 
-        List<Tuple<String, Boolean>> alterations = alterateQueries(queries, arbitraryContentHolders);
+        List<Tuple<String, Boolean>> alterations = alternateQueries(queries, arbitraryContentHolders);
         assertAlterations(alterations, allOf(
             hasEntry("{\"newField\":{\"query\":{\"script\":\"test\",\"params\":{\"foo\":\"bar\"}}}}", true),
             hasEntry("{\"query\":{\"newField\":{\"script\":\"test\",\"params\":{\"foo\":\"bar\"}}}}", true),

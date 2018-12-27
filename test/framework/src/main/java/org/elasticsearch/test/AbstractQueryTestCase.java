@@ -170,7 +170,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         // Adds the alternates versions of the query too
         candidates.addAll(getAlternateVersions().keySet());
 
-        List<Tuple<String, Boolean>> testQueries = alterateQueries(candidates, getObjectsHoldingArbitraryContent());
+        List<Tuple<String, Boolean>> testQueries = alternateQueries(candidates, getObjectsHoldingArbitraryContent());
         for (Tuple<String, Boolean> testQuery : testQueries) {
             boolean expectedException = testQuery.v2();
             try {
@@ -231,7 +231,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * for the mutation. Some specific objects do not cause any exception as they can hold arbitrary content; they are passed using the
      * arbitraryMarkers parameter.
      */
-    static List<Tuple<String, Boolean>> alterateQueries(Set<String> queries, Set<String> arbitraryMarkers) throws IOException {
+    static List<Tuple<String, Boolean>> alternateQueries(Set<String> queries, Set<String> arbitraryMarkers) throws IOException {
         List<Tuple<String, Boolean>> results = new ArrayList<>();
 
         // Indicate if a part of the query can hold any arbitrary content

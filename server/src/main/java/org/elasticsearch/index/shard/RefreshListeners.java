@@ -55,10 +55,10 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private volatile boolean closed = false;
 
     /**
-     * Prevents new refresh listeners from being registered. Used to prevent becoming blocked on operations waiting for refresh
-     * during relocation.
+     * Prevents new refresh listeners from being registered while {@code >= 0}. Used to prevent becoming blocked on operations waiting for
+     * refresh during relocation.
      */
-    private volatile boolean preventNewRefreshListeners = false;
+    private int refreshForcers;
 
     /**
      * List of refresh listeners. Defaults to null and built on demand because most refresh cycles won't need it. Entries are never removed
@@ -83,19 +83,19 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     }
 
     /**
-     * Prohibit adding new refresh listeners. See {@link #preventNewRefreshListeners}.
+     * Prohibit adding new refresh listeners. See {@link #refreshForcers}.
      */
-    public void disallowAdd() {
-        synchronized (this) {
-            preventNewRefreshListeners = true;
-        }
+    public synchronized void disallowAdd() {
+        refreshForcers += 1;
+        assert refreshForcers >= 0;
     }
 
     /**
-     * Enable adding new refresh listeners. See {@link #preventNewRefreshListeners}.
+     * Enable adding new refresh listeners. See {@link #refreshForcers}.
      */
-    public void allowAdd() {
-        preventNewRefreshListeners = false;
+    public synchronized void allowAdd() {
+        refreshForcers -= 1;
+        assert refreshForcers >= 0;
     }
 
     /**
@@ -125,7 +125,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                 listeners = new ArrayList<>();
                 refreshListeners = listeners;
             }
-            if (preventNewRefreshListeners == false && listeners.size() < getMaxRefreshListeners.getAsInt()) {
+            if (refreshForcers == 0 && listeners.size() < getMaxRefreshListeners.getAsInt()) {
                 ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
                 Consumer<Boolean> contextPreservingListener = forced -> {
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

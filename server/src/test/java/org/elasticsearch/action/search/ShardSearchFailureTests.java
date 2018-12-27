@@ -39,7 +39,7 @@ import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class ShardSearchFailureTests extends ESTestCase {
 
-    public static ShardSearchFailure createTestItem(String indexUuid, boolean transportSerialization) {
+    public static ShardSearchFailure createTestItem(String indexUuid) {
         String randomMessage = randomAlphaOfLengthBetween(3, 20);
         Exception ex = new ParsingException(0, 0, randomMessage , new IllegalArgumentException("some bad argument"));
         SearchShardTarget searchShardTarget = null;
@@ -67,7 +67,7 @@ public class ShardSearchFailureTests extends ESTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        ShardSearchFailure response = createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE, false);
+        ShardSearchFailure response = createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -137,7 +137,7 @@ public class ShardSearchFailureTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        ShardSearchFailure testItem = createTestItem(randomAlphaOfLength(12), true);
+        ShardSearchFailure testItem = createTestItem(randomAlphaOfLength(12));
         ShardSearchFailure deserializedInstance = copyStreamable(testItem, writableRegistry(),
             ShardSearchFailure::new, VersionUtils.randomVersion(random()));
         assertEquals(testItem.index(), deserializedInstance.index());

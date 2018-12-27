@@ -151,6 +151,9 @@ public interface ShardSearchRequest {
         }
     }
 
+    /**
+     * Returns the cluster alias in case the request is part of a cross-cluster search request, <code>null</code> otherwise.
+     */
     @Nullable
     String getClusterAlias();
 

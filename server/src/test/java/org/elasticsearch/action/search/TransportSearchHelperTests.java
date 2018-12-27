@@ -36,11 +36,9 @@ public class TransportSearchHelperTests extends ESTestCase {
         DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(1, node1);
-        SearchShardTarget target = new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), "cluster_x", null);
-        testSearchPhaseResult1.setSearchShardTarget(target);
+        testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), "cluster_x", null));
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 = new SearchAsyncActionTests.TestSearchPhaseResult(12, node2);
-        SearchShardTarget target2 = new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), "cluster_y", null);
-        testSearchPhaseResult2.setSearchShardTarget(target2);
+        testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), "cluster_y", null));
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 = new SearchAsyncActionTests.TestSearchPhaseResult(42, node3);
         testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null, null));
         array.setOnce(0, testSearchPhaseResult1);

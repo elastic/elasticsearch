@@ -169,8 +169,8 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         }
         SearchShardTarget searchShardTarget = null;
         if (nodeId != null) {
-            searchShardTarget = new SearchShardTarget(nodeId, new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId),
-                clusterAlias, OriginalIndices.NONE);
+            searchShardTarget = new SearchShardTarget(nodeId,
+                new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(exception, searchShardTarget);
     }

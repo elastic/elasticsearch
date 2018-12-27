@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
@@ -116,7 +117,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     public void testBuildShardSearchTransportRequest() {
         final AtomicLong expected = new AtomicLong();
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(false, expected);
-        SearchShardIterator iterator = new SearchShardIterator("test-cluster", new ShardId(new Index("name", "foo"), 1),
+        CCSInfo ccsInfo = randomBoolean() ? null : new CCSInfo(randomAlphaOfLengthBetween(5, 10), randomBoolean());
+        SearchShardIterator iterator = new SearchShardIterator(ccsInfo, new ShardId(new Index("name", "foo"), 1),
             Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
         ShardSearchTransportRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
         assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
@@ -126,5 +128,12 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
         assertArrayEquals(new String[] {"bar", "baz"}, shardSearchTransportRequest.indexRoutings());
         assertEquals("_shards:1,3", shardSearchTransportRequest.preference());
+        assertSame(ccsInfo, shardSearchTransportRequest.getCCSInfo());
+        if (ccsInfo == null) {
+            assertNull(shardSearchTransportRequest.getCCSInfo());
+        } else {
+            assertEquals(ccsInfo.getHitIndexPrefix(), shardSearchTransportRequest.getCCSInfo().getHitIndexPrefix());
+            assertEquals(ccsInfo.getConnectionAlias(), shardSearchTransportRequest.getCCSInfo().getConnectionAlias());
+        }
     }
 }

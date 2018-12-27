@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * The target that the search request was executed on.
@@ -41,7 +42,7 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
     //original indices are only needed in the coordinating node throughout the search request execution.
     //no need to serialize them as part of SearchShardTarget.
     private final transient OriginalIndices originalIndices;
-    private final String clusterAlias;
+    private final CCSInfo ccsInfo;
 
     public SearchShardTarget(StreamInput in) throws IOException {
         if (in.readBoolean()) {
@@ -51,19 +52,19 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         }
         shardId = ShardId.readShardId(in);
         this.originalIndices = null;
-        clusterAlias = in.readOptionalString();
+        ccsInfo = CCSInfo.read(in);
     }
 
-    public SearchShardTarget(String nodeId, ShardId shardId, String clusterAlias, OriginalIndices originalIndices) {
+    public SearchShardTarget(String nodeId, ShardId shardId, @Nullable CCSInfo ccsInfo, OriginalIndices originalIndices) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
         this.shardId = shardId;
         this.originalIndices = originalIndices;
-        this.clusterAlias = clusterAlias;
+        this.ccsInfo = ccsInfo;
     }
 
     //this constructor is only used in tests
     public SearchShardTarget(String nodeId, Index index, int shardId, String clusterAlias) {
-        this(nodeId,  new ShardId(index, shardId), clusterAlias, OriginalIndices.NONE);
+        this(nodeId, new ShardId(index, shardId), CCSInfo.fromClusterAlias(clusterAlias), OriginalIndices.NONE);
     }
 
     @Nullable
@@ -87,15 +88,30 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         return originalIndices;
     }
 
-    public String getClusterAlias() {
-        return clusterAlias;
+    /**
+     * Returns the prefix to be used for the index names of each search result coming from this shard target, to indicate which cluster
+     * returned it. <code>null</code> means that no prefix is needed, meaning that we are not executing a cross-cluster search request.
+     */
+    @Nullable
+    public String getHitIndexPrefix() {
+        return ccsInfo == null ? null : ccsInfo.getHitIndexPrefix();
     }
 
     /**
-     * Returns the fully qualified index name, including the cluster alias.
+     * Returns the cluster alias needed to lookup the connection when sending shard level requests in the context of this shard target.
+     * <code>null</code> indicates that the shard is local, meaning that either we are not executing a cross-cluster search request,
+     * or we are but each cluster performs its own reduction.
+     */
+    @Nullable
+    public String getConnectionAlias() {
+        return ccsInfo == null ? null : ccsInfo.getConnectionAlias();
+    }
+
+    /**
+     * Returns the fully qualified index name, including the index prefix that indicates which cluster results come from.
      */
     public String getFullyQualifiedIndexName() {
-        return RemoteClusterAware.buildRemoteIndexName(getClusterAlias(), getIndex());
+        return RemoteClusterAware.buildRemoteIndexName(getHitIndexPrefix(), getIndex());
     }
 
     @Override
@@ -116,33 +132,32 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
             out.writeText(nodeId);
         }
         shardId.writeTo(out);
-        out.writeOptionalString(clusterAlias);
+        CCSInfo.write(ccsInfo, out);
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchShardTarget that = (SearchShardTarget) o;
-        if (shardId.equals(that.shardId) == false) return false;
-        if (nodeId != null ? !nodeId.equals(that.nodeId) : that.nodeId != null) return false;
-        if (clusterAlias != null ? !clusterAlias.equals(that.clusterAlias) : that.clusterAlias != null) return false;
-        return true;
+        return Objects.equals(nodeId, that.nodeId) &&
+            Objects.equals(shardId, that.shardId) &&
+            Objects.equals(ccsInfo, that.ccsInfo);
     }
 
     @Override
     public int hashCode() {
-        int result = nodeId != null ? nodeId.hashCode() : 0;
-        result = 31 * result + (shardId.getIndexName() != null ? shardId.getIndexName().hashCode() : 0);
-        result = 31 * result + shardId.hashCode();
-        result = 31 * result + (clusterAlias != null ? clusterAlias.hashCode() : 0);
-        return result;
+        return Objects.hash(nodeId, shardId, ccsInfo);
     }
 
     @Override
     public String toString() {
-        String shardToString = "[" + RemoteClusterAware.buildRemoteIndexName(clusterAlias, shardId.getIndexName()) + "][" + shardId.getId()
-            + "]";
+        String shardToString = "[" + RemoteClusterAware.buildRemoteIndexName(
+            getHitIndexPrefix(), shardId.getIndexName()) + "][" + shardId.getId() + "]";
         if (nodeId == null) {
             return "[_na_]" + shardToString;
         }

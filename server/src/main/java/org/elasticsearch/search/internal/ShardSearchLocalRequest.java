@@ -22,6 +22,7 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -57,7 +59,7 @@ import java.io.IOException;
  */
 
 public class ShardSearchLocalRequest implements ShardSearchRequest {
-    private String clusterAlias;
+    private CCSInfo ccsInfo;
     private ShardId shardId;
     private int numberOfShards;
     private SearchType searchType;
@@ -76,8 +78,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     ShardSearchLocalRequest() {
     }
 
-    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
-                            AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias, String[] indexRoutings) {
+    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards, AliasFilter aliasFilter, float indexBoost,
+                            long nowInMillis, @Nullable CCSInfo ccsInfo, String[] indexRoutings) {
         this(shardId, numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost,
                 searchRequest.allowPartialSearchResults(), indexRoutings, searchRequest.preference());
@@ -86,7 +88,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         assert searchRequest.allowPartialSearchResults() != null;
         this.scroll = searchRequest.scroll();
         this.nowInMillis = nowInMillis;
-        this.clusterAlias = clusterAlias;
+        this.ccsInfo = ccsInfo;
     }
 
     public ShardSearchLocalRequest(ShardId shardId, String[] types, long nowInMillis, AliasFilter aliasFilter) {
@@ -112,7 +114,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.indexRoutings = indexRoutings;
         this.preference = preference;
     }
-
 
     @Override
     public ShardId shardId() {
@@ -215,7 +216,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
         requestCache = in.readOptionalBoolean();
-        clusterAlias = in.readOptionalString();
+        ccsInfo = CCSInfo.read(in);
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
         }
@@ -243,7 +244,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             out.writeVLong(nowInMillis);
         }
         out.writeOptionalBoolean(requestCache);
-        out.writeOptionalString(clusterAlias);
+        CCSInfo.write(ccsInfo, out);
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
         }
@@ -265,8 +266,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public String getClusterAlias() {
-        return clusterAlias;
+    public CCSInfo getCCSInfo() {
+        return ccsInfo;
     }
 
     @Override

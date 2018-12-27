@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -98,8 +99,8 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            shardTarget = new SearchShardTarget(in);
+        shardTarget = in.readOptionalWriteable(SearchShardTarget::new);
+        if (shardTarget != null) {
             index = shardTarget.getFullyQualifiedIndexName();
             shardId = shardTarget.getShardId().getId();
         }
@@ -110,12 +111,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (shardTarget == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            shardTarget.writeTo(out);
-        }
+        out.writeOptionalWriteable(shardTarget);
         out.writeString(reason);
         RestStatus.writeTo(out, status);
         out.writeException(cause);
@@ -174,8 +170,8 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         }
         SearchShardTarget searchShardTarget = null;
         if (nodeId != null) {
-            searchShardTarget = new SearchShardTarget(nodeId,
-                    new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
+            searchShardTarget = new SearchShardTarget(nodeId, new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId),
+                CCSInfo.fromClusterAlias(clusterAlias), OriginalIndices.NONE);
         }
         return new ShardSearchFailure(exception, searchShardTarget);
     }

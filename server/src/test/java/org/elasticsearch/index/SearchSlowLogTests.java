@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -43,11 +44,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SearchSlowLogTests extends ESSingleNodeTestCase {
@@ -154,7 +155,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public String getClusterAlias() {
+                public CCSInfo getCCSInfo() {
                     return null;
                 }
             };

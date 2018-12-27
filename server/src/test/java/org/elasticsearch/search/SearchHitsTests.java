@@ -232,9 +232,9 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
 
             for (SearchHit hit : hits) {
                 String index = randomAlphaOfLengthBetween(5, 10);
-                String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
+                CCSInfo ccsInfo = randomBoolean() ? null : new CCSInfo(randomAlphaOfLengthBetween(5, 10), randomBoolean());
                 final SearchShardTarget shardTarget = new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
-                    new ShardId(new Index(index, randomAlphaOfLengthBetween(5, 10)), randomInt()), clusterAlias, OriginalIndices.NONE);
+                    new ShardId(new Index(index, randomAlphaOfLengthBetween(5, 10)), randomInt()), ccsInfo, OriginalIndices.NONE);
                 if (withExplanation) {
                     hit.explanation(SearchHitTests.createExplanation(randomIntBetween(0, 5)));
                 }
@@ -291,6 +291,15 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0));
         SearchHits original = createTestItem(randomFrom(XContentType.values()), false, true, TotalHits.Relation.EQUAL_TO);
         SearchHits deserialized = copyInstance(original, version);
+        for (SearchHit originalHit : original.getHits()) {
+            SearchShardTarget shard = originalHit.getShard();
+            if (shard != null && shard.getHitIndexPrefix() != null) {
+                //CCSInfo is not fully read, localReduction is always set to false when reading from previous versions
+                SearchShardTarget newTarget = new SearchShardTarget(shard.getNodeId(), shard.getShardId(),
+                    new CCSInfo(shard.getHitIndexPrefix(), false), shard.getOriginalIndices());
+                originalHit.shard(newTarget);
+            }
+        }
         assertArrayEquals(original.getHits(), deserialized.getHits());
         assertEquals(original.getMaxScore(), deserialized.getMaxScore(), 0F);
         if (original.getTotalHits() == null) {

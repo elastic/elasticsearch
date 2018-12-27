@@ -354,7 +354,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         this.shard = target;
         if (target != null) {
             this.index = target.getIndex();
-            this.clusterAlias = target.getClusterAlias();
+            this.clusterAlias = target.getHitIndexPrefix();
         }
     }
 
@@ -578,7 +578,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         String nodeId = get(Fields._NODE, values, null);
         if (shardId != null && nodeId != null) {
             assert shardId.getIndexName().equals(index);
-            searchHit.shard(new SearchShardTarget(nodeId, shardId, clusterAlias, OriginalIndices.NONE));
+            searchHit.shard(new SearchShardTarget(nodeId, shardId, CCSInfo.fromClusterAlias(clusterAlias), OriginalIndices.NONE));
         } else {
             //these fields get set anyways when setting the shard target,
             //but we set them explicitly when we don't have enough info to rebuild the shard target

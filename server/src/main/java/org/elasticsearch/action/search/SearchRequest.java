@@ -91,6 +91,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
+    private String clusterAlias;
+
     public SearchRequest() {
     }
 
@@ -111,6 +113,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         this.searchType = searchRequest.searchType;
         this.source = searchRequest.source;
         this.types = searchRequest.types;
+        this.clusterAlias = searchRequest.clusterAlias;
     }
 
     /**
@@ -158,6 +161,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
         }
+        //TODO update version after backport
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            clusterAlias = in.readOptionalString();
+        }
     }
 
     @Override
@@ -180,6 +187,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeVInt(preFilterShardSize);
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
+        }
+        //TODO update version after backport
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeOptionalString(clusterAlias);
         }
     }
 
@@ -207,6 +218,24 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 addValidationError("using [rescore] is not allowed in a scroll context", validationException);
         }
         return validationException;
+    }
+
+    /**
+     * Returns the alias of the cluster that this search request is being executed on. A non-null value indicates that this search request
+     * is being executed as part of a locally reduced cross-cluster search request. The cluster alias is used to provide the cluster alias
+     * to prefix returned index names with.
+     */
+    @Nullable
+    String getClusterAlias() {
+        return clusterAlias;
+    }
+
+    /**
+     * Sets the cluster alias for this search request. Used when a {@link SearchRequest} is executed as part of a cross-cluster search
+     * request performing local reduction on each cluster. This way the coordinating CCS node provides the alias to prefix index names with.
+     */
+    void setClusterAlias(String clusterAlias) {
+        this.clusterAlias = clusterAlias;
     }
 
     /**
@@ -529,14 +558,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
                 Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
-                Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults);
+                Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults) &&
+                Objects.equals(clusterAlias, that.clusterAlias);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
                 scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults);
+                allowPartialSearchResults, clusterAlias);
     }
 
     @Override
@@ -554,6 +584,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", batchedReduceSize=" + batchedReduceSize +
                 ", preFilterShardSize=" + preFilterShardSize +
                 ", allowPartialSearchResults=" + allowPartialSearchResults +
+                ", clusterAlias=" + clusterAlias +
                 ", source=" + source + '}';
     }
 }

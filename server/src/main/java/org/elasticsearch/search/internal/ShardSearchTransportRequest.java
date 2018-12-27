@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -51,14 +52,11 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
 
     private ShardSearchLocalRequest shardSearchLocalRequest;
 
-    public ShardSearchTransportRequest(){
-    }
-
     public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int numberOfShards,
                                        AliasFilter aliasFilter, float indexBoost, long nowInMillis,
-                                       String clusterAlias, String[] indexRoutings) {
+                                       CCSInfo ccsInfo, String[] indexRoutings) {
         this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, numberOfShards, aliasFilter, indexBoost,
-            nowInMillis, clusterAlias, indexRoutings);
+            nowInMillis, ccsInfo, indexRoutings);
         this.originalIndices = originalIndices;
     }
 
@@ -203,8 +201,8 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public String getClusterAlias() {
-        return shardSearchLocalRequest.getClusterAlias();
+    public CCSInfo getCCSInfo() {
+        return shardSearchLocalRequest.getCCSInfo();
     }
 
     @Override

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -262,7 +264,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 aliasFilterMap.put(shardId.getIndex().getUUID(), aliasFilter);
                 final OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
                 assert originalIndices != null : "original indices are null for clusterAlias: " + clusterAlias;
-                SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, shardId,
+                SearchShardIterator shardIterator = new SearchShardIterator(new CCSInfo(clusterAlias, false), shardId,
                     Arrays.asList(clusterSearchShardsGroup.getShards()), new OriginalIndices(finalIndices,
                     originalIndices.indicesOptions()));
                 remoteShardIterators.add(shardIterator);
@@ -311,7 +313,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         GroupShardsIterator<ShardIterator> localShardsIterator = clusterService.operationRouting().searchShards(clusterState,
                 concreteIndices, routingMap, searchRequest.preference(), searchService.getResponseCollectorService(), nodeSearchCounts);
         GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardsIterator, localIndices,
-            remoteShardIterators);
+            searchRequest.getClusterAlias(), remoteShardIterators);
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
@@ -359,10 +361,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,
                                                              OriginalIndices localIndices,
+                                                             @Nullable String localClusterAlias,
                                                              List<SearchShardIterator> remoteShardIterators) {
+        CCSInfo localCCSInfo = localClusterAlias == null ? null : new CCSInfo(localClusterAlias, true);
         List<SearchShardIterator> shards = new ArrayList<>(remoteShardIterators);
         for (ShardIterator shardIterator : localShardsIterator) {
-            shards.add(new SearchShardIterator(null, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
+            shards.add(new SearchShardIterator(localCCSInfo, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
         }
         return new GroupShardsIterator<>(shards);
     }

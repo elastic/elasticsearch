@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -173,8 +174,11 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                         // re-create the search target and add the cluster alias if there is any,
                         // we need this down the road for subseq. phases
                         SearchShardTarget searchShardTarget = response.getSearchShardTarget();
+                        //We can assume that we are executing as part of a CCS request with a single coordination step.
+                        //Scroll is not supported when performing multiple coordination steps in each cluster.
+                        CCSInfo ccsInfo = new CCSInfo(target.getClusterAlias(), false);
                         response.setSearchShardTarget(new SearchShardTarget(searchShardTarget.getNodeId(), searchShardTarget.getShardId(),
-                            target.getClusterAlias(), null));
+                            ccsInfo, null));
                     }
                 }
 

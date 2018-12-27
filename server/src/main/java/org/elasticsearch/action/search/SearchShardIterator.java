@@ -22,31 +22,39 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.CCSInfo;
+import org.elasticsearch.search.SearchShardTarget;
 
 import java.util.List;
 
 /**
  * Extension of {@link PlainShardIterator} used in the search api, which also holds the {@link OriginalIndices}
- * of the search request. Useful especially with cross cluster search, as each cluster has its own set of original indices.
+ * of the search request (useful especially with cross-cluster search, as each cluster has its own set of original indices) as well as
+ * information about the cross-cluster search execution.
+ * @see OriginalIndices
+ * @see CCSInfo
  */
 public final class SearchShardIterator extends PlainShardIterator {
 
     private final OriginalIndices originalIndices;
-    private String clusterAlias;
+    private final CCSInfo ccsInfo;
     private boolean skip = false;
 
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
      * this the a given <code>shardId</code>.
      *
+     * @param ccsInfo information about cross-cluster search execution, null if not applicable
      * @param shardId shard id of the group
      * @param shards  shards to iterate
+     * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      */
-    public SearchShardIterator(String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
+    public SearchShardIterator(@Nullable CCSInfo ccsInfo, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
         super(shardId, shards);
         this.originalIndices = originalIndices;
-        this.clusterAlias = clusterAlias;
+        this.ccsInfo = ccsInfo;
     }
 
     /**
@@ -56,8 +64,32 @@ public final class SearchShardIterator extends PlainShardIterator {
         return originalIndices;
     }
 
-    public String getClusterAlias() {
-        return clusterAlias;
+    /**
+     * Returns the cluster alias needed to lookup the connection when sending shard level requests in the context of this iterator.
+     * <code>null</code> indicates that the shard is local, meaning that either we are not executing a cross-cluster search request,
+     * or we are but each cluster performs its own reduction.
+     */
+    @Nullable
+    public String getConnectionAlias() {
+        return ccsInfo == null ? null : ccsInfo.getConnectionAlias();
+    }
+
+    /**
+     * Returns info about cross-cluster search execution if applicable.
+     * <code>null</code> means that we are not executing a cross-cluster search request.
+     * @see CCSInfo
+     */
+    @Nullable
+    public CCSInfo getCCSInfo() {
+        return ccsInfo;
+    }
+
+    /**
+     * Creates a new shard target from this iterator, pointing at the node identified by the provided identifier.
+     * @see SearchShardTarget
+     */
+    SearchShardTarget newSearchShardTarget(String nodeId) {
+        return new SearchShardTarget(nodeId, shardId(), ccsInfo, originalIndices);
     }
 
     /**

@@ -33,6 +33,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -151,10 +152,11 @@ public interface ShardSearchRequest {
     }
 
     /**
-     * Returns the cluster alias if this request is for a remote cluster or <code>null</code> if the request if targeted to the local
-     * cluster.
+     * Returns information about cross-cluster search execution if this request is part of a cross-cluster search request,
+     * <code>null</code> otherwise
+     * @see CCSInfo
      */
-    String getClusterAlias();
+    CCSInfo getCCSInfo();
 
     Rewriteable<Rewriteable> getRewriteable();
 

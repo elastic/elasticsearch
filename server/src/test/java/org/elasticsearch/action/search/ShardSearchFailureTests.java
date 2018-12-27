@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -39,16 +41,17 @@ import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class ShardSearchFailureTests extends ESTestCase {
 
-    public static ShardSearchFailure createTestItem(String indexUuid) {
+    public static ShardSearchFailure createTestItem(String indexUuid, boolean transportSerialization) {
         String randomMessage = randomAlphaOfLengthBetween(3, 20);
         Exception ex = new ParsingException(0, 0, randomMessage , new IllegalArgumentException("some bad argument"));
         SearchShardTarget searchShardTarget = null;
         if (randomBoolean()) {
             String nodeId = randomAlphaOfLengthBetween(5, 10);
             String indexName = randomAlphaOfLengthBetween(5, 10);
-            String clusterAlias = randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
+            CCSInfo ccsInfo = randomBoolean() ? null :
+                new CCSInfo(randomAlphaOfLengthBetween(5, 10), transportSerialization && randomBoolean());
             searchShardTarget = new SearchShardTarget(nodeId,
-                    new ShardId(new Index(indexName, indexUuid), randomInt()), clusterAlias, OriginalIndices.NONE);
+                    new ShardId(new Index(indexName, indexUuid), randomInt()), ccsInfo, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(ex, searchShardTarget);
     }
@@ -67,7 +70,7 @@ public class ShardSearchFailureTests extends ESTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        ShardSearchFailure response = createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE);
+        ShardSearchFailure response = createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE, false);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -120,7 +123,8 @@ public class ShardSearchFailureTests extends ESTestCase {
 
     public void testToXContentWithClusterAlias() throws IOException {
         ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "some message", null),
-            new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), "cluster1", OriginalIndices.NONE));
+            new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123),
+                new CCSInfo("cluster1", randomBoolean()), OriginalIndices.NONE));
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
             "{\"shard\":123,"
@@ -137,13 +141,35 @@ public class ShardSearchFailureTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        ShardSearchFailure testItem = createTestItem(randomAlphaOfLength(12));
+        ShardSearchFailure testItem = createTestItem(randomAlphaOfLength(12), true);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
         ShardSearchFailure deserializedInstance = copyStreamable(testItem, writableRegistry(),
-            ShardSearchFailure::new, VersionUtils.randomVersion(random()));
+            ShardSearchFailure::new, version);
         assertEquals(testItem.index(), deserializedInstance.index());
         assertEquals(testItem.shard(), deserializedInstance.shard());
         assertEquals(testItem.shardId(), deserializedInstance.shardId());
         assertEquals(testItem.reason(), deserializedInstance.reason());
         assertEquals(testItem.status(), deserializedInstance.status());
     }
+
+    //TODO rename and update version after backport
+    public void testSerializationPre7_0_0() throws IOException {
+        ShardSearchFailure testItem = createTestItem(randomAlphaOfLength(12), true);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
+        ShardSearchFailure deserializedInstance = copyStreamable(testItem, writableRegistry(), ShardSearchFailure::new, version);
+        assertEquals(testItem.index(), deserializedInstance.index());
+        if (testItem.shard() == null) {
+            assertNull(deserializedInstance.shard());
+        } else {
+            //equality check on target doesn't work as CCSInfo is partially read (missing boolean localReduction flag set to false)
+            assertEquals(testItem.shard().getNodeId(), deserializedInstance.shard().getNodeId());
+            assertEquals(testItem.shard().getShardId(), deserializedInstance.shard().getShardId());
+            assertEquals(testItem.shard().getHitIndexPrefix(), deserializedInstance.shard().getHitIndexPrefix());
+            assertEquals(testItem.shard().getHitIndexPrefix(), deserializedInstance.shard().getConnectionAlias());
+        }
+        assertEquals(testItem.shardId(), deserializedInstance.shardId());
+        assertEquals(testItem.reason(), deserializedInstance.reason());
+        assertEquals(testItem.status(), deserializedInstance.status());
+    }
+
 }

@@ -89,9 +89,9 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                         ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.getRequestId(), docIds,
                             lastEmittedDoc);
                         SearchShardTarget searchShardTarget = querySearchResult.getSearchShardTarget();
-                        DiscoveryNode node = clusterNodeLookup.apply(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+                        DiscoveryNode node = clusterNodeLookup.apply(searchShardTarget.getConnectionAlias(), searchShardTarget.getNodeId());
                         assert node != null : "target node is null in secondary phase";
-                        Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), node);
+                        Transport.Connection connection = getConnection(searchShardTarget.getConnectionAlias(), node);
                         searchTransportService.sendExecuteFetchScroll(connection, shardFetchRequest, task,
                             new SearchActionListener<FetchSearchResult>(querySearchResult.getSearchShardTarget(), index) {
                                 @Override

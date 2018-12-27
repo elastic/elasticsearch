@@ -29,6 +29,7 @@ setup:
 "Basic":
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "query" : {"multi_match" : { "query" : "quick brown fox", "fields" : [ "text*"] } }, "highlight" : { "type" : "unified", "fields" : { "*" : {} } } }
 
   - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}

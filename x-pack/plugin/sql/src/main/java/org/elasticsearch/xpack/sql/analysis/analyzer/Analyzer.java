@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -60,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -77,19 +77,19 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      */
     private final IndexResolution indexResolution;
     /**
-     * Time zone in which we're executing this SQL. It is attached to functions
-     * that deal with date and time.
+     * Per-request specific settings needed in some of the functions (timezone, username and clustername),
+     * to which they are attached.
      */
-    private final TimeZone timeZone;
+    private final Configuration configuration;
     /**
      * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
      */
     private final Verifier verifier;
 
-    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone, Verifier verifier) {
+    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
+        this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
-        this.timeZone = timeZone;
         this.verifier = verifier;
     }
 
@@ -108,7 +108,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveAggsInHaving()
                 //new ImplicitCasting()
                 );
-        return Arrays.asList(substitution, resolution);
+        Batch finish = new Batch("Finish Analysis",
+                new PruneSubqueryAliases(),
+                CleanAliases.INSTANCE
+                );
+        return Arrays.asList(substitution, resolution, finish);
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -815,7 +819,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                     // TODO: look into Generator for significant terms, etc..
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                    Function f = uf.buildResolved(timeZone, def);
+                    Function f = uf.buildResolved(configuration, def);
 
                     list.add(f);
                     return f;
@@ -931,14 +935,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (!condition.resolved()) {
                         // that's why try to resolve the condition
                         Aggregate tryResolvingCondition = new Aggregate(agg.location(), agg.child(), agg.groupings(),
-                                singletonList(new Alias(f.location(), ".having", condition)));
+                                combine(agg.aggregates(), new Alias(f.location(), ".having", condition)));
 
-                        LogicalPlan conditionResolved = analyze(tryResolvingCondition, false);
+                        tryResolvingCondition = (Aggregate) analyze(tryResolvingCondition, false);
 
                         // if it got resolved
-                        if (conditionResolved.resolved()) {
+                        if (tryResolvingCondition.resolved()) {
                             // replace the condition with the resolved one
-                            condition = ((Alias) ((Aggregate) conditionResolved).aggregates().get(0)).child();
+                            condition = ((Alias) tryResolvingCondition.aggregates()
+                                .get(tryResolvingCondition.aggregates().size() - 1)).child();
                         } else {
                             // else bail out
                             return plan;
@@ -954,6 +959,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         // preserve old output
                         return new Project(f.location(), newFilter, f.output());
                     }
+
+                    return new Filter(f.location(), f.child(), condition);
                 }
                 return plan;
             }
@@ -1056,6 +1063,69 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return e;
         }
     }
+
+
+    public static class PruneSubqueryAliases extends AnalyzeRule<SubQueryAlias> {
+
+        @Override
+        protected LogicalPlan rule(SubQueryAlias alias) {
+            return alias.child();
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+    }
+
+    public static class CleanAliases extends AnalyzeRule<LogicalPlan> {
+
+        public static final CleanAliases INSTANCE = new CleanAliases();
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof Project) {
+                Project p = (Project) plan;
+                return new Project(p.location(), p.child(), cleanExpressions(p.projections()));
+            }
+
+            if (plan instanceof Aggregate) {
+                Aggregate a = (Aggregate) plan;
+                // clean group expressions
+                List<Expression> cleanedGroups = a.groupings().stream().map(CleanAliases::trimAliases).collect(toList());
+                return new Aggregate(a.location(), a.child(), cleanedGroups, cleanExpressions(a.aggregates()));
+            }
+
+            return plan.transformExpressionsOnly(e -> {
+                if (e instanceof Alias) {
+                    return ((Alias) e).child();
+                }
+                return e;
+            });
+        }
+
+        private List<NamedExpression> cleanExpressions(List<? extends NamedExpression> args) {
+            return args.stream().map(CleanAliases::trimNonTopLevelAliases).map(NamedExpression.class::cast).collect(toList());
+        }
+
+        public static Expression trimNonTopLevelAliases(Expression e) {
+            if (e instanceof Alias) {
+                Alias a = (Alias) e;
+                return new Alias(a.location(), a.name(), a.qualifier(), trimAliases(a.child()), a.id());
+            }
+            return trimAliases(e);
+        }
+
+        private static Expression trimAliases(Expression e) {
+            return e.transformDown(Alias::child, Alias.class);
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+    }
+
 
     abstract static class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 

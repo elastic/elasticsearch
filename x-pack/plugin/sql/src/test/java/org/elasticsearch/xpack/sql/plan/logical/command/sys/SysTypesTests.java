@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.sql.JDBCType;
 import java.util.List;
-import java.util.TimeZone;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -32,7 +32,7 @@ public class SysTypesTests extends ESTestCase {
 
     private Tuple<Command, SqlSession> sql(String sql) {
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"), null);
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test), null);
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), false);
 
         IndexResolver resolver = mock(IndexResolver.class);

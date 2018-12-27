@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-datafeed-stats]]
-=== Get {dfeed-cap} Statistics API
+=== Get {dfeed} statistics API
 ++++
-<titleabbrev>Get {dfeed-cap} Statistics</titleabbrev>
+<titleabbrev>Get {dfeed} statistics</titleabbrev>
 ++++
 
 Retrieves usage information for {dfeeds}.
@@ -12,13 +12,13 @@ Retrieves usage information for {dfeeds}.
 ==== Request
 
 
-`GET _xpack/ml/datafeeds/<feed_id>/_stats` +
+`GET _ml/datafeeds/<feed_id>/_stats` +
 
-`GET _xpack/ml/datafeeds/<feed_id>,<feed_id>/_stats` +
+`GET _ml/datafeeds/<feed_id>,<feed_id>/_stats` +
 
-`GET _xpack/ml/datafeeds/_stats`  +
+`GET _ml/datafeeds/_stats`  +
 
-`GET _xpack/ml/datafeeds/_all/_stats` +
+`GET _ml/datafeeds/_all/_stats` +
 
 
 
@@ -64,7 +64,7 @@ The following example gets usage information for the
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/datafeeds/datafeed-total-requests/_stats
+GET _ml/datafeeds/datafeed-total-requests/_stats
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_startdf]

@@ -76,8 +76,8 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertOutputContains(
             result.getOutput(),
             "> Task :user1",
-            "Starting `ElasticsearchNode{name='myTestCluster'}`",
-            "Stopping `ElasticsearchNode{name='myTestCluster'}`"
+            "Starting `node{::myTestCluster}`",
+            "Stopping `node{::myTestCluster}`"
         );
     }
 
@@ -88,7 +88,6 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
             .withPluginClasspath()
             .build();
         assertTaskSuccessful(result, ":user1", ":user2");
-
         assertStartedAndStoppedOnce(result);
     }
 
@@ -98,7 +97,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertStartedAndStoppedOnce(result);
         assertOutputContains(
             result.getOutput(),
-            "Stopping `ElasticsearchNode{name='myTestCluster'}`, tailLogs: true",
+            "Stopping `node{::myTestCluster}`, tailLogs: true",
             "Execution failed for task ':itAlwaysFails'."
         );
     }
@@ -110,7 +109,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertStartedAndStoppedOnce(result);
         assertOutputContains(
             result.getOutput(),
-            "Stopping `ElasticsearchNode{name='myTestCluster'}`, tailLogs: true",
+            "Stopping `node{::myTestCluster}`, tailLogs: true",
             "Execution failed for task ':itAlwaysFails'."
         );
     }
@@ -146,8 +145,8 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     private void assertStartedAndStoppedOnce(BuildResult result) {
         assertOutputOnlyOnce(
             result.getOutput(),
-            "Starting `ElasticsearchNode{name='myTestCluster'}`",
-            "Stopping `ElasticsearchNode{name='myTestCluster'}`"
+            "Starting `node{::myTestCluster}`",
+            "Stopping `node{::myTestCluster}`"
         );
     }
 }

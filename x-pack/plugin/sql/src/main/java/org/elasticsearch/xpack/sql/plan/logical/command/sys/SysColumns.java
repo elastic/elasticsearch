@@ -97,7 +97,7 @@ public class SysColumns extends Command {
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        boolean isOdbcClient = session.settings().mode() == Mode.ODBC;
+        boolean isOdbcClient = session.configuration().mode() == Mode.ODBC;
         List<Attribute> output = output(isOdbcClient);
         String cluster = session.indexResolver().clusterName();
 

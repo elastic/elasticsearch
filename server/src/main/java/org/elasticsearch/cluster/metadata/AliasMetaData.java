@@ -250,14 +250,6 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
             this.alias = alias;
         }
 
-        public Builder(AliasMetaData aliasMetaData) {
-            this(aliasMetaData.alias());
-            filter = aliasMetaData.filter();
-            indexRouting = aliasMetaData.indexRouting();
-            searchRouting = aliasMetaData.searchRouting();
-            writeIndex = aliasMetaData.writeIndex();
-        }
-
         public String alias() {
             return alias;
         }
@@ -287,10 +279,6 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
             }
-        }
-
-        public Builder filter(XContentBuilder filterBuilder) {
-            return filter(Strings.toString(filterBuilder));
         }
 
         public Builder routing(String routing) {

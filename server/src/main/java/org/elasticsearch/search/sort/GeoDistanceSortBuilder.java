@@ -235,19 +235,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     /**
-     * The geohash of the geo point to create the range distance facets from.
-     *
-     * Deprecated - please use points(GeoPoint... points) instead.
-     */
-    @Deprecated
-    public GeoDistanceSortBuilder geohashes(String... geohashes) {
-        for (String geohash : geohashes) {
-            this.points.add(GeoPoint.fromGeohash(geohash));
-        }
-        return this;
-    }
-
-    /**
      * The geo distance type used to compute the distance.
      */
     public GeoDistanceSortBuilder geoDistance(GeoDistance geoDistance) {

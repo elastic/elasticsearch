@@ -262,14 +262,14 @@ public class SSLService {
     /**
      * Returns the {@link SSLContext} for the global configuration. Mainly used for testing
      */
-    SSLContext sslContext() {
+    public SSLContext sslContext() {
         return sslContextHolder(globalSSLConfiguration).sslContext();
     }
 
     /**
-     * Returns the {@link SSLContext} for the configuration
+     * Returns the {@link SSLContext} for the configuration. Mainly used for testing
      */
-    SSLContext sslContext(SSLConfiguration configuration) {
+    public SSLContext sslContext(SSLConfiguration configuration) {
         return sslContextHolder(configuration).sslContext();
     }
 
@@ -619,12 +619,19 @@ public class SSLService {
         final Map<String, Settings> sslSettings = new HashMap<>();
         final String prefix = "xpack.security.authc.realms.";
         final Map<String, Settings> settingsByRealmType = settings.getGroups(prefix);
-        settingsByRealmType.forEach((realmType, typeSettings) ->
-            typeSettings.getAsGroups().forEach((realmName, realmSettings) -> {
-                Settings realmSSLSettings = realmSettings.getByPrefix("ssl.");
-                // Put this even if empty, so that the name will be mapped to the global SSL configuration
-                sslSettings.put(prefix + realmType + "." + realmName + ".ssl", realmSSLSettings);
-            })
+        settingsByRealmType.forEach((realmType, typeSettings) -> {
+                final Optional<String> nonDottedSetting = typeSettings.keySet().stream().filter(k -> k.indexOf('.') == -1).findAny();
+                if (nonDottedSetting.isPresent()) {
+                    logger.warn("Skipping any SSL configuration from realm [{}{}] because the key [{}] is not in the correct format",
+                        prefix, realmType, nonDottedSetting.get());
+                } else {
+                    typeSettings.getAsGroups().forEach((realmName, realmSettings) -> {
+                        Settings realmSSLSettings = realmSettings.getByPrefix("ssl.");
+                        // Put this even if empty, so that the name will be mapped to the global SSL configuration
+                        sslSettings.put(prefix + realmType + "." + realmName + ".ssl", realmSSLSettings);
+                    });
+                }
+            }
         );
         return sslSettings;
     }

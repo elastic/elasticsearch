@@ -29,6 +29,17 @@ data structures on demand which can cause page faults and garbage collections, w
 
 Since indices that are eligible for freezing are unlikely to change in the future, disk space can be optimized as described in <<tune-for-disk-usage>>.
 
+It's highly recommended to <<indices-forcemerge,`_forcemerge`>> your indices prior to freezing to ensure that each shard has only a single
+segment on disk. This not only provides much better compression but also simplifies the data structures needed to service aggregation
+or sorted search requests.
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_forcemerge?max_num_segments=1
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
 == Searching a frozen index
 
 Frozen indices are throttled in order to limit memory consumptions per node. The number of concurrently loaded frozen indices per node is

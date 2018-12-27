@@ -67,8 +67,7 @@ public class ClusterStateRequestTests extends ESTestCase {
             assertThat(deserializedCSRequest.blocks(), equalTo(clusterStateRequest.blocks()));
             assertThat(deserializedCSRequest.indices(), equalTo(clusterStateRequest.indices()));
             assertOptionsMatch(deserializedCSRequest.indicesOptions(), clusterStateRequest.indicesOptions());
-            // TODO: change version to V_6_6_0 after backporting:
-            if (testVersion.onOrAfter(Version.V_7_0_0)) {
+            if (testVersion.onOrAfter(Version.V_6_6_0)) {
                 assertThat(deserializedCSRequest.waitForMetaDataVersion(), equalTo(clusterStateRequest.waitForMetaDataVersion()));
                 assertThat(deserializedCSRequest.waitForTimeout(), equalTo(clusterStateRequest.waitForTimeout()));
             }

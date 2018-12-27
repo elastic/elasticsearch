@@ -346,7 +346,8 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+                throws IOException {
                 maybeIOExceptionOrBlock(blobName);
                 super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {

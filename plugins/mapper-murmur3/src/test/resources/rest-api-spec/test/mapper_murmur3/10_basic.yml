@@ -23,6 +23,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body: { "aggs": { "foo_count": { "cardinality": { "field": "foo.hash" } } } }
 
     - match: { aggregations.foo_count.value: 0 }
@@ -60,6 +61,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body: { "aggs": { "foo_count": { "cardinality": { "field": "foo.hash" } } } }
 
     - match: { aggregations.foo_count.value: 3 }

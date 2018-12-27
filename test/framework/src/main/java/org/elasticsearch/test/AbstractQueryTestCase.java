@@ -466,12 +466,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
                         rewrite(thirdLuceneQuery));
             }
-
-            // check that context#isFilter is not changed by invoking toQuery/rewrite
-            boolean filterFlag = randomBoolean();
-            context.setIsFilter(filterFlag);
-            rewriteQuery(firstQuery, context).toQuery(context);
-            assertEquals("isFilter should be unchanged", filterFlag, context.isFilter());
         }
     }
 

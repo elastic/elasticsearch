@@ -243,7 +243,7 @@ public class IpRangeIT extends ESIntegTestCase {
             client().prepareSearch("idx").addAggregation(
                 AggregationBuilders.ipRange("my_range")
                     .field("ip"))
-                .execute().actionGet();
+                .get();
             fail();
         } catch (SearchPhaseExecutionException spee){
             Throwable rootCause = spee.getCause().getCause();

@@ -278,18 +278,18 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             if (responses[0].isFailure()) {
                                 usageStats.put("size", 0);
                             } else {
-                                usageStats.put("size", responses[0].getResponse().getHits().getTotalHits());
+                                usageStats.put("size", responses[0].getResponse().getHits().getTotalHits().value);
                             }
                             if (responses[1].isFailure()) {
                                 usageStats.put("fls", false);
                             } else {
-                                usageStats.put("fls", responses[1].getResponse().getHits().getTotalHits() > 0L);
+                                usageStats.put("fls", responses[1].getResponse().getHits().getTotalHits().value > 0L);
                             }
 
                             if (responses[2].isFailure()) {
                                 usageStats.put("dls", false);
                             } else {
-                                usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits() > 0L);
+                                usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits().value > 0L);
                             }
                             listener.onResponse(usageStats);
                         }

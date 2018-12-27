@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-job-config]]
-=== Rollup Job Configuration
+=== Rollup job configuration
 
 experimental[]
 
@@ -15,7 +15,7 @@ A full job configuration might look like this:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/rollup/job/sensor
+PUT _rollup/job/sensor
 {
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",

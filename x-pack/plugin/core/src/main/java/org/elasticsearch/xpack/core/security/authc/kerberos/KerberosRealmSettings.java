@@ -53,6 +53,7 @@ public final class KerberosRealmSettings {
         final Set<Setting.AffixSetting<?>> settings = Sets.newHashSet(HTTP_SERVICE_KEYTAB_PATH, CACHE_TTL_SETTING, CACHE_MAX_USERS_SETTING,
                 SETTING_KRB_DEBUG_ENABLE, SETTING_REMOVE_REALM_NAME);
         settings.addAll(DelegatedAuthorizationSettings.getSettings(TYPE));
+        settings.addAll(RealmSettings.getStandardSettings(TYPE));
         return settings;
     }
 }

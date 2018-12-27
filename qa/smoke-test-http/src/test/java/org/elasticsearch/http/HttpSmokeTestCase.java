@@ -22,7 +22,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
@@ -46,9 +45,7 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     }
 
     private static String getTypeKey(Class<? extends Plugin> clazz) {
-        if (clazz.equals(MockTcpTransportPlugin.class)) {
-            return MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
-        } else if (clazz.equals(MockNioTransportPlugin.class)) {
+        if (clazz.equals(MockNioTransportPlugin.class)) {
             return MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
         } else if (clazz.equals(NioTransportPlugin.class)) {
             return NioTransportPlugin.NIO_TRANSPORT_NAME;

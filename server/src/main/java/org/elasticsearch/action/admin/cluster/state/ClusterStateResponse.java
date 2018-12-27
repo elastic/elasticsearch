@@ -91,8 +91,7 @@ public class ClusterStateResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         clusterName = new ClusterName(in);
-        // TODO: change version to V_6_6_0 after backporting:
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
         } else {
             clusterState = ClusterState.readFrom(in, null);
@@ -106,8 +105,7 @@ public class ClusterStateResponse extends ActionResponse {
             // at which point the correct cluster state size will always be reported
             totalCompressedSize = new ByteSizeValue(0L);
         }
-        // TODO: change version to V_6_6_0 after backporting:
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             waitForTimedOut = in.readBoolean();
         }
     }
@@ -116,8 +114,7 @@ public class ClusterStateResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         clusterName.writeTo(out);
-        // TODO: change version to V_6_6_0 after backporting:
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeOptionalWriteable(clusterState);
         } else {
             if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
@@ -129,8 +126,7 @@ public class ClusterStateResponse extends ActionResponse {
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             totalCompressedSize.writeTo(out);
         }
-        // TODO: change version to V_6_6_0 after backporting:
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeBoolean(waitForTimedOut);
         }
     }

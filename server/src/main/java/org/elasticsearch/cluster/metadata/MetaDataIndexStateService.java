@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
@@ -60,7 +59,6 @@ import java.util.Set;
  */
 public class MetaDataIndexStateService {
     private static final Logger logger = LogManager.getLogger(MetaDataIndexStateService.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false,
         false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
@@ -188,7 +186,7 @@ public class MetaDataIndexStateService {
                     }
                 }
 
-                validateShardLimit(currentState, request.indices(), deprecationLogger);
+                validateShardLimit(currentState, request.indices());
 
                 if (indicesToOpen.isEmpty()) {
                     return currentState;
@@ -238,16 +236,15 @@ public class MetaDataIndexStateService {
      *
      * @param currentState The current cluster state.
      * @param indices The indices which are to be opened.
-     * @param deprecationLogger The logger to use to emit a deprecation warning, if appropriate.
      * @throws ValidationException If this operation would take the cluster over the limit and enforcement is enabled.
      */
-    static void validateShardLimit(ClusterState currentState, Index[] indices, DeprecationLogger deprecationLogger) {
+    static void validateShardLimit(ClusterState currentState, Index[] indices) {
         int shardsToOpen = Arrays.stream(indices)
             .filter(index -> currentState.metaData().index(index).getState().equals(IndexMetaData.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
 
-        Optional<String> error = IndicesService.checkShardLimit(shardsToOpen, currentState, deprecationLogger);
+        Optional<String> error = IndicesService.checkShardLimit(shardsToOpen, currentState);
         if (error.isPresent()) {
             ValidationException ex = new ValidationException();
             ex.addValidationError(error.get());

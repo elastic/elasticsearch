@@ -27,7 +27,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -37,9 +37,8 @@ import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -55,7 +54,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                                                            ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new Netty4Transport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
-            BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
+            PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
             public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,
@@ -75,7 +74,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
 
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        settings = Settings.builder().put(settings).put(TcpTransport.PORT.getKey(), "0").build();
+        settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
         MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;
@@ -97,9 +96,9 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         int port = serviceA.boundAddress().publishAddress().getPort();
         Settings settings = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
-            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-            .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-            .put("transport.tcp.port", port)
+            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+            .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+            .put(TransportSettings.PORT.getKey(), port)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {

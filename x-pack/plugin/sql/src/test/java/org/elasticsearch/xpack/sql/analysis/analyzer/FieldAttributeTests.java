@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
@@ -52,7 +52,7 @@ public class FieldAttributeTests extends ESTestCase {
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"), verifier);
+        analyzer = new Analyzer(TestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
     }
 
     private LogicalPlan plan(String sql) {
@@ -169,7 +169,7 @@ public class FieldAttributeTests extends ESTestCase {
 
         EsIndex index = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(index);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"), verifier);
+        analyzer = new Analyzer(TestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
 
         VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
         assertEquals(

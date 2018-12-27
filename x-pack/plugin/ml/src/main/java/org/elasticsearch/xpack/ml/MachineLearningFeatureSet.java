@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
@@ -175,7 +174,8 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         }
 
         public void execute(ActionListener<Usage> listener) {
-            if (enabled == false) {
+            // empty holder means either ML disabled or transport client mode
+            if (jobManagerHolder.isEmpty()) {
                 listener.onResponse(
                     new MachineLearningFeatureSetUsage(available, enabled, Collections.emptyMap(), Collections.emptyMap(), 0));
                 return;

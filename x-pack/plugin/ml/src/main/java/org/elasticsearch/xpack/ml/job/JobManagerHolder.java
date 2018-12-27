@@ -27,6 +27,10 @@ public class JobManagerHolder {
         this.instance = jobManager;
     }
 
+    public boolean isEmpty() {
+        return instance == null;
+    }
+
     /**
      * Get the instance of the held JobManager.
      *

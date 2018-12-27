@@ -240,6 +240,29 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
     }
 
+    public void testUsageDisabledML() throws Exception {
+        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        Settings.Builder settings = Settings.builder().put(commonSettings);
+        settings.put("xpack.ml.enabled", false);
+
+        JobManagerHolder emptyJobManagerHolder = new JobManagerHolder();
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
+                clusterService, client, licenseState, emptyJobManagerHolder);
+        PlainActionFuture<Usage> future = new PlainActionFuture<>();
+        featureSet.usage(future);
+        XPackFeatureSet.Usage mlUsage = future.get();
+        BytesStreamOutput out = new BytesStreamOutput();
+        mlUsage.writeTo(out);
+        XPackFeatureSet.Usage serializedUsage = new MachineLearningFeatureSetUsage(out.bytes().streamInput());
+
+        for (XPackFeatureSet.Usage usage : Arrays.asList(mlUsage, serializedUsage)) {
+            assertThat(usage, is(notNullValue()));
+            assertThat(usage.name(), is(XPackField.MACHINE_LEARNING));
+            assertThat(usage.enabled(), is(false));
+            assertThat(usage.available(), is(false));
+        }
+    }
+
     public void testNodeCount() throws Exception {
         when(licenseState.isMachineLearningAllowed()).thenReturn(true);
         int nodeCount = randomIntBetween(1, 3);

@@ -19,7 +19,6 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.EvilThreadPoolTests;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;

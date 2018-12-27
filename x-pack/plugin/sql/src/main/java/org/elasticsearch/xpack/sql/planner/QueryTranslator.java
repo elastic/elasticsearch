@@ -277,7 +277,7 @@ final class QueryTranslator {
                             if (h.dataType() == DataType.DATE) {
                                 long intervalAsMillis = Intervals.inMillis(h.interval());
                                 // TODO: set timezone
-                                if (field instanceof FieldAttribute || field instanceof DateTimeHistogramFunction) {
+                                if (field instanceof FieldAttribute) {
                                     key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.zoneId());
                                 } else if (field instanceof Function) {
                                     key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), intervalAsMillis, h.zoneId());
@@ -285,7 +285,7 @@ final class QueryTranslator {
                             }
                             // numeric histogram
                             else {
-                                if (field instanceof FieldAttribute || field instanceof DateTimeHistogramFunction) {
+                                if (field instanceof FieldAttribute) {
                                     key = new GroupByNumericHistogram(aggId, nameOf(field), Foldables.doubleValueOf(h.interval()));
                                 } else if (field instanceof Function) {
                                     key = new GroupByNumericHistogram(aggId, ((Function) field).asScript(),

@@ -1,0 +1,32 @@
+[role="xpack"]
+[testenv="platinum"]
+[[sql-odbc-applications]]
+=== ODBC client applications
+
+experimental[]
+
+Thanks to a standardized API, a broad range of third-party ODBC-enabled applications can access {es} using {product}.
+This section will collect alphabetically an increasing list of such applications along with the configuration steps that need to be taken
+within them.
+
+* <<sql-odbc-applications-excel, Microsoft Excel>>
+* <<sql-odbc-applications-powerbi, Microsoft Power BI Desktop>>
+* <<sql-odbc-applications-ps1, Microsoft PowerShell>>
+* <<sql-odbc-applications-microstrat, MicroStrategy Desktop>>
+* <<sql-odbc-applications-qlik, Qlik Sense Desktop>>
+* <<sql-odbc-applications-tableau, Tableau Desktop>>
+
+NOTE: Each application has its own requirements and licensing; these are outside the scope of this documentation which only covers the
+configuration aspect of integration with {es-sql}.
+
+WARNING: The support for applications implementing the ODBC 2.x standard and prior is currently limited.
+
+include::applications-excel.asciidoc[]
+include::applications-powerbi.asciidoc[]
+include::applications-ps1.asciidoc[]
+include::applications-microstrat.asciidoc[]
+include::applications-qlik.asciidoc[]
+include::applications-tableau.asciidoc[]
+
+
+// vim: set noet fenc=utf-8 ff=dos sts=0 sw=4 ts=4 tw=138 columns=140

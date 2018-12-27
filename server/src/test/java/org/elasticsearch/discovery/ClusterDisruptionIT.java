@@ -357,7 +357,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {
         // test for https://github.com/elastic/elasticsearch/issues/8823
-        Settings zen1Settings = Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build(); // TODO: needs adaptions for Zen2
+        Settings zen1Settings = Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build(); // TODO: needs adaptations for Zen2
         String masterNode = internalCluster().startMasterOnlyNode(zen1Settings);
         internalCluster().startDataOnlyNode(zen1Settings);
         ensureStableCluster(2);

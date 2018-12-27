@@ -76,7 +76,7 @@ public class NodeTests extends ESTestCase {
                 throw new NodeValidationException("boom");
             }
         }) {
-            expectThrows(NodeValidationException.class, () -> node.start());
+            expectThrows(NodeValidationException.class, () -> node.start().get());
             assertTrue(executed.get());
         }
     }

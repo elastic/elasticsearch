@@ -25,7 +25,6 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -169,7 +168,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -625,9 +624,9 @@ public class Node implements Closeable {
     /**
      * Start the node. If the node is already started, this method is no-op.
      */
-    public Node start() throws NodeValidationException {
+    public CompletableFuture<Node> start() throws NodeValidationException {
         if (!lifecycle.moveToStarted()) {
-            return this;
+            return CompletableFuture.completedFuture(this);
         }
 
         logger.info("starting ...");
@@ -684,52 +683,53 @@ public class Node implements Closeable {
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
-        if (initialStateTimeout.millis() > 0) {
-            final ThreadPool thread = injector.getInstance(ThreadPool.class);
-            ClusterState clusterState = clusterService.state();
-            ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
-            if (clusterState.nodes().getMasterNodeId() == null) {
-                logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
-                final CountDownLatch latch = new CountDownLatch(1);
-                observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                    @Override
-                    public void onNewClusterState(ClusterState state) { latch.countDown(); }
-
-                    @Override
-                    public void onClusterServiceClose() {
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onTimeout(TimeValue timeout) {
-                        logger.warn("timed out while waiting for initial discovery state - timeout: {}",
-                            initialStateTimeout);
-                        latch.countDown();
-                    }
-                }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
-
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
-                }
+        CompletableFuture<Node> selfFuture = new CompletableFuture<>();
+        selfFuture.whenComplete((self, error) -> {
+            if (error != null) {
+                throw new ElasticsearchException(error);
             }
+            injector.getInstance(HttpServerTransport.class).start();
+
+            if (WRITE_PORTS_FILE_SETTING.get(settings)) {
+                TransportService transport = injector.getInstance(TransportService.class);
+                writePortsFile("transport", transport.boundAddress());
+                HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
+                writePortsFile("http", http.boundAddress());
+            }
+
+            logger.info("started");
+
+            pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
+        });
+        if (initialStateTimeout.millis() > 0 && clusterService.state().nodes().getMasterNodeId() == null) {
+            ClusterStateObserver observer = new ClusterStateObserver(
+                clusterService.state(), clusterService, null, logger,
+                injector.getInstance(ThreadPool.class).getThreadContext()
+            );
+            logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    selfFuture.complete(Node.this);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    selfFuture.complete(Node.this);
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    logger.warn("timed out while waiting for initial discovery state - timeout: {}",
+                        initialStateTimeout);
+                    selfFuture.complete(Node.this);
+                }
+            }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
+        } else {
+            selfFuture.complete(this);
         }
 
-        injector.getInstance(HttpServerTransport.class).start();
-
-        if (WRITE_PORTS_FILE_SETTING.get(settings)) {
-            TransportService transport = injector.getInstance(TransportService.class);
-            writePortsFile("transport", transport.boundAddress());
-            HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
-            writePortsFile("http", http.boundAddress());
-        }
-
-        logger.info("started");
-
-        pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
-
-        return this;
+        return selfFuture;
     }
 
     private Node stop() {

@@ -31,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
@@ -72,7 +73,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -133,9 +133,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -219,8 +218,6 @@ public final class InternalTestCluster extends TestCluster {
     private final int numSharedCoordOnlyNodes;
 
     private final NodeConfigurationSource nodeConfigurationSource;
-
-    private final ExecutorService executor;
 
     private final boolean autoManageMinMasterNodes;
 
@@ -391,8 +388,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(), TimeValue.timeValueMillis(
                 RandomNumbers.randomIntBetween(random, 20, 50)));
         defaultSettings = builder.build();
-        executor = EsExecutors.newScaling("internal_test_cluster_executor", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
-                EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
     }
 
     @Override
@@ -535,7 +530,11 @@ public final class InternalTestCluster extends TestCluster {
                 .build();
         final NodeAndClient buildNode = buildNode(nodeId, nodeSettings, false, onTransportServiceStarted);
         assert nodes.isEmpty();
-        buildNode.startNode();
+        try {
+            buildNode.startNode().get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
         publishNode(buildNode);
         return buildNode;
     }
@@ -817,7 +816,6 @@ public final class InternalTestCluster extends TestCluster {
             }
             IOUtils.closeWhileHandlingException(nodes.values());
             nodes.clear();
-            executor.shutdownNow();
         }
     }
 
@@ -913,9 +911,9 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        void startNode() {
+        CompletableFuture<Node> startNode() {
             try {
-                node.start();
+                return node.start();
             } catch (NodeValidationException e) {
                 throw new RuntimeException(e);
             }
@@ -1593,12 +1591,9 @@ public final class InternalTestCluster extends TestCluster {
                 updateMinMasterNodes(currentMasters + newMasters);
             }
             rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
-            List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
 
             try {
-                for (Future<?> future : futures) {
-                    future.get();
-                }
+                CompletableFuture.allOf(nodeAndClients.stream().map(NodeAndClient::startNode).toArray(CompletableFuture[]::new)).get();
             } catch (InterruptedException e) {
                 throw new AssertionError("interrupted while starting nodes", e);
             } catch (ExecutionException e) {
@@ -1737,7 +1732,7 @@ public final class InternalTestCluster extends TestCluster {
         removeExclusions(excludedNodeIds);
 
         nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(emptyList()));
-        nodeAndClient.startNode();
+        nodeAndClient.startNode().get();
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
         }

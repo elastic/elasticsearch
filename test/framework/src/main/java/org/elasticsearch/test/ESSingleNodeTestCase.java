@@ -61,6 +61,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
@@ -221,11 +222,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
-            node.start();
-        } catch (NodeValidationException e) {
+            return node.start().get();
+        } catch (NodeValidationException | InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
-        return node;
     }
 
     /**

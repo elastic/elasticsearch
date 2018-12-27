@@ -307,7 +307,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class,
             MockHttpTransport.TestPlugin.class);
         try (Node node = new MockNode(nodeSettings, mockPlugins)) {
-            node.start();
+            node.start().get();
             ensureStableCluster(cluster().size() + 1);
         }
     }

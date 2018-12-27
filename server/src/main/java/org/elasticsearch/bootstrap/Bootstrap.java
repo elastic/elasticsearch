@@ -26,6 +26,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
@@ -59,6 +60,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Internal startup code.
@@ -260,8 +262,11 @@ final class Bootstrap {
     }
 
     private void start() throws NodeValidationException {
-        node.start();
-        keepAliveThread.start();
+        try {
+            node.start().thenRun(keepAliveThread::start).get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
     }
 
     static void stop() throws IOException {

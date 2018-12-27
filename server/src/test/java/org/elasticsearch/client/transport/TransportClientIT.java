@@ -29,7 +29,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -38,7 +37,6 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -57,7 +55,7 @@ public class TransportClientIT extends ESIntegTestCase {
 
     }
 
-    public void testNodeVersionIsUpdated() throws IOException, NodeValidationException {
+    public void testNodeVersionIsUpdated() throws Exception {
         TransportClient client = (TransportClient)  internalCluster().client();
         try (Node node = new MockNode(Settings.builder()
                 .put(internalCluster().getDefaultSettings())
@@ -69,7 +67,7 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
                 .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), "testNodeVersionIsUpdated")
                 .build(), Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class,
-                                        MockHttpTransport.TestPlugin.class)).start()) {
+                                        MockHttpTransport.TestPlugin.class)).start().get()) {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
             // since we force transport clients there has to be one node started that we connect to.

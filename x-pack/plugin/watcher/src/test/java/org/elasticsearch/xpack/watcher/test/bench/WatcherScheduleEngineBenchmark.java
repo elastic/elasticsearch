@@ -101,7 +101,7 @@ public class WatcherScheduleEngineBenchmark {
                     null,
                     () -> {
                         throw new IllegalArgumentException("settings must have [node.name]");
-                    })).start()) {
+                    })).start().get()) {
             try (Client client = node.client()) {
                 ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                 if (response.getNumberOfNodes() != 2 && response.getNumberOfDataNodes() != 1) {

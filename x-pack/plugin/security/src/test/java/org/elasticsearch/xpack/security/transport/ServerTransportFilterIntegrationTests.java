@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -86,7 +84,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         return settingsBuilder.build();
     }
 
-    public void testThatConnectionToServerTypeConnectionWorks() throws IOException, NodeValidationException {
+    public void testThatConnectionToServerTypeConnectionWorks() throws Exception {
         Path home = createTempDir();
         Path xpackConf = home.resolve("config");
         Files.createDirectories(xpackConf);
@@ -120,12 +118,12 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
             Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (Node node = new MockNode(nodeSettings.build(), mockPlugins)) {
-            node.start();
+            node.start().get();
             ensureStableCluster(cluster().size() + 1);
         }
     }
 
-    public void testThatConnectionToClientTypeConnectionIsRejected() throws IOException, NodeValidationException, InterruptedException {
+    public void testThatConnectionToClientTypeConnectionIsRejected() throws Exception {
         Path home = createTempDir();
         Path xpackConf = home.resolve("config");
         Files.createDirectories(xpackConf);
@@ -164,7 +162,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
             Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (Node node = new MockNode(nodeSettings.build(), mockPlugins)) {
-            node.start();
+            node.start().get();
             TransportService instance = node.injector().getInstance(TransportService.class);
             try (Transport.Connection connection = instance.openConnection(new DiscoveryNode("theNode", transportAddress, Version.CURRENT),
                     ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG))) {

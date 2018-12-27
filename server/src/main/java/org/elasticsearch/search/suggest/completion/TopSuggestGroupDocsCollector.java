@@ -44,14 +44,14 @@ class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
      * Collects at most <code>num</code> completions
      * with corresponding document and weight
      */
-    public TopSuggestGroupDocsCollector(int num, boolean skipDuplicates) {
+    TopSuggestGroupDocsCollector(int num, boolean skipDuplicates) {
         super(num, skipDuplicates);
     }
 
     /**
      * Returns the contexts associated with the provided <code>doc</code>.
      */
-    public List<CharSequence> getContexts(int doc) {
+    List<CharSequence> getContexts(int doc) {
         return docContexts.getOrDefault(doc, Collections.emptyList());
     }
 

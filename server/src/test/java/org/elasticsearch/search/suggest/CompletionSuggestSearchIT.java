@@ -898,7 +898,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             termIds[id] = id;
             int weight = randomIntBetween(0, 100);
             weights[id] = Math.max(weight, weights[id]);
-            String suggestion = "suggestion-" + String.format("%03d" , id);
+            String suggestion = "suggestion-" + String.format(Locale.ENGLISH, "%03d" , id);
             indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE)
                 .setSource(jsonBuilder()
                     .startObject()
@@ -915,7 +915,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             Comparator.comparingInt(o -> weights[(int) o]).reversed().thenComparingInt(a -> (int) a));
         String[] expected = new String[numUnique];
         for (int i = 0; i < termIds.length; i++) {
-            expected[i] = "suggestion-" + String.format("%03d" , termIds[i]);
+            expected[i] = "suggestion-" + String.format(Locale.ENGLISH, "%03d" , termIds[i]);
         }
         CompletionSuggestionBuilder completionSuggestionBuilder = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")

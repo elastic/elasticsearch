@@ -377,7 +377,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             .assertLogs();
     }
 
-    public void testShowTablesWithLimitedAccessUnaccessableIndex() throws Exception {
+    public void testShowTablesWithLimitedAccessUnaccessibleIndex() throws Exception {
         createUser("read_bort", "read_bort");
 
         actions.expectMatchesAdmin("SHOW TABLES LIKE 'not-created'", "read_bort", "SHOW TABLES LIKE 'test'");

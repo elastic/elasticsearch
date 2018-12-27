@@ -47,7 +47,7 @@ public class PainlessExecuteRequestTests extends AbstractStreamableTestCase<Pain
 
     // Testing XContent serialization manually here, because the xContentType field in ContextSetup determines
     // how the request needs to parse and the xcontent serialization framework randomizes that. The XContentType
-    // is not known and accessable when the test request instance is created in the xcontent serialization framework.
+    // is not known and accessible when the test request instance is created in the xcontent serialization framework.
     // Changing that is a big change. Writing a custom xcontent test here is the best option for now, because as far
     // as I know this request class is the only case where this is a problem.
     public final void testFromXContent() throws Exception {

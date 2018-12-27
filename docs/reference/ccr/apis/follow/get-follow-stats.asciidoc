@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-get-follow-stats]]
-=== Get Follower Stats API
+=== Get follower stats API
 ++++
-<titleabbrev>Get Follower Stats</titleabbrev>
+<titleabbrev>Get follower stats</titleabbrev>
 ++++
 
 beta[]

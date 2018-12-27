@@ -32,7 +32,7 @@ public class NodeDeprecationChecks {
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "HTTP Enabled setting removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#remove-http-enabled",
                 "nodes with http.enabled set: " + nodesFound);
         }
@@ -47,7 +47,7 @@ public class NodeDeprecationChecks {
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Audit log node info settings renamed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#audit-logfile-local-node-info",
                 "nodes with audit log settings that have been renamed: " + nodesFound);
         }
@@ -62,7 +62,7 @@ public class NodeDeprecationChecks {
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Index thread pool removed in favor of combined write thread pool",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_index_thread_pool",
                 "nodes with index thread pool settings: " + nodesFound);
         }
@@ -76,7 +76,7 @@ public class NodeDeprecationChecks {
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Bulk thread pool renamed to write thread pool",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#write-thread-pool-fallback",
                 "nodes with bulk thread pool settings: " + nodesFound);
         }
@@ -91,7 +91,7 @@ public class NodeDeprecationChecks {
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Tribe Node removed in favor of Cross Cluster Search",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_tribe_node_removed",
                 "nodes with tribe node settings: " + nodesFound);
         }
@@ -122,7 +122,7 @@ public class NodeDeprecationChecks {
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "HTTP pipelining setting removed as pipelining is now mandatory",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#remove-http-pipelining-setting",
                 "nodes with http.pipelining set: " + nodesFound);
         }
@@ -143,7 +143,7 @@ public class NodeDeprecationChecks {
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Discovery configuration is required in production mode",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_discovery_configuration_is_required_in_production",
                 "nodes which do not have discovery configured: " + nodesFound);
         }
@@ -159,7 +159,7 @@ public class NodeDeprecationChecks {
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Azure Repository settings changed",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_azure_repository_plugin",
                 "nodes with repository-azure installed: " + nodesFound);
         }
@@ -175,7 +175,7 @@ public class NodeDeprecationChecks {
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "GCS Repository settings changed",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_google_cloud_storage_repository_plugin",
                 "nodes with repository-gcs installed: " + nodesFound);
         }
@@ -191,7 +191,7 @@ public class NodeDeprecationChecks {
         if (nodesFound.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "File-based discovery is no longer a plugin and uses a different path",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_file_based_discovery_plugin",
                 "nodes with discovery-file installed: " + nodesFound);
         }

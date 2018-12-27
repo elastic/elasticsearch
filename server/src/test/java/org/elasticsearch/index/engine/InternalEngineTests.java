@@ -5443,7 +5443,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36470")
     public void testRebuildLocalCheckpointTracker() throws Exception {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
@@ -5452,41 +5451,17 @@ public class InternalEngineTests extends EngineTestCase {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         Path translogPath = createTempDir();
-        int numOps = scaledRandomIntBetween(1, 500);
-        List<Engine.Operation> operations = new ArrayList<>();
-        for (int i = 0; i < numOps; i++) {
-            long seqNo = i;
-            final ParsedDocument doc = EngineTestCase.createParsedDoc(Integer.toString(between(1, 100)), null);
-            if (randomBoolean()) {
-                operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
-                    i, VersionType.EXTERNAL, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), -1, true,
-                        UNASSIGNED_SEQ_NO, 0));
-            } else if (randomBoolean()) {
-                operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
-                    i, VersionType.EXTERNAL, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), UNASSIGNED_SEQ_NO, 0));
-            } else {
-                operations.add(new Engine.NoOp(seqNo, primaryTerm.get(), Engine.Operation.Origin.REPLICA,
-                    threadPool.relativeTimeInMillis(), "test-" + i));
-            }
-        }
-        Randomness.shuffle(operations);
+        List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean());
         List<List<Engine.Operation>> commits = new ArrayList<>();
         commits.add(new ArrayList<>());
         try (Store store = createStore()) {
-            EngineConfig config = config(indexSettings, store, translogPath,
-                newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
             final List<DocIdSeqNoAndTerm> docs;
             try (InternalEngine engine = createEngine(config)) {
                 List<Engine.Operation> flushedOperations = new ArrayList<>();
                 for (Engine.Operation op : operations) {
                     flushedOperations.add(op);
-                    if (op instanceof Engine.Index) {
-                        engine.index((Engine.Index) op);
-                    } else if (op instanceof Engine.Delete) {
-                        engine.delete((Engine.Delete) op);
-                    } else {
-                        engine.noOp((Engine.NoOp) op);
-                    }
+                    applyOperation(engine, op);
                     if (randomInt(100) < 10) {
                         engine.refresh("test");
                     }
@@ -5501,19 +5476,20 @@ public class InternalEngineTests extends EngineTestCase {
                 docs = getDocIds(engine, true);
             }
             trimUnsafeCommits(config);
-            List<Engine.Operation> safeCommit = null;
+            Set<Long> seqNosInSafeCommit = null;
             for (int i = commits.size() - 1; i >= 0; i--) {
                 if (commits.get(i).stream().allMatch(op -> op.seqNo() <= globalCheckpoint.get())) {
-                    safeCommit = commits.get(i);
+                    seqNosInSafeCommit = commits.get(i).stream().map(Engine.Operation::seqNo).collect(Collectors.toSet());
                     break;
                 }
             }
-            assertThat(safeCommit, notNullValue());
+            assertThat(seqNosInSafeCommit, notNullValue());
             try (InternalEngine engine = new InternalEngine(config)) { // do not recover from translog
                 final LocalCheckpointTracker tracker = engine.getLocalCheckpointTracker();
                 for (Engine.Operation op : operations) {
-                    assertThat("seq_no=" + op.seqNo() + " max_seq_no=" + tracker.getMaxSeqNo() +
-                            " checkpoint=" + tracker.getCheckpoint(), tracker.contains(op.seqNo()), equalTo(safeCommit.contains(op)));
+                    assertThat(
+                        "seq_no=" + op.seqNo() + " max_seq_no=" + tracker.getMaxSeqNo() + "checkpoint=" + tracker.getCheckpoint(),
+                        tracker.contains(op.seqNo()), equalTo(seqNosInSafeCommit.contains(op.seqNo())));
                 }
                 engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                 engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);

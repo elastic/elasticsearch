@@ -50,7 +50,7 @@ range.
 +
 Defaults to `9200-9300`.
 
-`transport.tcp.port`::
+`transport.port`::
 
 Port to bind for communication between nodes. Accepts a single value or a
 range. If a range is specified, the node will bind to the first available port

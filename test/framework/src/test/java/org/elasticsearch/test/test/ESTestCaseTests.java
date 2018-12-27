@@ -164,7 +164,7 @@ public class ESTestCaseTests extends ESTestCase {
         assertThat(randomUnique(i::incrementAndGet, 100), hasSize(100));
     }
 
-    public void testRandomUniqueNormalUsageAlwayMoreThanOne() {
+    public void testRandomUniqueNormalUsageAlwaysMoreThanOne() {
         assertThat(randomUnique(() -> randomAlphaOfLengthBetween(1, 20), 10), hasSize(greaterThan(0)));
     }
 

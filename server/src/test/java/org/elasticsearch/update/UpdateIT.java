@@ -744,7 +744,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         //If are no errors every request received a response otherwise the test would have timedout
-        //aquiring the request outstanding semaphores.
+        //acquiring the request outstanding semaphores.
         for (Throwable throwable : failures) {
             logger.info("Captured failure on concurrent update:", throwable);
         }

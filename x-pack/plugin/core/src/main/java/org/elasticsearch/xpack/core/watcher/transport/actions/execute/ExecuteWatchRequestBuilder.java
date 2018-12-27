@@ -54,7 +54,7 @@ public class ExecuteWatchRequestBuilder extends ActionRequestBuilder<ExecuteWatc
     }
 
     /**
-     * @param alternativeInput Set's the alernative input
+     * @param alternativeInput Set's the alternative input
      */
     public ExecuteWatchRequestBuilder setAlternativeInput(Map<String, Object> alternativeInput) {
         request.setAlternativeInput(alternativeInput);

@@ -144,14 +144,14 @@ public class ExecuteWatchRequest extends ActionRequest {
     }
 
     /**
-     * @return The alertnative input to use (may be null)
+     * @return The alternative input to use (may be null)
      */
     public Map<String, Object> getAlternativeInput() {
         return alternativeInput;
     }
 
     /**
-     * @param alternativeInput Set's the alernative input
+     * @param alternativeInput Set's the alternative input
      */
     public void setAlternativeInput(Map<String, Object> alternativeInput) {
         this.alternativeInput = alternativeInput;

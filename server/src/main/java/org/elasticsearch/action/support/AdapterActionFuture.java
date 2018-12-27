@@ -25,9 +25,18 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements ActionFuture<T>, ActionListener<L> {
+
+    public AdapterActionFuture() {
+        super();
+    }
+
+    protected AdapterActionFuture(CompletableFuture<T> fut) {
+        super(fut);
+    }
 
     @Override
     public T actionGet() {

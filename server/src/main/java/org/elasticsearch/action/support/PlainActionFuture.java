@@ -19,7 +19,17 @@
 
 package org.elasticsearch.action.support;
 
+import java.util.concurrent.CompletableFuture;
+
 public class PlainActionFuture<T> extends AdapterActionFuture<T, T> {
+
+    public PlainActionFuture() {
+        super();
+    }
+
+    protected PlainActionFuture(CompletableFuture<T> fut) {
+        super(fut);
+    }
 
     public static <T> PlainActionFuture<T> newFuture() {
         return new PlainActionFuture<>();

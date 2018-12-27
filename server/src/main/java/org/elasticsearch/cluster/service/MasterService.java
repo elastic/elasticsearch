@@ -32,6 +32,8 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -49,9 +51,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -120,6 +121,27 @@ public class MasterService extends AbstractLifecycleComponent {
                 daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
                 threadPool.getThreadContext(),
                 threadPool.scheduler());
+    }
+
+    private static class MasterFuture<V> extends PlainActionFuture<V> {
+
+        MasterFuture() {
+            super();
+        }
+
+        private MasterFuture(CompletableFuture<V> fut) {
+            super(fut);
+        }
+
+        @Override
+        protected <U> MasterFuture<U> newInstance(CompletableFuture<U> fut) {
+            return new MasterFuture<>(fut);
+        }
+
+        @Override
+        protected boolean blockingAllowed() {
+            return isMasterUpdateThread() || super.blockingAllowed();
+        }
     }
 
     class Batcher extends TaskBatcher {
@@ -244,12 +266,7 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeNS) {
-        final PlainActionFuture<Void> fut = new PlainActionFuture<Void>() {
-            @Override
-            protected boolean blockingAllowed() {
-                return isMasterUpdateThread() || super.blockingAllowed();
-            }
-        };
+        final MasterFuture<Void> fut = new MasterFuture<>();
         clusterStatePublisher.publish(clusterChangedEvent, fut, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));
 
         // indefinitely wait for publication to complete

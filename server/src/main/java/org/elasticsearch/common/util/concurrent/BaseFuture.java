@@ -52,12 +52,16 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
         this(new CompletableFuture<>());
     }
 
-    private BaseFuture(CompletableFuture<V> fut) {
+    protected BaseFuture(CompletableFuture<V> fut) {
         wrapped = fut;
         wrapped.exceptionally(t -> {
             ExceptionsHelper.maybeDieOnAnotherThread(t);
             return null;
         });
+    }
+
+    protected <U> BaseFuture<U> newInstance(CompletableFuture<U> fut) {
+        return new BaseFuture<>(fut);
     }
 
     @Override
@@ -158,7 +162,7 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     @Override
     public <U> BaseFuture<U> thenApply(Function<? super V,? extends U> fn) {
-        return new BaseFuture<>(wrapped.thenApply(fn));
+        return newInstance(wrapped.thenApply(fn));
     }
 
     @Override
@@ -168,12 +172,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     @Override
     public <U> BaseFuture<U> thenApplyAsync(Function<? super V, ? extends U> fn, Executor executor) {
-        return new BaseFuture<>(wrapped.thenApplyAsync(fn, executor));
+        return newInstance(wrapped.thenApplyAsync(fn, executor));
     }
 
     @Override
     public BaseFuture<Void> thenAccept(Consumer<? super V> action) {
-        return new BaseFuture<>(wrapped.thenAccept(action));
+        return newInstance(wrapped.thenAccept(action));
     }
 
     @Override
@@ -183,12 +187,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     @Override
     public BaseFuture<Void> thenAcceptAsync(Consumer<? super V> action, Executor executor) {
-        return new BaseFuture<>(wrapped.thenAcceptAsync(action, executor));
+        return newInstance(wrapped.thenAcceptAsync(action, executor));
     }
 
     @Override
     public BaseFuture<Void> thenRun(Runnable action) {
-        return new BaseFuture<>(wrapped.thenRun(action));
+        return newInstance(wrapped.thenRun(action));
     }
 
     @Override
@@ -198,12 +202,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     @Override
     public BaseFuture<Void> thenRunAsync(Runnable action, Executor executor) {
-        return new BaseFuture<>(wrapped.thenRunAsync(action, executor));
+        return newInstance(wrapped.thenRunAsync(action, executor));
     }
 
     @Override
     public <U, T> BaseFuture<T> thenCombine(CompletionStage<? extends U> other, BiFunction<? super V, ? super U, ? extends T> fn) {
-        return new BaseFuture<>(wrapped.thenCombine(other, fn));
+        return newInstance(wrapped.thenCombine(other, fn));
     }
 
     @Override
@@ -215,12 +219,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
     @Override
     public <U, T> BaseFuture<T> thenCombineAsync(CompletionStage<? extends U> other,
                                                         BiFunction<? super V, ? super U, ? extends T> fn, Executor executor) {
-        return new BaseFuture<>(wrapped.thenCombineAsync(other, fn, executor));
+        return newInstance(wrapped.thenCombineAsync(other, fn, executor));
     }
 
     @Override
     public <U> BaseFuture<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super V, ? super U> action) {
-        return new BaseFuture<>(wrapped.thenAcceptBoth(other, action));
+        return newInstance(wrapped.thenAcceptBoth(other, action));
     }
 
     @Override
@@ -231,12 +235,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
     @Override
     public <U> BaseFuture<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super V, ? super U> action,
                                                            Executor executor) {
-        return new BaseFuture<>(wrapped.thenAcceptBothAsync(other, action, executor));
+        return newInstance(wrapped.thenAcceptBothAsync(other, action, executor));
     }
 
     @Override
     public BaseFuture<Void> runAfterBoth(CompletionStage<?> other, Runnable action) {
-        return new BaseFuture<>(wrapped.runAfterBoth(other, action));
+        return newInstance(wrapped.runAfterBoth(other, action));
     }
 
     @Override
@@ -246,12 +250,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     @Override
     public BaseFuture<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Executor executor) {
-        return new BaseFuture<>(wrapped.runAfterBothAsync(other, action, executor));
+        return newInstance(wrapped.runAfterBothAsync(other, action, executor));
     }
 
     @Override
     public <U> BaseFuture<U> applyToEither(CompletionStage<? extends V> other, Function<? super V, U> fn) {
-        return new BaseFuture<>(wrapped.applyToEither(other, fn));
+        return newInstance(wrapped.applyToEither(other, fn));
     }
 
     @Override
@@ -261,12 +265,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     @Override
     public <U> BaseFuture<U> applyToEitherAsync(CompletionStage<? extends V> other, Function<? super V, U> fn, Executor executor) {
-        return new BaseFuture<>(wrapped.applyToEitherAsync(other, fn, executor));
+        return newInstance(wrapped.applyToEitherAsync(other, fn, executor));
     }
 
     @Override
     public BaseFuture<Void> acceptEither(CompletionStage<? extends V> other, Consumer<? super V> action) {
-        return new BaseFuture<>(wrapped.acceptEither(other, action));
+        return newInstance(wrapped.acceptEither(other, action));
     }
 
     @Override
@@ -276,12 +280,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     @Override
     public BaseFuture<Void> acceptEitherAsync(CompletionStage<? extends V> other, Consumer<? super V> action, Executor executor) {
-        return new BaseFuture<>(wrapped.acceptEitherAsync(other, action, executor));
+        return newInstance(wrapped.acceptEitherAsync(other, action, executor));
     }
 
     @Override
     public BaseFuture<Void> runAfterEither(CompletionStage<?> other, Runnable action) {
-        return new BaseFuture<>(wrapped.runAfterEither(other, action));
+        return newInstance(wrapped.runAfterEither(other, action));
     }
 
     @Override
@@ -291,12 +295,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     @Override
     public BaseFuture<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Executor executor) {
-        return new BaseFuture<>(wrapped.runAfterEitherAsync(other, action, executor));
+        return newInstance(wrapped.runAfterEitherAsync(other, action, executor));
     }
 
     @Override
     public <U> BaseFuture<U> thenCompose(Function<? super V, ? extends CompletionStage<U>> fn) {
-        return new BaseFuture<>(wrapped.thenCompose(fn));
+        return newInstance(wrapped.thenCompose(fn));
     }
 
     @Override
@@ -306,12 +310,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     @Override
     public <U> BaseFuture<U> thenComposeAsync(Function<? super V, ? extends CompletionStage<U>> fn, Executor executor) {
-        return new BaseFuture<>(wrapped.thenComposeAsync(fn, executor));
+        return newInstance(wrapped.thenComposeAsync(fn, executor));
     }
 
     @Override
     public BaseFuture<V> whenComplete(BiConsumer<? super V, ? super Throwable> action) {
-        return new BaseFuture<>(wrapped.whenComplete(action));
+        return newInstance(wrapped.whenComplete(action));
     }
 
     @Override
@@ -321,12 +325,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     @Override
     public BaseFuture<V> whenCompleteAsync(BiConsumer<? super V, ? super Throwable> action, Executor executor) {
-        return new BaseFuture<>(wrapped.whenCompleteAsync(action, executor));
+        return newInstance(wrapped.whenCompleteAsync(action, executor));
     }
 
     @Override
     public <U> BaseFuture<U> handle(BiFunction<? super V, Throwable, ? extends U> fn) {
-        return new BaseFuture<>(wrapped.handle(fn));
+        return newInstance(wrapped.handle(fn));
     }
 
     @Override
@@ -336,12 +340,12 @@ public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
     @Override
     public <U> BaseFuture<U> handleAsync(BiFunction<? super V, Throwable, ? extends U> fn, Executor executor) {
-        return new BaseFuture<>(wrapped.handleAsync(fn, executor));
+        return newInstance(wrapped.handleAsync(fn, executor));
     }
 
     @Override
     public BaseFuture<V> exceptionally(Function<Throwable, ? extends V> fn) {
-        return new BaseFuture<>(wrapped.exceptionally(fn));
+        return newInstance(wrapped.exceptionally(fn));
     }
 
     @Override

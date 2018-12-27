@@ -58,16 +58,6 @@ public class ListenableFutureTests extends ESTestCase {
         assertTrue(future.isDone());
     }
 
-    public void testThrowableListener() {
-        executorService = EsExecutors.newFixed("testThrowableListener", 1, 1000,
-            EsExecutors.daemonThreadFactory("listener"), threadContext);
-        ListenableFuture<Object> context = new ListenableFuture<>();
-        context.addListener(ActionListener.wrap(() -> {
-            assert false : "Should not fail";
-        }), executorService, threadContext);
-        context.onResponse(null);
-    }
-
     public void testListenableFutureNotifiesListenersOnException() {
         ListenableFuture<String> future = new ListenableFuture<>();
         AtomicInteger notifications = new AtomicInteger(0);

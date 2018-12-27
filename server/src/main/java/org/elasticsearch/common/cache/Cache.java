@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -404,14 +405,7 @@ public class Cache<K, V> {
             // get the value from this future on the thread that won the race to place the future into the segment map
             CacheSegment<K, V> segment = getCacheSegment(key);
             BaseFuture<Entry<K, V>> future;
-            BaseFuture<Entry<K, V>> completableFuture = new BaseFuture<Entry<K, V>>() {
-                @Override
-                protected boolean blockingAllowed() {
-                    return Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
-                        ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
-                        MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);
-                }
-            };
+            BaseFuture<Entry<K, V>> completableFuture = new EntryBaseFuture<>();
 
             try (ReleasableLock ignored = segment.writeLock.acquire()) {
                 future = segment.map.putIfAbsent(key, completableFuture);
@@ -657,6 +651,29 @@ public class Cache<K, V> {
                 iterator.remove();
             }
         };
+    }
+
+    static class EntryBaseFuture<V> extends BaseFuture<V> {
+
+        EntryBaseFuture() {
+            super();
+        }
+
+        private EntryBaseFuture(CompletableFuture<V> fut) {
+            super(fut);
+        }
+
+        @Override
+        protected boolean blockingAllowed() {
+            return Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
+                ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
+                MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);
+        }
+
+        @Override
+        protected <U> EntryBaseFuture<U> newInstance(CompletableFuture<U> fut) {
+            return new EntryBaseFuture<>(fut);
+        }
     }
 
     private class CacheIterator implements Iterator<Entry<K, V>> {

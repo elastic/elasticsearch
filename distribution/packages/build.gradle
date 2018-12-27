@@ -195,7 +195,8 @@ Closure commonPackageConfig(String type, boolean oss) {
       from "${packagingFiles}/systemd/elasticsearch.conf"
       fileMode 0644
     }
-    into('/usr/lib/systemd/system') {
+    String systemdDir = type == 'deb' ? '/lib/systemd/system' : '/usr/lib/systemd/system'
+    into(systemdDir) {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/elasticsearch.service"
       fileMode 0644

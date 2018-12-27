@@ -62,6 +62,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 512;
 
+    private final String clusterAlias;
+
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -91,9 +93,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
-    private String clusterAlias;
-
     public SearchRequest() {
+        this.clusterAlias = null;
     }
 
     /**
@@ -128,11 +129,21 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * Constructs a new search request against the provided indices with the given search source.
      */
     public SearchRequest(String[] indices, SearchSourceBuilder source) {
+        this();
         if (source == null) {
             throw new IllegalArgumentException("source must not be null");
         }
         indices(indices);
         this.source = source;
+    }
+
+    /**
+     * Creates a new search request by providing the alias of the cluster where it will be executed. Used when a {@link SearchRequest}
+     * is created and executed as part of a cross-cluster search request performing local reduction on each cluster.
+     * The coordinating CCS node provides the alias to prefix index names with in the returned search results.
+     */
+    SearchRequest(String clusterAlias) {
+        this.clusterAlias = Objects.requireNonNull(clusterAlias, "cluster alias must not be null");
     }
 
     /**
@@ -164,6 +175,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         //TODO update version after backport
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             clusterAlias = in.readOptionalString();
+        } else {
+            clusterAlias = null;
         }
     }
 
@@ -228,14 +241,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     @Nullable
     String getClusterAlias() {
         return clusterAlias;
-    }
-
-    /**
-     * Sets the cluster alias for this search request. Used when a {@link SearchRequest} is executed as part of a cross-cluster search
-     * request performing local reduction on each cluster. This way the coordinating CCS node provides the alias to prefix index names with.
-     */
-    void setClusterAlias(String clusterAlias) {
-        this.clusterAlias = clusterAlias;
     }
 
     /**

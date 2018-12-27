@@ -678,7 +678,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
-                indexShard.shardId(), request.getCCSInfo(), OriginalIndices.NONE);
+                indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
         Engine.Searcher engineSearcher = indexShard.acquireSearcher(source);
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,

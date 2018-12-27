@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -171,7 +170,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         SearchShardTarget searchShardTarget = null;
         if (nodeId != null) {
             searchShardTarget = new SearchShardTarget(nodeId, new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId),
-                CCSInfo.fromClusterAlias(clusterAlias), OriginalIndices.NONE);
+                clusterAlias, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(exception, searchShardTarget);
     }

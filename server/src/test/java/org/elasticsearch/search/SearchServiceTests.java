@@ -646,24 +646,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final SearchService service = getInstanceFromNode(SearchService.class);
         ShardId shardId = new ShardId(indexService.index(), 0);
         long nowInMillis = System.currentTimeMillis();
-        CCSInfo ccsInfo = randomBoolean() ? null : new CCSInfo(randomAlphaOfLengthBetween(3, 10), randomBoolean());
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(randomBoolean());
         ShardSearchTransportRequest request = new ShardSearchTransportRequest(OriginalIndices.NONE, searchRequest, shardId,
-            indexService.numberOfShards(), AliasFilter.EMPTY, 1f, nowInMillis, ccsInfo, Strings.EMPTY_ARRAY);
+            indexService.numberOfShards(), AliasFilter.EMPTY, 1f, nowInMillis, clusterAlias, Strings.EMPTY_ARRAY);
         DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()));
         SearchShardTarget searchShardTarget = searchContext.shardTarget();
         QueryShardContext queryShardContext = searchContext.getQueryShardContext();
-        String expectedIndexName = ccsInfo == null ? index : ccsInfo.getHitIndexPrefix() + ":" + index;
+        String expectedIndexName = clusterAlias == null ? index : clusterAlias + ":" + index;
         assertEquals(expectedIndexName, queryShardContext.getFullyQualifiedIndex().getName());
         assertEquals(expectedIndexName, searchShardTarget.getFullyQualifiedIndexName());
-        if (ccsInfo == null) {
-            assertNull(searchShardTarget.getHitIndexPrefix());
-            assertNull(searchShardTarget.getConnectionAlias());
-        } else {
-            assertEquals(ccsInfo.getHitIndexPrefix(), searchShardTarget.getHitIndexPrefix());
-            assertEquals(ccsInfo.getConnectionAlias(), searchShardTarget.getConnectionAlias());
-        }
+        assertEquals(clusterAlias, searchShardTarget.getClusterAlias());
         assertEquals(shardId, searchShardTarget.getShardId());
         assertSame(searchShardTarget, searchContext.dfsResult().getSearchShardTarget());
         assertSame(searchShardTarget, searchContext.queryResult().getSearchShardTarget());

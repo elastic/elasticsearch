@@ -137,7 +137,7 @@ final class FetchSearchPhase extends SearchPhase {
                         counter.countDown();
                     } else {
                         SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                        Transport.Connection connection = context.getConnection(searchShardTarget.getConnectionAlias(),
+                        Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(),
                             searchShardTarget.getNodeId());
                         ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().getRequestId(), i, entry,
                             lastEmittedDocPerShard, searchShardTarget.getOriginalIndices());
@@ -190,7 +190,7 @@ final class FetchSearchPhase extends SearchPhase {
         if (context.getRequest().scroll() == null && queryResult.hasSearchContext()) {
             try {
                 SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                Transport.Connection connection = context.getConnection(searchShardTarget.getConnectionAlias(),
+                Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(),
                     searchShardTarget.getNodeId());
                 context.sendReleaseSearchContext(queryResult.getRequestId(), connection, searchShardTarget.getOriginalIndices());
             } catch (Exception e) {

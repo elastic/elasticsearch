@@ -32,7 +32,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -59,7 +58,7 @@ import java.io.IOException;
  */
 
 public class ShardSearchLocalRequest implements ShardSearchRequest {
-    private CCSInfo ccsInfo;
+    private String clusterAlias;
     private ShardId shardId;
     private int numberOfShards;
     private SearchType searchType;
@@ -79,7 +78,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards, AliasFilter aliasFilter, float indexBoost,
-                            long nowInMillis, @Nullable CCSInfo ccsInfo, String[] indexRoutings) {
+                            long nowInMillis, @Nullable String clusterAlias, String[] indexRoutings) {
         this(shardId, numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost,
                 searchRequest.allowPartialSearchResults(), indexRoutings, searchRequest.preference());
@@ -88,7 +87,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         assert searchRequest.allowPartialSearchResults() != null;
         this.scroll = searchRequest.scroll();
         this.nowInMillis = nowInMillis;
-        this.ccsInfo = ccsInfo;
+        this.clusterAlias = clusterAlias;
     }
 
     public ShardSearchLocalRequest(ShardId shardId, String[] types, long nowInMillis, AliasFilter aliasFilter) {
@@ -216,7 +215,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
         requestCache = in.readOptionalBoolean();
-        ccsInfo = CCSInfo.read(in);
+        clusterAlias = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
         }
@@ -244,7 +243,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             out.writeVLong(nowInMillis);
         }
         out.writeOptionalBoolean(requestCache);
-        CCSInfo.write(ccsInfo, out);
+        out.writeOptionalString(clusterAlias);
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
         }
@@ -266,8 +265,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public CCSInfo getCCSInfo() {
-        return ccsInfo;
+    public String getClusterAlias() {
+        return clusterAlias;
     }
 
     @Override

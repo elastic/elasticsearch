@@ -22,7 +22,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
@@ -44,33 +43,22 @@ public class SearchShardIteratorTests extends ESTestCase {
         assertSame(originalIndices, searchShardIterator.getOriginalIndices());
     }
 
-    public void testCCSInfo() {
-        CCSInfo ccsInfo = randomBoolean() ? null : new CCSInfo(randomAlphaOfLengthBetween(5, 10), randomBoolean());
+    public void testGetClusterAlias() {
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
-        SearchShardIterator searchShardIterator = new SearchShardIterator(ccsInfo, shardId, Collections.emptyList(), OriginalIndices.NONE);
-        assertSame(ccsInfo, searchShardIterator.getCCSInfo());
-        if (ccsInfo == null) {
-            assertNull(searchShardIterator.getCCSInfo());
-        } else {
-            assertEquals(ccsInfo.getConnectionAlias(), searchShardIterator.getCCSInfo().getConnectionAlias());
-        }
+        SearchShardIterator searchShardIterator = new SearchShardIterator(clusterAlias, shardId, Collections.emptyList(), OriginalIndices.NONE);
+        assertEquals(clusterAlias, searchShardIterator.getClusterAlias());
     }
 
     public void testNewSearchShardTarget() {
-        CCSInfo ccsInfo = randomBoolean() ? null : new CCSInfo(randomAlphaOfLengthBetween(5, 10), randomBoolean());
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
         OriginalIndices originalIndices = new OriginalIndices(new String[]{randomAlphaOfLengthBetween(3, 10)},
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
-        SearchShardIterator searchShardIterator = new SearchShardIterator(ccsInfo, shardId, Collections.emptyList(), originalIndices);
+        SearchShardIterator searchShardIterator = new SearchShardIterator(clusterAlias, shardId, Collections.emptyList(), originalIndices);
         String nodeId = randomAlphaOfLengthBetween(3, 10);
         SearchShardTarget searchShardTarget = searchShardIterator.newSearchShardTarget(nodeId);
-        if (ccsInfo == null) {
-            assertNull(searchShardTarget.getConnectionAlias());
-            assertNull(searchShardTarget.getHitIndexPrefix());
-        } else {
-            assertEquals(ccsInfo.getConnectionAlias(), searchShardTarget.getConnectionAlias());
-            assertEquals(ccsInfo.getHitIndexPrefix(), searchShardTarget.getHitIndexPrefix());
-        }
+        assertEquals(clusterAlias, searchShardTarget.getClusterAlias());
         assertSame(shardId, searchShardTarget.getShardId());
         assertEquals(nodeId, searchShardTarget.getNodeId());
         assertSame(originalIndices, searchShardTarget.getOriginalIndices());

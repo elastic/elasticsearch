@@ -37,7 +37,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -202,8 +201,9 @@ public class SearchPhaseControllerTests extends ESTestCase {
                                                                 int searchHitsSize, boolean useConstantScore) {
         AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
-            CCSInfo ccsInfo = randomBoolean() ? null : new CCSInfo("", randomBoolean());
-            SearchShardTarget searchShardTarget = new SearchShardTarget("", new ShardId("", "", shardIndex), ccsInfo, OriginalIndices.NONE);
+            String clusterAlias = randomBoolean() ? null : "remote";
+            SearchShardTarget searchShardTarget = new SearchShardTarget("", new ShardId("", "", shardIndex),
+                clusterAlias, OriginalIndices.NONE);
             QuerySearchResult querySearchResult = new QuerySearchResult(shardIndex, searchShardTarget);
             final TopDocs topDocs;
             float maxScore = 0;
@@ -274,8 +274,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         AtomicArray<SearchPhaseResult> fetchResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
             float maxScore = -1F;
-            CCSInfo ccsInfo = randomBoolean() ? null : new CCSInfo("", randomBoolean());
-            SearchShardTarget shardTarget = new SearchShardTarget("", new ShardId("", "", shardIndex), ccsInfo, OriginalIndices.NONE);
+            String clusterAlias = randomBoolean() ? null : "remote";
+            SearchShardTarget shardTarget = new SearchShardTarget("", new ShardId("", "", shardIndex), clusterAlias, OriginalIndices.NONE);
             FetchSearchResult fetchSearchResult = new FetchSearchResult(shardIndex, shardTarget);
             List<SearchHit> searchHits = new ArrayList<>();
             for (ScoreDoc scoreDoc : mergedSearchDocs) {

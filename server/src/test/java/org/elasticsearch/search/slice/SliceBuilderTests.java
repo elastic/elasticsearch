@@ -58,7 +58,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -199,7 +198,7 @@ public class SliceBuilderTests extends ESTestCase {
         }
 
         @Override
-        public CCSInfo getCCSInfo() {
+        public String getClusterAlias() {
             return null;
         }
 

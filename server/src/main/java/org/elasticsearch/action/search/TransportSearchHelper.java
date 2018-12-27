@@ -43,7 +43,7 @@ final class TransportSearchHelper {
             for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
                 out.writeLong(searchPhaseResult.getRequestId());
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
-                String hitIndexPrefix = searchShardTarget.getHitIndexPrefix();
+                String hitIndexPrefix = searchShardTarget.getClusterAlias();
                 if (hitIndexPrefix != null) {
                     out.writeString(RemoteClusterAware.buildRemoteIndexName(hitIndexPrefix, searchShardTarget.getNodeId()));
                 } else {

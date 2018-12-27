@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
@@ -33,7 +34,6 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -151,12 +151,8 @@ public interface ShardSearchRequest {
         }
     }
 
-    /**
-     * Returns information about cross-cluster search execution if this request is part of a cross-cluster search request,
-     * <code>null</code> otherwise
-     * @see CCSInfo
-     */
-    CCSInfo getCCSInfo();
+    @Nullable
+    String getClusterAlias();
 
     Rewriteable<Rewriteable> getRewriteable();
 

@@ -30,7 +30,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -137,9 +136,8 @@ public class ExceptionsHelperTests extends ESTestCase {
     }
 
     private static SearchShardTarget createSearchShardTarget(String nodeId, int shardId, String index, String clusterAlias) {
-        CCSInfo ccsInfo = clusterAlias == null ? null : new CCSInfo(clusterAlias, randomBoolean());
         return new SearchShardTarget(nodeId,
-            new ShardId(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), ccsInfo, OriginalIndices.NONE);
+            new ShardId(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
     }
 
     public void testGroupByNullTarget() {

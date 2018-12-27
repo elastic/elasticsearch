@@ -28,7 +28,6 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -41,11 +40,8 @@ import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
-import org.elasticsearch.search.CCSInfo;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.util.Base64;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -79,31 +75,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, shardSearchTransportRequest);
         assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
         assertEquals(deserializedRequest.indexBoost(), shardSearchTransportRequest.indexBoost(), 0.0f);
-        assertEquals(deserializedRequest.getCCSInfo(), shardSearchTransportRequest.getCCSInfo());
-    }
-
-    //TODO rename and update version after backport
-    public void testSerializationPre7_0_0() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
-        ShardSearchTransportRequest shardSearchTransportRequest = createShardSearchTransportRequest();
-        ShardSearchTransportRequest deserializedRequest =
-            copyWriteable(shardSearchTransportRequest, namedWriteableRegistry, ShardSearchTransportRequest::new, version);
-        assertEquals(new CCSInfo(shardSearchTransportRequest.getCCSInfo().getHitIndexPrefix(), false), deserializedRequest.getCCSInfo());
-    }
-
-    //TODO rename and update version after backport
-    public void testReadFromPre7_0_0() throws IOException {
-        String msg = "AAVpbmRleAR1dWlkAAEBAAEAAgAAAP////8PAAAAAAAAAP////8PAAAAAAAAAgAAAAAAAQAAAD+" +
-            "AAAAAAgEGcmVtb3RlAAAAAQVpbmRleAMCBAUBAAAAAAAAAAAAAAAA";
-        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(msg))) {
-            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)));
-            ShardSearchTransportRequest request = new ShardSearchTransportRequest(in);
-            assertArrayEquals(new String[]{"index"}, request.indices());
-            assertEquals(new ShardId("index", "uuid", 0), request.shardId());
-            assertEquals(1, request.numberOfShards());
-            assertEquals("remote", request.getCCSInfo().getHitIndexPrefix());
-            assertEquals("remote", request.getCCSInfo().getConnectionAlias());
-        }
+        assertEquals(deserializedRequest.getClusterAlias(), shardSearchTransportRequest.getClusterAlias());
     }
 
     private ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
@@ -119,7 +91,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         final String[] routings = generateRandomStringArray(5, 10, false, true);
         return new ShardSearchTransportRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
             randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(),
-            Math.abs(randomLong()), new CCSInfo(randomAlphaOfLengthBetween(3, 10), randomBoolean()), routings);
+            Math.abs(randomLong()), randomAlphaOfLengthBetween(3, 10), routings);
     }
 
     public void testFilteringAliases() throws Exception {
@@ -176,8 +148,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
     }
 
     private IndexMetaData remove(IndexMetaData indexMetaData, String alias) {
-        IndexMetaData build = IndexMetaData.builder(indexMetaData).removeAlias(alias).build();
-        return build;
+        return IndexMetaData.builder(indexMetaData).removeAlias(alias).build();
     }
 
     private IndexMetaData add(IndexMetaData indexMetaData, String alias, @Nullable CompressedXContent filter) {

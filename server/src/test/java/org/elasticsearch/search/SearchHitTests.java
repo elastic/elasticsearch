@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,7 +45,6 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -128,9 +126,9 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
         }
         if (transportSerialization && randomBoolean()) {
             String index = randomAlphaOfLengthBetween(5, 10);
-            CCSInfo ccsInfo = randomBoolean() ? null : new CCSInfo(randomAlphaOfLengthBetween(5, 10), randomBoolean());
+            String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
             hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
-                new ShardId(new Index(index, randomAlphaOfLengthBetween(5, 10)), randomInt()), ccsInfo, OriginalIndices.NONE));
+                new ShardId(new Index(index, randomAlphaOfLengthBetween(5, 10)), randomInt()), clusterAlias, OriginalIndices.NONE));
         }
         return hit;
     }
@@ -214,9 +212,9 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
     }
 
     public void testSerializeShardTarget() throws Exception {
-        CCSInfo ccsInfo = randomBoolean() ? null : new CCSInfo("cluster_alias", randomBoolean());
+        String clusterAlias = randomBoolean() ? null : "cluster_alias";
         SearchShardTarget target = new SearchShardTarget("_node_id", new ShardId(new Index("_index", "_na_"), 0),
-            ccsInfo, OriginalIndices.NONE);
+            clusterAlias, OriginalIndices.NONE);
 
         Map<String, SearchHits> innerHits = new HashMap<>();
         SearchHit innerHit1 = new SearchHit(0, "_id", new Text("_type"), null);
@@ -245,52 +243,22 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
         Version version = VersionUtils.randomVersion(random());
         SearchHits results = copyStreamable(hits, getNamedWriteableRegistry(), SearchHits::new, version);
         SearchShardTarget deserializedTarget = results.getAt(0).getShard();
-        //TODO update version after backport
-        if (version.before(Version.V_7_0_0) && ccsInfo != null) {
-            //localReduction flag is not serialized as part of CCSInfo
-            target = new SearchShardTarget(target.getNodeId(), target.getShardId(),
-                new CCSInfo(ccsInfo.getHitIndexPrefix(), false), target.getOriginalIndices());
-        }
         assertThat(deserializedTarget, equalTo(target));
         assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
         assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
         assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).getShard(), notNullValue());
         assertThat(results.getAt(0).getInnerHits().get("2").getAt(0).getShard(), notNullValue());
         for (SearchHit hit : results) {
-            assertEquals(ccsInfo == null ? null : ccsInfo.getHitIndexPrefix(), hit.getClusterAlias());
+            assertEquals(clusterAlias, hit.getClusterAlias());
             if (hit.getInnerHits() != null) {
                 for (SearchHits innerhits : hit.getInnerHits().values()) {
                     for (SearchHit innerHit : innerhits) {
-                        assertEquals(ccsInfo == null ? null : ccsInfo.getHitIndexPrefix(), innerHit.getClusterAlias());
+                        assertEquals(clusterAlias, innerHit.getClusterAlias());
                     }
                 }
             }
         }
         assertThat(results.getAt(1).getShard(), equalTo(target));
-    }
-
-    //TODO rename and update version after backport
-    public void testReadFromPre7_0_0() throws IOException {
-        String msg = "/4AAAAAAAAJpZP////8A//////////8AAAAAAAAAAQEAAAAEbm9kZQVpbmRleAR1dWlkAAEOcmVtb3RlX2NsdXN0ZXIBA2tl" +
-            "eQEAf8AAAAAAAAAAAAAAAAAAAAAAAAAA";
-        SearchHit hit = new SearchHit();
-        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(msg))) {
-            //TODO randomize the version after backport, conflicts with SearchSortValues wire changes otherwise
-            in.setVersion(Version.V_6_6_0);
-            hit.readFrom(in);
-        }
-        assertEquals("id", hit.getId());
-        assertEquals(0, hit.docId());
-        SearchShardTarget shardTarget = hit.getShard();
-        assertEquals("node", shardTarget.getNodeId());
-        assertEquals(new ShardId(new Index("index", "uuid"), 0), shardTarget.getShardId());
-        assertEquals("remote_cluster", shardTarget.getHitIndexPrefix());
-        assertEquals("remote_cluster", shardTarget.getConnectionAlias());
-        Map<String, SearchHits> innerHits = hit.getInnerHits();
-        assertEquals(1, innerHits.size());
-        SearchHits searchHits = innerHits.get("key");
-        assertEquals(0, searchHits.getHits().length);
-        assertEquals(0, searchHits.getTotalHits().value);
     }
 
     public void testNullSource() {

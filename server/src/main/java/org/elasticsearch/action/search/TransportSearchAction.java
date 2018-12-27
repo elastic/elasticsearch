@@ -42,7 +42,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.CCSInfo;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -264,7 +263,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 aliasFilterMap.put(shardId.getIndex().getUUID(), aliasFilter);
                 final OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
                 assert originalIndices != null : "original indices are null for clusterAlias: " + clusterAlias;
-                SearchShardIterator shardIterator = new SearchShardIterator(new CCSInfo(clusterAlias, false), shardId,
+                SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, shardId,
                     Arrays.asList(clusterSearchShardsGroup.getShards()), new OriginalIndices(finalIndices,
                     originalIndices.indicesOptions()));
                 remoteShardIterators.add(shardIterator);
@@ -341,7 +340,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         final DiscoveryNodes nodes = clusterState.nodes();
         BiFunction<String, String, Transport.Connection> connectionLookup = (clusterName, nodeId) -> {
-            final DiscoveryNode discoveryNode = clusterName == null ? nodes.get(nodeId) : remoteConnections.apply(clusterName, nodeId);
+            final DiscoveryNode discoveryNode;
+            if (clusterName == null || searchRequest.getClusterAlias() != null) {
+                assert searchRequest.getClusterAlias() == null || searchRequest.getClusterAlias().equals(clusterName);
+                discoveryNode = nodes.get(nodeId);
+            } else {
+                discoveryNode = remoteConnections.apply(clusterName, nodeId);
+            }
             if (discoveryNode == null) {
                 throw new IllegalStateException("no node found for id: " + nodeId);
             }
@@ -363,10 +368,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                              OriginalIndices localIndices,
                                                              @Nullable String localClusterAlias,
                                                              List<SearchShardIterator> remoteShardIterators) {
-        CCSInfo localCCSInfo = localClusterAlias == null ? null : new CCSInfo(localClusterAlias, true);
         List<SearchShardIterator> shards = new ArrayList<>(remoteShardIterators);
         for (ShardIterator shardIterator : localShardsIterator) {
-            shards.add(new SearchShardIterator(localCCSInfo, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
+            shards.add(new SearchShardIterator(localClusterAlias, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
         }
         return new GroupShardsIterator<>(shards);
     }

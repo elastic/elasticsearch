@@ -16,7 +16,7 @@ import static org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler.T
 
 /**
  * This throttler throttles the action based on its last <b>successful</b> execution time. If the time passed since
- * the last successful execution is lower than the given period, the aciton will be throttled.
+ * the last successful execution is lower than the given period, the action will be throttled.
  */
 public class PeriodThrottler implements Throttler {
 

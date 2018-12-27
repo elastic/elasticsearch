@@ -347,16 +347,16 @@ public class AggregatorFactories {
             for (AggregationBuilder aggBuilder : aggregationBuilders) {
                 aggBuildersMap.put(aggBuilder.name, aggBuilder);
             }
-            List<PipelineAggregationBuilder> orderedPipelineAggregatorrs = new LinkedList<>();
+            List<PipelineAggregationBuilder> orderedPipelineAggregators = new LinkedList<>();
             List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<>(pipelineAggregatorBuilders);
             Collection<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
             while (!unmarkedBuilders.isEmpty()) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
                 builder.validate(parent, aggregationBuilders, pipelineAggregatorBuilders);
-                resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregatorrs, unmarkedBuilders,
+                resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregators, unmarkedBuilders,
                         temporarilyMarked, builder);
             }
-            return orderedPipelineAggregatorrs;
+            return orderedPipelineAggregators;
         }
 
         private void resolvePipelineAggregatorOrder(Map<String, AggregationBuilder> aggBuildersMap,

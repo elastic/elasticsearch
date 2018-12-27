@@ -259,7 +259,6 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             assertThat(usage, is(notNullValue()));
             assertThat(usage.name(), is(XPackField.MACHINE_LEARNING));
             assertThat(usage.enabled(), is(false));
-            assertThat(usage.available(), is(false));
         }
     }
 

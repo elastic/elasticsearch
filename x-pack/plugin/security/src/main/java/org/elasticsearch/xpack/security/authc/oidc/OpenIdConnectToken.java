@@ -10,8 +10,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 /**
  * A {@link AuthenticationToken} to hold OpenID Connect related content.
- * Depending on the flow this can content only a code ( oAuth2 authorization code
- * grant flow ) or an Identity Token ( oAuth2 implicit flow )
+ * Depending on the flow the token can contain only a code ( oAuth2 authorization code
+ * grant flow ) or even an Identity Token ( oAuth2 implicit flow )
  */
 public class OpenIdConnectToken implements AuthenticationToken {
 
@@ -21,12 +21,12 @@ public class OpenIdConnectToken implements AuthenticationToken {
     private String nonce;
 
     /**
-     * @param redirectUri The URI were the OP redirected the browser after the authentication attempt. This is passed as is from the
-     *                    facilitator entity (i.e. Kibana), so it is URL Encoded
+     * @param redirectUri The URI were the OP redirected the browser after the authentication event at the OP. This is passed as is from the
+     *                    facilitator entity (i.e. Kibana), so it is URL Encoded.
      * @param state       The state value that either we or the facilitator generated for this specific flow and that was stored
-     *                    at the user's session with the facilitator
+     *                    at the user's session with the facilitator.
      * @param nonce       The nonce value that  the facilitator generated for this specific flow and that was stored at the user's
-     *                    session with the facilitator
+     *                    session with the facilitator.
      */
     public OpenIdConnectToken(String redirectUri, String state, String nonce) {
         this.redirectUri = redirectUri;

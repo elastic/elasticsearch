@@ -160,9 +160,9 @@ public final class WatcherTestUtils {
         EmailTemplate email = EmailTemplate.builder().from("from@test.com").to("to@test.com").build();
         Authentication auth = new Authentication("testname", new Secret("testpassword".toCharArray()));
         EmailAction action = new EmailAction(email, "testaccount", auth, Profile.STANDARD, null, null);
-        ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, engine,
+        ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, emailService, engine,
                 new HtmlSanitizer(Settings.EMPTY), Collections.emptyMap());
-        actions.add(new ActionWrapper("_email", null, null, null, executale));
+        actions.add(new ActionWrapper("_email", null, null, null, executable));
 
         DateTime now = DateTime.now(UTC);
         Map<String, ActionStatus> statuses = new HashMap<>();

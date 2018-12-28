@@ -46,7 +46,7 @@ import java.util.stream.Stream;
  * Supports a setup section and multiple test sections.
  */
 public class ClientYamlTestSuite {
-    public static ClientYamlTestSuite parse(NamedXContentRegistry executeableSectionRegistry, String api, Path file) throws IOException {
+    public static ClientYamlTestSuite parse(NamedXContentRegistry executableSectionRegistry, String api, Path file) throws IOException {
         if (!Files.isRegularFile(file)) {
             throw new IllegalArgumentException(file.toAbsolutePath() + " is not a file");
         }
@@ -70,7 +70,7 @@ public class ClientYamlTestSuite {
             }
         }
 
-        try (XContentParser parser = YamlXContent.yamlXContent.createParser(executeableSectionRegistry,
+        try (XContentParser parser = YamlXContent.yamlXContent.createParser(executableSectionRegistry,
             LoggingDeprecationHandler.INSTANCE, Files.newInputStream(file))) {
             return parse(api, filename, parser);
         } catch(Exception e) {

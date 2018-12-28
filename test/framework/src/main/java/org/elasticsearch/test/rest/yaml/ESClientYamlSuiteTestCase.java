@@ -181,7 +181,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * Create parameters for this parameterized test.
      */
-    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executableSectionRegistry) throws Exception {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
         Map<String, Set<Path>> yamlSuites = loadSuites(paths);
         List<ClientYamlTestSuite> suites = new ArrayList<>();
@@ -190,7 +190,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         for (String api : yamlSuites.keySet()) {
             List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
             for (Path yamlFile : yamlFiles) {
-                ClientYamlTestSuite suite = ClientYamlTestSuite.parse(executeableSectionRegistry, api, yamlFile);
+                ClientYamlTestSuite suite = ClientYamlTestSuite.parse(executableSectionRegistry, api, yamlFile);
                 suites.add(suite);
                 try {
                     suite.validate();

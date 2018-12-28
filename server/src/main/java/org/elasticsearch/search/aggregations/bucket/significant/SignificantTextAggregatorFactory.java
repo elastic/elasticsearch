@@ -37,7 +37,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
@@ -143,7 +142,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
         return getBackgroundFrequency(value);
     }
 
-
     @Override
     public void close() {
         try {
@@ -164,20 +162,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
         }
 
         numberOfAggregatorsCreated++;
-        BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
-        if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
-            // The user has not made a shardSize selection.
-            // Use default heuristic to avoid any wrong-ranking caused by
-            // distributed counting but request double the usual amount.
-            // We typically need more than the number of "top" terms requested
-            // by other aggregations as the significance algorithm is in less
-            // of a position to down-select at shard-level - some of the things
-            // we want to find have only one occurrence on each shard and as
-            // such are impossible to differentiate from non-significant terms
-            // at that early stage.
-            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards() == 1));
-        }
+        BucketCountThresholds bucketCountThresholds = SignificantTermsAggregationBuilder.suggestShardSize(
+            SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize(),
+            this.bucketCountThresholds, context.numberOfShards() == 1);
 
 //        TODO - need to check with mapping that this is indeed a text field....
 

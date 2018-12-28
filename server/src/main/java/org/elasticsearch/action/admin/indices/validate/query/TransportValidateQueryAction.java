@@ -39,6 +39,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.IndexClosedException;
@@ -108,8 +109,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
-            Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider),
-                rewriteListener);
+            QueryRewriteContext rewriteContext = searchService.getRewriteContext(timeProvider, false);
+            Rewriteable.rewriteAndFetch(request.query(), rewriteContext, rewriteListener);
         }
     }
 

@@ -25,9 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -114,14 +114,8 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
                         return significanceHeuristicParser.parse(p);
                     }, new ParseField(name));
         }
-        return new Aggregator.Parser() {
-            @Override
-            public AggregationBuilder parse(String aggregationName, XContentParser parser)
-                    throws IOException {
-                return PARSER.parse(parser,
-                        new SignificantTextAggregationBuilder(aggregationName, null), null);
-            }
-        };
+        return (aggregationName, parser) -> PARSER.parse(parser,
+                new SignificantTextAggregationBuilder(aggregationName, null), null);
     }
 
     protected SignificantTextAggregationBuilder(SignificantTextAggregationBuilder clone,
@@ -137,7 +131,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected SignificantTextAggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
         return new SignificantTextAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
@@ -209,7 +203,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         return this;
     }
 
-
     /**
      * Selects the fields to load from _source JSON and analyze.
      * If none are specified, the indexed "fieldName" value is assumed
@@ -219,7 +212,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         this.sourceFieldNames = names.toArray(new String [names.size()]);
         return this;
     }
-
 
     /**
      * Control if duplicate paragraphs of text should try be filtered from the
@@ -347,6 +339,24 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         return new SignificantTextAggregatorFactory(name, includeExclude, filterBuilder,
                 bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder,
                 fieldName, sourceFieldNames, filterDuplicateText, metaData);
+    }
+
+    @Override
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (queryRewriteContext.isMultipleClusters()) {
+            assert queryRewriteContext.convertToShardContext() == null;
+            // We are coordinating a cross-cluster search request across more than one cluster with local reduction on each remote cluster.
+            // We need to set shard_size explicitly to make sure that we don't optimize later for a single shard; although we may end up
+            // searching on a single shard per cluster, we will reduce buckets coming from multiple shards as we have multiple clusters.
+            BucketCountThresholds bucketCountThresholds = SignificantTermsAggregationBuilder.suggestShardSize(
+                DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize(), this.bucketCountThresholds, false);
+            if (bucketCountThresholds != this.bucketCountThresholds) {
+                SignificantTextAggregationBuilder aggregationBuilder = shallowCopy(factoriesBuilder, metaData);
+                aggregationBuilder.bucketCountThresholds = bucketCountThresholds;
+                return aggregationBuilder;
+            }
+        }
+        return super.doRewrite(queryRewriteContext);
     }
 
     @Override

@@ -90,7 +90,7 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                     DateFieldMapper.Builder b = new DateFieldMapper.Builder("test");
                     DateFieldMapper.DateFieldType dateFieldType = b.fieldType();
                     dateFieldType.setName("test");
-                    QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> 0);
+                    QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> 0, false);
                     MappedFieldType.Relation relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 0, 10,
                         true, true, DateTimeZone.UTC, null, context);
                     assertEquals(relation, MappedFieldType.Relation.WITHIN);

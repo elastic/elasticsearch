@@ -463,6 +463,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     private SearchSourceBuilder rewrite(SearchSourceBuilder searchSourceBuilder) throws IOException {
         return Rewriteable.rewrite(searchSourceBuilder, new QueryRewriteContext(xContentRegistry(), writableRegistry(),
-                null, Long.valueOf(1)::longValue));
+                null, Long.valueOf(1)::longValue, false));
     }
 }

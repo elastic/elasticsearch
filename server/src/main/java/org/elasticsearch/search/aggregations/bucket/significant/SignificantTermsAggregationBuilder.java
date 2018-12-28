@@ -24,12 +24,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
@@ -100,12 +101,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
                     },
                     new ParseField(name));
         }
-        return new Aggregator.Parser() {
-            @Override
-            public AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-                return aggregationParser.parse(parser, new SignificantTermsAggregationBuilder(aggregationName, null), null);
-            }
-        };
+        return (aggregationName, parser) -> aggregationParser.parse(parser,
+            new SignificantTermsAggregationBuilder(aggregationName, null), null);
     }
 
     private IncludeExclude includeExclude = null;
@@ -141,7 +138,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected SignificantTermsAggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
         return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
@@ -173,6 +170,38 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         }
         this.bucketCountThresholds = bucketCountThresholds;
         return this;
+    }
+
+    @Override
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (queryRewriteContext.isMultipleClusters()) {
+            assert queryRewriteContext.convertToShardContext() == null;
+            // We are coordinating a cross-cluster search request across more than one cluster with local reduction on each remote cluster.
+            // We need to set shard_size explicitly to make sure that we don't optimize later for a single shard; although we may end up
+            // searching on a single shard per cluster, we will reduce buckets coming from multiple shards as we have multiple clusters.
+            BucketCountThresholds bucketCountThresholds = suggestShardSize(
+                DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize(), this.bucketCountThresholds, false);
+            if (bucketCountThresholds != this.bucketCountThresholds) {
+                SignificantTermsAggregationBuilder aggregationBuilder = shallowCopy(factoriesBuilder, metaData);
+                aggregationBuilder.bucketCountThresholds = bucketCountThresholds;
+                return aggregationBuilder;
+            }
+        }
+        return super.doRewrite(queryRewriteContext);
+    }
+
+    static BucketCountThresholds suggestShardSize(int defaultShardSize, BucketCountThresholds bucketCountThresholds, boolean singleShard) {
+        // The user has not made a shardSize selection. Use default heuristic to avoid any wrong-ranking caused by distributed counting
+        // but request double the usual amount. We typically need more than the number of "top" terms requested by other aggregations
+        // as the significance algorithm is in less of a position to down-select at shard-level - some of the things we want to find have
+        // only one occurrence on each shard and as such are impossible to differentiate from non-significant terms at that early stage.
+        if (bucketCountThresholds.getShardSize() == defaultShardSize) {
+            int newShardSize = BucketUtils.suggestShardSideQueueSize(2 * bucketCountThresholds.getRequiredSize(), singleShard);
+            BucketCountThresholds updatedBucketCountThresholds = new BucketCountThresholds(bucketCountThresholds);
+            updatedBucketCountThresholds.setShardSize(newShardSize);
+            return updatedBucketCountThresholds;
+        }
+        return bucketCountThresholds;
     }
 
     /**

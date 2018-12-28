@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
+import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -122,7 +124,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected TermsAggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
         return new TermsAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
@@ -152,6 +154,36 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
+    }
+
+    @Override
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (queryRewriteContext.isMultipleClusters()) {
+            assert queryRewriteContext.convertToShardContext() == null;
+            // We are coordinating a cross-cluster search request across more than one cluster with local reduction on each remote cluster.
+            // We need to set shard_size explicitly to make sure that we don't optimize later for a single shard; although we may end up
+            // searching on a single shard per cluster, we will reduce buckets coming from multiple shards as we have multiple clusters.
+            BucketCountThresholds bucketCountThresholds = suggestShardSize(order, this.bucketCountThresholds, false);
+            if (bucketCountThresholds != this.bucketCountThresholds) {
+                TermsAggregationBuilder termsAggregationBuilder = shallowCopy(factoriesBuilder, metaData);
+                termsAggregationBuilder.bucketCountThresholds = bucketCountThresholds;
+                return termsAggregationBuilder;
+            }
+        }
+        return super.doRewrite(queryRewriteContext);
+    }
+
+    static BucketCountThresholds suggestShardSize(BucketOrder order, BucketCountThresholds bucketCountThresholds, boolean singleShard) {
+        // The user has not made a shardSize selection. Use default heuristic to avoid any wrong-ranking caused by distributed counting
+        if (InternalOrder.isKeyOrder(order) == false
+            && bucketCountThresholds.getShardSize() == DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+            int newShardSize = BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(), singleShard);
+            BucketCountThresholds updatedBucketCountThresholds = new BucketCountThresholds(bucketCountThresholds);
+            updatedBucketCountThresholds.setShardSize(newShardSize);
+            updatedBucketCountThresholds.ensureValidity();
+            return updatedBucketCountThresholds;
+        }
+        return bucketCountThresholds;
     }
 
     /**

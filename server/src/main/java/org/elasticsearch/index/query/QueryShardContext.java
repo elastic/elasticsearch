@@ -110,7 +110,7 @@ public class QueryShardContext extends QueryRewriteContext {
                              SimilarityService similarityService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
                              NamedWriteableRegistry namedWriteableRegistry, Client client, IndexReader reader, LongSupplier nowInMillis,
                              String clusterAlias) {
-        super(xContentRegistry, namedWriteableRegistry,client, nowInMillis);
+        super(xContentRegistry, namedWriteableRegistry,client, nowInMillis, false);
         this.shardId = shardId;
         this.similarityService = similarityService;
         this.mapperService = mapperService;

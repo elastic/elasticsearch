@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanQuery;
@@ -365,7 +365,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     static void failIfQueryUsesClient(QueryBuilder queryBuilder, QueryRewriteContext original)
             throws IOException {
         QueryRewriteContext copy = new QueryRewriteContext(
-                original.getXContentRegistry(), original.getWriteableRegistry(), null, original::nowInMillis);
+                original.getXContentRegistry(), original.getWriteableRegistry(), null, original::nowInMillis, false);
         Rewriteable.rewrite(queryBuilder, copy);
         if (copy.hasAsyncActions()) {
             throw new IllegalStateException("role queries are not allowed to execute additional requests");

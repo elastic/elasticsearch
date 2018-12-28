@@ -36,18 +36,18 @@ import java.util.function.LongSupplier;
 public class QueryRewriteContext {
     private final NamedXContentRegistry xContentRegistry;
     private final NamedWriteableRegistry writeableRegistry;
+    private final boolean multipleClusters;
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
 
-    public QueryRewriteContext(
-            NamedXContentRegistry xContentRegistry, NamedWriteableRegistry writeableRegistry,Client client,
-            LongSupplier nowInMillis) {
-
+    public QueryRewriteContext(NamedXContentRegistry xContentRegistry, NamedWriteableRegistry writeableRegistry,
+                               Client client, LongSupplier nowInMillis, boolean multipleClusters) {
         this.xContentRegistry = xContentRegistry;
         this.writeableRegistry = writeableRegistry;
         this.client = client;
         this.nowInMillis = nowInMillis;
+        this.multipleClusters = multipleClusters;
     }
 
     /**
@@ -66,6 +66,14 @@ public class QueryRewriteContext {
 
     public NamedWriteableRegistry getWriteableRegistry() {
         return writeableRegistry;
+    }
+
+    /**
+     * Returns whether the request being rewritten is part of a cross-cluster search request where each cluster performs
+     * its own local reduction, and the targeted clusters are more than one.
+     */
+    public boolean isMultipleClusters() {
+        return multipleClusters;
     }
 
     /**

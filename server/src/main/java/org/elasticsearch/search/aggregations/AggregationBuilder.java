@@ -125,7 +125,7 @@ public abstract class AggregationBuilder
      * identity reference must be returned otherwise the builder will be
      * rewritten infinitely.
      */
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
     }
 

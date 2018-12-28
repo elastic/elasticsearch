@@ -54,7 +54,7 @@ import java.util.Set;
 
 public abstract class TermsAggregator extends DeferableBucketAggregator {
 
-    public static class BucketCountThresholds implements Writeable, ToXContentFragment {
+    public static final class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;
         private long shardMinDocCount;
         private int requiredSize;
@@ -90,7 +90,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
                     bucketCountThresholds.shardSize);
         }
 
-        public void ensureValidity() {
+        void ensureValidity() {
 
             // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return
             // <size>

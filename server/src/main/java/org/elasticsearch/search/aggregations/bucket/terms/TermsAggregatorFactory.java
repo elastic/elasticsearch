@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -115,16 +114,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
-        if (InternalOrder.isKeyOrder(order) == false
-                && bucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
-            // The user has not made a shardSize selection. Use default
-            // heuristic to avoid any wrong-ranking caused by distributed
-            // counting
-            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards() == 1));
-        }
-        bucketCountThresholds.ensureValidity();
+
+        BucketCountThresholds bucketCountThresholds = TermsAggregationBuilder.suggestShardSize(order,
+            this.bucketCountThresholds, context.numberOfShards() == 1);
+
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {

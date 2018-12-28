@@ -43,7 +43,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
@@ -181,36 +180,18 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         }
 
         numberOfAggregatorsCreated++;
-        BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
-        if (bucketCountThresholds.getShardSize() == SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
-            // The user has not made a shardSize selection .
-            // Use default heuristic to avoid any wrong-ranking caused by
-            // distributed counting
-            // but request double the usual amount.
-            // We typically need more than the number of "top" terms requested
-            // by other aggregations
-            // as the significance algorithm is in less of a position to
-            // down-select at shard-level -
-            // some of the things we want to find have only one occurrence on
-            // each shard and as
-            // such are impossible to differentiate from non-significant terms
-            // at that early stage.
-            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards() == 1));
-        }
-
+        BucketCountThresholds bucketCountThresholds = SignificantTermsAggregationBuilder.suggestShardSize(
+            SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize(),
+            this.bucketCountThresholds, context.numberOfShards() == 1);
         if (valuesSource instanceof ValuesSource.Bytes) {
-            ExecutionMode execution = null;
+            final ExecutionMode execution;
             if (executionHint != null) {
                 execution = ExecutionMode.fromString(executionHint, deprecationLogger);
-            }
-            if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
+            } else if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
                 execution = ExecutionMode.MAP;
-            }
-            if (execution == null) {
+            } else {
                 execution = ExecutionMode.GLOBAL_ORDINALS;
             }
-            assert execution != null;
 
             DocValueFormat format = config.format();
             if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {

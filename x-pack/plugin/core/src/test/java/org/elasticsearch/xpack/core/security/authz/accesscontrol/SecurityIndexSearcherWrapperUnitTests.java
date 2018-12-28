@@ -34,7 +34,6 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -664,8 +664,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), client,
-                () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), client, () -> nowInMillis, false);
         QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
         SecurityIndexSearcherWrapper.failIfQueryUsesClient(queryBuilder1, context);
 

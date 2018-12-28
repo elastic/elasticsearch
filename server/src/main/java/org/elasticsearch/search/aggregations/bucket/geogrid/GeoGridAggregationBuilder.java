@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -90,7 +91,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected GeoGridAggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
         return new GeoGridAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
@@ -150,26 +151,41 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> innerBuild(SearchContext context,
             ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
                     throws IOException {
-        int shardSize = this.shardSize;
+        int shardSize = suggestShardSize(name, this.shardSize, requiredSize, context.numberOfShards() == 1);
+        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, context, parent,
+                subFactoriesBuilder, metaData);
+    }
 
-        int requiredSize = this.requiredSize;
-
+    static int suggestShardSize(String name, int shardSize, int requiredSize, boolean singleShard) {
         if (shardSize < 0) {
-            // Use default heuristic to avoid any wrong-ranking caused by
-            // distributed counting
-            shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.numberOfShards() == 1);
+            // Use default heuristic to avoid any wrong-ranking caused by distributed counting
+            shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, singleShard);
         }
 
         if (requiredSize <= 0 || shardSize <= 0) {
             throw new ElasticsearchException(
-                    "parameters [required_size] and [shard_size] must be >0 in geohash_grid aggregation [" + name + "].");
+                "parameters [required_size] and [shard_size] must be >0 in geohash_grid aggregation [" + name + "].");
         }
 
         if (shardSize < requiredSize) {
             shardSize = requiredSize;
         }
-        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, context, parent,
-                subFactoriesBuilder, metaData);
+        return shardSize;
+    }
+
+    @Override
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (queryRewriteContext.isMultipleClusters()) {
+            assert queryRewriteContext.convertToShardContext() == null;
+            // We are coordinating a cross-cluster search request across more than one cluster with local reduction on each remote cluster.
+            // We need to set shard_size explicitly to make sure that we don't optimize later for a single shard; although we may end up
+            // searching on a single shard per cluster, we will reduce buckets coming from multiple shards as we have multiple clusters.
+            int updatedShardSize = suggestShardSize(name, shardSize, requiredSize, false);
+            GeoGridAggregationBuilder aggregationBuilder = shallowCopy(factoriesBuilder, metaData);
+            aggregationBuilder.shardSize(updatedShardSize);
+            return aggregationBuilder;
+        }
+        return super.doRewrite(queryRewriteContext);
     }
 
     @Override

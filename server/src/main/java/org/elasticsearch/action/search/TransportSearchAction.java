@@ -40,6 +40,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
@@ -214,8 +215,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (searchRequest.source() == null) {
             rewriteListener.onResponse(searchRequest.source());
         } else {
-            Rewriteable.rewriteAndFetch(searchRequest.source(), searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis),
-                rewriteListener);
+            QueryRewriteContext rewriteContext = searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis, false);
+            Rewriteable.rewriteAndFetch(searchRequest.source(), rewriteContext, rewriteListener);
         }
     }
 

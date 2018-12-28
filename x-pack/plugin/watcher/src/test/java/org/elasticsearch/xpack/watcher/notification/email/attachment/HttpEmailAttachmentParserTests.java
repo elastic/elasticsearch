@@ -39,7 +39,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class HttpEmailAttachementParserTests extends ESTestCase {
+public class HttpEmailAttachmentParserTests extends ESTestCase {
 
     private HttpClient httpClient;
     private EmailAttachmentsParser emailAttachmentsParser;
@@ -50,8 +50,8 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         httpClient = mock(HttpClient.class);
 
         attachmentParsers = new HashMap<>();
-        attachmentParsers.put(HttpEmailAttachementParser.TYPE,
-                new HttpEmailAttachementParser(httpClient, new MockTextTemplateEngine()));
+        attachmentParsers.put(HttpEmailAttachmentParser.TYPE,
+                new HttpEmailAttachmentParser(httpClient, new MockTextTemplateEngine()));
         emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
     }
 
@@ -62,7 +62,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
 
         String id = "some-id";
         XContentBuilder builder = jsonBuilder().startObject().startObject(id)
-                .startObject(HttpEmailAttachementParser.TYPE)
+                .startObject(HttpEmailAttachmentParser.TYPE)
                 .startObject("request")
                 .field("scheme", "http")
                 .field("host", "test.de")
@@ -105,7 +105,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         WatchExecutionContext ctx = createWatchExecutionContext();
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> attachmentParsers.get(HttpEmailAttachementParser.TYPE).toAttachment(ctx, new Payload.Simple(), attachment));
+                () -> attachmentParsers.get(HttpEmailAttachmentParser.TYPE).toAttachment(ctx, new Payload.Simple(), attachment));
         assertThat(exception.getMessage(), is("Watch[watch1] attachment[someid] HTTP error status host[localhost], port[80], " +
                 "method[GET], path[foo], status[403]"));
     }
@@ -119,7 +119,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         WatchExecutionContext ctx = createWatchExecutionContext();
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> attachmentParsers.get(HttpEmailAttachementParser.TYPE).toAttachment(ctx, new Payload.Simple(), attachment));
+                () -> attachmentParsers.get(HttpEmailAttachmentParser.TYPE).toAttachment(ctx, new Payload.Simple(), attachment));
         assertThat(exception.getMessage(), is("Watch[watch1] attachment[someid] HTTP empty response body host[localhost], port[80], " +
                 "method[GET], path[foo], status[200]"));
     }
@@ -132,7 +132,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         WatchExecutionContext ctx = createWatchExecutionContext();
 
         IOException exception = expectThrows(IOException.class,
-                () -> attachmentParsers.get(HttpEmailAttachementParser.TYPE).toAttachment(ctx, new Payload.Simple(), attachment));
+                () -> attachmentParsers.get(HttpEmailAttachmentParser.TYPE).toAttachment(ctx, new Payload.Simple(), attachment));
         assertThat(exception.getMessage(), is("whatever"));
     }
 

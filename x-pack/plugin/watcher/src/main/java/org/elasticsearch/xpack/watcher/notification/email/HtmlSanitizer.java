@@ -173,7 +173,7 @@ public class HtmlSanitizer {
 
     /**
      * An {@code img} tag policy that only accept {@code cid:} values in its {@code src} attribute.
-     * If such value is found, the content id is verified against the available attachements of the
+     * If such value is found, the content id is verified against the available attachments of the
      * email and if the content/attachment is not found, the element is dropped.
      */
     private static class EmbeddedImgOnlyPolicy implements ElementPolicy {

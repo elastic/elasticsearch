@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.watcher.support.Variables;
 import java.io.IOException;
 import java.util.Map;
 
-public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpRequestAttachment> {
+public class HttpEmailAttachmentParser implements EmailAttachmentParser<HttpRequestAttachment> {
 
     public interface Fields {
         ParseField INLINE = new ParseField("inline");
@@ -36,7 +36,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
     private final HttpClient httpClient;
     private final TextTemplateEngine templateEngine;
 
-    public HttpEmailAttachementParser(HttpClient httpClient, TextTemplateEngine templateEngine) {
+    public HttpEmailAttachmentParser(HttpClient httpClient, TextTemplateEngine templateEngine) {
         this.httpClient = httpClient;
         this.templateEngine = templateEngine;
     }

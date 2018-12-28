@@ -48,13 +48,13 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(id)
-                .startObject(HttpEmailAttachementParser.TYPE)
-                .field(HttpEmailAttachementParser.Fields.REQUEST.getPreferredName(), requestTemplate, params);
+                .startObject(HttpEmailAttachmentParser.TYPE)
+                .field(HttpEmailAttachmentParser.Fields.REQUEST.getPreferredName(), requestTemplate, params);
         if (Strings.hasLength(contentType)) {
-            builder.field(HttpEmailAttachementParser.Fields.CONTENT_TYPE.getPreferredName(), contentType);
+            builder.field(HttpEmailAttachmentParser.Fields.CONTENT_TYPE.getPreferredName(), contentType);
         }
         if (inline) {
-            builder.field(HttpEmailAttachementParser.Fields.INLINE.getPreferredName(), inline);
+            builder.field(HttpEmailAttachmentParser.Fields.INLINE.getPreferredName(), inline);
         }
         return builder.endObject().endObject();
     }
@@ -65,7 +65,7 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
 
     @Override
     public String type() {
-        return HttpEmailAttachementParser.TYPE;
+        return HttpEmailAttachmentParser.TYPE;
     }
 
     @Override

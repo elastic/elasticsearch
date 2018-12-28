@@ -132,7 +132,7 @@ import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachementParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.support.BodyPartSource;
 import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
@@ -290,7 +290,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(scriptService);
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
-        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
+        emailAttachmentParsers.put(HttpEmailAttachmentParser.TYPE, new HttpEmailAttachmentParser(httpClient, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
         emailAttachmentParsers.put(ReportingAttachmentParser.TYPE, new ReportingAttachmentParser(settings, httpClient, templateEngine));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(emailAttachmentParsers);

@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachm
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachments;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachementParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpRequestAttachment;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
@@ -86,7 +86,7 @@ public class EmailActionTests extends ESTestCase {
     @Before
     public void addEmailAttachmentParsers() {
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
-        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient,
+        emailAttachmentParsers.put(HttpEmailAttachmentParser.TYPE, new HttpEmailAttachmentParser(httpClient,
             new MockTextTemplateEngine()));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
         emailAttachmentParser = new EmailAttachmentsParser(emailAttachmentParsers);
@@ -512,7 +512,7 @@ public class EmailActionTests extends ESTestCase {
 
         // setup email attachment parsers
         Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
-        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, engine));
+        attachmentParsers.put(HttpEmailAttachmentParser.TYPE, new HttpEmailAttachmentParser(httpClient, engine));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
 
         XContentBuilder builder = jsonBuilder().startObject()

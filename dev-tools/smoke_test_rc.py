@@ -198,7 +198,7 @@ def smoke_test_release(release, files, hash, plugins):
       run('%s; %s  useradd es_admin -r superuser -p foobar' % (java_exe(), es_shield_path))
     else:
       headers = {}
-    print('  Starting elasticsearch deamon from [%s]' % es_dir)
+    print('  Starting elasticsearch daemon from [%s]' % es_dir)
     try:
       run('%s; %s -Enode.name=smoke_tester -Ecluster.name=prepare_release -Erepositories.url.allowed_urls=http://snapshot.test* %s -Epidfile=%s -Enode.portsfile=true'
           % (java_exe(), es_run_path, '-d', os.path.join(es_dir, 'es-smoke.pid')))

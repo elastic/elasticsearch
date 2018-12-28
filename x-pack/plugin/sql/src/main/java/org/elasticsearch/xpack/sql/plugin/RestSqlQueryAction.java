@@ -63,7 +63,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * {@link XContent} outputs we can't use {@link RestToXContentListener}
          * like everything else. We want to stick as closely as possible to
          * Elasticsearch's defaults though, while still layering in ways to
-         * control the output more easilly.
+         * control the output more easily.
          *
          * First we find the string that the user used to specify the response
          * format. If there is a {@code format} paramter we use that. If there

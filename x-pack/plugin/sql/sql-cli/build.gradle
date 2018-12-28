@@ -43,7 +43,7 @@ dependencyLicenses {
 
 /*
  * Bundle all dependencies into the main jar and mark it as executable it
- * can be easilly shipped around and used.
+ * can be easily shipped around and used.
  */
 jar {
     from({

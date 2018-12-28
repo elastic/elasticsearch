@@ -106,6 +106,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                 throw e;
             }
         }
+        assert refreshListeners == null;
         return () -> runOnce.run();
     }
 

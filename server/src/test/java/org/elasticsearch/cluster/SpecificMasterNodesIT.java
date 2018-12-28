@@ -109,7 +109,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(masterNodeName));
 
         logger.info("--> start master node (2)");
-        final String nextMasterEligableNodeName = internalCluster().startNode(Settings.builder()
+        final String nextMasterEligibleNodeName = internalCluster().startNode(Settings.builder()
             .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), true));
         assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(masterNodeName));
@@ -121,9 +121,9 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         logger.info("--> closing master node (1)");
         internalCluster().stopCurrentMasterNode();
         assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()
-            .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligableNodeName));
+            .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligibleNodeName));
         assertThat(internalCluster().masterClient().admin().cluster().prepareState()
-            .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligableNodeName));
+            .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligibleNodeName));
     }
 
     public void testAliasFilterValidation() throws Exception {

@@ -835,7 +835,7 @@ public final class InternalTestCluster extends TestCluster {
             this.name = name;
             this.originalNodeSettings = originalNodeSettings;
             this.nodeAndClientId = nodeAndClientId;
-            markNodeDataDirsAsNotEligableForWipe(node);
+            markNodeDataDirsAsNotEligibleForWipe(node);
         }
 
         Node node() {
@@ -977,7 +977,7 @@ public final class InternalTestCluster extends TestCluster {
                 }
             });
             closed.set(false);
-            markNodeDataDirsAsNotEligableForWipe(node);
+            markNodeDataDirsAsNotEligibleForWipe(node);
         }
 
         @Override
@@ -1424,7 +1424,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void markNodeDataDirsAsNotEligableForWipe(Node node) {
+    private void markNodeDataDirsAsNotEligibleForWipe(Node node) {
         assert Thread.holdsLock(this);
         NodeEnvironment nodeEnv = node.getNodeEnvironment();
         if (nodeEnv.hasNodeFile()) {

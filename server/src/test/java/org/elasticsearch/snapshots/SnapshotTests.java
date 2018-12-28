@@ -53,14 +53,14 @@ public class SnapshotTests extends ESTestCase {
         assertThat(new Snapshot(out.bytes().streamInput()), equalTo(original));
     }
 
-    public void testCreateSnapshotRequestDescrptions() {
+    public void testCreateSnapshotRequestDescriptions() {
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest();
         createSnapshotRequest.snapshot("snapshot_name");
         createSnapshotRequest.repository("repo_name");
         assertEquals("snapshot [repo_name:snapshot_name]", createSnapshotRequest.getDescription());
     }
 
-    public void testRestoreSnapshotRequestDescrptions() {
+    public void testRestoreSnapshotRequestDescriptions() {
         RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest();
         restoreSnapshotRequest.snapshot("snapshot_name");
         restoreSnapshotRequest.repository("repo_name");

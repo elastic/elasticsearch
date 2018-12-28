@@ -42,13 +42,13 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     private final String nBestExamples;
     private final int nBestCost;
 
-    private boolean discartPunctuation;
+    private boolean discardPunctuation;
 
     public KuromojiTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, settings);
         mode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
-        discartPunctuation = settings.getAsBoolean("discard_punctuation", true);
+        discardPunctuation = settings.getAsBoolean("discard_punctuation", true);
         nBestCost = settings.getAsInt(NBEST_COST, -1);
         nBestExamples = settings.get(NBEST_EXAMPLES);
     }
@@ -87,7 +87,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
 
     @Override
     public Tokenizer create() {
-        JapaneseTokenizer t = new JapaneseTokenizer(userDictionary, discartPunctuation, mode);
+        JapaneseTokenizer t = new JapaneseTokenizer(userDictionary, discardPunctuation, mode);
         int nBestCost = this.nBestCost;
         if (nBestExamples != null) {
             nBestCost = Math.max(nBestCost, t.calcNBestCost(nBestExamples));

@@ -484,7 +484,7 @@ public class RollupRequestTranslator {
             return rolledMetrics;
         }
 
-        // Otherwise, we can cheat and serialize/deserialze into a temp stream as an easy way to clone
+        // Otherwise, we can cheat and serialize/deserialize into a temp stream as an easy way to clone
         // leaf metrics, since they don't have any sub-aggs
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             try {

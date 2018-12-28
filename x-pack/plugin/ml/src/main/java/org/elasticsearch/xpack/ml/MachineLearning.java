@@ -608,7 +608,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 maxNumberOfJobs * 4, maxNumberOfJobs * 4, "xpack.ml.autodetect_thread_pool");
 
         // 4 threads per job: processing logging, result and state of the renormalization process.
-        // Renormalization does't run for the entire lifetime of a job, so additionally autodetect process
+        // Renormalization doesn't run for the entire lifetime of a job, so additionally autodetect process
         // based operation (open, close, flush, post data), datafeed based operations (start and stop)
         // and deleting expired data use this threadpool too and queue up if all threads are busy.
         FixedExecutorBuilder renormalizer = new FixedExecutorBuilder(settings, UTILITY_THREAD_POOL_NAME,

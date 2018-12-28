@@ -30,7 +30,7 @@ public final class ProtocolUtils {
     /**
      * Implements equals for a map of string arrays
      *
-     * The map of string arrays is used in some XPack protocol classes but does't work with equal.
+     * The map of string arrays is used in some XPack protocol classes but doesn't work with equal.
      */
     public static boolean equals(Map<String, String[]> a, Map<String, String[]> b) {
         if (a == null) {
@@ -61,7 +61,7 @@ public final class ProtocolUtils {
     /**
      * Implements hashCode for map of string arrays
      *
-     * The map of string arrays does't work with hashCode.
+     * The map of string arrays doesn't work with hashCode.
      */
     public static int hashCode(Map<String, String[]> a) {
         int hash = 0;

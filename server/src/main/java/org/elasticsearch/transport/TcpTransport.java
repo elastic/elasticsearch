@@ -38,7 +38,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -727,23 +726,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final Exception error,
         final long requestId,
         final String action) throws IOException {
-        try (BytesStreamOutput stream = new BytesStreamOutput()) {
-//            stream.setVersion(nodeVersion);
-//            stream.setFeatures(features);
-//            RemoteTransportException tx = new RemoteTransportException(
-//                nodeName, new TransportAddress(channel.getLocalAddress()), action, error);
-//            threadPool.getThreadContext().writeTo(stream);
-//            stream.writeException(tx);
-//            byte status = 0;
-//            status = TransportStatus.setResponse(status);
-//            status = TransportStatus.setError(status);
-//            final BytesReference bytes = stream.bytes();
-//            final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
-//            CompositeBytesReference message1 = new CompositeBytesReference(header, bytes);
-//            ReleaseListener releaseListener = new ReleaseListener(null,
-//                () -> messageListener.onResponseSent(requestId, action, error));
-        }
-
         Version version = Version.min(this.version, nodeVersion);
         TransportAddress address = new TransportAddress(channel.getLocalAddress());
         RemoteTransportException tx = new RemoteTransportException(nodeName, address, action, error);
@@ -778,36 +760,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final String action,
         boolean compress,
         boolean isHandshake) {
-
-//        Version version = Version.min(this.version, nodeVersion);
-//        NetworkMessage.Response message = new NetworkMessage.Response(threadPool.getThreadContext(), features, response, version, requestId,
-//            isHandshake, compress);
-//        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
-//        outboundHandler.sendMessage(channel, message, listener);
-//
-//        status = TransportStatus.setResponse(status);
-//        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-//        CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, compress);
-//        boolean addedReleaseListener = false;
-//        try {
-//            if (compress) {
-//                status = TransportStatus.setCompress(status);
-//            }
-//            threadPool.getThreadContext().writeTo(stream);
-//            stream.setVersion(nodeVersion);
-//            stream.setFeatures(features);
-//            BytesReference message = buildMessage(requestId, status, nodeVersion, response, stream);
-//
-//            // this might be called in a different thread
-//            ReleaseListener releaseListener = new ReleaseListener(stream,
-//                () -> messageListener.onResponseSent(requestId, action, response));
-//            internalSendMessage(channel, message, releaseListener);
-//            addedReleaseListener = true;
-//        } finally {
-//            if (!addedReleaseListener) {
-//                IOUtils.close(stream);
-//            }
-//        }
+        Version version = Version.min(this.version, nodeVersion);
+        NetworkMessage.Response message = new NetworkMessage.Response(threadPool.getThreadContext(), features, response, version, requestId,
+            isHandshake, compress);
+        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
+        outboundHandler.sendMessage(channel, message, listener);
     }
 
     /**

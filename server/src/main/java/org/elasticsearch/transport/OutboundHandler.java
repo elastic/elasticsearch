@@ -76,8 +76,6 @@ public class OutboundHandler {
         } catch (RuntimeException ex) {
             // call listener to ensure that any resources are released
             sendContext.onFailure(ex);
-            // TODO: May not need this logging as the send context logs
-            logger.warn(new ParameterizedMessage("exception while dispatching message to channel [{}], closing connection", channel), ex);
             CloseableChannel.closeChannel(channel);
 //            onException(channel, ex);
         }

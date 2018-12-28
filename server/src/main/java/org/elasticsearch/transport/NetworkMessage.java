@@ -57,6 +57,7 @@ public abstract class NetworkMessage implements Writeable {
     }
 
     static NetworkMessage deserialize(StreamInput streamInput) {
+
         return null;
     }
 
@@ -65,12 +66,14 @@ public abstract class NetworkMessage implements Writeable {
         bytesStream.setVersion(version);
         bytesStream.skip(TcpHeader.HEADER_SIZE);
 
-        // TODO: Need to close
-        final CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status));
-        stream.setVersion(version);
-        threadContext.writeTo(stream);
-        writeTo(stream);
-        BytesReference reference = writeMessage(stream);
+        // The compressible bytes stream will not close the underlying bytes stream
+        BytesReference reference;
+        try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
+            stream.setVersion(version);
+            threadContext.writeTo(stream);
+            writeTo(stream);
+            reference = writeMessage(stream);
+        }
         bytesStream.seek(0);
         TcpHeader.writeHeader(bytesStream, requestId, status, version, reference.length() - TcpHeader.HEADER_SIZE);
         return reference;

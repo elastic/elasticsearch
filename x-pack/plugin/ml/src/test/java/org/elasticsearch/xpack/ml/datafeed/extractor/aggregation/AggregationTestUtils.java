@@ -78,7 +78,7 @@ public final class AggregationTestUtils {
             when(bucket.getKey()).thenReturn(term.key);
             when(bucket.getDocCount()).thenReturn(term.count);
             List<Aggregation> numericAggs = new ArrayList<>();
-            if (term.hasBuckekAggs()) {
+            if (term.hasBucketAggs()) {
                 when(bucket.getAggregations()).thenReturn(createAggs(term.bucketAggs));
             } else {
                 for (Map.Entry<String, Double> keyValue : term.values.entrySet()) {
@@ -133,7 +133,7 @@ public final class AggregationTestUtils {
             this.bucketAggs = bucketAggs;
         }
 
-        private boolean hasBuckekAggs() {
+        private boolean hasBucketAggs() {
             return bucketAggs != null;
         }
 

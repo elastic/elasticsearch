@@ -4936,7 +4936,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.index(doc);
                 engine.delete(new Engine.Delete(doc.type(), doc.id(), doc.uid(), primaryTerm.get()));
 
-                // now index more append only docs and refresh so we re-enabel the optimization for unsafe version map
+                // now index more append only docs and refresh so we re-enable the optimization for unsafe version map
                 ParsedDocument document1 = testParsedDocument(Integer.toString(1), null, testDocumentWithTextField(), SOURCE, null);
                 engine.index(new Engine.Index(newUid(document1), document1, UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL,
                     Engine.Operation.Origin.PRIMARY, System.nanoTime(), 0, false, UNASSIGNED_SEQ_NO, 0));

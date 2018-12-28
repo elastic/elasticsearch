@@ -2229,7 +2229,7 @@ public class TranslogTests extends ESTestCase {
             }
         }
         translog.rollGeneration();
-        long comittedGeneration = randomLongBetween(2, translog.currentFileGeneration());
+        long committedGeneration = randomLongBetween(2, translog.currentFileGeneration());
         for (int op = translogOperations / 2; op < translogOperations; op++) {
             translog.add(new Translog.Index("test", "" + op, op, primaryTerm.get(),
                 Integer.toString(op).getBytes(Charset.forName("UTF-8"))));
@@ -2241,8 +2241,8 @@ public class TranslogTests extends ESTestCase {
         translog.close();
         TranslogConfig config = translog.getConfig();
         final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1);
-        deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(comittedGeneration, Long.MAX_VALUE));
-        deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
+        deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(committedGeneration, Long.MAX_VALUE));
+        deletionPolicy.setMinTranslogGenerationForRecovery(committedGeneration);
         translog = new Translog(config, translog.getTranslogUUID(), deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
         assertThat(translog.getMinFileGeneration(), equalTo(1L));
@@ -2251,7 +2251,7 @@ public class TranslogTests extends ESTestCase {
             assertFileIsPresent(translog, gen);
         }
         translog.trimUnreferencedReaders();
-        for (long gen = 1; gen < comittedGeneration; gen++) {
+        for (long gen = 1; gen < committedGeneration; gen++) {
             assertFileDeleted(translog, gen);
         }
     }
@@ -2265,7 +2265,7 @@ public class TranslogTests extends ESTestCase {
         final FailSwitch fail = new FailSwitch();
         fail.failNever();
         final TranslogConfig config = getTranslogConfig(tempDir);
-        final long comittedGeneration;
+        final long committedGeneration;
         final String translogUUID;
         try (Translog translog = getFailableTranslog(fail, config)) {
             final TranslogDeletionPolicy deletionPolicy = translog.getDeletionPolicy();
@@ -2282,7 +2282,7 @@ public class TranslogTests extends ESTestCase {
                 }
             }
             translog.rollGeneration();
-            comittedGeneration = randomLongBetween(2, translog.currentFileGeneration());
+            committedGeneration = randomLongBetween(2, translog.currentFileGeneration());
             for (int op = translogOperations / 2; op < translogOperations; op++) {
                 translog.add(new Translog.Index("test", "" + op, op, primaryTerm.get(),
                     Integer.toString(op).getBytes(Charset.forName("UTF-8"))));
@@ -2290,8 +2290,8 @@ public class TranslogTests extends ESTestCase {
                     translog.rollGeneration();
                 }
             }
-            deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(comittedGeneration, translog.currentFileGeneration()));
-            deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
+            deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(committedGeneration, translog.currentFileGeneration()));
+            deletionPolicy.setMinTranslogGenerationForRecovery(committedGeneration);
             fail.failRandomly();
             try {
                 translog.trimUnreferencedReaders();
@@ -2300,16 +2300,16 @@ public class TranslogTests extends ESTestCase {
             }
         }
         final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1);
-        deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(comittedGeneration, Long.MAX_VALUE));
-        deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
+        deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(committedGeneration, Long.MAX_VALUE));
+        deletionPolicy.setMinTranslogGenerationForRecovery(committedGeneration);
         try (Translog translog = new Translog(config, translogUUID, deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get)) {
             // we don't know when things broke exactly
             assertThat(translog.getMinFileGeneration(), greaterThanOrEqualTo(1L));
-            assertThat(translog.getMinFileGeneration(), lessThanOrEqualTo(comittedGeneration));
+            assertThat(translog.getMinFileGeneration(), lessThanOrEqualTo(committedGeneration));
             assertFilePresences(translog);
             translog.trimUnreferencedReaders();
-            assertThat(translog.getMinFileGeneration(), equalTo(comittedGeneration));
+            assertThat(translog.getMinFileGeneration(), equalTo(committedGeneration));
             assertFilePresences(translog);
         }
     }

@@ -485,7 +485,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         + " and right " + right.nodeString());
             }
 
-            throw new UnsupportedOperationException("don't know how to resolve conficting IDs yet");
+            throw new UnsupportedOperationException("don't know how to resolve conflicting IDs yet");
         }
     }
 

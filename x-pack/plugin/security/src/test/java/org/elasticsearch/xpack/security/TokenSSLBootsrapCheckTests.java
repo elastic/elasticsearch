@@ -9,7 +9,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 
-public class TokenSSLBootsrapCheckTests extends AbstractBootstrapCheckTestCase {
+public class TokenSSLBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     public void testTokenSSLBootstrapCheck() {
         Settings settings = Settings.EMPTY;

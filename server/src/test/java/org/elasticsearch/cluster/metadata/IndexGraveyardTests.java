@@ -83,12 +83,12 @@ public class IndexGraveyardTests extends ESTestCase {
 
     public void testAddTombstones() {
         final IndexGraveyard graveyard1 = createRandom();
-        final IndexGraveyard.Builder graveyardBuidler = IndexGraveyard.builder(graveyard1);
+        final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(graveyard1);
         final int numAdds = randomIntBetween(0, 4);
         for (int j = 0; j < numAdds; j++) {
-            graveyardBuidler.addTombstone(new Index("nidx-" + j, UUIDs.randomBase64UUID()));
+            graveyardBuilder.addTombstone(new Index("nidx-" + j, UUIDs.randomBase64UUID()));
         }
-        final IndexGraveyard graveyard2 = graveyardBuidler.build();
+        final IndexGraveyard graveyard2 = graveyardBuilder.build();
         if (numAdds == 0) {
             assertThat(graveyard2, equalTo(graveyard1));
         } else {

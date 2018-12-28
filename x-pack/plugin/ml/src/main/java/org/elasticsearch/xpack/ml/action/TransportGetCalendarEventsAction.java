@@ -65,8 +65,8 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                     if (request.getJobId() != null) {
 
                         jobConfigProvider.getJob(request.getJobId(), ActionListener.wrap(
-                                jobBuiler -> {
-                                    Job job = jobBuiler.build();
+                                jobBuilder -> {
+                                    Job job = jobBuilder.build();
                                     jobResultsProvider.scheduledEventsForJob(request.getJobId(), job.getGroups(), query, eventsListener);
 
                                 },

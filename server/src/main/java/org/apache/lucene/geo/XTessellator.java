@@ -633,7 +633,7 @@ public final class XTessellator {
     } while (numMerges > 1);
   }
 
-  /** Eliminate colinear/duplicate points from the doubly linked list */
+  /** Eliminate collinear/duplicate points from the doubly linked list */
   private static Node filterPoints(final Node start, Node end) {
     if (start == null) {
       return start;

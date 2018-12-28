@@ -276,7 +276,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             // significant e.g. in the lastfm example of
                             // plotting a single user's tastes and how that maps
                             // into a network showing only the most interesting
-                            // band connections. So line below commmented out
+                            // band connections. So line below commented out
 
                             // nextWaveSigTerms.size(includes.length);
 

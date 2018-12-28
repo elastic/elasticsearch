@@ -60,8 +60,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
         expiredDbq
             .setQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termsQuery("doc_type", "token"))
-                .filter(QueryBuilders.boolQuery()
-                    .must(QueryBuilders.rangeQuery("creation_time").lte(now.minus(24L, ChronoUnit.HOURS).toEpochMilli()))));
+                .filter(QueryBuilders.rangeQuery("creation_time").lte(now.minus(24L, ChronoUnit.HOURS).toEpochMilli())));
         logger.trace(() -> new ParameterizedMessage("Removing old tokens: [{}]", Strings.toString(expiredDbq)));
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq,
                 ActionListener.wrap(r -> {

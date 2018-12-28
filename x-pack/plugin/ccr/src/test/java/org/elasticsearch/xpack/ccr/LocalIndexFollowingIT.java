@@ -92,6 +92,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         assertThat(client().admin().indices().prepareExists("follower-index").get().isExists(), equalTo(false));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37014")
     public void testRemoveRemoteConnection() throws Exception {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName("my_pattern");

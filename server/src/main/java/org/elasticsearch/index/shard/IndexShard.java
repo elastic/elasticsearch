@@ -607,8 +607,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void relocated(final Consumer<ReplicationTracker.PrimaryContext> consumer)
                                             throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
+        final Releasable forceRefreshes = refreshListeners.forceRefreshes();
         try {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                forceRefreshes.close();
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
                         "in-flight operations in progress while moving shard state to relocated";
@@ -639,6 +641,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // Fail primary relocation source and target shards.
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+        } finally {
+            forceRefreshes.close();
         }
     }
 
@@ -2339,7 +2343,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed();
         assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
 
-        indexShardOperationPermits.asyncBlockOperations(onPermitAcquired, timeout.duration(), timeout.timeUnit());
+        asyncBlockOperations(onPermitAcquired, timeout.duration(), timeout.timeUnit());
+    }
+
+    private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {
+        final Releasable forceRefreshes = refreshListeners.forceRefreshes();
+        final ActionListener<Releasable> wrappedListener = ActionListener.wrap(r -> {
+            forceRefreshes.close();
+            onPermitAcquired.onResponse(r);
+        }, e -> {
+            forceRefreshes.close();
+            onPermitAcquired.onFailure(e);
+        });
+        try {
+            indexShardOperationPermits.asyncBlockOperations(wrappedListener, timeout, timeUnit);
+        } catch (Exception e) {
+            forceRefreshes.close();
+            throw e;
+        }
     }
 
     private <E extends Exception> void bumpPrimaryTerm(final long newPrimaryTerm,
@@ -2349,7 +2370,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert newPrimaryTerm > pendingPrimaryTerm || (newPrimaryTerm >= pendingPrimaryTerm && combineWithAction != null);
         assert operationPrimaryTerm <= pendingPrimaryTerm;
         final CountDownLatch termUpdated = new CountDownLatch(1);
-        indexShardOperationPermits.asyncBlockOperations(new ActionListener<Releasable>() {
+        asyncBlockOperations(new ActionListener<Releasable>() {
             @Override
             public void onFailure(final Exception e) {
                 try {
@@ -2442,8 +2463,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                                    final long maxSeqNoOfUpdatesOrDeletes,
                                                    final ActionListener<Releasable> onPermitAcquired,
                                                    final TimeValue timeout) {
-        innerAcquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onPermitAcquired, true,
-            (listener) -> indexShardOperationPermits.asyncBlockOperations(listener, timeout.duration(), timeout.timeUnit()));
+        innerAcquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes,
+            onPermitAcquired, true,
+            listener -> asyncBlockOperations(listener, timeout.duration(), timeout.timeUnit())
+        );
     }
 
     private void innerAcquireReplicaOperationPermit(final long opPrimaryTerm,

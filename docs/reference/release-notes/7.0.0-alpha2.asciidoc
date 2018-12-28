@@ -544,7 +544,7 @@ Search::
 * Add a More Like This query routing requirement check (#29678) {pull}33974[#33974]
 
 Security::
-* Remove license state listeners on closables {pull}36308[#36308] (issues: {issue}33328[#33328], {issue}35627[#35627], {issue}35628[#35628])
+* Remove license state listeners on closeables {pull}36308[#36308] (issues: {issue}33328[#33328], {issue}35627[#35627], {issue}35628[#35628])
 
 Snapshot/Restore::
 * Upgrade GCS Dependencies to 1.55.0 {pull}36634[#36634] (issues: {issue}35229[#35229], {issue}35459[#35459])

@@ -773,16 +773,16 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
             assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
             // adding a listener expecting a lower global checkpoint should fire immediately
-            final AtomicLong immediateGlobalCheckpint = new AtomicLong();
+            final AtomicLong immediateGlobalCheckpoint = new AtomicLong();
             shard.addGlobalCheckpointListener(
                     randomLongBetween(0, i),
                     (g, e) -> {
                         assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
                         assertNull(e);
-                        immediateGlobalCheckpint.set(g);
+                        immediateGlobalCheckpoint.set(g);
                     },
                     null);
-            assertBusy(() -> assertThat(immediateGlobalCheckpint.get(), equalTo((long) index)));
+            assertBusy(() -> assertThat(immediateGlobalCheckpoint.get(), equalTo((long) index)));
         }
         final AtomicBoolean invoked = new AtomicBoolean();
         shard.addGlobalCheckpointListener(

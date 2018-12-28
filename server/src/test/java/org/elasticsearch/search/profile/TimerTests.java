@@ -60,7 +60,7 @@ public class TimerTests extends ESTestCase {
             t.start();
             t.stop();
             assertEquals(i, t.getCount());
-            // Make sure the cumulated timing is 42 times the number of calls as expected
+            // Make sure the accumulated timing is 42 times the number of calls as expected
             assertEquals(i * 42L, t.getApproximateTiming());
         }
     }

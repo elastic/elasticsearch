@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BuiltinDateTimeFunctionC
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ConstantDefaultContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ConvertTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DateEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
@@ -103,6 +104,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContex
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTypesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimeEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimestampEscapedLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -224,13 +226,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (pCtx.query() != null) {
                     throw new ParsingException(loc, "IN query not supported yet");
                 }
-                e = new In(loc, exp, expressions(pCtx.expression()));
+                e = new In(loc, exp, expressions(pCtx.valueExpression()));
                 break;
             case SqlBaseParser.LIKE:
                 e = new Like(loc, exp, visitPattern(pCtx.pattern()));
                 break;
             case SqlBaseParser.RLIKE:
-                e = new RLike(loc, exp, new Literal(source(pCtx.regex), string(pCtx.regex), DataType.KEYWORD));
+                e = new RLike(loc, exp, string(pCtx.regex));
                 break;
             case SqlBaseParser.NULL:
                 // shortcut to avoid double negation later on (since there's no IsNull (missing in ES is a negated exists))
@@ -299,7 +301,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
 
-        return new LikePattern(source(ctx), pattern, escape);
+        return new LikePattern(pattern, escape);
     }
 
 
@@ -546,9 +548,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Literal visitIntervalLiteral(IntervalLiteralContext ctx) {
-
-        IntervalContext interval = ctx.interval();
+    public Literal visitInterval(IntervalContext interval) {
 
         TimeUnit leading = visitIntervalField(interval.leading);
         TimeUnit trailing = visitIntervalField(interval.trailing);
@@ -571,10 +571,31 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         DataType intervalType = Intervals.intervalType(source(interval), leading, trailing);
 
-        boolean negative = interval.sign != null && interval.sign.getType() == SqlBaseParser.MINUS;
+        // negation outside the interval - use xor
+        boolean negative = false;
+
+        ParserRuleContext parentCtx = interval.getParent();
+        if (parentCtx != null) {
+            if (parentCtx instanceof IntervalLiteralContext) {
+                parentCtx = parentCtx.getParent();
+                if (parentCtx instanceof ConstantDefaultContext) {
+                    parentCtx = parentCtx.getParent();
+                    if (parentCtx instanceof ValueExpressionDefaultContext) {
+                        parentCtx = parentCtx.getParent();
+                        if (parentCtx instanceof ArithmeticUnaryContext) {
+                            ArithmeticUnaryContext auc = (ArithmeticUnaryContext) parentCtx;
+                            negative = auc.MINUS() != null;
+                        }
+                    }
+                }
+            }
+        }
+
+
+        // negation inside the interval
+        negative ^= interval.sign != null && interval.sign.getType() == SqlBaseParser.MINUS;
 
         TemporalAmount value = null;
-        String valueAsText = null;
 
         if (interval.valueNumeric != null) {
             if (trailing != null) {
@@ -583,18 +604,14 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                         + "use the string notation instead", trailing);
             }
             value = of(interval.valueNumeric, leading);
-            valueAsText = interval.valueNumeric.getText();
         } else {
             value = of(interval.valuePattern, negative, intervalType);
-            valueAsText = interval.valuePattern.getText();
         }
-
-        String name = "INTERVAL " + valueAsText + " " + leading.name() + (trailing != null ? " TO " + trailing.name() : "");
 
         Interval<?> timeInterval = value instanceof Period ? new IntervalYearMonth((Period) value,
                 intervalType) : new IntervalDayTime((Duration) value, intervalType);
 
-        return new Literal(source(ctx), name, timeInterval, intervalType);
+        return new Literal(source(interval), text(interval), timeInterval, timeInterval.dataType());
     }
 
     private TemporalAmount of(NumberContext valueNumeric, TimeUnit unit) {

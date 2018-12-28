@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
-
 /**
  * Methods for handling index naming related functions
  */
 public final class AnomalyDetectorsIndex {
+
+    public static final int CONFIG_INDEX_MAX_RESULTS_WINDOW = 10_000;
 
     private AnomalyDetectorsIndex() {
     }
@@ -41,19 +40,20 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
-     * Retrieves the currently defined physical index from the job state
-     * @param jobId Job Id
-     * @return The index name
-     */
-    public static String getPhysicalIndexFromState(ClusterState state, String jobId) {
-        return MlMetadata.getMlMetadata(state).getJobs().get(jobId).getResultsIndexName();
-    }
-
-    /**
      * The name of the default index where a job's state is stored
      * @return The index name
      */
     public static String jobStateIndexName() {
         return AnomalyDetectorsIndexFields.STATE_INDEX_NAME;
     }
+
+    /**
+     * The name of the index where job and datafeed configuration
+     * is stored
+     * @return The index name
+     */
+    public static String configIndexName() {
+        return AnomalyDetectorsIndexFields.CONFIG_INDEX;
+    }
+
 }

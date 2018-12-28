@@ -105,13 +105,13 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -946,9 +946,10 @@ public class CoordinatorTests extends ESTestCase {
         cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing setting update");
 
         leader.disconnect();
-        cluster.runFor(defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "detecting disconnection");
+        cluster.runFor(defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING) + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "detecting disconnection");
 
-        assertThat(leader.clusterApplier.lastAppliedClusterState.blocks().global(), contains(expectedBlock));
+        assertThat(leader.clusterApplier.lastAppliedClusterState.blocks().global(), hasItem(expectedBlock));
 
         // TODO reboot the leader and verify that the same block is applied when it restarts
     }

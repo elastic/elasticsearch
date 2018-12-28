@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -146,7 +145,6 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             datafeeds.put(in.readString(), new DatafeedConfig(in));
         }
         this.datafeeds = datafeeds;
-
         this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
     }
 
@@ -167,7 +165,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         DelegatingMapParams extendedParams =
-                new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_CLUSTER_STATE, "true"), params);
+                new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"), params);
         mapValuesToXContent(JOBS_FIELD, jobs, builder, extendedParams);
         mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, extendedParams);
         return builder;
@@ -196,9 +194,14 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             this.jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new,
                     MlMetadataDiff::readJobDiffFrom);
             this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
-                    MlMetadataDiff::readSchedulerDiffFrom);
+                    MlMetadataDiff::readDatafeedDiffFrom);
         }
 
+        /**
+         * Merge the diff with the ML metadata.
+         * @param part The current ML metadata.
+         * @return The new ML metadata.
+         */
         @Override
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((MlMetadata) part).jobs));
@@ -221,7 +224,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return AbstractDiffable.readDiffFrom(Job::new, in);
         }
 
-        static Diff<DatafeedConfig> readSchedulerDiffFrom(StreamInput in) throws IOException {
+        static Diff<DatafeedConfig> readDatafeedDiffFrom(StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(DatafeedConfig::new, in);
         }
     }
@@ -295,7 +298,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> headers) {
             if (datafeeds.containsKey(datafeedConfig.getId())) {
-                throw new ResourceAlreadyExistsException("A datafeed with id [" + datafeedConfig.getId() + "] already exists");
+                throw ExceptionsHelper.datafeedAlreadyExists(datafeedConfig.getId());
             }
             String jobId = datafeedConfig.getJobId();
             checkJobIsAvailableForDatafeed(jobId);
@@ -369,14 +372,14 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             }
         }
 
-        private Builder putJobs(Collection<Job> jobs) {
+        public Builder putJobs(Collection<Job> jobs) {
             for (Job job : jobs) {
                 putJob(job, true);
             }
             return this;
         }
 
-        private Builder putDatafeeds(Collection<DatafeedConfig> datafeeds) {
+        public Builder putDatafeeds(Collection<DatafeedConfig> datafeeds) {
             for (DatafeedConfig datafeed : datafeeds) {
                 this.datafeeds.put(datafeed.getId(), datafeed);
             }
@@ -420,8 +423,6 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             }
         }
     }
-
-
 
     public static MlMetadata getMlMetadata(ClusterState state) {
         MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(TYPE);

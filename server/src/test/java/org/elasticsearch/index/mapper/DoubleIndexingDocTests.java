@@ -50,7 +50,7 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
 
         QueryShardContext context = index.newQueryShardContext(0, null, () -> 0L, null);
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field1", "value1")

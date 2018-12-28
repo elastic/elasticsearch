@@ -30,10 +30,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.core.watcher.execution.Wid;
-import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 import org.joda.time.DateTime;
@@ -41,7 +38,6 @@ import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -54,8 +50,6 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ScriptConditionTests extends ESTestCase {
 
@@ -204,25 +198,6 @@ public class ScriptConditionTests extends ESTestCase {
             new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         Thread.sleep(10);
         assertThat(condition.execute(ctx).met(), is(true));
-    }
-
-    public void testParamsCtxDeprecated() throws Exception {
-        WatchExecutionContext watcherContext = mock(WatchExecutionContext.class);
-        when(watcherContext.id()).thenReturn(mock(Wid.class));
-        when(watcherContext.watch()).thenReturn(mock(Watch.class));
-        when(watcherContext.triggerEvent()).thenReturn(mock(TriggerEvent.class));
-        DateTime now = DateTime.now(DateTimeZone.UTC);
-        when(watcherContext.executionTime()).thenReturn(now);
-        WatcherConditionScript watcherScript = new WatcherConditionScript(Collections.emptyMap(), watcherContext) {
-            @Override
-            public boolean execute() {
-                assertThat(getParams().get("ctx"), is(getCtx()));
-                return true;
-            }
-        };
-        watcherScript.execute();
-        assertWarnings("Accessing variable [ctx] via [params.ctx] from within a watcher_condition script " +
-            "is deprecated in favor of directly accessing [ctx].");
     }
 
     private static XContentBuilder createConditionContent(String script, String scriptLang, ScriptType scriptType) throws IOException {

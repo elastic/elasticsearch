@@ -2137,7 +2137,7 @@ SELECT NOW() AS result;
 ////////////
 limitationSubSelect
 // tag::limitationSubSelect
-SELECT * FROM (SELECT first_name, last_name FROM test_emp WHERE last_name NOT LIKE '%a%') WHERE first_name LIKE 'A%';
+SELECT * FROM (SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%') WHERE first_name LIKE 'A%';
 
   first_name   |   last_name
 ---------------+---------------
@@ -2149,7 +2149,7 @@ Arumugam       |Ossenbruggen
 
 limitationSubSelect
 // tag::limitationSubSelectRewritten
-SELECT first_name, last_name FROM test_emp WHERE last_name NOT LIKE '%a%' AND first_name LIKE 'A%';
+SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%' AND first_name LIKE 'A%';
 // end::limitationSubSelectRewritten
   first_name   |   last_name
 ---------------+---------------

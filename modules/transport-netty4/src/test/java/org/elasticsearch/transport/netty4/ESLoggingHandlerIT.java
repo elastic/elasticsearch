@@ -59,7 +59,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                         ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]" +
                         " WRITE: \\d+B";
         final MockLogAppender.LoggingExpectation writeExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                         "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, writePattern);
 
         final MockLogAppender.LoggingExpectation flushExpectation =
@@ -74,7 +74,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                         " READ: \\d+B";
 
         final MockLogAppender.LoggingExpectation readExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                         "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, readPattern);
 
         appender.addExpectation(writeExpectation);

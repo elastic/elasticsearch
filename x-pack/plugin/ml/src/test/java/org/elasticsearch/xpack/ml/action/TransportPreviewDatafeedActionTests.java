@@ -91,7 +91,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(previewDatafeed.getChunkingConfig(), equalTo(datafeed.build().getChunkingConfig()));
     }
 
-    public void testPreviewDatafed_GivenEmptyStream() throws IOException {
+    public void testPreviewDatafeed_GivenEmptyStream() throws IOException {
         when(dataExtractor.next()).thenReturn(Optional.empty());
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
@@ -101,7 +101,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         verify(dataExtractor).cancel();
     }
 
-    public void testPreviewDatafed_GivenNonEmptyStream() throws IOException {
+    public void testPreviewDatafeed_GivenNonEmptyStream() throws IOException {
         String streamAsString = "{\"a\":1, \"b\":2} {\"c\":3, \"d\":4}\n{\"e\":5, \"f\":6}";
         InputStream stream = new ByteArrayInputStream(streamAsString.getBytes(StandardCharsets.UTF_8));
         when(dataExtractor.next()).thenReturn(Optional.of(stream));
@@ -113,7 +113,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         verify(dataExtractor).cancel();
     }
 
-    public void testPreviewDatafed_GivenFailure() throws IOException {
+    public void testPreviewDatafeed_GivenFailure() throws IOException {
         doThrow(new RuntimeException("failed")).when(dataExtractor).next();
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);

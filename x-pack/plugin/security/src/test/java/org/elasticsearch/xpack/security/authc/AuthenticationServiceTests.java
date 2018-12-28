@@ -440,7 +440,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertTrue(completed.get());
     }
 
-    public void testAutheticateTransportContextAndHeader() throws Exception {
+    public void testAuthenticateTransportContextAndHeader() throws Exception {
         User user1 = new User("username", "r1", "r2");
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
@@ -464,7 +464,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // checking authentication from the context
         InternalMessage message1 = new InternalMessage();
-        ThreadPool threadPool1 = new TestThreadPool("testAutheticateTransportContextAndHeader1");
+        ThreadPool threadPool1 = new TestThreadPool("testAuthenticateTransportContextAndHeader1");
         try {
             ThreadContext threadContext1 = threadPool1.getThreadContext();
             service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
@@ -486,7 +486,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
 
         // checking authentication from the user header
-        ThreadPool threadPool2 = new TestThreadPool("testAutheticateTransportContextAndHeader2");
+        ThreadPool threadPool2 = new TestThreadPool("testAuthenticateTransportContextAndHeader2");
         try {
             ThreadContext threadContext2 = threadPool2.getThreadContext();
             final String header;

@@ -530,7 +530,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits(), equalTo(20L));
     }
 
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() {
@@ -578,7 +578,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(120L));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits(), equalTo(120L));
     }
 
     class RecoveryCorruption implements StubbableTransport.SendRequestBehavior {

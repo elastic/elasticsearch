@@ -140,14 +140,14 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
     }
 
-    public void testEmtpyFieldName() {
+    public void testEmptyFieldName() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder(null, "term"));
         assertEquals("field name cannot be null.", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("", "term"));
         assertEquals("field name cannot be null.", e.getMessage());
     }
 
-    public void testEmtpyTermsLookup() {
+    public void testEmptyTermsLookup() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (TermsLookup) null));
         assertEquals("No value or termsLookup specified for terms query", e.getMessage());
     }

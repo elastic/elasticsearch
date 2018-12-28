@@ -187,6 +187,36 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertTrue(noIssues.isEmpty());
     }
 
+    public void testIndexOptionsOnNumericFieldsCheck() throws IOException {
+        String[] possibleIndexOptions = {"docs", "freqs", "positions", "offsets"};
+        String mappingJson = "{\n" +
+            "  \"properties\": {\n" +
+            "    \"text_field\": {\n" +
+            "      \"type\": \"text\",\n" +
+            "      \"index_options\": \"" + randomFrom(possibleIndexOptions) + "\"\n" +
+            "    },\n" +
+            "    \"numeric_field\": {\n" +
+            "      \"type\": \"" + randomFrom("byte", "short", "integer", "long", "float", "double", "half_float") + "\",\n" +
+            "      \"index_options\": \"" + randomFrom(possibleIndexOptions) + "\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+        IndexMetaData index = IndexMetaData.builder(randomAlphaOfLengthBetween(5,10))
+            .settings(settings(
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT))))
+            .numberOfShards(randomIntBetween(1,100))
+            .numberOfReplicas(randomIntBetween(1, 100))
+            .putMapping("_doc", mappingJson)
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "index_options is no longer supported on numeric fields",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_literal_index_options_literal_for_numeric_fields_has_been_removed",
+            "Numeric fields which have index_options set: [[type: _doc, field: numeric_field]]");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(index));
+        assertEquals(singletonList(expected), issues);
+    }
+
     public void testShardOnStartupCheck() {
         String indexName = randomAlphaOfLengthBetween(0, 10);
         String setting = IndexSettings.INDEX_CHECK_ON_STARTUP.getKey();

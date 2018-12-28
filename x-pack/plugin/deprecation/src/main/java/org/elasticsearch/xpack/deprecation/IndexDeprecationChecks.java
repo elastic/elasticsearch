@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -20,8 +19,12 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -180,6 +183,24 @@ public class IndexDeprecationChecks {
                     "The index [" + indexMetaData.getIndex().getName() + "] has [" + setting + "] set to [" + value +
                         "], but negative values are not allowed");
             }
+        }
+        return null;
+    }
+
+    static DeprecationIssue indexOptionsOnNumericFieldsCheck(IndexMetaData indexMetaData) {
+        final Set<String> numericTypes = Collections.unmodifiableSet(new HashSet<>(
+            Arrays.asList("byte", "short", "integer", "long", "float", "double", "half_float")));
+
+        List<String> issues = new ArrayList<>();
+        fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> issues.addAll(
+            findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
+                property -> numericTypes.contains(property.get("type")) && property.containsKey("index_options")))));
+        if (issues.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "index_options is no longer supported on numeric fields",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#_literal_index_options_literal_for_numeric_fields_has_been_removed",
+                "Numeric fields which have index_options set: " + issues.toString());
         }
         return null;
     }

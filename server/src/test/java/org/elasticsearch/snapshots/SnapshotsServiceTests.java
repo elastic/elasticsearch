@@ -19,7 +19,8 @@
 
 package org.elasticsearch.snapshots;
 
-import org.apache.lucene.util.SetOnce;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -88,11 +89,8 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -105,6 +103,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -116,8 +115,6 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public class SnapshotsServiceTests extends ESTestCase {
@@ -295,6 +292,8 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     private final class TestClusterNode {
 
+        private final Logger logger = LogManager.getLogger(TestClusterNode.class);
+
         private final TransportService transportService;
 
         private final ClusterService clusterService;
@@ -321,10 +320,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         private final NodeEnvironment nodeEnv;
 
-        /**
-         * Short circuit mock transport that simply invokes handlers on the discovery nodes directly.
-         */
-        private final MockTransport mockTransport;
+        private final DisruptableMockTransport mockTransport;
 
         TestClusterNode(DiscoveryNode node) throws IOException {
             this.node = node;
@@ -335,40 +331,29 @@ public class SnapshotsServiceTests extends ESTestCase {
             final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
             clusterService = new ClusterService(settings, clusterSettings, threadPool, masterService);
-            mockTransport = new MockTransport() {
+            mockTransport = new DisruptableMockTransport(logger) {
                 @Override
-                protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-                    assertFalse(TestClusterNode.this.node.equals(node));
-                    try {
-                        SetOnce<TransportResponse> responseSetOnce = new SetOnce<>();
-                        TransportChannel channel = mock(TransportChannel.class);
-                        doAnswer(invocation -> {
-                                try {
-                                    // We expect to only send one response per request
-                                    responseSetOnce.set((TransportResponse) invocation.getArguments()[0]);
-                                    handleResponse(requestId, responseSetOnce.get());
-                                    return null;
-                                } catch (Exception e) {
-                                    throw new AssertionError(e);
-                                }
-                            }
-                        ).when(channel).sendResponse(any(TransportResponse.class));
-                        final Runnable transportAction = () -> {
-                            try {
-                                testClusterNodes.nodes.get(node.getName()).mockTransport.getRequestHandler(action)
-                                    .processMessageReceived(request, channel);
-                            } catch (Exception e) {
-                                throw new AssertionError(e);
-                            }
-                        };
-                        // Don't run recovery actions in the deterministic task queue since they can block
-                        if (action.startsWith("internal:index/shard/recovery/")) {
-                            transportAction.run();
-                        } else {
-                            deterministicTaskQueue.scheduleNow(transportAction);
-                        }
-                    } catch (Exception e) {
-                        throw new AssertionError(e);
+                protected DiscoveryNode getLocalNode() {
+                    return node;
+                }
+
+                @Override
+                protected ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination) {
+                    return ConnectionStatus.CONNECTED;
+                }
+
+                @Override
+                protected Optional<DisruptableMockTransport> getDisruptedCapturingTransport(DiscoveryNode node, String action) {
+                    return Optional.ofNullable(testClusterNodes.nodes.get(node.getName()).mockTransport);
+                }
+
+                @Override
+                protected void handle(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
+                    final Runnable runnable = CoordinatorTests.onNode(destination, doDelivery);
+                    if (action.startsWith("internal:index/shard/recovery/")) {
+                        runnable.run();
+                    } else {
+                        deterministicTaskQueue.scheduleNow(runnable);
                     }
                 }
             };

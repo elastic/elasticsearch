@@ -58,7 +58,7 @@ public class RestGetCategoriesAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "ml_get_catagories_action";
+        return "ml_get_categories_action";
     }
 
     @Override

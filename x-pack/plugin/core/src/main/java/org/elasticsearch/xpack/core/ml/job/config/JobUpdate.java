@@ -83,7 +83,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                       @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
                       @Nullable AnalysisLimits analysisLimits, @Nullable TimeValue backgroundPersistInterval,
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
-                      @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorisationFilters,
+                      @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorizationFilters,
                       @Nullable Map<String, Object> customSettings, @Nullable String modelSnapshotId,
                       @Nullable Version modelSnapshotMinVersion, @Nullable Version jobVersion, @Nullable Boolean clearJobFinishTime) {
         this.jobId = jobId;
@@ -96,7 +96,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
         this.resultsRetentionDays = resultsRetentionDays;
-        this.categorizationFilters = categorisationFilters;
+        this.categorizationFilters = categorizationFilters;
         this.customSettings = customSettings;
         this.modelSnapshotId = modelSnapshotId;
         this.modelSnapshotMinVersion = modelSnapshotMinVersion;

@@ -73,7 +73,7 @@ public class JobUpdate implements ToXContentObject {
                       @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
                       @Nullable AnalysisLimits analysisLimits, @Nullable TimeValue backgroundPersistInterval,
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
-                      @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorisationFilters,
+                      @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorizationFilters,
                       @Nullable Map<String, Object> customSettings) {
         this.jobId = jobId;
         this.groups = groups;
@@ -85,7 +85,7 @@ public class JobUpdate implements ToXContentObject {
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
         this.resultsRetentionDays = resultsRetentionDays;
-        this.categorizationFilters = categorisationFilters;
+        this.categorizationFilters = categorizationFilters;
         this.customSettings = customSettings;
     }
 

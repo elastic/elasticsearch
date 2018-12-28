@@ -410,7 +410,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         // remove empty strings
         allFields.remove("");
 
-        // the categorisation field isn't an input field
+        // the categorization field isn't an input field
         allFields.remove(AnalysisConfig.ML_CATEGORY_FIELD);
 
         return allFields;

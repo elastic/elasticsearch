@@ -1237,7 +1237,7 @@ public class JobResultsProvider {
 
     public void removeJobFromCalendars(String jobId, ActionListener<Boolean> listener) {
 
-        ActionListener<BulkResponse> updateCalandarsListener = ActionListener.wrap(
+        ActionListener<BulkResponse> updateCalendarsListener = ActionListener.wrap(
                 r -> {
                     if (r.hasFailures()) {
                         listener.onResponse(false);
@@ -1268,7 +1268,7 @@ public class JobResultsProvider {
                             });
 
                     if (bulkUpdate.numberOfActions() > 0) {
-                        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkUpdate.request(), updateCalandarsListener);
+                        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkUpdate.request(), updateCalendarsListener);
                     } else {
                         listener.onResponse(true);
                     }

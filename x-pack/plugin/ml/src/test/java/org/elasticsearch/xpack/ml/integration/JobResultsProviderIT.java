@@ -79,7 +79,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         waitForMlTemplates();
     }
 
-    public void testGetCalandarByJobId() throws Exception {
+    public void testGetCalendarByJobId() throws Exception {
         List<Calendar> calendars = new ArrayList<>();
         calendars.add(new Calendar("empty calendar", Collections.emptyList(), null));
         calendars.add(new Calendar("foo calendar", Collections.singletonList("foo"), null));

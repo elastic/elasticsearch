@@ -116,7 +116,7 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
    
     /**
      * Add a stage in the graph exploration. Each hop represents a stage of 
-     * querying elasticsearch to identify terms which can then be connnected
+     * querying elasticsearch to identify terms which can then be connected
      * to other terms in a subsequent hop.
      * @param guidingQuery optional choice of query which influences which documents
      * are considered in this stage

@@ -246,7 +246,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
 
     /**
      * Add a stage in the graph exploration. Each hop represents a stage of
-     * querying elasticsearch to identify terms which can then be connnected to
+     * querying elasticsearch to identify terms which can then be connected to
      * other terms in a subsequent hop.
      * 
      * @param guidingQuery

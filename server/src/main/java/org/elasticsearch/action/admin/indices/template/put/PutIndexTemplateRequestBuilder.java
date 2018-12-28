@@ -102,7 +102,7 @@ public class PutIndexTemplateRequestBuilder
     }
 
     /**
-     * The settings to crete the index template with (either json or yaml format)
+     * The settings to create the index template with (either json or yaml format)
      */
     public PutIndexTemplateRequestBuilder setSettings(String source, XContentType xContentType) {
         request.settings(source, xContentType);
@@ -110,7 +110,7 @@ public class PutIndexTemplateRequestBuilder
     }
 
     /**
-     * The settings to crete the index template with (either json or yaml format)
+     * The settings to create the index template with (either json or yaml format)
      */
     public PutIndexTemplateRequestBuilder setSettings(Map<String, Object> source) {
         request.settings(source);

@@ -554,7 +554,7 @@ public class RollupIndexerStateTests extends ESTestCase {
     }
 
     // Tests how we handle unknown keys that come back from composite agg, e.g. if we add support for new types but don't
-    // deal with it everyhwere
+    // deal with it everywhere
     public void testUnknownKey() throws Exception {
         AtomicBoolean isFinished = new AtomicBoolean(false);
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());

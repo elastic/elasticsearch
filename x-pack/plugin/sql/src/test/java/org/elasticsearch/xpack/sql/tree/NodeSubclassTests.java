@@ -74,8 +74,8 @@ import static org.mockito.Mockito.mock;
  * and any other interesting things that that they do but we're a
  * long way from that and this gets the job done for now.
  * <p>
- * This test attempts to use reflection to create believeable nodes
- * and manipulate them in believeable ways with as little knowledge
+ * This test attempts to use reflection to create believable nodes
+ * and manipulate them in believable ways with as little knowledge
  * of the actual subclasses as possible. This is problematic because
  * it is possible, for example, for nodes to stackoverflow because
  * they <strong>can</strong> contain themselves. So this class

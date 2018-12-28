@@ -101,7 +101,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<TaskInfo> tasks = new ArrayList<>();
         List<BulkByScrollTask.StatusOrException> sliceStatuses = new ArrayList<>(slices);
         for (int i = 0; i < slices; i++) {
-            BulkByScrollTask.Status status = believeableInProgressStatus(i);
+            BulkByScrollTask.Status status = believableInProgressStatus(i);
             tasks.add(new TaskInfo(new TaskId("test", 123), "test", "test", "test", status, 0, 0, true, new TaskId("test", task.getId()),
                 Collections.emptyMap()));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
@@ -115,14 +115,14 @@ public class TransportRethrottleActionTests extends ESTestCase {
         int succeeded = between(1, slices - 1);
         List<BulkByScrollTask.StatusOrException> sliceStatuses = new ArrayList<>(slices);
         for (int i = 0; i < succeeded; i++) {
-            BulkByScrollTask.Status status = believeableCompletedStatus(i);
+            BulkByScrollTask.Status status = believableCompletedStatus(i);
             task.getLeaderState().onSliceResponse(neverCalled(), i,
                     new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
         List<TaskInfo> tasks = new ArrayList<>();
         for (int i = succeeded; i < slices; i++) {
-            BulkByScrollTask.Status status = believeableInProgressStatus(i);
+            BulkByScrollTask.Status status = believableInProgressStatus(i);
             tasks.add(new TaskInfo(new TaskId("test", 123), "test", "test", "test", status, 0, 0, true, new TaskId("test", task.getId()),
                 Collections.emptyMap()));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
@@ -137,7 +137,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         for (int i = 0; i < slices; i++) {
             @SuppressWarnings("unchecked")
             ActionListener<BulkByScrollResponse> listener = i < slices - 1 ? neverCalled() : mock(ActionListener.class);
-            BulkByScrollTask.Status status = believeableCompletedStatus(i);
+            BulkByScrollTask.Status status = believableCompletedStatus(i);
             task.getLeaderState().onSliceResponse(listener, i, new BulkByScrollResponse(timeValueMillis(10), status, emptyList(),
                 emptyList(), false));
             if (i == slices - 1) {
@@ -179,11 +179,11 @@ public class TransportRethrottleActionTests extends ESTestCase {
                 expectException(theInstance(e)));
     }
 
-    private BulkByScrollTask.Status believeableInProgressStatus(Integer sliceId) {
+    private BulkByScrollTask.Status believableInProgressStatus(Integer sliceId) {
         return new BulkByScrollTask.Status(sliceId, 10, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0, null, timeValueMillis(0));
     }
 
-    private BulkByScrollTask.Status believeableCompletedStatus(Integer sliceId) {
+    private BulkByScrollTask.Status believableCompletedStatus(Integer sliceId) {
         return new BulkByScrollTask.Status(sliceId, 10, 10, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0, null, timeValueMillis(0));
     }
 

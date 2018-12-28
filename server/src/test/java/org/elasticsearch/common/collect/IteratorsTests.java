@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 public class IteratorsTests extends ESTestCase {
-    public void testConcatentation() {
+    public void testConcatenation() {
         List<Integer> threeTwoOne = Arrays.asList(3, 2, 1);
         List<Integer> fourFiveSix = Arrays.asList(4, 5, 6);
         Iterator<Integer> concat = Iterators.concat(threeTwoOne.iterator(), fourFiveSix.iterator());

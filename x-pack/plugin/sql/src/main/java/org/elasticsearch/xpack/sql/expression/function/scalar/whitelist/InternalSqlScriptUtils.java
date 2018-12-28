@@ -468,6 +468,10 @@ public final class InternalSqlScriptUtils {
     // Casting
     //
     public static Object cast(Object value, String typeName) {
-        return DataTypeConversion.convert(value, DataType.fromTypeName(typeName));
+        Object safeDateTimeValue = value;
+        if (value instanceof JodaCompatibleZonedDateTime) {
+            safeDateTimeValue = ((JodaCompatibleZonedDateTime) value).getZonedDateTime();
+        }
+        return DataTypeConversion.convert(safeDateTimeValue, DataType.fromTypeName(typeName));
     }
 }

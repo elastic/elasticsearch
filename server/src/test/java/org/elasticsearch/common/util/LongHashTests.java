@@ -55,7 +55,7 @@ public class LongHashTests extends ESSingleNodeTestCase {
         newHash();
     }
 
-    public void testDuell() {
+    public void testDuel() {
         final Long[] values = new Long[randomIntBetween(1, 100000)];
         for (int i = 0; i < values.length; ++i) {
             values[i] = randomLong();

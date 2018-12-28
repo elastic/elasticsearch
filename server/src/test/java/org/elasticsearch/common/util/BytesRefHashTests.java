@@ -59,7 +59,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
         newHash();
     }
 
-    public void testDuell() {
+    public void testDuel() {
         final int len = randomIntBetween(1, 100000);
         final BytesRef[] values = new BytesRef[len];
         for (int i = 0; i < values.length; ++i) {

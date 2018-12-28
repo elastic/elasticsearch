@@ -36,7 +36,7 @@ final class CandidateScorer {
     }
 
 
-    public Correction[] findBestCandiates(CandidateSet[] sets, float errorFraction, double cutoffScore) throws IOException {
+    public Correction[] findBestCandidates(CandidateSet[] sets, float errorFraction, double cutoffScore) throws IOException {
         if (sets.length == 0) {
             return Correction.EMPTY;
         }

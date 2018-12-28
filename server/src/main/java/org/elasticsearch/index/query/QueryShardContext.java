@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -70,6 +73,10 @@ import static java.util.Collections.unmodifiableMap;
  * Context object used to create lucene queries on the shard level.
  */
 public class QueryShardContext extends QueryRewriteContext {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(QueryShardContext.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
+        "in queries is deprecated, prefer to filter on a field instead.";
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
@@ -185,6 +192,9 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public MappedFieldType fieldMapper(String name) {
+        if (name.equals(TypeFieldMapper.NAME)) {
+            deprecationLogger.deprecatedAndMaybeLog("query_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
         return failIfFieldMappingNotFound(name, mapperService.fullName(name));
     }
 

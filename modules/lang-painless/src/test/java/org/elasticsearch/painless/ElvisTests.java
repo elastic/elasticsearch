@@ -108,15 +108,15 @@ public class ElvisTests extends ScriptTestCase {
         assertThat(disassembled, firstElvisDestinationLabelIndex, greaterThan(-1));
         String firstElvisDestinationLabel = disassembled.substring(firstElvisDestinationLabelIndex + "IFNONNULL ".length(),
                 disassembled.indexOf('\n', firstElvisDestinationLabelIndex));
-        int firstElvisDestionation = disassembled.indexOf("   " + firstElvisDestinationLabel);
-        assertThat(disassembled, firstElvisDestionation, greaterThan(-1));
-        int ifAfterFirstElvisDestination = disassembled.indexOf("IF", firstElvisDestionation);
+        int firstElvisDestination = disassembled.indexOf("   " + firstElvisDestinationLabel);
+        assertThat(disassembled, firstElvisDestination, greaterThan(-1));
+        int ifAfterFirstElvisDestination = disassembled.indexOf("IF", firstElvisDestination);
         if (expectOneBranch) {
             assertThat(disassembled, ifAfterFirstElvisDestination, lessThan(0));
         } else {
             assertThat(disassembled, ifAfterFirstElvisDestination, greaterThan(-1));
         }
-        int returnAfterFirstElvisDestination = disassembled.indexOf("RETURN", firstElvisDestionation);
+        int returnAfterFirstElvisDestination = disassembled.indexOf("RETURN", firstElvisDestination);
         assertThat(disassembled, returnAfterFirstElvisDestination, greaterThan(-1));
     }
 

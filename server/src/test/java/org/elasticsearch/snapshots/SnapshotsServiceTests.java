@@ -105,6 +105,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -115,6 +116,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 
 public class SnapshotsServiceTests extends ESTestCase {
@@ -168,7 +170,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                         new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(
                             Settings.builder()
                                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)),
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)),
                         assertingListener(
                             () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                                 .execute(assertingListener(() -> createdSnapshot.set(true)))))));
@@ -349,12 +351,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
                 @Override
                 protected void handle(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
-                    final Runnable runnable = CoordinatorTests.onNode(destination, doDelivery);
-                    if (action.startsWith("internal:index/shard/recovery/")) {
-                        runnable.run();
-                    } else {
-                        deterministicTaskQueue.scheduleNow(runnable);
-                    }
+                    deterministicTaskQueue.scheduleNow(CoordinatorTests.onNode(destination, doDelivery));
                 }
             };
             transportService = mockTransport.createTransportService(
@@ -467,25 +464,24 @@ public class SnapshotsServiceTests extends ESTestCase {
             transportService.acceptIncomingRequests();
             snapshotsService.start();
             snapshotShardsService.start();
+            // Mock publisher that invokes other cluster change listeners directly
             masterService.setClusterStatePublisher((clusterChangedEvent, publishListener, ackListener) -> {
-                // Mock publisher that invokes other cluster change listeners directly
-                // TODO: Run state updates on the individual nodes out of order, this is currently not possible
-                // TODO: because it can lead to running the blocking recovery tasks on the deterministicTaskQueue
-                // TODO: when a DelayRecoveryException is thrown on the transport layer as a result of
-                // TODO: a data node not having realized a shard assignment before another started recovery.
-                deterministicTaskQueue.scheduleNow(() -> {
-                    testClusterNodes.nodes.values().forEach(
-                        n -> {
+                final AtomicInteger applyCounter = new AtomicInteger(testClusterNodes.nodes.size());
+                testClusterNodes.nodes.values().forEach(
+                    n ->
+                        deterministicTaskQueue.scheduleNow(() -> {
+                            assertThat(n.currentState.get().version(), lessThan(clusterChangedEvent.state().version()));
                             ClusterChangedEvent adjustedEvent = changeEventForNode(clusterChangedEvent, n.node);
                             n.repositoriesService.applyClusterState(adjustedEvent);
                             n.snapshotsService.applyClusterState(adjustedEvent);
                             n.snapshotShardsService.clusterChanged(adjustedEvent);
                             n.indicesClusterStateService.applyClusterState(adjustedEvent);
                             n.currentState.set(adjustedEvent.state());
-                        });
-                    publishListener.onResponse(null);
-                    ackListener.onCommit(TimeValue.timeValueMillis(deterministicTaskQueue.getLatestDeferredExecutionTime()));
-                });
+                            if (applyCounter.decrementAndGet() == 0) {
+                                publishListener.onResponse(null);
+                                ackListener.onCommit(TimeValue.timeValueMillis(deterministicTaskQueue.getLatestDeferredExecutionTime()));
+                            }
+                        }));
             });
             masterService.setClusterStateSupplier(currentState::get);
             masterService.start();

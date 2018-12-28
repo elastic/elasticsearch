@@ -17,27 +17,42 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.elasticsearch.action.search;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.AbstractSearchTestCase;
+import org.elasticsearch.search.RandomSearchRequestGenerator;
+import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
+
+    @Override
+    protected SearchRequest createSearchRequest() throws IOException {
+        if (randomBoolean()) {
+            return super.createSearchRequest();
+        }
+        //clusterAlias does not have public getter/setter hence we randomize it only in this test specifically.
+        SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(5, 10));
+        RandomSearchRequestGenerator.randomSearchRequest(searchRequest, this::createSearchSourceBuilder);
+        return searchRequest;
+    }
 
     public void testSerialization() throws Exception {
         SearchRequest searchRequest = createSearchRequest();
@@ -45,6 +60,27 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals(deserializedRequest, searchRequest);
         assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
         assertNotSame(deserializedRequest, searchRequest);
+    }
+
+    public void testClusterAliasSerialization() throws IOException {
+        SearchRequest searchRequest = createSearchRequest();
+        Version version = VersionUtils.randomVersion(random());
+        SearchRequest deserializedRequest = copyStreamable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
+        if (version.before(Version.V_6_7_0)) {
+            assertNull(deserializedRequest.getLocalClusterAlias());
+        } else {
+            assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
+        }
+    }
+
+    public void testReadFromPre6_7_0() throws IOException {
+        String msg = "AAEBBWluZGV4AAAAAQACAAAA/////w8AAAAAAAAA/////w8AAAAAAAACAAAAAAABAAMCBAUBAAKABACAAQIAAA==";
+        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(msg))) {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.readFrom(in);
+            assertArrayEquals(new String[]{"index"}, searchRequest.indices());
+            assertNull(searchRequest.getLocalClusterAlias());
+        }
     }
 
     public void testIllegalArguments() {
@@ -141,11 +177,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testEqualsAndHashcode() throws IOException {
-        checkEqualsAndHashCode(createSearchRequest(), SearchRequestTests::copyRequest, this::mutate);
+        checkEqualsAndHashCode(createSearchRequest(), SearchRequest::new, this::mutate);
     }
 
     private SearchRequest mutate(SearchRequest searchRequest) {
-        SearchRequest mutation = copyRequest(searchRequest);
+        SearchRequest mutation = new SearchRequest(searchRequest);
         List<Runnable> mutators = new ArrayList<>();
         mutators.add(() -> mutation.indices(ArrayUtils.concat(searchRequest.indices(), new String[] { randomAlphaOfLength(10) })));
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(searchRequest.indicesOptions(),
@@ -161,9 +197,5 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         randomFrom(mutators).run();
         return mutation;
-    }
-
-    private static SearchRequest copyRequest(SearchRequest searchRequest) {
-        return new SearchRequest(searchRequest);
     }
 }

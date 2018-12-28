@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -61,6 +62,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
@@ -311,7 +313,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         GroupShardsIterator<ShardIterator> localShardsIterator = clusterService.operationRouting().searchShards(clusterState,
                 concreteIndices, routingMap, searchRequest.preference(), searchService.getResponseCollectorService(), nodeSearchCounts);
         GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardsIterator, localIndices,
-            remoteShardIterators);
+            searchRequest.getLocalClusterAlias(), remoteShardIterators);
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
@@ -338,13 +340,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         final DiscoveryNodes nodes = clusterState.nodes();
-        BiFunction<String, String, Transport.Connection> connectionLookup = (clusterName, nodeId) -> {
-            final DiscoveryNode discoveryNode = clusterName == null ? nodes.get(nodeId) : remoteConnections.apply(clusterName, nodeId);
-            if (discoveryNode == null) {
-                throw new IllegalStateException("no node found for id: " + nodeId);
-            }
-            return searchTransportService.getConnection(clusterName, discoveryNode);
-        };
+        BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(searchRequest.getLocalClusterAlias(),
+            nodes::get, remoteConnections, searchTransportService::getConnection);
         if (searchRequest.isMaxConcurrentShardRequestsSet() == false) {
             // we try to set a default of max concurrent shard requests based on
             // the node count but upper-bound it by 256 by default to keep it sane. A single
@@ -359,7 +356,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, routingMap, listener, preFilterSearchShards, clusters).start();
     }
 
-    private boolean shouldPreFilterSearchShards(SearchRequest searchRequest, GroupShardsIterator<SearchShardIterator> shardIterators) {
+    static BiFunction<String, String, Transport.Connection> buildConnectionLookup(String requestClusterAlias,
+                                                              Function<String, DiscoveryNode> localNodes,
+                                                              BiFunction<String, String, DiscoveryNode> remoteNodes,
+                                                              BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection) {
+        return (clusterAlias, nodeId) -> {
+            final DiscoveryNode discoveryNode;
+            if (clusterAlias == null || requestClusterAlias != null) {
+                assert requestClusterAlias == null || requestClusterAlias.equals(clusterAlias);
+                discoveryNode = localNodes.apply(nodeId);
+            } else {
+                discoveryNode = remoteNodes.apply(clusterAlias, nodeId);
+            }
+            if (discoveryNode == null) {
+                throw new IllegalStateException("no node found for id: " + nodeId);
+            }
+            return nodeToConnection.apply(clusterAlias, discoveryNode);
+        };
+    }
+
+    private static boolean shouldPreFilterSearchShards(SearchRequest searchRequest,
+                                                       GroupShardsIterator<SearchShardIterator> shardIterators) {
         SearchSourceBuilder source = searchRequest.source();
         return searchRequest.searchType() == QUERY_THEN_FETCH && // we can't do this for DFS it needs to fan out to all shards all the time
                 SearchService.canRewriteToMatchNone(source) &&
@@ -368,10 +385,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,
                                                              OriginalIndices localIndices,
+                                                             @Nullable String localClusterAlias,
                                                              List<SearchShardIterator> remoteShardIterators) {
         List<SearchShardIterator> shards = new ArrayList<>(remoteShardIterators);
         for (ShardIterator shardIterator : localShardsIterator) {
-            shards.add(new SearchShardIterator(null, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
+            shards.add(new SearchShardIterator(localClusterAlias, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
         }
         return new GroupShardsIterator<>(shards);
     }

@@ -110,7 +110,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                 /*
                  * In the past we've seen the delete of the source index
                  * actually take effect *during* the `indexDocs` call in
-                 * the next step. This breaks things pretty disasterously
+                 * the next step. This breaks things pretty disastrously
                  * so we *try* and wait for the delete to be fully
                  * complete here.
                  */

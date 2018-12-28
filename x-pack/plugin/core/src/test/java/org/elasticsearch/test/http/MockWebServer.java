@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.ESTestCase.terminate;
 
 /**
- * A MockWebServer to test against. Holds a list of responses, which can be enqueed.
+ * A MockWebServer to test against. Holds a list of responses, which can be enqueued.
  * The webserver has to enqueue at least the amount of responses with the number of requests that happen, otherwise errors
  * will be returned.
  * <p>

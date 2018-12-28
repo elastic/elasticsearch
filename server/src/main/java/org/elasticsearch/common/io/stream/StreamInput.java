@@ -1015,7 +1015,7 @@ public abstract class StreamInput extends InputStream {
             throw new NegativeArraySizeException("array size must be positive but was: " + arraySize);
         }
         // lets do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
-        // throw an exception instead of allocating the array based on the size. A simple corrutpted byte can make a node go OOM
+        // throw an exception instead of allocating the array based on the size. A simple corrupted byte can make a node go OOM
         // if the size is large and for perf reasons we allocate arrays ahead of time
         ensureCanReadBytes(arraySize);
         return arraySize;

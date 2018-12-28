@@ -42,7 +42,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
     public static double EWMA_ALPHA = 0.3;
 
     private static final Logger logger = LogManager.getLogger(QueueResizingEsThreadPoolExecutor.class);
-    // The amount the queue size is adjusted by for each calcuation
+    // The amount the queue size is adjusted by for each calculation
     private static final int QUEUE_ADJUSTMENT_AMOUNT = 50;
 
     private final Function<Runnable, Runnable> runnableWrapper;

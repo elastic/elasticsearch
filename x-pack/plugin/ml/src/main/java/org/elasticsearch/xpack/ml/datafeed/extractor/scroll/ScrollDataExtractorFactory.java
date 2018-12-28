@@ -55,7 +55,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
 
     public static void create(Client client, DatafeedConfig datafeed, Job job, ActionListener<DataExtractorFactory> listener) {
 
-        // Step 2. Contruct the factory and notify listener
+        // Step 2. Construct the factory and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
                 fieldCapabilitiesResponse -> {
                     TimeBasedExtractedFields extractedFields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);

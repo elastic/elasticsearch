@@ -112,7 +112,7 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     @BeforeClass
-    public static void chechFipsJvm() {
+    public static void checkFipsJvm() {
         assumeFalse("Can't run in a FIPS JVM, depends on Non FIPS BouncyCastle", inFipsJvm());
     }
 

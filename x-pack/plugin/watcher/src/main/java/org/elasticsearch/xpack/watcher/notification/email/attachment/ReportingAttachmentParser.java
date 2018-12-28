@@ -197,7 +197,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
      * Extract the id from JSON payload, so we know which ID to poll for
      */
     private String extractIdFromJson(String watchId, String attachmentId, BytesReference body) throws IOException {
-        // EMPTY is safe here becaus we never call namedObject
+        // EMPTY is safe here because we never call namedObject
         try (InputStream stream = body.streamInput();
              XContentParser parser = JsonXContent.jsonXContent
                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {

@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class MatchQueryTests extends ESTestCase {
     static MatchQuery randomMatchQuery() {
         return new MatchQuery(
-                SourceTests.randomSource(),
+            SourceTests.randomSource(),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5));
             // TODO add the predicate

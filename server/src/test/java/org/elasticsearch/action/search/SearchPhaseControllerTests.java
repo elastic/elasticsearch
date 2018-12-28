@@ -29,12 +29,14 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -157,13 +159,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         for (boolean trackTotalHits : new boolean[] {true, false}) {
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase =
                 searchPhaseController.reducedQueryPhase(queryResults.asList(), false, trackTotalHits);
-            AtomicArray<SearchPhaseResult> searchPhaseResultAtomicArray = generateFetchResults(nShards,
+            AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(nShards,
                 reducedQueryPhase.sortedTopDocs.scoreDocs, reducedQueryPhase.suggest);
             InternalSearchResponse mergedResponse = searchPhaseController.merge(false,
                 reducedQueryPhase,
-                searchPhaseResultAtomicArray.asList(), searchPhaseResultAtomicArray::get);
+                fetchResults.asList(), fetchResults::get);
             if (trackTotalHits == false) {
                 assertNull(mergedResponse.hits.getTotalHits());
+            }
+            for (SearchHit hit : mergedResponse.hits().getHits()) {
+                SearchPhaseResult searchPhaseResult = fetchResults.get(hit.getShard().getShardId().id());
+                assertSame(searchPhaseResult.getSearchShardTarget(), hit.getShard());
             }
             int suggestSize = 0;
             for (Suggest.Suggestion s : reducedQueryPhase.suggest) {
@@ -182,6 +188,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     assertThat(options.size(), equalTo(suggestion.getEntries().get(0).getOptions().size()));
                     for (CompletionSuggestion.Entry.Option option : options) {
                         assertNotNull(option.getHit());
+                        SearchPhaseResult searchPhaseResult = fetchResults.get(option.getHit().getShard().getShardId().id());
+                        assertSame(searchPhaseResult.getSearchShardTarget(), option.getHit().getShard());
                     }
                 }
             }
@@ -193,8 +201,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
                                                                 int searchHitsSize, boolean useConstantScore) {
         AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
-            QuerySearchResult querySearchResult = new QuerySearchResult(shardIndex,
-                new SearchShardTarget("", new Index("", ""), shardIndex, null));
+            String clusterAlias = randomBoolean() ? null : "remote";
+            SearchShardTarget searchShardTarget = new SearchShardTarget("", new ShardId("", "", shardIndex),
+                clusterAlias, OriginalIndices.NONE);
+            QuerySearchResult querySearchResult = new QuerySearchResult(shardIndex, searchShardTarget);
             final TopDocs topDocs;
             float maxScore = 0;
             if (searchHitsSize == 0) {
@@ -237,7 +247,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         return queryResults;
     }
 
-    private int getTotalQueryHits(AtomicArray<SearchPhaseResult> results) {
+    private static int getTotalQueryHits(AtomicArray<SearchPhaseResult> results) {
         int resultCount = 0;
         for (SearchPhaseResult shardResult : results.asList()) {
             TopDocs topDocs = shardResult.queryResult().topDocs().topDocs;
@@ -247,7 +257,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         return resultCount;
     }
 
-    private Suggest reducedSuggest(AtomicArray<SearchPhaseResult> results) {
+    private static Suggest reducedSuggest(AtomicArray<SearchPhaseResult> results) {
         Map<String, List<Suggest.Suggestion<CompletionSuggestion.Entry>>> groupedSuggestion = new HashMap<>();
         for (SearchPhaseResult entry : results.asList()) {
             for (Suggest.Suggestion<?> suggestion : entry.queryResult().suggest()) {
@@ -260,11 +270,12 @@ public class SearchPhaseControllerTests extends ESTestCase {
             .collect(Collectors.toList()));
     }
 
-    private AtomicArray<SearchPhaseResult> generateFetchResults(int nShards, ScoreDoc[] mergedSearchDocs, Suggest mergedSuggest) {
+    private static AtomicArray<SearchPhaseResult> generateFetchResults(int nShards, ScoreDoc[] mergedSearchDocs, Suggest mergedSuggest) {
         AtomicArray<SearchPhaseResult> fetchResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
             float maxScore = -1F;
-            SearchShardTarget shardTarget = new SearchShardTarget("", new Index("", ""), shardIndex, null);
+            String clusterAlias = randomBoolean() ? null : "remote";
+            SearchShardTarget shardTarget = new SearchShardTarget("", new ShardId("", "", shardIndex), clusterAlias, OriginalIndices.NONE);
             FetchSearchResult fetchSearchResult = new FetchSearchResult(shardIndex, shardTarget);
             List<SearchHit> searchHits = new ArrayList<>();
             for (ScoreDoc scoreDoc : mergedSearchDocs) {

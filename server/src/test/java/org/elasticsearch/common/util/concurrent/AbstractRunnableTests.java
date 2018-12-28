@@ -163,7 +163,7 @@ public class AbstractRunnableTests extends ESTestCase {
         runnable.onRejection(exception);
     }
 
-    public void testIsForceExecutuonDefaultsFalse() {
+    public void testIsForceExecutionDefaultsFalse() {
         AbstractRunnable runnable = new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {

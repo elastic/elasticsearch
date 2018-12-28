@@ -62,7 +62,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 512;
 
-    private final String clusterAlias;
+    private final String localClusterAlias;
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -94,7 +94,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public SearchRequest() {
-        this.clusterAlias = null;
+        this.localClusterAlias = null;
     }
 
     /**
@@ -114,7 +114,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         this.searchType = searchRequest.searchType;
         this.source = searchRequest.source;
         this.types = searchRequest.types;
-        this.clusterAlias = searchRequest.clusterAlias;
+        this.localClusterAlias = searchRequest.localClusterAlias;
     }
 
     /**
@@ -142,8 +142,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * is created and executed as part of a cross-cluster search request performing local reduction on each cluster.
      * The coordinating CCS node provides the alias to prefix index names with in the returned search results.
      */
-    SearchRequest(String clusterAlias) {
-        this.clusterAlias = Objects.requireNonNull(clusterAlias, "cluster alias must not be null");
+    SearchRequest(String localClusterAlias) {
+        this.localClusterAlias = Objects.requireNonNull(localClusterAlias, "cluster alias must not be null");
     }
 
     /**
@@ -174,9 +174,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         }
         //TODO update version after backport
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            clusterAlias = in.readOptionalString();
+            localClusterAlias = in.readOptionalString();
         } else {
-            clusterAlias = null;
+            localClusterAlias = null;
         }
     }
 
@@ -203,7 +203,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         }
         //TODO update version after backport
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeOptionalString(clusterAlias);
+            out.writeOptionalString(localClusterAlias);
         }
     }
 
@@ -235,12 +235,12 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     /**
      * Returns the alias of the cluster that this search request is being executed on. A non-null value indicates that this search request
-     * is being executed as part of a locally reduced cross-cluster search request. The cluster alias is used to provide the cluster alias
-     * to prefix returned index names with.
+     * is being executed as part of a locally reduced cross-cluster search request. The cluster alias is used to prefix index names
+     * returned as part of search hits with the alias of the cluster they came from.
      */
     @Nullable
-    String getClusterAlias() {
-        return clusterAlias;
+    String getLocalClusterAlias() {
+        return localClusterAlias;
     }
 
     /**
@@ -564,14 +564,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults) &&
-                Objects.equals(clusterAlias, that.clusterAlias);
+                Objects.equals(localClusterAlias, that.localClusterAlias);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
                 scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, clusterAlias);
+                allowPartialSearchResults, localClusterAlias);
     }
 
     @Override
@@ -589,7 +589,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", batchedReduceSize=" + batchedReduceSize +
                 ", preFilterShardSize=" + preFilterShardSize +
                 ", allowPartialSearchResults=" + allowPartialSearchResults +
-                ", clusterAlias=" + clusterAlias +
+                ", localClusterAlias=" + localClusterAlias +
                 ", source=" + source + '}';
     }
 }

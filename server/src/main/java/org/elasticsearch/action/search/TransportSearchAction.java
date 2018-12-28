@@ -313,7 +313,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         GroupShardsIterator<ShardIterator> localShardsIterator = clusterService.operationRouting().searchShards(clusterState,
                 concreteIndices, routingMap, searchRequest.preference(), searchService.getResponseCollectorService(), nodeSearchCounts);
         GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardsIterator, localIndices,
-            searchRequest.getClusterAlias(), remoteShardIterators);
+            searchRequest.getLocalClusterAlias(), remoteShardIterators);
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
@@ -340,7 +340,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         final DiscoveryNodes nodes = clusterState.nodes();
-        BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(searchRequest.getClusterAlias(),
+        BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(searchRequest.getLocalClusterAlias(),
             nodes::get, remoteConnections, searchTransportService::getConnection);
         boolean preFilterSearchShards = shouldPreFilterSearchShards(searchRequest, shardIterators);
         searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),

@@ -68,9 +68,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         //TODO update version after backport
         if (version.before(Version.V_7_0_0)) {
-            assertNull(deserializedRequest.getClusterAlias());
+            assertNull(deserializedRequest.getLocalClusterAlias());
         } else {
-            assertEquals(searchRequest.getClusterAlias(), deserializedRequest.getClusterAlias());
+            assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
         }
     }
 
@@ -80,7 +80,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(msg))) {
             SearchRequest searchRequest = new SearchRequest(in);
             assertArrayEquals(new String[]{"index"}, searchRequest.indices());
-            assertNull(searchRequest.getClusterAlias());
+            assertNull(searchRequest.getLocalClusterAlias());
         }
     }
 

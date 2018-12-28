@@ -1536,7 +1536,7 @@ public class CoordinatorTests extends ESTestCase {
             AckCollector submitUpdateTask(String source, UnaryOperator<ClusterState> clusterStateUpdate) {
                 final AckCollector ackCollector = new AckCollector();
                 onNode(localNode, () -> {
-                    logger.trace("[{}] submitUpdateTask: enqueueing [{}]", localNode.getId(), source);
+                    logger.trace("[{}] submitUpdateTask: enqueuing [{}]", localNode.getId(), source);
                     final long submittedTerm = coordinator.getCurrentTerm();
                     masterService.submitStateUpdateTask(source,
                         new ClusterStateUpdateTask() {

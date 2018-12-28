@@ -208,7 +208,7 @@ public class MockWebServer implements Closeable {
      */
     public void enqueue(MockResponse response) {
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}:{}] Enqueueing response [{}], status [{}] body [{}]", getHostName(), getPort(), responses.size(),
+            logger.trace("[{}:{}] Enqueuing response [{}], status [{}] body [{}]", getHostName(), getPort(), responses.size(),
                     response.getStatusCode(), getStartOfBody(response));
         }
         responses.add(response);

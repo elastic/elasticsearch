@@ -22,15 +22,22 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.compress.Compressor;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Set;
+
+import static org.elasticsearch.transport.TcpTransport.ensureVersionCompatibility;
 
 public abstract class NetworkMessage implements Writeable {
 
@@ -56,8 +63,78 @@ public abstract class NetworkMessage implements Writeable {
         }
     }
 
-    static NetworkMessage deserialize(StreamInput streamInput) {
-
+    static NetworkMessage deserialize(ThreadPool threadPool, BytesReference reference, StreamInput streamInput) throws IOException {
+//        int messageLengthBytes = reference.length();
+//        final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
+//        boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
+//        boolean success = false;
+//        try (ThreadContext.StoredContext tCtx = threadPool.getThreadContext().stashContext()) {
+//            long requestId = streamInput.readLong();
+//            byte status = streamInput.readByte();
+//            Version version = Version.fromId(streamInput.readInt());
+//            if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamInput.available() > 0) {
+//                Compressor compressor;
+//                try {
+//                    final int bytesConsumed = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
+//                    compressor = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed));
+//                } catch (NotCompressedException ex) {
+//                    int maxToRead = Math.min(reference.length(), 10);
+//                    StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)
+//                        .append("] content bytes out of [").append(reference.length())
+//                        .append("] readable bytes with message size [").append(messageLengthBytes).append("] ").append("] are [");
+//                    for (int i = 0; i < maxToRead; i++) {
+//                        sb.append(reference.get(i)).append(",");
+//                    }
+//                    sb.append("]");
+//                    throw new IllegalStateException(sb.toString());
+//                }
+//                streamInput = compressor.streamInput(streamInput);
+//            }
+//            final boolean isHandshake = TransportStatus.isHandshake(status);
+//            ensureVersionCompatibility(version, this.version, isHandshake);
+//            streamInput = new NamedWriteableAwareStreamInput(streamInput, namedWriteableRegistry);
+//            streamInput.setVersion(version);
+//            threadPool.getThreadContext().readHeaders(streamInput);
+//            threadPool.getThreadContext().putTransient("_remote_address", remoteAddress);
+//            if (TransportStatus.isRequest(status)) {
+////                handleRequest(channel, profileName, streamInput, requestId, messageLengthBytes, version, remoteAddress, status);
+//            } else {
+//                final TransportResponseHandler<?> handler;
+//                if (isHandshake) {
+////                    handler = handshaker.removeHandlerForHandshake(requestId);
+//                } else {
+////                    TransportResponseHandler<? extends TransportResponse> theHandler =
+////                        responseHandlers.onResponseReceived(requestId, messageListener);
+////                    if (theHandler == null && TransportStatus.isError(status)) {
+////                        handler = handshaker.removeHandlerForHandshake(requestId);
+////                    } else {
+////                        handler = theHandler;
+////                    }
+//                }
+//                // ignore if its null, the service logs it
+////                if (handler != null) {
+//                    if (TransportStatus.isError(status)) {
+////                        handlerResponseError(streamIn, handler);
+//                    } else {
+////                        handleResponse(remoteAddress, streamIn, handler);
+//                    }
+//                    // Check the entire message has been read
+//                    final int nextByte = streamInput.read();
+//                    // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
+//                    if (nextByte != -1) {
+//                        throw new IllegalStateException("Message not fully read (response) for requestId [" + requestId + "], handler ["
+//                            + handler + "], error [" + TransportStatus.isError(status) + "]; resetting");
+//                    }
+////                }
+//            }
+//            success = true;
+//        } finally {
+//            if (success) {
+//                IOUtils.close(streamInput);
+//            } else {
+//                IOUtils.closeWhileHandlingException(streamInput);
+//            }
+//        }
         return null;
     }
 

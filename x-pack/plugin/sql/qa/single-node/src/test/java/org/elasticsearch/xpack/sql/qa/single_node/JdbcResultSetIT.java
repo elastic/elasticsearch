@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.qa.jdbc.ResultSetTestCase;
 
 /*
  * Integration testing class for "no security" (cluster running without the Security plugin,
- * or the Security is disbled) scenario. Runs all tests in the base class.
+ * or the Security is disabled) scenario. Runs all tests in the base class.
  */
 public class JdbcResultSetIT extends ResultSetTestCase {
 }

@@ -22,6 +22,8 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.translog.Translog;
 
@@ -55,7 +57,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private volatile boolean closed = false;
 
     /**
-     * Prevents new refresh listeners from being registered while {@code >= 0}. Used to prevent becoming blocked on operations waiting for
+     * Force-refreshes new refresh listeners that are added while {@code >= 0}. Used to prevent becoming blocked on operations waiting for
      * refresh during relocation.
      */
     private int refreshForcers;
@@ -83,19 +85,28 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     }
 
     /**
-     * Prohibit adding new refresh listeners. See {@link #refreshForcers}.
+     * Force-refreshes newly added listeners and forces a refresh if there are currently listeners registered. See {@link #refreshForcers}.
      */
-    public synchronized void disallowAdd() {
-        refreshForcers += 1;
-        assert refreshForcers >= 0;
-    }
-
-    /**
-     * Enable adding new refresh listeners. See {@link #refreshForcers}.
-     */
-    public synchronized void allowAdd() {
-        refreshForcers -= 1;
-        assert refreshForcers >= 0;
+    public Releasable forceRefreshes() {
+        synchronized (this) {
+            assert refreshForcers >= 0;
+            refreshForcers += 1;
+        }
+        final RunOnce runOnce = new RunOnce(() -> {
+            synchronized (RefreshListeners.this) {
+                assert refreshForcers > 0;
+                refreshForcers -= 1;
+            }
+        });
+        if (refreshNeeded()) {
+            try {
+                forceRefresh.run();
+            } catch (Exception e) {
+                runOnce.run();
+                throw e;
+            }
+        }
+        return () -> runOnce.run();
     }
 
     /**

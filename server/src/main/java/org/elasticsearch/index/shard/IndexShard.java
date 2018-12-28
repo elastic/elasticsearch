@@ -607,12 +607,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void relocated(final Consumer<ReplicationTracker.PrimaryContext> consumer)
                                             throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
-        refreshListeners.disallowAdd();
+        final Releasable forceRefreshes = refreshListeners.forceRefreshes();
         try {
-            if (refreshListeners.refreshNeeded()) {
-                refresh("relocated");
-            }
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                forceRefreshes.close();
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
                         "in-flight operations in progress while moving shard state to relocated";
@@ -644,7 +642,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
         } finally {
-            refreshListeners.allowAdd();
+            forceRefreshes.close();
         }
     }
 
@@ -2345,15 +2343,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed();
         assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
 
-        refreshListeners.disallowAdd();
+        asyncBlockOperations(onPermitAcquired, timeout.duration(), timeout.timeUnit());
+    }
+
+    private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {
+        final Releasable forceRefreshes = refreshListeners.forceRefreshes();
+        final ActionListener<Releasable> wrappedListener = ActionListener.wrap(r -> {
+            forceRefreshes.close();
+            onPermitAcquired.onResponse(r);
+        }, e -> {
+            forceRefreshes.close();
+            onPermitAcquired.onFailure(e);
+        });
         try {
-            if (refreshListeners.refreshNeeded()) {
-                refresh("acquire all primary operations permits");
-            }
-            indexShardOperationPermits.asyncBlockOperations(
-                ensuringAllowRefreshListeners(onPermitAcquired), timeout.duration(), timeout.timeUnit());
+            indexShardOperationPermits.asyncBlockOperations(wrappedListener, timeout, timeUnit);
         } catch (Exception e) {
-            refreshListeners.allowAdd();
+            forceRefreshes.close();
             throw e;
         }
     }
@@ -2365,7 +2370,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert newPrimaryTerm > pendingPrimaryTerm || (newPrimaryTerm >= pendingPrimaryTerm && combineWithAction != null);
         assert operationPrimaryTerm <= pendingPrimaryTerm;
         final CountDownLatch termUpdated = new CountDownLatch(1);
-        final ActionListener<Releasable> actionListener = new ActionListener<Releasable>() {
+        asyncBlockOperations(new ActionListener<Releasable>() {
             @Override
             public void onFailure(final Exception e) {
                 try {
@@ -2411,41 +2416,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
             }
-        };
-        refreshListeners.disallowAdd();
-        try {
-            if (refreshListeners.refreshNeeded()) {
-                refresh("bump primary term");
-            }
-            indexShardOperationPermits.asyncBlockOperations(ensuringAllowRefreshListeners(actionListener), 30, TimeUnit.MINUTES);
-            pendingPrimaryTerm = newPrimaryTerm;
-            termUpdated.countDown();
-        } catch (Exception e) {
-            refreshListeners.allowAdd();
-            throw e;
-        }
-    }
-
-    /**
-     * Wraps an ActionListener so that {@link RefreshListeners#allowAdd()} is always called on {@link #refreshListeners}
-     * after the listeners actions have executed.
-     * @param actionListener ActionListener to wrap
-     * @return Wrapped ActionListener
-     */
-    private ActionListener<Releasable> ensuringAllowRefreshListeners(ActionListener<Releasable> actionListener) {
-        return ActionListener.wrap(r -> {
-            try {
-                actionListener.onResponse(r);
-            } finally {
-                refreshListeners.allowAdd();
-            }
-        }, e -> {
-            try {
-                actionListener.onFailure(e);
-            } finally {
-                refreshListeners.allowAdd();
-            }
-        });
+        }, 30, TimeUnit.MINUTES);
+        pendingPrimaryTerm = newPrimaryTerm;
+        termUpdated.countDown();
     }
 
     /**
@@ -2490,21 +2463,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                                    final long maxSeqNoOfUpdatesOrDeletes,
                                                    final ActionListener<Releasable> onPermitAcquired,
                                                    final TimeValue timeout) {
-        refreshListeners.disallowAdd();
-        try {
-            if (refreshListeners.refreshNeeded()) {
-                refresh("acquire all replica operations permits");
-            }
-            innerAcquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes,
-                onPermitAcquired, true,
-                listener -> indexShardOperationPermits.asyncBlockOperations(
-                    ensuringAllowRefreshListeners(listener), timeout.duration(), timeout.timeUnit()
-                )
-            );
-        } catch (Exception e) {
-            refreshListeners.allowAdd();
-            throw e;
-        }
+        innerAcquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes,
+            onPermitAcquired, true,
+            listener -> asyncBlockOperations(listener, timeout.duration(), timeout.timeUnit())
+        );
     }
 
     private void innerAcquireReplicaOperationPermit(final long opPrimaryTerm,

@@ -278,7 +278,7 @@ public class DatafeedManagerTests extends ESTestCase {
         capturedClusterStateListener.getValue().clusterChanged(
                 new ClusterChangedEvent("_source", jobOpenedCs.build(), anotherJobCs.build()));
 
-        // Now it should run as the job state chanded to OPENED
+        // Now it should run as the job state changed to OPENED
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
     }
 

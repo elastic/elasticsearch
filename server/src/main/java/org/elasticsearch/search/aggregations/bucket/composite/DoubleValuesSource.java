@@ -108,7 +108,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     }
 
     @Override
-    void setAfter(Comparable<?> value) {
+    void setAfter(Comparable value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value instanceof Number) {
@@ -151,7 +151,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable<?> value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != Double.class) {
             throw new IllegalArgumentException("Expected Double, got " + value.getClass());
         }

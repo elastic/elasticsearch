@@ -232,8 +232,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         private double brokenCoordinate = randomFrom(brokenDoubles);
         private double invalidCoordinate;
 
-        public PointTester(double invalidCoodinate) {
-            this.invalidCoordinate = invalidCoodinate;
+        public PointTester(double invalidCoordinate) {
+            this.invalidCoordinate = invalidCoordinate;
         }
         public void invalidateCoordinate(GeoBoundingBoxQueryBuilder qb, boolean useBrokenDouble) {
             if (useBrokenDouble) {

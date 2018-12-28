@@ -885,7 +885,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
-    public void testAssetionWithoutBearerSubjectConfirmationMethodIsRejected() throws Exception {
+    public void testAssertionWithoutBearerSubjectConfirmationMethodIsRejected() throws Exception {
         Instant now = clock.instant();
         Instant validUntil = now.plusSeconds(30);
         final String sessionindex = randomId();

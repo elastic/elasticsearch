@@ -132,7 +132,7 @@ public class RemoteFailure {
     }
 
     /**
-     * Cause of the remote failure. Mostly just useful for dbuegging errors that happen to be bugs.
+     * Cause of the remote failure. Mostly just useful for debugging errors that happen to be bugs.
      */
     public RemoteFailure cause() {
         return cause;

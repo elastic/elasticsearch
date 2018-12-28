@@ -531,7 +531,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * ".asc" to the URL. It is expected that the plugin is signed with the Elastic signing key with ID D27D666CD88E42B4.
      *
      * @param zip       the path to the downloaded plugin ZIP
-     * @param urlString the URL source of the downloade plugin ZIP
+     * @param urlString the URL source of the downloaded plugin ZIP
      * @throws IOException  if an I/O exception occurs reading from various input streams
      * @throws PGPException if the PGP implementation throws an internal exception during verification
      */

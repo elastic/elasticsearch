@@ -201,7 +201,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.GTE:
                 return new GreaterThanOrEqual(source, left, right);
             default:
-                throw new ParsingException(source, "Unknown operator {}", op.getSymbol().getText());
+                throw new ParsingException(source, "Unknown operator {}", source.text());
         }
     }
 
@@ -242,7 +242,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                     return new IsNull(source, exp);
                 }
             default:
-                throw new ParsingException(source, "Unknown predicate {}", pCtx.kind.getText());
+                throw new ParsingException(source, "Unknown predicate {}", source.text());
         }
 
         return pCtx.NOT() != null ? new Not(source, e) : e;
@@ -322,7 +322,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
                 return new Neg(source(ctx.operator), value);
             default:
-                throw new ParsingException(source, "Unknown arithmetic {}", ctx.operator.getText());
+                throw new ParsingException(source, "Unknown arithmetic {}", source.text());
         }
     }
 
@@ -345,7 +345,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.MINUS:
                 return new Sub(source, left, right);
             default:
-                throw new ParsingException(source, "Unknown arithmetic {}", ctx.operator.getText());
+                throw new ParsingException(source, "Unknown arithmetic {}", source.text());
         }
     }
 

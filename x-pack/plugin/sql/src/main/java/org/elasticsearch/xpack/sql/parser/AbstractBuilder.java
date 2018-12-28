@@ -113,6 +113,7 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
 
     @Override
     public Object visitTerminal(TerminalNode node) {
-        throw new ParsingException(source(node), "Does not know how to handle {}", node.getText());
+        Source source = source(node);
+        throw new ParsingException(source, "Does not know how to handle {}", source.text());
     }
 }

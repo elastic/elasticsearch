@@ -44,10 +44,10 @@ public class JobStatsTests extends AbstractXContentTestCase<JobStats> {
         ModelSizeStats modelSizeStats = randomBoolean() ? ModelSizeStatsTests.createRandomized() : null;
         ForecastStats forecastStats = randomBoolean() ? ForecastStatsTests.createRandom(1, 22) : null;
         NodeAttributes nodeAttributes = randomBoolean() ? NodeAttributesTests.createRandom() : null;
-        String assigmentExplanation = randomBoolean() ? randomAlphaOfLength(10) : null;
+        String assignmentExplanation = randomBoolean() ? randomAlphaOfLength(10) : null;
         TimeValue openTime = randomBoolean() ? TimeValue.timeValueMillis(randomIntBetween(1, 10000)) : null;
 
-        return new JobStats(jobId, dataCounts, state, modelSizeStats, forecastStats, nodeAttributes, assigmentExplanation, openTime);
+        return new JobStats(jobId, dataCounts, state, modelSizeStats, forecastStats, nodeAttributes, assignmentExplanation, openTime);
     }
 
     @Override

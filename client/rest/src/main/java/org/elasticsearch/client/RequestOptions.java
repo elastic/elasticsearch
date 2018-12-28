@@ -76,7 +76,7 @@ public final class RequestOptions {
 
     /**
      * How this request should handle warnings. If null (the default) then
-     * this request will default to the behavior dictacted by
+     * this request will default to the behavior dictated by
      * {@link RestClientBuilder#setStrictDeprecationMode}.
      * <p>
      * This can be set to {@link WarningsHandler#PERMISSIVE} if the client
@@ -189,7 +189,7 @@ public final class RequestOptions {
 
         /**
          * How this request should handle warnings. If null (the default) then
-         * this request will default to the behavior dictacted by
+         * this request will default to the behavior dictated by
          * {@link RestClientBuilder#setStrictDeprecationMode}.
          * <p>
          * This can be set to {@link WarningsHandler#PERMISSIVE} if the client

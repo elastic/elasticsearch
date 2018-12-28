@@ -20,8 +20,8 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
     private final BinaryMathOperation operation;
 
-    BinaryNumericFunction(Source location, Expression left, Expression right, BinaryMathOperation operation) {
-        super(location, left, right);
+    BinaryNumericFunction(Source source, Expression left, Expression right, BinaryMathOperation operation) {
+        super(source, left, right);
         this.operation = operation;
     }
 

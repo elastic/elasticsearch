@@ -28,8 +28,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     private AttributeSet lazyInputSet;
 
 
-    public QueryPlan(Source location, List<PlanType> children) {
-        super(location, children);
+    public QueryPlan(Source source, List<PlanType> children) {
+        super(source, children);
     }
 
     public abstract List<Attribute> output();

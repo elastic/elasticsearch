@@ -27,14 +27,14 @@ public class ParsingException extends ClientSqlException {
 
     public ParsingException(Source source, String message, Object... args) {
         super(message, args);
-        this.line = source.location().getLineNumber();
-        this.charPositionInLine = source.location().getColumnNumber();
+        this.line = source.source().getLineNumber();
+        this.charPositionInLine = source.source().getColumnNumber();
     }
 
     public ParsingException(Exception cause, Source source, String message, Object... args) {
         super(cause, message, args);
-        this.line = source.location().getLineNumber();
-        this.charPositionInLine = source.location().getColumnNumber();
+        this.line = source.source().getLineNumber();
+        this.charPositionInLine = source.source().getColumnNumber();
     }
 
     public int getLineNumber() {

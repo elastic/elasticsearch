@@ -18,8 +18,8 @@ public class SubQueryAlias extends UnaryPlan {
 
     private final String alias;
 
-    public SubQueryAlias(Source location, LogicalPlan child, String alias) {
-        super(location, child);
+    public SubQueryAlias(Source source, LogicalPlan child, String alias) {
+        super(source, child);
         this.alias = alias;
     }
 

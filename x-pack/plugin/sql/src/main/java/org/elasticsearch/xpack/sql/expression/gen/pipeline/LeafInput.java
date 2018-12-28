@@ -17,8 +17,8 @@ public abstract class LeafInput<T> extends Pipe {
 
     private T context;
 
-    public LeafInput(Source location, Expression expression, T context) {
-        super(location, expression, emptyList());
+    public LeafInput(Source source, Expression expression, T context) {
+        super(source, expression, emptyList());
         this.context = context;
     }
 

@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public abstract class BinaryStringNumericFunction extends BinaryStringFunction<Number, String> {
 
-    public BinaryStringNumericFunction(Source location, Expression left, Expression right) {
-        super(location, left, right);
+    public BinaryStringNumericFunction(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     @Override

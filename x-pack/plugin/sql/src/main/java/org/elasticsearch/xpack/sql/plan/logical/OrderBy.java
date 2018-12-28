@@ -17,8 +17,8 @@ public class OrderBy extends UnaryPlan {
 
     private final List<Order> order;
 
-    public OrderBy(Source location, LogicalPlan child, List<Order> order) {
-        super(location, child);
+    public OrderBy(Source source, LogicalPlan child, List<Order> order) {
+        super(source, child);
         this.order = order;
     }
 

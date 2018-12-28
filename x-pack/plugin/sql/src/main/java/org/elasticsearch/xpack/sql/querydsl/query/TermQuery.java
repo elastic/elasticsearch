@@ -17,8 +17,8 @@ public class TermQuery extends LeafQuery {
     private final String term;
     private final Object value;
 
-    public TermQuery(Source location, String term, Object value) {
-        super(location);
+    public TermQuery(Source source, String term, Object value) {
+        super(source);
         this.term = term;
         this.value = value;
     }

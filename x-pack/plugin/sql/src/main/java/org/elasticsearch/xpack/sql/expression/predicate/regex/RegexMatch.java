@@ -17,8 +17,8 @@ public abstract class RegexMatch extends UnaryScalarFunction {
 
     private final String pattern;
 
-    protected RegexMatch(Source location, Expression value, String pattern) {
-        super(location, value);
+    protected RegexMatch(Source source, Expression value, String pattern) {
+        super(source, value);
         this.pattern = pattern;
     }
 

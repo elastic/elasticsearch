@@ -24,8 +24,8 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
     private final String name;
     private final F function;
 
-    protected BinaryPredicate(Source location, Expression left, Expression right, F function) {
-        super(location, left, right);
+    protected BinaryPredicate(Source source, Expression left, Expression right, F function) {
+        super(source, left, right);
         this.name = name(left, right, function.symbol());
         this.function = function;
     }

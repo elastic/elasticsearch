@@ -30,12 +30,12 @@ public abstract class FullTextPredicate extends Expression {
     // common properties
     private final String analyzer;
 
-    FullTextPredicate(Source location, String query, String options, List<Expression> children) {
-        super(location, children);
+    FullTextPredicate(Source source, String query, String options, List<Expression> children) {
+        super(source, children);
         this.query = query;
         this.options = options;
         // inferred
-        this.optionMap = FullTextUtils.parseSettings(options, location);
+        this.optionMap = FullTextUtils.parseSettings(options, source);
         this.analyzer = optionMap.get("analyzer");
     }
 

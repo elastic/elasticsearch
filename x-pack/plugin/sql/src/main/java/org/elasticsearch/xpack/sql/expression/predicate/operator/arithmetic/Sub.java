@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  */
 public class Sub extends DateTimeArithmeticOperation {
 
-    public Sub(Source location, Expression left, Expression right) {
-        super(location, left, right, BinaryArithmeticOperation.SUB);
+    public Sub(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryArithmeticOperation.SUB);
     }
 
     @Override

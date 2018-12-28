@@ -318,7 +318,7 @@ final class QueryTranslator {
         return new GroupingContext(aggMap);
     }
 
-    static QueryTranslation and(Source loc, QueryTranslation left, QueryTranslation right) {
+    static QueryTranslation and(Source source, QueryTranslation left, QueryTranslation right) {
         Check.isTrue(left != null || right != null, "Both expressions are null");
         if (left == null) {
             return right;
@@ -329,7 +329,7 @@ final class QueryTranslator {
 
         Query newQ = null;
         if (left.query != null || right.query != null) {
-            newQ = and(loc, left.query, right.query);
+            newQ = and(source, left.query, right.query);
         }
 
         AggFilter aggFilter;
@@ -347,7 +347,7 @@ final class QueryTranslator {
         return new QueryTranslation(newQ, aggFilter);
     }
 
-    static Query and(Source loc, Query left, Query right) {
+    static Query and(Source source, Query left, Query right) {
         Check.isTrue(left != null || right != null, "Both expressions are null");
         if (left == null) {
             return right;
@@ -355,10 +355,10 @@ final class QueryTranslator {
         if (right == null) {
             return left;
         }
-        return new BoolQuery(loc, true, left, right);
+        return new BoolQuery(source, true, left, right);
     }
 
-    static QueryTranslation or(Source loc, QueryTranslation left, QueryTranslation right) {
+    static QueryTranslation or(Source source, QueryTranslation left, QueryTranslation right) {
         Check.isTrue(left != null || right != null, "Both expressions are null");
         if (left == null) {
             return right;
@@ -369,7 +369,7 @@ final class QueryTranslator {
 
         Query newQ = null;
         if (left.query != null || right.query != null) {
-            newQ = or(loc, left.query, right.query);
+            newQ = or(source, left.query, right.query);
         }
 
         AggFilter aggFilter = null;
@@ -387,7 +387,7 @@ final class QueryTranslator {
         return new QueryTranslation(newQ, aggFilter);
     }
 
-    static Query or(Source loc, Query left, Query right) {
+    static Query or(Source source, Query left, Query right) {
         Check.isTrue(left != null || right != null, "Both expressions are null");
 
         if (left == null) {
@@ -396,7 +396,7 @@ final class QueryTranslator {
         if (right == null) {
             return left;
         }
-        return new BoolQuery(loc, false, left, right);
+        return new BoolQuery(source, false, left, right);
     }
 
     static String nameOf(Expression e) {
@@ -632,22 +632,22 @@ final class QueryTranslator {
         }
 
         private static Query translateQuery(BinaryComparison bc) {
-            Source loc = bc.source();
+            Source source = bc.source();
             String name = nameOf(bc.left());
             Object value = valueOf(bc.right());
             String format = dateFormat(bc.left());
 
             if (bc instanceof GreaterThan) {
-                return new RangeQuery(loc, name, value, false, null, false, format);
+                return new RangeQuery(source, name, value, false, null, false, format);
             }
             if (bc instanceof GreaterThanOrEqual) {
-                return new RangeQuery(loc, name, value, true, null, false, format);
+                return new RangeQuery(source, name, value, true, null, false, format);
             }
             if (bc instanceof LessThan) {
-                return new RangeQuery(loc, name, null, false, value, false, format);
+                return new RangeQuery(source, name, null, false, value, false, format);
             }
             if (bc instanceof LessThanOrEqual) {
-                return new RangeQuery(loc, name, null, false, value, true, format);
+                return new RangeQuery(source, name, null, false, value, true, format);
             }
             if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
                 if (bc.left() instanceof FieldAttribute) {
@@ -658,9 +658,9 @@ final class QueryTranslator {
                         name = fa.exactAttribute().name();
                     }
                 }
-                Query query = new TermQuery(loc, name, value);
+                Query query = new TermQuery(source, name, value);
                 if (bc instanceof NotEquals) {
-                    query = new NotQuery(loc, query);
+                    query = new NotQuery(source, query);
             }
                 return query;
             }

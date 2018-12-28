@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * before it can be further processed.
  */
 public class AttributeInput extends NonExecutableInput<Attribute> {
-    public AttributeInput(Source location, Expression expression, Attribute context) {
-        super(location, expression, context);
+    public AttributeInput(Source source, Expression expression, Attribute context) {
+        super(source, expression, context);
     }
 
     @Override

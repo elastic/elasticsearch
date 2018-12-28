@@ -16,8 +16,8 @@ import java.time.ZoneId;
  * Extract the month of the year from a datetime.
  */
 public class MonthOfYear extends DateTimeFunction {
-    public MonthOfYear(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.MONTH_OF_YEAR);
+    public MonthOfYear(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.MONTH_OF_YEAR);
     }
 
     @Override

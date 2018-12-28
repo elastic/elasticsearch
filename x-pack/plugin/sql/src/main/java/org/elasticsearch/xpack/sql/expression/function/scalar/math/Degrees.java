@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * to <a href="https://en.wikipedia.org/wiki/Degree_(angle)">degrees</a>.
  */
 public class Degrees extends MathFunction {
-    public Degrees(Source location, Expression field) {
-        super(location, field);
+    public Degrees(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

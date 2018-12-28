@@ -47,12 +47,12 @@ public class MatchQuery extends LeafQuery {
     private final Map<String, String> options;
 
 
-    public MatchQuery(Source location, String name, Object text) {
-        this(location, name, text, null);
+    public MatchQuery(Source source, String name, Object text) {
+        this(source, name, text, null);
     }
 
-    public MatchQuery(Source location, String name, Object text, MatchQueryPredicate predicate) {
-        super(location);
+    public MatchQuery(Source source, String name, Object text, MatchQueryPredicate predicate) {
+        super(source);
         this.name = name;
         this.text = text;
         this.predicate = predicate;

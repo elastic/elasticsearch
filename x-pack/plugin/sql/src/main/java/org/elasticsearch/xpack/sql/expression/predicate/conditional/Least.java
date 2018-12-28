@@ -19,8 +19,8 @@ import static org.elasticsearch.xpack.sql.expression.predicate.conditional.Condi
 
 public class Least extends ArbitraryConditionalFunction {
 
-    public Least(Source location, List<Expression> fields) {
-        super(location, new ArrayList<>(new LinkedHashSet<>(fields)), LEAST);
+    public Least(Source source, List<Expression> fields) {
+        super(source, new ArrayList<>(new LinkedHashSet<>(fields)), LEAST);
     }
 
     @Override

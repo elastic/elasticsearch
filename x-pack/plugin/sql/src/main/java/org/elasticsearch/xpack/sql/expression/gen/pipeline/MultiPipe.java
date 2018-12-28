@@ -15,8 +15,8 @@ import java.util.List;
 
 public abstract class MultiPipe extends Pipe {
 
-    protected MultiPipe(Source location, Expression expression, List<Pipe> children) {
-        super(location, expression, children);
+    protected MultiPipe(Source source, Expression expression, List<Pipe> children) {
+        super(source, expression, children);
     }
 
     @Override

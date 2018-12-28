@@ -15,8 +15,8 @@ public class Limit extends UnaryPlan {
 
     private final Expression limit;
 
-    public Limit(Source location, Expression limit, LogicalPlan child) {
-        super(location, child);
+    public Limit(Source source, Expression limit, LogicalPlan child) {
+        super(source, child);
         this.limit = limit;
     }
 

@@ -19,8 +19,8 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     // typically used for nested fields or inner/dotted fields
     private final UnresolvedAttribute qualifier;
 
-    public UnresolvedStar(Source location, UnresolvedAttribute qualifier) {
-        super(location, emptyList());
+    public UnresolvedStar(Source source, UnresolvedAttribute qualifier) {
+        super(source, emptyList());
         this.qualifier = qualifier;
     }
 

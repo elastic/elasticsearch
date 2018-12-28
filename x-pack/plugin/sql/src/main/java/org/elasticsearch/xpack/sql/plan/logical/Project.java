@@ -23,8 +23,8 @@ public class Project extends UnaryPlan {
 
     private final List<? extends NamedExpression> projections;
 
-    public Project(Source location, LogicalPlan child, List<? extends NamedExpression> projections) {
-        super(location, child);
+    public Project(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
+        super(source, child);
         this.projections = projections;
     }
 

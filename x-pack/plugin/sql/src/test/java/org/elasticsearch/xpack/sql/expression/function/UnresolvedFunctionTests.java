@@ -24,13 +24,13 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
         /* Pick an UnresolvedFunction where the name and the
          * message don't happen to be the same String. If they
          * matched then transform would get them confused. */
-        Source location = randomSource();
+        Source source = randomSource();
         String name = randomAlphaOfLength(5);
         UnresolvedFunction.ResolutionType resolutionType = randomFrom(UnresolvedFunction.ResolutionType.values());
         List<Expression> args = randomFunctionArgs();
         boolean analyzed = randomBoolean();
         String unresolvedMessage = randomUnresolvedMessage();
-        return new UnresolvedFunction(location, name, resolutionType, args, analyzed, unresolvedMessage);
+        return new UnresolvedFunction(source, name, resolutionType, args, analyzed, unresolvedMessage);
     }
 
     private static List<Expression> randomFunctionArgs() {

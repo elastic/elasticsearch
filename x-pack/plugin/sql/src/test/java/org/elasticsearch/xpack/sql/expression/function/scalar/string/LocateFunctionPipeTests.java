@@ -44,7 +44,7 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
 
     @Override
     public void testTransform() {
-        // test transforming only the properties (location, expression),
+        // test transforming only the properties (source, expression),
         // skipping the children (the two parameters of the binary function) which are tested separately
         LocateFunctionPipe b1 = randomInstance();
         Expression newExpression = randomValueOtherThan(b1.expression(), () -> randomLocateFunctionExpression());
@@ -52,7 +52,7 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
             b1.source(),
             newExpression,
             b1.pattern(),
-            b1.sourcePipe(),
+            b1.src(),
             b1.start());
 
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
@@ -63,7 +63,7 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
                 newLoc,
                 b2.expression(),
                 b2.pattern(),
-                b2.sourcePipe(),
+                b2.src(),
                 b2.start());
 
         assertEquals(newB,
@@ -78,7 +78,7 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
         Pipe newStart;
         
         LocateFunctionPipe newB = new LocateFunctionPipe(
-                b.source(), b.expression(), b.pattern(), b.sourcePipe(), b.start());
+                b.source(), b.expression(), b.pattern(), b.src(), b.start());
         newStart = pipe(((Expression) randomValueOtherThan(b.start(), () -> randomIntLiteral())));
         LocateFunctionPipe transformed = null;
         
@@ -87,11 +87,11 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
             for(BitSet comb : new Combinations(3, i)) {
                 transformed = (LocateFunctionPipe) newB.replaceChildren(
                         comb.get(0) ? newPattern : b.pattern(),
-                        comb.get(1) ? newSource : b.sourcePipe(),
+                        comb.get(1) ? newSource : b.src(),
                         comb.get(2) ? newStart : b.start());
                 
                 assertEquals(transformed.pattern(), comb.get(0) ? newPattern : b.pattern());
-                assertEquals(transformed.sourcePipe(), comb.get(1) ? newSource : b.sourcePipe());
+                assertEquals(transformed.src(), comb.get(1) ? newSource : b.src());
                 assertEquals(transformed.start(), comb.get(2) ? newStart : b.start());
                 assertEquals(transformed.expression(), b.expression());
                 assertEquals(transformed.source(), b.source());
@@ -109,8 +109,8 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
                             f.expression(),
                             comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.pattern(),
                                     () -> randomStringLiteral()))) : f.pattern(),
-                            comb.get(1) ? pipe(((Expression) randomValueOtherThan(f.sourcePipe(),
-                                    () -> randomStringLiteral()))) : f.sourcePipe(),
+                            comb.get(1) ? pipe(((Expression) randomValueOtherThan(f.src(),
+                                    () -> randomStringLiteral()))) : f.src(),
                                     null));
                 }
             }
@@ -121,8 +121,8 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
                             f.expression(),
                             comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.pattern(),
                                     () -> randomStringLiteral()))) : f.pattern(),
-                            comb.get(1) ? pipe(((Expression) randomValueOtherThan(f.sourcePipe(),
-                                    () -> randomStringLiteral()))) : f.sourcePipe(),
+                            comb.get(1) ? pipe(((Expression) randomValueOtherThan(f.src(),
+                                    () -> randomStringLiteral()))) : f.src(),
                             comb.get(2) ? pipe(((Expression) randomValueOtherThan(f.start(),
                                     () -> randomIntLiteral()))) : f.start()));
                 }
@@ -137,7 +137,7 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
         return new LocateFunctionPipe(instance.source(),
                         instance.expression(),
                         instance.pattern(),
-                        instance.sourcePipe(),
+                        instance.src(),
                         instance.start());
     }
 }

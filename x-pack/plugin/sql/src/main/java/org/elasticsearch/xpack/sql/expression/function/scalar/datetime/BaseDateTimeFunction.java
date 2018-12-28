@@ -22,8 +22,8 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     private final ZoneId zoneId;
     private final String name;
 
-    BaseDateTimeFunction(Source location, Expression field, ZoneId zoneId) {
-        super(location, field);
+    BaseDateTimeFunction(Source source, Expression field, ZoneId zoneId) {
+        super(source, field);
         this.zoneId = zoneId;
 
         StringBuilder sb = new StringBuilder(super.name());

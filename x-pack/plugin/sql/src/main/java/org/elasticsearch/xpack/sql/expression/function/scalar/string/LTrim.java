@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class LTrim extends UnaryStringFunction {
 
-    public LTrim(Source location, Expression field) {
-        super(location, field);
+    public LTrim(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

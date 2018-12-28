@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.sql.type.DataTypeConversion;
  */
 public class Div extends ArithmeticOperation {
 
-    public Div(Source location, Expression left, Expression right) {
-        super(location, left, right, BinaryArithmeticOperation.DIV);
+    public Div(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryArithmeticOperation.DIV);
     }
 
     @Override

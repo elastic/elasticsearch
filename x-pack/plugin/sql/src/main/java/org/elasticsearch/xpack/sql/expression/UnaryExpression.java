@@ -17,8 +17,8 @@ public abstract class UnaryExpression extends Expression {
 
     private final Expression child;
 
-    protected UnaryExpression(Source location, Expression child) {
-        super(location, singletonList(child));
+    protected UnaryExpression(Source source, Expression child) {
+        super(source, singletonList(child));
         this.child = child;
     }
 

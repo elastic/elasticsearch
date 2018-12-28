@@ -12,12 +12,12 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 public class Exists extends SubQueryExpression {
 
-    public Exists(Source location, LogicalPlan query) {
-        this(location, query, null);
+    public Exists(Source source, LogicalPlan query) {
+        this(source, query, null);
     }
 
-    public Exists(Source location, LogicalPlan query, ExpressionId id) {
-        super(location, query, id);
+    public Exists(Source source, LogicalPlan query, ExpressionId id) {
+        super(source, query, id);
     }
 
     @Override

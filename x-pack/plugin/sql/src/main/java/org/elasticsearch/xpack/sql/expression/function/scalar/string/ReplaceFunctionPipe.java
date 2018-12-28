@@ -19,10 +19,10 @@ public class ReplaceFunctionPipe extends Pipe {
 
     private final Pipe source, pattern, replacement;
 
-    public ReplaceFunctionPipe(Source location, Expression expression, Pipe source,
+    public ReplaceFunctionPipe(Source source, Expression expression, Pipe src,
             Pipe pattern, Pipe replacement) {
-        super(location, expression, Arrays.asList(source, pattern, replacement));
-        this.source = source;
+        super(source, expression, Arrays.asList(src, pattern, replacement));
+        this.source = src;
         this.pattern = pattern;
         this.replacement = replacement;
     }
@@ -78,7 +78,7 @@ public class ReplaceFunctionPipe extends Pipe {
         return new ReplaceFunctionProcessor(source.asProcessor(), pattern.asProcessor(), replacement.asProcessor());
     }
     
-    public Pipe sourcePipe() {
+    public Pipe src() {
         return source;
     }
     

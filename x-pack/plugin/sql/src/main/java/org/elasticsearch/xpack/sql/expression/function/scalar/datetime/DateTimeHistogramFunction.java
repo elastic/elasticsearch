@@ -17,8 +17,8 @@ import java.time.ZoneId;
  */
 public abstract class DateTimeHistogramFunction extends DateTimeFunction {
 
-    DateTimeHistogramFunction(Source location, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
-        super(location, field, zoneId, extractor);
+    DateTimeHistogramFunction(Source source, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
+        super(source, field, zoneId, extractor);
     }
 
     /**

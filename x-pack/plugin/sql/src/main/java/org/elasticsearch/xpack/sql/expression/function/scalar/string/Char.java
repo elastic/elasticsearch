@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class Char extends UnaryStringIntFunction {
 
-    public Char(Source location, Expression field) {
-        super(location, field);
+    public Char(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

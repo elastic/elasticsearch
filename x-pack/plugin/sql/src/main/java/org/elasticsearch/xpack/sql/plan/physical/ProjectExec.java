@@ -18,8 +18,8 @@ public class ProjectExec extends UnaryExec implements Unexecutable {
 
     private final List<? extends NamedExpression> projections;
 
-    public ProjectExec(Source location, PhysicalPlan child, List<? extends NamedExpression> projections) {
-        super(location, child);
+    public ProjectExec(Source source, PhysicalPlan child, List<? extends NamedExpression> projections) {
+        super(source, child);
         this.projections = projections;
     }
 

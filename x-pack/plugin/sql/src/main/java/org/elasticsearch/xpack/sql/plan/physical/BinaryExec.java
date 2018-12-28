@@ -15,8 +15,8 @@ abstract class BinaryExec extends PhysicalPlan {
 
     private final PhysicalPlan left, right;
 
-    protected BinaryExec(Source location, PhysicalPlan left, PhysicalPlan right) {
-        super(location, Arrays.asList(left, right));
+    protected BinaryExec(Source source, PhysicalPlan left, PhysicalPlan right) {
+        super(source, Arrays.asList(left, right));
         this.left = left;
         this.right = right;
     }

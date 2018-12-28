@@ -18,8 +18,8 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 
 public class ScorePipe extends Pipe {
-    public ScorePipe(Source location, Expression expression) {
-        super(location, expression, emptyList());
+    public ScorePipe(Source source, Expression expression) {
+        super(source, expression, emptyList());
     }
 
     @Override

@@ -21,8 +21,8 @@ public class ConditionalPipe extends MultiPipe {
 
     private final ConditionalOperation operation;
 
-    public ConditionalPipe(Source location, Expression expression, List<Pipe> children, ConditionalOperation operation) {
-        super(location, expression, children);
+    public ConditionalPipe(Source source, Expression expression, List<Pipe> children, ConditionalOperation operation) {
+        super(source, expression, children);
         this.operation = operation;
     }
 

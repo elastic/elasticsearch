@@ -16,8 +16,8 @@ import java.time.ZoneId;
  * Extract the second of the minute from a datetime.
  */
 public class SecondOfMinute extends DateTimeFunction {
-    public SecondOfMinute(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.SECOND_OF_MINUTE);
+    public SecondOfMinute(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.SECOND_OF_MINUTE);
     }
 
     @Override

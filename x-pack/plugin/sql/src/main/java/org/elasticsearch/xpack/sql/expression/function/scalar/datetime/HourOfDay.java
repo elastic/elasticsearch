@@ -16,8 +16,8 @@ import java.time.ZoneId;
  * Extract the hour of the day from a datetime.
  */
 public class HourOfDay extends DateTimeFunction {
-    public HourOfDay(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.HOUR_OF_DAY);
+    public HourOfDay(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.HOUR_OF_DAY);
     }
 
     @Override

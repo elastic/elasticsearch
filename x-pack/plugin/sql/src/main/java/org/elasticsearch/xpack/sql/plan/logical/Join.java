@@ -31,8 +31,8 @@ public class Join extends BinaryPlan {
         IMPLICIT,
     }
 
-    public Join(Source location, LogicalPlan left, LogicalPlan right, JoinType type, Expression condition) {
-        super(location, left, right);
+    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinType type, Expression condition) {
+        super(source, left, right);
         this.type = type;
         this.condition = condition;
     }

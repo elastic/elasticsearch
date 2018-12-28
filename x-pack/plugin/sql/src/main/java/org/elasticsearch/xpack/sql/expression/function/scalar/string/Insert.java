@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Arrays;
@@ -32,9 +32,9 @@ public class Insert extends ScalarFunction {
 
     private final Expression source, start, length, replacement;
     
-    public Insert(Source location, Expression source, Expression start, Expression length, Expression replacement) {
-        super(location, Arrays.asList(source, start, length, replacement));
-        this.source = source;
+    public Insert(Source source, Expression src, Expression start, Expression length, Expression replacement) {
+        super(source, Arrays.asList(src, start, length, replacement));
+        this.source = src;
         this.start = start;
         this.length = length;
         this.replacement = replacement;

@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class UCase extends UnaryStringFunction {
 
-    public UCase(Source location, Expression field) {
-        super(location, field);
+    public UCase(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

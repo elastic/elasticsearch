@@ -13,8 +13,8 @@ public class Like extends RegexMatch {
 
     private final LikePattern pattern;
 
-    public Like(Source location, Expression left, LikePattern pattern) {
-        super(location, left, pattern.asJavaRegex());
+    public Like(Source source, Expression left, LikePattern pattern) {
+        super(source, left, pattern.asJavaRegex());
         this.pattern = pattern;
     }
 

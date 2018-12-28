@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class SumOfSquares extends NumericAggregate implements ExtendedStatsEnclosed {
 
-    public SumOfSquares(Source location, Expression field) {
-        super(location, field);
+    public SumOfSquares(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

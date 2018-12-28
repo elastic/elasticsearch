@@ -50,8 +50,8 @@ public class Explain extends Command {
     private final Format format;
     private final Type type;
 
-    public Explain(Source location, LogicalPlan plan, Type type, Format format, boolean verify) {
-        super(location);
+    public Explain(Source source, LogicalPlan plan, Type type, Format format, boolean verify) {
+        super(source);
         this.plan = plan;
         this.verify = verify;
         this.format = format == null ? Format.TEXT : format;

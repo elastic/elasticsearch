@@ -17,8 +17,8 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 
 public class LeafQueryTests extends ESTestCase {
     private static class DummyLeafQuery extends LeafQuery {
-        private DummyLeafQuery(Source location) {
-            super(location);
+        private DummyLeafQuery(Source source) {
+            super(source);
         }
 
         @Override
@@ -38,11 +38,11 @@ public class LeafQueryTests extends ESTestCase {
     }
 
     private static DummyLeafQuery copy(DummyLeafQuery query) {
-        return new DummyLeafQuery(query.location());
+        return new DummyLeafQuery(query.source());
     }
 
     private static DummyLeafQuery mutate(DummyLeafQuery query) {
-        return new DummyLeafQuery(SourceTests.mutate(query.location()));
+        return new DummyLeafQuery(SourceTests.mutate(query.source()));
     }
 
     public void testContainsNestedField() {

@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class Expm1 extends MathFunction {
-    public Expm1(Source location, Expression field) {
-        super(location, field);
+    public Expm1(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

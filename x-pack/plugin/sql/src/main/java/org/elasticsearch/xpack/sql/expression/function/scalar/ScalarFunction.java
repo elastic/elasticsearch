@@ -24,12 +24,12 @@ public abstract class ScalarFunction extends Function implements ScriptWeaver {
 
     private ScalarFunctionAttribute lazyAttribute = null;
 
-    protected ScalarFunction(Source location) {
-        super(location, emptyList());
+    protected ScalarFunction(Source source) {
+        super(source, emptyList());
     }
 
-    protected ScalarFunction(Source location, List<Expression> fields) {
-        super(location, fields);
+    protected ScalarFunction(Source source, List<Expression> fields) {
+        super(source, fields);
     }
 
     @Override

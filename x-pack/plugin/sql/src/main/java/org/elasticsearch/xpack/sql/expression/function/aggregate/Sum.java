@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class Sum extends NumericAggregate implements EnclosedAgg {
 
-    public Sum(Source location, Expression field) {
-        super(location, field);
+    public Sum(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class LCase extends UnaryStringFunction {
 
-    public LCase(Source location, Expression field) {
-        super(location, field);
+    public LCase(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

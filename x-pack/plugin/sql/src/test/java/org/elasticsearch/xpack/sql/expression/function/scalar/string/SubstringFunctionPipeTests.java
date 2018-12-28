@@ -45,14 +45,14 @@ public class SubstringFunctionPipeTests
 
     @Override
     public void testTransform() {
-        // test transforming only the properties (location, expression),
+        // test transforming only the properties (source, expression),
         // skipping the children (the two parameters of the binary function) which are tested separately
         SubstringFunctionPipe b1 = randomInstance();
         Expression newExpression = randomValueOtherThan(b1.expression(), () -> randomSubstringFunctionExpression());
         SubstringFunctionPipe newB = new SubstringFunctionPipe(
                 b1.source(),
                 newExpression,
-                b1.sourcePipe(),
+                b1.src(),
                 b1.start(),
                 b1.length());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
@@ -62,7 +62,7 @@ public class SubstringFunctionPipeTests
         newB = new SubstringFunctionPipe(
                 newLoc,
                 b2.expression(),
-                b2.sourcePipe(),
+                b2.src(),
                 b2.start(),
                 b2.length());
         assertEquals(newB,
@@ -76,17 +76,17 @@ public class SubstringFunctionPipeTests
         Pipe newStart = pipe(((Expression) randomValueOtherThan(b.start(), () -> randomIntLiteral())));
         Pipe newLength = pipe(((Expression) randomValueOtherThan(b.length(), () -> randomIntLiteral())));
         SubstringFunctionPipe newB =
-                new SubstringFunctionPipe(b.source(), b.expression(), b.sourcePipe(), b.start(), b.length());
+                new SubstringFunctionPipe(b.source(), b.expression(), b.src(), b.start(), b.length());
         SubstringFunctionPipe transformed = null;
         
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
                 transformed = (SubstringFunctionPipe) newB.replaceChildren(
-                        comb.get(0) ? newSource : b.sourcePipe(),
+                        comb.get(0) ? newSource : b.src(),
                         comb.get(1) ? newStart : b.start(),
                         comb.get(2) ? newLength : b.length());
-                assertEquals(transformed.sourcePipe(), comb.get(0) ? newSource : b.sourcePipe());
+                assertEquals(transformed.src(), comb.get(0) ? newSource : b.src());
                 assertEquals(transformed.start(), comb.get(1) ? newStart : b.start());
                 assertEquals(transformed.length(), comb.get(2) ? newLength : b.length());
                 assertEquals(transformed.expression(), b.expression());
@@ -104,8 +104,8 @@ public class SubstringFunctionPipeTests
                 randoms.add(f -> new SubstringFunctionPipe(
                         f.source(),
                         f.expression(),
-                        comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.sourcePipe(),
-                                () -> randomStringLiteral()))) : f.sourcePipe(),
+                        comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.src(),
+                                () -> randomStringLiteral()))) : f.src(),
                         comb.get(1) ? pipe(((Expression) randomValueOtherThan(f.start(),
                                 () -> randomIntLiteral()))) : f.start(),
                         comb.get(2) ? pipe(((Expression) randomValueOtherThan(f.length(),
@@ -120,7 +120,7 @@ public class SubstringFunctionPipeTests
     protected SubstringFunctionPipe copy(SubstringFunctionPipe instance) {
         return new SubstringFunctionPipe(instance.source(),
                 instance.expression(),
-                instance.sourcePipe(),
+                instance.src(),
                 instance.start(),
                 instance.length());
     }

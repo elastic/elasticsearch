@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class ReferenceInput extends NonExecutableInput<FieldExtraction> {
-    public ReferenceInput(Source location, Expression expression, FieldExtraction context) {
-        super(location, expression, context);
+    public ReferenceInput(Source source, Expression expression, FieldExtraction context) {
+        super(source, expression, context);
     }
 
     @Override

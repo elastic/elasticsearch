@@ -17,8 +17,8 @@ import java.time.ZoneId;
  * Extract the day of the year from a datetime.
  */
 public class DayOfYear extends DateTimeFunction {
-    public DayOfYear(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.DAY_OF_YEAR);
+    public DayOfYear(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.DAY_OF_YEAR);
     }
 
     @Override

@@ -22,8 +22,8 @@ public final class UnaryPipe extends Pipe {
     private final Pipe child;
     private final Processor action;
 
-    public UnaryPipe(Source location, Expression expression, Pipe child, Processor action) {
-        super(location, expression, singletonList(child));
+    public UnaryPipe(Source source, Expression expression, Pipe child, Processor action) {
+        super(source, expression, singletonList(child));
         this.child = child;
         this.action = action;
     }

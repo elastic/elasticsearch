@@ -19,14 +19,14 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
 
     private final String propertyPath;
 
-    AggregateFunctionAttribute(Source location, String name, DataType dataType, ExpressionId id,
+    AggregateFunctionAttribute(Source source, String name, DataType dataType, ExpressionId id,
             String functionId, String propertyPath) {
-        this(location, name, dataType, null, false, id, false, functionId, propertyPath);
+        this(source, name, dataType, null, false, id, false, functionId, propertyPath);
     }
 
-    public AggregateFunctionAttribute(Source location, String name, DataType dataType, String qualifier,
+    public AggregateFunctionAttribute(Source source, String name, DataType dataType, String qualifier,
             boolean nullable, ExpressionId id, boolean synthetic, String functionId, String propertyPath) {
-        super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
+        super(source, name, dataType, qualifier, nullable, id, synthetic, functionId);
         this.propertyPath = propertyPath;
     }
 
@@ -46,10 +46,10 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
     }
 
     @Override
-    protected Attribute clone(Source location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Source source, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
         // that is the functionId is actually derived from the expression id to easily track it across contexts
-        return new AggregateFunctionAttribute(location, name, dataType(), qualifier, nullable, id, synthetic, functionId(), propertyPath);
+        return new AggregateFunctionAttribute(source, name, dataType(), qualifier, nullable, id, synthetic, functionId(), propertyPath);
     }
 
     public AggregateFunctionAttribute withFunctionId(String functionId, String propertyPath) {

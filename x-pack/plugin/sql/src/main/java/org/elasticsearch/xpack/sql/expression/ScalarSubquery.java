@@ -12,12 +12,12 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 public class ScalarSubquery extends SubQueryExpression {
 
-    public ScalarSubquery(Source location, LogicalPlan query) {
-        this(location, query, null);
+    public ScalarSubquery(Source source, LogicalPlan query) {
+        this(source, query, null);
     }
 
-    public ScalarSubquery(Source location, LogicalPlan query, ExpressionId id) {
-        super(location, query, id);
+    public ScalarSubquery(Source source, LogicalPlan query, ExpressionId id) {
+        super(source, query, id);
     }
 
     @Override

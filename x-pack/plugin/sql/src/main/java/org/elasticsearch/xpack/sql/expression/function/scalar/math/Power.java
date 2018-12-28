@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Power extends BinaryNumericFunction {
 
-    public Power(Source location, Expression left, Expression right) {
-        super(location, left, right, BinaryMathOperation.POWER);
+    public Power(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryMathOperation.POWER);
     }
 
     @Override

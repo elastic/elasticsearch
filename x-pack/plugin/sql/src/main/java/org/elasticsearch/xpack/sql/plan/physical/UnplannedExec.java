@@ -17,8 +17,8 @@ public class UnplannedExec extends LeafExec implements Unexecutable {
 
     private final LogicalPlan plan;
 
-    public UnplannedExec(Source location, LogicalPlan plan) {
-        super(location);
+    public UnplannedExec(Source source, LogicalPlan plan) {
+        super(source);
         this.plan = plan;
     }
 

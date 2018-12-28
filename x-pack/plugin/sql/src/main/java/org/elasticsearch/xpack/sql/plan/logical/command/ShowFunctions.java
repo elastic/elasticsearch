@@ -29,8 +29,8 @@ public class ShowFunctions extends Command {
 
     private final LikePattern pattern;
 
-    public ShowFunctions(Source location, LikePattern pattern) {
-        super(location);
+    public ShowFunctions(Source source, LikePattern pattern) {
+        super(source);
         this.pattern = pattern;
     }
 

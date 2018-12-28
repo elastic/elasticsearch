@@ -44,8 +44,8 @@ public class SysColumns extends Command {
     private final LikePattern pattern;
     private final LikePattern columnPattern;
 
-    public SysColumns(Source location, String catalog, String index, LikePattern pattern, LikePattern columnPattern) {
-        super(location);
+    public SysColumns(Source source, String catalog, String index, LikePattern pattern, LikePattern columnPattern) {
+        super(source);
         this.catalog = catalog;
         this.index = index;
         this.pattern = pattern;

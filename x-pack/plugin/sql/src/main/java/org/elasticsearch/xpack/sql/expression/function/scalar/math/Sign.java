@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  * </ul>
  */
 public class Sign extends MathFunction {
-    public Sign(Source location, Expression field) {
-        super(location, field);
+    public Sign(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

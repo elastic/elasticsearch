@@ -31,12 +31,12 @@ public class Literal extends NamedExpression {
     private final Object value;
     private final DataType dataType;
 
-    public Literal(Source location, Object value, DataType dataType) {
-        this(location, null, value, dataType);
+    public Literal(Source source, Object value, DataType dataType) {
+        this(source, null, value, dataType);
     }
 
-    public Literal(Source location, String name, Object value, DataType dataType) {
-        super(location, name == null ? String.valueOf(value) : name, emptyList(), null);
+    public Literal(Source source, String name, Object value, DataType dataType) {
+        super(source, name == null ? String.valueOf(value) : name, emptyList(), null);
         this.dataType = dataType;
         this.value = DataTypeConversion.convert(value, dataType);
     }

@@ -18,8 +18,8 @@ public class BinaryComparisonPipe extends BinaryPipe {
 
     private final BinaryComparisonOperation operation;
 
-    public BinaryComparisonPipe(Source location, Expression expression, Pipe left, Pipe right, BinaryComparisonOperation operation) {
-        super(location, expression, left, right);
+    public BinaryComparisonPipe(Source source, Expression expression, Pipe left, Pipe right, BinaryComparisonOperation operation) {
+        super(source, expression, left, right);
         this.operation = operation;
     }
 

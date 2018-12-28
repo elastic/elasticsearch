@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class Neg extends UnaryScalarFunction {
 
-    public Neg(Source location, Expression field) {
-        super(location, field);
+    public Neg(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

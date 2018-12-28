@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  * function.
  */
 public class Abs extends MathFunction {
-    public Abs(Source location, Expression field) {
-        super(location, field);
+    public Abs(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

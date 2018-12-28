@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.sql.type.DataTypeConversion;
  * function.
  */
 public class Ceil extends MathFunction {
-    public Ceil(Source location, Expression field) {
-        super(location, field);
+    public Ceil(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

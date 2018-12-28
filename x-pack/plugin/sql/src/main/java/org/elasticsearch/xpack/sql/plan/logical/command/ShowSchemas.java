@@ -21,8 +21,8 @@ import static java.util.Collections.singletonList;
 
 public class ShowSchemas extends Command {
 
-    public ShowSchemas(Source location) {
-        super(location);
+    public ShowSchemas(Source source) {
+        super(source);
     }
 
     @Override

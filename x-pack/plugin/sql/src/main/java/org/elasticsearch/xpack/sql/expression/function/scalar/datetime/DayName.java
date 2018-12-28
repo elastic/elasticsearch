@@ -17,8 +17,8 @@ import java.time.ZoneId;
  */
 public class DayName extends NamedDateTimeFunction {
     
-    public DayName(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, NameExtractor.DAY_NAME);
+    public DayName(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, NameExtractor.DAY_NAME);
     }
 
     @Override

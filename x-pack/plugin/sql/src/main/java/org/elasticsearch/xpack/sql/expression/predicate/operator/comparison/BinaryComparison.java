@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 // marker class to indicate operations that rely on values
 public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation> {
 
-    protected BinaryComparison(Source location, Expression left, Expression right, BinaryComparisonOperation operation) {
-        super(location, left, right, operation);
+    protected BinaryComparison(Source source, Expression left, Expression right, BinaryComparisonOperation operation) {
+        super(source, left, right, operation);
     }
 
     @Override

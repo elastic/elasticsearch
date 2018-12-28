@@ -35,17 +35,17 @@ public class QueryStringQueryTests extends ESTestCase {
     }
 
     private static QueryStringQueryBuilder getBuilder(String options) {
-        final Source location = new Source(1, 1, StringUtils.EMPTY);
-        final StringQueryPredicate mmqp = new StringQueryPredicate(location, "eggplant", options);
-        final QueryStringQuery mmq = new QueryStringQuery(location, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
+        final Source source = new Source(1, 1, StringUtils.EMPTY);
+        final StringQueryPredicate mmqp = new StringQueryPredicate(source, "eggplant", options);
+        final QueryStringQuery mmq = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
         return (QueryStringQueryBuilder) mmq.asBuilder();
     }
 
 
     public void testToString() {
-        final Source location = new Source(1, 1, StringUtils.EMPTY);
-        final StringQueryPredicate mmqp = new StringQueryPredicate(location, "eggplant", "");
-        final QueryStringQuery mmq = new QueryStringQuery(location, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
+        final Source source = new Source(1, 1, StringUtils.EMPTY);
+        final StringQueryPredicate mmqp = new StringQueryPredicate(source, "eggplant", "");
+        final QueryStringQuery mmq = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
         assertEquals("QueryStringQuery@1:2[{foo=1.0}:eggplant]", mmq.toString());
     }
 }

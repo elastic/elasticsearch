@@ -25,8 +25,8 @@ public class BoolQuery extends Query {
     private final Query left;
     private final Query right;
 
-    public BoolQuery(Source location, boolean isAnd, Query left, Query right) {
-        super(location);
+    public BoolQuery(Source source, boolean isAnd, Query left, Query right) {
+        super(source);
         if (left == null) {
             throw new IllegalArgumentException("left is required");
         }
@@ -50,7 +50,7 @@ public class BoolQuery extends Query {
         if (rewrittenLeft == left && rewrittenRight == right) {
             return this;
         }
-        return new BoolQuery(location(), isAnd, rewrittenLeft, rewrittenRight);
+        return new BoolQuery(source(), isAnd, rewrittenLeft, rewrittenRight);
     }
 
     @Override

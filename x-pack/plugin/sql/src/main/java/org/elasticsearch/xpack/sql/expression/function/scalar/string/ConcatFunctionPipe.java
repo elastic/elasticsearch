@@ -15,8 +15,8 @@ import java.util.Objects;
 
 public class ConcatFunctionPipe extends BinaryPipe {
 
-    public ConcatFunctionPipe(Source location, Expression expression, Pipe left, Pipe right) {
-        super(location, expression, left, right);
+    public ConcatFunctionPipe(Source source, Expression expression, Pipe left, Pipe right) {
+        super(source, expression, left, right);
     }
 
     @Override

@@ -22,8 +22,8 @@ public class LocalRelation extends LogicalPlan implements Executable {
 
     private final Executable executable;
 
-    public LocalRelation(Source location, Executable executable) {
-        super(location, emptyList());
+    public LocalRelation(Source source, Executable executable) {
+        super(source, emptyList());
         this.executable = executable;
     }
 

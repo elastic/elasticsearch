@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class ACos extends MathFunction {
-    public ACos(Source location, Expression field) {
-        super(location, field);
+    public ACos(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

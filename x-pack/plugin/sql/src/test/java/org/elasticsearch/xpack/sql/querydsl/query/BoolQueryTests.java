@@ -31,15 +31,15 @@ public class BoolQueryTests extends ESTestCase {
     }
 
     private static BoolQuery copy(BoolQuery query) {
-        return new BoolQuery(query.location(), query.isAnd(), query.left(), query.right());
+        return new BoolQuery(query.source(), query.isAnd(), query.left(), query.right());
     }
 
     private static BoolQuery mutate(BoolQuery query) {
         List<Function<BoolQuery, BoolQuery>> options = Arrays.asList(
-            q -> new BoolQuery(SourceTests.mutate(q.location()), q.isAnd(), q.left(), q.right()),
-            q -> new BoolQuery(q.location(), false == q.isAnd(), q.left(), q.right()),
-            q -> new BoolQuery(q.location(), q.isAnd(), randomValueOtherThan(q.left(), () -> NestedQueryTests.randomQuery(5)), q.right()),
-            q -> new BoolQuery(q.location(), q.isAnd(), q.left(), randomValueOtherThan(q.right(), () -> NestedQueryTests.randomQuery(5))));
+            q -> new BoolQuery(SourceTests.mutate(q.source()), q.isAnd(), q.left(), q.right()),
+            q -> new BoolQuery(q.source(), false == q.isAnd(), q.left(), q.right()),
+            q -> new BoolQuery(q.source(), q.isAnd(), randomValueOtherThan(q.left(), () -> NestedQueryTests.randomQuery(5)), q.right()),
+            q -> new BoolQuery(q.source(), q.isAnd(), q.left(), randomValueOtherThan(q.right(), () -> NestedQueryTests.randomQuery(5))));
         return randomFrom(options).apply(query);
     }
 

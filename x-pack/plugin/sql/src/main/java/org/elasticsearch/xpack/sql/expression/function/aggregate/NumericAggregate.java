@@ -15,12 +15,12 @@ import java.util.List;
 
 abstract class NumericAggregate extends AggregateFunction {
 
-    NumericAggregate(Source location, Expression field, List<Expression> parameters) {
-        super(location, field, parameters);
+    NumericAggregate(Source source, Expression field, List<Expression> parameters) {
+        super(source, field, parameters);
     }
 
-    NumericAggregate(Source location, Expression field) {
-        super(location, field);
+    NumericAggregate(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

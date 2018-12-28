@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class VarPop extends NumericAggregate implements ExtendedStatsEnclosed {
 
-    public VarPop(Source location, Expression field) {
-        super(location, field);
+    public VarPop(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

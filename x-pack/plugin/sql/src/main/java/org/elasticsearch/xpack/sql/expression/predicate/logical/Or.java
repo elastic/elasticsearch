@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Or extends BinaryLogic implements Negatable<BinaryLogic> {
 
-    public Or(Source location, Expression left, Expression right) {
-        super(location, left, right, BinaryLogicOperation.OR);
+    public Or(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryLogicOperation.OR);
     }
 
     @Override

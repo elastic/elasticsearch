@@ -28,8 +28,8 @@ public abstract class ArbitraryConditionalFunction extends ConditionalFunction {
 
     private final ConditionalOperation operation;
 
-    ArbitraryConditionalFunction(Source location, List<Expression> fields, ConditionalOperation operation) {
-        super(location, fields);
+    ArbitraryConditionalFunction(Source source, List<Expression> fields, ConditionalOperation operation) {
+        super(source, fields);
         this.operation = operation;
     }
 

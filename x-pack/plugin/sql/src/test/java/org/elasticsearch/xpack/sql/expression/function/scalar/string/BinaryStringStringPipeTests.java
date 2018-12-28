@@ -46,7 +46,7 @@ public class BinaryStringStringPipeTests
 
     @Override
     public void testTransform() {
-        // test transforming only the properties (location, expression),
+        // test transforming only the properties (source, expression),
         // skipping the children (the two parameters of the binary function) which are tested separately
         BinaryStringStringPipe b1 = randomInstance();
         Expression newExpression = randomValueOtherThan(b1.expression(), () -> randomBinaryStringStringExpression());

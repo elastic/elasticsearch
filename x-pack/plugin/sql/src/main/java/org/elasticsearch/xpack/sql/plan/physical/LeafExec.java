@@ -11,8 +11,8 @@ import java.util.List;
 import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class LeafExec extends PhysicalPlan {
-    LeafExec(Source location) {
-        super(location, Collections.emptyList());
+    LeafExec(Source source) {
+        super(source, Collections.emptyList());
     }
 
     @Override

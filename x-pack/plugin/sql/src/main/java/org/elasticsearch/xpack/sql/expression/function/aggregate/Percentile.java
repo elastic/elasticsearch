@@ -21,8 +21,8 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
 
     private final Expression percent;
 
-    public Percentile(Source location, Expression field, Expression percent) {
-        super(location, field, singletonList(percent));
+    public Percentile(Source source, Expression field, Expression percent) {
+        super(source, field, singletonList(percent));
         this.percent = percent;
     }
 

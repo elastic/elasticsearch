@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.tree.Source;
  */
 public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U, R>> extends BinaryPredicate<T, U, R, F> {
 
-    protected BinaryOperator(Source location, Expression left, Expression right, F function) {
-        super(location, left, right, function);
+    protected BinaryOperator(Source source, Expression left, Expression right, F function) {
+        super(source, left, right, function);
     }
 
     protected abstract TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal);

@@ -118,8 +118,8 @@ public class OptimizerTests extends ESTestCase {
 
         private final int id;
 
-        public DummyBooleanExpression(Source location, int id) {
-            super(location, Collections.emptyList());
+        public DummyBooleanExpression(Source source, int id) {
+            super(source, Collections.emptyList());
             this.id = id;
         }
 
@@ -554,18 +554,18 @@ public class OptimizerTests extends ESTestCase {
         BooleanLiteralsOnTheRight swapLiteralsToRight = new BooleanLiteralsOnTheRight();
         BinaryComparisonSimplification bcSimpl = new BinaryComparisonSimplification();
         FieldAttribute fa = getFieldAttribute();
-        Source loc = new Source(1, 10, StringUtils.EMPTY);
+        Source source = new Source(1, 10, StringUtils.EMPTY);
 
-        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(loc, fa, NULL)));
+        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, fa, NULL)));
         assertEquals(IsNull.class, e.getClass());
         IsNull isNull = (IsNull) e;
-        assertEquals(loc, isNull.source());
+        assertEquals(source, isNull.source());
         assertEquals("IS_NULL(a)", isNull.name());
 
-        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(loc, NULL, fa)));
+        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, NULL, fa)));
         assertEquals(IsNull.class, e.getClass());
         isNull = (IsNull) e;
-        assertEquals(loc, isNull.source());
+        assertEquals(source, isNull.source());
         assertEquals("IS_NULL(a)", isNull.name());
     }
 

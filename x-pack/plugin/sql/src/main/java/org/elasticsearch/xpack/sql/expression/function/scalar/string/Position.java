@@ -19,8 +19,8 @@ import java.util.function.BiFunction;
  */
 public class Position extends BinaryStringStringFunction {
 
-    public Position(Source location, Expression left, Expression right) {
-        super(location, left, right);
+    public Position(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     @Override

@@ -14,8 +14,8 @@ public class ExistsQuery extends LeafQuery {
 
     private final String name;
 
-    public ExistsQuery(Source location, String name) {
-        super(location);
+    public ExistsQuery(Source source, String name) {
+        super(source);
         this.name = name;
     }
 

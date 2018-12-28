@@ -32,8 +32,8 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
     private Boolean lazyChildrenResolved = null;
     private Boolean lazyResolved = null;
 
-    public LogicalPlan(Source location, List<LogicalPlan> children) {
-        super(location, children);
+    public LogicalPlan(Source source, List<LogicalPlan> children) {
+        super(source, children);
     }
 
     public boolean preAnalyzed() {

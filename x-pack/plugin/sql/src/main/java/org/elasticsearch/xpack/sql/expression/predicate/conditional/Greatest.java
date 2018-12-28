@@ -19,8 +19,8 @@ import static org.elasticsearch.xpack.sql.expression.predicate.conditional.Condi
 
 public class Greatest extends ArbitraryConditionalFunction {
 
-    public Greatest(Source location, List<Expression> fields) {
-        super(location, new ArrayList<>(new LinkedHashSet<>(fields)), GREATEST);
+    public Greatest(Source source, List<Expression> fields) {
+        super(source, new ArrayList<>(new LinkedHashSet<>(fields)), GREATEST);
     }
 
     @Override

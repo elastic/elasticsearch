@@ -19,8 +19,8 @@ import java.util.List;
  */
 public class Min extends NumericAggregate implements EnclosedAgg {
 
-    public Min(Source location, Expression field) {
-        super(location, field);
+    public Min(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

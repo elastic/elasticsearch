@@ -65,8 +65,8 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     private Boolean lazyChildrenResolved = null;
     private Expression lazyCanonical = null;
 
-    public Expression(Source location, List<Expression> children) {
-        super(location, children);
+    public Expression(Source source, List<Expression> children) {
+        super(source, children);
     }
 
     // whether the expression can be evaluated statically (folded) or not

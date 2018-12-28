@@ -19,8 +19,8 @@ public class MatchQueryPredicate extends FullTextPredicate {
 
     private final Expression field;
 
-    public MatchQueryPredicate(Source location, Expression field, String query, String options) {
-        super(location, query, options, singletonList(field));
+    public MatchQueryPredicate(Source source, Expression field, String query, String options) {
+        super(source, query, options, singletonList(field));
         this.field = field;
     }
 

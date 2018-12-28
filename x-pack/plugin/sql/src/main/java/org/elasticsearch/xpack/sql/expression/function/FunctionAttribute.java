@@ -16,9 +16,9 @@ public abstract class FunctionAttribute extends TypedAttribute {
 
     private final String functionId;
 
-    protected FunctionAttribute(Source location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id,
+    protected FunctionAttribute(Source source, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id,
             boolean synthetic, String functionId) {
-        super(location, name, dataType, qualifier, nullable, id, synthetic);
+        super(source, name, dataType, qualifier, nullable, id, synthetic);
         this.functionId = functionId;
     }
 

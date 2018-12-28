@@ -20,12 +20,12 @@ public class FilterExec extends UnaryExec implements Unexecutable {
     // gets setup automatically and then copied over during cloning
     private final boolean isHaving;
 
-    public FilterExec(Source location, PhysicalPlan child, Expression condition) {
-        this(location, child, condition, child instanceof AggregateExec);
+    public FilterExec(Source source, PhysicalPlan child, Expression condition) {
+        this(source, child, condition, child instanceof AggregateExec);
     }
 
-    public FilterExec(Source location, PhysicalPlan child, Expression condition, boolean isHaving) {
-        super(location, child);
+    public FilterExec(Source source, PhysicalPlan child, Expression condition, boolean isHaving) {
+        super(source, child);
         this.condition = condition;
         this.isHaving = isHaving;
     }

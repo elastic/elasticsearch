@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class LessThanOrEqual extends BinaryComparison implements Negatable<BinaryComparison> {
 
-    public LessThanOrEqual(Source location, Expression left, Expression right) {
-        super(location, left, right, BinaryComparisonOperation.LTE);
+    public LessThanOrEqual(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryComparisonOperation.LTE);
     }
 
     @Override

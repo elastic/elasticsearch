@@ -16,8 +16,8 @@ import java.time.ZoneId;
  * Exract the minute of the hour from a datetime.
  */
 public class MinuteOfHour extends DateTimeFunction {
-    public MinuteOfHour(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.MINUTE_OF_HOUR);
+    public MinuteOfHour(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.MINUTE_OF_HOUR);
     }
 
     @Override

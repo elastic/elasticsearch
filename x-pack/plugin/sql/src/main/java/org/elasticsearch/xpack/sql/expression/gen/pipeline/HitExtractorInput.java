@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class HitExtractorInput extends LeafInput<HitExtractor> {
 
-    public HitExtractorInput(Source location, Expression expression, HitExtractor context) {
-        super(location, expression, context);
+    public HitExtractorInput(Source source, Expression expression, HitExtractor context) {
+        super(source, expression, context);
     }
 
     @Override

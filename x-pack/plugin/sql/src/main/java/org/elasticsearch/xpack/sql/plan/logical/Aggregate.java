@@ -21,8 +21,8 @@ public class Aggregate extends UnaryPlan {
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
 
-    public Aggregate(Source location, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
-        super(location, child);
+    public Aggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
+        super(source, child);
         this.groupings = groupings;
         this.aggregates = aggregates;
     }

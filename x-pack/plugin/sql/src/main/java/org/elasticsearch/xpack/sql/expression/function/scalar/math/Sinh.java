@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class Sinh extends MathFunction {
-    public Sinh(Source location, Expression field) {
-        super(location, field);
+    public Sinh(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

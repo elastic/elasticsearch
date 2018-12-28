@@ -17,8 +17,8 @@ public abstract class BinaryPipe extends Pipe {
 
     private final Pipe left, right;
 
-    public BinaryPipe(Source location, Expression expression, Pipe left, Pipe right) {
-        super(location, expression, Arrays.asList(left, right));
+    public BinaryPipe(Source source, Expression expression, Pipe left, Pipe right) {
+        super(source, expression, Arrays.asList(left, right));
         this.left = left;
         this.right = right;
     }

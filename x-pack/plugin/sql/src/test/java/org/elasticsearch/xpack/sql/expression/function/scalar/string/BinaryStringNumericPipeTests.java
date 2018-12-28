@@ -50,7 +50,7 @@ public class BinaryStringNumericPipeTests
 
     @Override
     public void testTransform() {
-        // test transforming only the properties (location, expression, operation),
+        // test transforming only the properties (source, expression, operation),
         // skipping the children (the two parameters of the binary function) which are tested separately
         BinaryStringNumericPipe b1 = randomInstance();
         

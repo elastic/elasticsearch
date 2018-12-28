@@ -10,8 +10,8 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class AggNameInput extends CommonNonExecutableInput<String> {
-    public AggNameInput(Source location, Expression expression, String context) {
-        super(location, expression, context);
+    public AggNameInput(Source source, Expression expression, String context) {
+        super(source, expression, context);
     }
 
     @Override

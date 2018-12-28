@@ -25,8 +25,8 @@ public class ShowTables extends Command {
     private final String index;
     private final LikePattern pattern;
 
-    public ShowTables(Source location, String index, LikePattern pattern) {
-        super(location);
+    public ShowTables(Source source, String index, LikePattern pattern) {
+        super(source);
         this.index = index;
         this.pattern = pattern;
     }

@@ -21,12 +21,12 @@ import static java.lang.String.format;
 
 public abstract class MathFunction extends UnaryScalarFunction {
 
-    protected MathFunction(Source location) {
-        super(location);
+    protected MathFunction(Source source) {
+        super(source);
     }
 
-    protected MathFunction(Source location, Expression field) {
-        super(location, field);
+    protected MathFunction(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

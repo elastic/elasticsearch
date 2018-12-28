@@ -21,8 +21,8 @@ public class Mul extends ArithmeticOperation {
 
     private DataType dataType;
 
-    public Mul(Source location, Expression left, Expression right) {
-        super(location, left, right, BinaryArithmeticOperation.MUL);
+    public Mul(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryArithmeticOperation.MUL);
     }
 
     @Override

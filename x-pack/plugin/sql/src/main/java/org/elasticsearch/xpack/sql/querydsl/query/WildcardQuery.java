@@ -16,8 +16,8 @@ public class WildcardQuery extends LeafQuery {
 
     private final String field, query;
 
-    public WildcardQuery(Source location, String field, String query) {
-        super(location);
+    public WildcardQuery(Source source, String field, String query) {
+        super(source);
         this.field = field;
         this.query = query;
     }

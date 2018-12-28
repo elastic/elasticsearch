@@ -25,8 +25,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
 
-    protected BinaryStringFunction(Source location, Expression left, Expression right) {
-        super(location, left, right);
+    protected BinaryStringFunction(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     /*

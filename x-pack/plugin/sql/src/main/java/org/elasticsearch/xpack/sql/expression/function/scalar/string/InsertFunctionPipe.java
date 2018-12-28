@@ -19,11 +19,11 @@ public class InsertFunctionPipe extends Pipe {
 
     private final Pipe source, start, length, replacement;
 
-    public InsertFunctionPipe(Source location, Expression expression,
-            Pipe source, Pipe start,
+    public InsertFunctionPipe(Source source, Expression expression,
+            Pipe src, Pipe start,
             Pipe length, Pipe replacement) {
-        super(location, expression, Arrays.asList(source, start, length, replacement));
-        this.source = source;
+        super(source, expression, Arrays.asList(src, start, length, replacement));
+        this.source = src;
         this.start = start;
         this.length = length;
         this.replacement = replacement;
@@ -90,7 +90,7 @@ public class InsertFunctionPipe extends Pipe {
         return new InsertFunctionProcessor(source.asProcessor(), start.asProcessor(), length.asProcessor(), replacement.asProcessor());
     }
     
-    public Pipe sourcePipe() {
+    public Pipe src() {
         return source;
     }
     

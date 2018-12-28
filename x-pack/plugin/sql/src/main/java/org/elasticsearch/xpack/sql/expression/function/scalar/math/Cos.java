@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class Cos extends MathFunction {
-    public Cos(Source location, Expression field) {
-        super(location, field);
+    public Cos(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

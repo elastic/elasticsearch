@@ -21,8 +21,8 @@ public abstract class ConfigurationFunction extends ScalarFunction {
     private final Configuration configuration;
     private final DataType dataType;
 
-    protected ConfigurationFunction(Source location, Configuration configuration, DataType dataType) {
-        super(location);
+    protected ConfigurationFunction(Source source, Configuration configuration, DataType dataType) {
+        super(source);
         this.configuration = configuration;
         this.dataType = dataType;
     }

@@ -10,8 +10,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Distinct extends UnaryPlan {
 
-    public Distinct(Source location, LogicalPlan child) {
-        super(location, child);
+    public Distinct(Source source, LogicalPlan child) {
+        super(source, child);
     }
 
     @Override

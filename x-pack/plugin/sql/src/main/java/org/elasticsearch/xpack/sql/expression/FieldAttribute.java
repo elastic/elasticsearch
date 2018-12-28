@@ -29,17 +29,17 @@ public class FieldAttribute extends TypedAttribute {
     private final String path;
     private final EsField field;
 
-    public FieldAttribute(Source location, String name, EsField field) {
-        this(location, null, name, field);
+    public FieldAttribute(Source source, String name, EsField field) {
+        this(source, null, name, field);
     }
 
-    public FieldAttribute(Source location, FieldAttribute parent, String name, EsField field) {
-        this(location, parent, name, field, null, true, null, false);
+    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field) {
+        this(source, parent, name, field, null, true, null, false);
     }
 
-    public FieldAttribute(Source location, FieldAttribute parent, String name, EsField field, String qualifier,
+    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field, String qualifier,
                           boolean nullable, ExpressionId id, boolean synthetic) {
-        super(location, name, field.getDataType(), qualifier, nullable, id, synthetic);
+        super(source, name, field.getDataType(), qualifier, nullable, id, synthetic);
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
@@ -102,9 +102,9 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    protected Attribute clone(Source location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Source source, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(location, qualifiedParent, name, field, qualifier, nullable, id, synthetic);
+        return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullable, id, synthetic);
     }
 
     @Override

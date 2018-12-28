@@ -28,8 +28,8 @@ public class Order extends Expression {
     private final OrderDirection direction;
     private final NullsPosition nulls;
 
-    public Order(Source location, Expression child, OrderDirection direction, NullsPosition nulls) {
-        super(location, singletonList(child));
+    public Order(Source source, Expression child, OrderDirection direction, NullsPosition nulls) {
+        super(source, singletonList(child));
         this.child = child;
         this.direction = direction;
         this.nulls = nulls == null ? (direction == OrderDirection.DESC ? NullsPosition.FIRST : NullsPosition.LAST) : nulls;

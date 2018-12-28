@@ -18,8 +18,8 @@ public abstract class ArithmeticOperation extends BinaryOperator<Object, Object,
 
     private DataType dataType;
 
-    protected ArithmeticOperation(Source location, Expression left, Expression right, BinaryArithmeticOperation operation) {
-        super(location, left, right, operation);
+    protected ArithmeticOperation(Source source, Expression left, Expression right, BinaryArithmeticOperation operation) {
+        super(source, left, right, operation);
     }
     
     @Override

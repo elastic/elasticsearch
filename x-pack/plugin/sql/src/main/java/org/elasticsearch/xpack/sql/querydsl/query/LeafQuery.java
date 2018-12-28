@@ -9,8 +9,8 @@ import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class LeafQuery extends Query {
-    LeafQuery(Source location) {
-        super(location);
+    LeafQuery(Source source) {
+        super(source);
     }
 
     @Override

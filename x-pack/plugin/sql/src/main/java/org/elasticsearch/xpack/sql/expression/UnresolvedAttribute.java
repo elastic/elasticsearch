@@ -25,21 +25,21 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final boolean customMessage;
     private final Object resolutionMetadata;
 
-    public UnresolvedAttribute(Source location, String name) {
-        this(location, name, null);
+    public UnresolvedAttribute(Source source, String name) {
+        this(source, name, null);
     }
 
-    public UnresolvedAttribute(Source location, String name, String qualifier) {
-        this(location, name, qualifier, null);
+    public UnresolvedAttribute(Source source, String name, String qualifier) {
+        this(source, name, qualifier, null);
     }
 
-    public UnresolvedAttribute(Source location, String name, String qualifier, String unresolvedMessage) {
-        this(location, name, qualifier, null, unresolvedMessage, null);
+    public UnresolvedAttribute(Source source, String name, String qualifier, String unresolvedMessage) {
+        this(source, name, qualifier, null, unresolvedMessage, null);
     }
 
-    public UnresolvedAttribute(Source location, String name, String qualifier, ExpressionId id, String unresolvedMessage,
+    public UnresolvedAttribute(Source source, String name, String qualifier, ExpressionId id, String unresolvedMessage,
             Object resolutionMetadata) {
-        super(location, name, qualifier, id);
+        super(source, name, qualifier, id);
         this.customMessage = unresolvedMessage != null;
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
@@ -65,7 +65,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(Source location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Source source, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         return this;
     }
 

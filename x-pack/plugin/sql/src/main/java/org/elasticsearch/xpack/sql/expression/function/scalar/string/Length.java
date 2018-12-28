@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class Length extends UnaryStringFunction {
 
-    public Length(Source location, Expression field) {
-        super(location, field);
+    public Length(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

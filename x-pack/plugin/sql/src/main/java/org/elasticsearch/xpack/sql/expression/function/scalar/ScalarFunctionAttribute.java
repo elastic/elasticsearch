@@ -23,15 +23,15 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
     private final Expression orderBy;
     private final Pipe pipe;
 
-    ScalarFunctionAttribute(Source location, String name, DataType dataType, ExpressionId id,
+    ScalarFunctionAttribute(Source source, String name, DataType dataType, ExpressionId id,
             String functionId, ScriptTemplate script, Expression orderBy, Pipe processorDef) {
-        this(location, name, dataType, null, true, id, false, functionId, script, orderBy, processorDef);
+        this(source, name, dataType, null, true, id, false, functionId, script, orderBy, processorDef);
     }
 
-    public ScalarFunctionAttribute(Source location, String name, DataType dataType, String qualifier,
+    public ScalarFunctionAttribute(Source source, String name, DataType dataType, String qualifier,
             boolean nullable, ExpressionId id, boolean synthetic, String functionId, ScriptTemplate script,
             Expression orderBy, Pipe pipe) {
-        super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
+        super(source, name, dataType, qualifier, nullable, id, synthetic, functionId);
 
         this.script = script;
         this.orderBy = orderBy;
@@ -65,8 +65,8 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
     }
 
     @Override
-    protected Attribute clone(Source location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
-        return new ScalarFunctionAttribute(location, name, dataType(), qualifier, nullable, id, synthetic,
+    protected Attribute clone(Source source, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+        return new ScalarFunctionAttribute(source, name, dataType(), qualifier, nullable, id, synthetic,
                 functionId(), script, orderBy, pipe);
     }
 

@@ -17,12 +17,12 @@ public abstract class SubQueryExpression extends Expression {
     private final LogicalPlan query;
     private final ExpressionId id;
 
-    public SubQueryExpression(Source location, LogicalPlan query) {
-        this(location, query, null);
+    public SubQueryExpression(Source source, LogicalPlan query) {
+        this(source, query, null);
     }
 
-    public SubQueryExpression(Source location, LogicalPlan query, ExpressionId id) {
-        super(location, Collections.emptyList());
+    public SubQueryExpression(Source source, LogicalPlan query, ExpressionId id) {
+        super(source, Collections.emptyList());
         this.query = query;
         this.id = id == null ? new ExpressionId() : id;
     }

@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class OctetLength extends UnaryStringFunction {
 
-    public OctetLength(Source location, Expression field) {
-        super(location, field);
+    public OctetLength(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

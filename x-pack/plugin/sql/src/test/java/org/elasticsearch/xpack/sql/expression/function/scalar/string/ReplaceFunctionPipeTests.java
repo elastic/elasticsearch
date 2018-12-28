@@ -43,7 +43,7 @@ public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFuncti
 
     @Override
     public void testTransform() {
-        // test transforming only the properties (location, expression),
+        // test transforming only the properties (source, expression),
         // skipping the children (the two parameters of the binary function) which are tested separately
         ReplaceFunctionPipe b1 = randomInstance();
         
@@ -51,7 +51,7 @@ public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFuncti
         ReplaceFunctionPipe newB = new ReplaceFunctionPipe(
                 b1.source(),
                 newExpression,
-                b1.sourcePipe(),
+                b1.src(),
                 b1.pattern(),
                 b1.replacement());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
@@ -61,7 +61,7 @@ public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFuncti
         newB = new ReplaceFunctionPipe(
                 newLoc,
                 b2.expression(),
-                b2.sourcePipe(),
+                b2.src(),
                 b2.pattern(),
                 b2.replacement());
         assertEquals(newB,
@@ -75,18 +75,18 @@ public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFuncti
         Pipe newPattern = pipe(((Expression) randomValueOtherThan(b.pattern(), () -> randomStringLiteral())));
         Pipe newR = pipe(((Expression) randomValueOtherThan(b.replacement(), () -> randomStringLiteral())));
         ReplaceFunctionPipe newB =
-                new ReplaceFunctionPipe(b.source(), b.expression(), b.sourcePipe(), b.pattern(), b.replacement());
+                new ReplaceFunctionPipe(b.source(), b.expression(), b.src(), b.pattern(), b.replacement());
         ReplaceFunctionPipe transformed = null;
         
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
                 transformed = (ReplaceFunctionPipe) newB.replaceChildren(
-                        comb.get(0) ? newSource : b.sourcePipe(),
+                        comb.get(0) ? newSource : b.src(),
                         comb.get(1) ? newPattern : b.pattern(),
                         comb.get(2) ? newR : b.replacement());
                 
-                assertEquals(transformed.sourcePipe(), comb.get(0) ? newSource : b.sourcePipe());
+                assertEquals(transformed.src(), comb.get(0) ? newSource : b.src());
                 assertEquals(transformed.pattern(), comb.get(1) ? newPattern : b.pattern());
                 assertEquals(transformed.replacement(), comb.get(2) ? newR : b.replacement());
                 assertEquals(transformed.expression(), b.expression());
@@ -103,8 +103,8 @@ public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFuncti
             for(BitSet comb : new Combinations(3, i)) {
                 randoms.add(f -> new ReplaceFunctionPipe(f.source(),
                         f.expression(),
-                        comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.sourcePipe(),
-                                () -> randomStringLiteral()))) : f.sourcePipe(),
+                        comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.src(),
+                                () -> randomStringLiteral()))) : f.src(),
                         comb.get(1) ? pipe(((Expression) randomValueOtherThan(f.pattern(),
                                 () -> randomStringLiteral()))) : f.pattern(),
                         comb.get(2) ? pipe(((Expression) randomValueOtherThan(f.replacement(),
@@ -119,7 +119,7 @@ public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFuncti
     protected ReplaceFunctionPipe copy(ReplaceFunctionPipe instance) {
         return new ReplaceFunctionPipe(instance.source(),
                 instance.expression(),
-                instance.sourcePipe(),
+                instance.src(),
                 instance.pattern(),
                 instance.replacement());
     }

@@ -40,12 +40,12 @@ public class NestedQuery extends Query {
     private final Map<String, Map.Entry<Boolean, String>> fields; // field -> (useDocValues, format)
     private final Query child;
 
-    public NestedQuery(Source location, String path, Query child) {
-        this(location, path, emptyMap(), child);
+    public NestedQuery(Source source, String path, Query child) {
+        this(source, path, emptyMap(), child);
     }
 
-    public NestedQuery(Source location, String path, Map<String, Map.Entry<Boolean, String>> fields, Query child) {
-        super(location);
+    public NestedQuery(Source source, String path, Map<String, Map.Entry<Boolean, String>> fields, Query child) {
+        super(source);
         if (path == null) {
             throw new IllegalArgumentException("path is required");
         }
@@ -75,7 +75,7 @@ public class NestedQuery extends Query {
             if (rewrittenChild == child) {
                 return this;
             }
-            return new NestedQuery(location(), path, fields, rewrittenChild);
+            return new NestedQuery(source(), path, fields, rewrittenChild);
         }
         if (fields.containsKey(field)) {
             // I already have the field, no rewriting needed
@@ -84,7 +84,7 @@ public class NestedQuery extends Query {
         Map<String, Map.Entry<Boolean, String>> newFields = new HashMap<>(fields.size() + 1);
         newFields.putAll(fields);
         newFields.put(field, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format));
-        return new NestedQuery(location(), path, unmodifiableMap(newFields), child);
+        return new NestedQuery(source(), path, unmodifiableMap(newFields), child);
     }
 
     @Override

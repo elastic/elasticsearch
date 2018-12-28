@@ -16,8 +16,8 @@ public class RegexQuery extends LeafQuery {
 
     private final String field, regex;
 
-    public RegexQuery(Source location, String field, String regex) {
-        super(location);
+    public RegexQuery(Source source, String field, String regex) {
+        super(source);
         this.field = field;
         this.regex = regex;
     }

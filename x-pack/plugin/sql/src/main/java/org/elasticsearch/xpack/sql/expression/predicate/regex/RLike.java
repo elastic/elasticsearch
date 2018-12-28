@@ -13,8 +13,8 @@ public class RLike extends RegexMatch {
 
     private final String pattern;
 
-    public RLike(Source location, Expression left, String pattern) {
-        super(location, left, pattern);
+    public RLike(Source source, Expression left, String pattern) {
+        super(source, left, pattern);
         this.pattern = pattern;
     }
 

@@ -32,8 +32,8 @@ public abstract class Pipe extends Node<Pipe> implements FieldExtraction, Resolv
 
     private final Expression expression;
 
-    public Pipe(Source location, Expression expression, List<Pipe> children) {
-        super(location, children);
+    public Pipe(Source source, Expression expression, List<Pipe> children) {
+        super(source, children);
         this.expression = expression;
     }
 

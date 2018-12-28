@@ -20,8 +20,8 @@ import static java.util.Collections.emptyMap;
 
 public abstract class Command extends LogicalPlan implements Executable {
 
-    protected Command(Source location) {
-        super(location, emptyList());
+    protected Command(Source source) {
+        super(source, emptyList());
     }
 
     @Override

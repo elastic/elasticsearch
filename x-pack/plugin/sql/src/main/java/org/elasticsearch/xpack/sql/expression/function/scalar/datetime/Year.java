@@ -20,8 +20,8 @@ public class Year extends DateTimeHistogramFunction {
 
     private static long YEAR_IN_MILLIS = TimeUnit.DAYS.toMillis(1) * 365L;
 
-    public Year(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.YEAR);
+    public Year(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.YEAR);
     }
 
     @Override

@@ -21,13 +21,13 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
 
     private final Expression field;
 
-    protected UnaryScalarFunction(Source location) {
-        super(location);
+    protected UnaryScalarFunction(Source source) {
+        super(source);
         this.field = null;
     }
 
-    protected UnaryScalarFunction(Source location, Expression field) {
-        super(location, singletonList(field));
+    protected UnaryScalarFunction(Source source, Expression field) {
+        super(source, singletonList(field));
         this.field = field;
     }
 

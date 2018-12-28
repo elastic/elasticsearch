@@ -39,9 +39,9 @@ public class SysTables extends Command {
     // flag indicating whether tables are reported as `TABLE` or `BASE TABLE`
     private final boolean legacyTableTypes;
 
-    public SysTables(Source location, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types,
+    public SysTables(Source source, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types,
             boolean legacyTableTypes) {
-        super(location);
+        super(source);
         this.clusterPattern = clusterPattern;
         this.index = index;
         this.pattern = pattern;

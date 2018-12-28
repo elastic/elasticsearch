@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class BitLength extends UnaryStringFunction {
 
-    public BitLength(Source location, Expression field) {
-        super(location, field);
+    public BitLength(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

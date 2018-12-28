@@ -28,8 +28,8 @@ abstract class NonIsoDateTimeFunction extends BaseDateTimeFunction {
 
     private final NonIsoDateTimeExtractor extractor;
 
-    NonIsoDateTimeFunction(Source location, Expression field, ZoneId zoneId, NonIsoDateTimeExtractor extractor) {
-        super(location, field, zoneId);
+    NonIsoDateTimeFunction(Source source, Expression field, ZoneId zoneId, NonIsoDateTimeExtractor extractor) {
+        super(source, field, zoneId);
         this.extractor = extractor;
     }
 

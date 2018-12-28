@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class StddevPop extends NumericAggregate implements ExtendedStatsEnclosed {
 
-    public StddevPop(Source location, Expression field) {
-        super(location, field);
+    public StddevPop(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

@@ -24,8 +24,8 @@ import static java.util.Collections.singletonList;
  */
 public class SysCatalogs extends Command {
 
-    public SysCatalogs(Source location) {
-        super(location);
+    public SysCatalogs(Source source) {
+        super(source);
     }
 
     @Override

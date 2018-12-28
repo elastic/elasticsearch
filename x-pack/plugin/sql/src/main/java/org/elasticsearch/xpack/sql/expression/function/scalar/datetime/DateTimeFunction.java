@@ -23,8 +23,8 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
 
     private final DateTimeExtractor extractor;
 
-    DateTimeFunction(Source location, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
-        super(location, field, zoneId);
+    DateTimeFunction(Source source, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
+        super(source, field, zoneId);
         this.extractor = extractor;
     }
 

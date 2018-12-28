@@ -49,8 +49,8 @@ public class MultiMatchQuery extends LeafQuery {
     private final Map<String, String> options;
     private final MultiMatchQueryPredicate predicate;
 
-    public MultiMatchQuery(Source location, String query, Map<String, Float> fields, MultiMatchQueryPredicate predicate) {
-        super(location);
+    public MultiMatchQuery(Source source, String query, Map<String, Float> fields, MultiMatchQueryPredicate predicate) {
+        super(source);
         this.query = query;
         this.fields = fields;
         this.predicate = predicate;

@@ -25,8 +25,8 @@ public class InnerAggregate extends AggregateFunction {
         this(inner.source(), inner, outer, null);
     }
 
-    public InnerAggregate(Source location, AggregateFunction inner, CompoundNumericAggregate outer, Expression innerKey) {
-        super(location, outer.field(), outer.arguments());
+    public InnerAggregate(Source source, AggregateFunction inner, CompoundNumericAggregate outer, Expression innerKey) {
+        super(source, outer.field(), outer.arguments());
         this.inner = inner;
         this.outer = outer;
         this.innerId = ((EnclosedAgg) inner).innerName();

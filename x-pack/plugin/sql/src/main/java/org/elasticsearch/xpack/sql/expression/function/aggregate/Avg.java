@@ -17,8 +17,8 @@ import java.util.List;
  */
 public class Avg extends NumericAggregate implements EnclosedAgg {
 
-    public Avg(Source location, Expression field) {
-        super(location, field);
+    public Avg(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

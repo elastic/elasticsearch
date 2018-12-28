@@ -31,8 +31,8 @@ public class In extends ScalarFunction {
     private final Expression value;
     private final List<Expression> list;
 
-    public In(Source location, Expression value, List<Expression> list) {
-        super(location, CollectionUtils.combine(list, value));
+    public In(Source source, Expression value, List<Expression> list) {
+        super(source, CollectionUtils.combine(list, value));
         this.value = value;
         this.list = new ArrayList<>(new LinkedHashSet<>(list));
     }

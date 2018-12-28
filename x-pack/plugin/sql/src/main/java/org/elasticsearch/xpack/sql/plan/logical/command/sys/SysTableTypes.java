@@ -27,8 +27,8 @@ import static java.util.stream.Collectors.toList;
  */
 public class SysTableTypes extends Command {
 
-    public SysTableTypes(Source location) {
-        super(location);
+    public SysTableTypes(Source source) {
+        super(source);
     }
 
     @Override

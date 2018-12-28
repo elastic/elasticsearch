@@ -11,8 +11,8 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.tree.Source;
 
 public abstract class NonExecutableInput<T> extends LeafInput<T> {
-    NonExecutableInput(Source location, Expression expression, T context) {
-        super(location, expression, context);
+    NonExecutableInput(Source source, Expression expression, T context) {
+        super(source, expression, context);
     }
 
     @Override

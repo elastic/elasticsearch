@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  */
 public class Repeat extends BinaryStringNumericFunction {
 
-    public Repeat(Source location, Expression left, Expression right) {
-        super(location, left, right);
+    public Repeat(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     @Override

@@ -24,8 +24,8 @@ import static java.util.Collections.emptyList;
  * with other function.
  */
 public class Score extends Function {
-    public Score(Source location) {
-        super(location, emptyList());
+    public Score(Source source) {
+        super(source, emptyList());
     }
 
     @Override

@@ -16,8 +16,8 @@ abstract class UnaryExec extends PhysicalPlan {
 
     private final PhysicalPlan child;
 
-    UnaryExec(Source location, PhysicalPlan child) {
-        super(location, Collections.singletonList(child));
+    UnaryExec(Source source, PhysicalPlan child) {
+        super(source, Collections.singletonList(child));
         this.child = child;
     }
 

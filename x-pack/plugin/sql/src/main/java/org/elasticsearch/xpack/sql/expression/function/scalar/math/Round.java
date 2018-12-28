@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class Round extends BinaryNumericFunction {
     
-    public Round(Source location, Expression left, Expression right) {
-        super(location, left, right == null ? Literal.of(left.source(), 0) : right, BinaryMathOperation.ROUND);
+    public Round(Source source, Expression left, Expression right) {
+        super(source, left, right == null ? Literal.of(left.source(), 0) : right, BinaryMathOperation.ROUND);
     }
 
     @Override

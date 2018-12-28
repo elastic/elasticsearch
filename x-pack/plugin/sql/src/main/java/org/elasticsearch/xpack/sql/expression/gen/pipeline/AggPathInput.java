@@ -28,8 +28,8 @@ public class AggPathInput extends CommonNonExecutableInput<AggRef> {
      * The action is used for handling corner-case results such as date histogram which returns
      * a full date object for year which requires additional extraction.
      */
-    public AggPathInput(Source location, Expression expression, AggRef context, Processor action) {
-        super(location, expression, context);
+    public AggPathInput(Source source, Expression expression, AggRef context, Processor action) {
+        super(source, expression, context);
         this.action = action;
     }
 

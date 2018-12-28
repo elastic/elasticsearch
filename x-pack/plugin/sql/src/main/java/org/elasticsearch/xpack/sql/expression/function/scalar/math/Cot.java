@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class Cot extends MathFunction {
-    public Cot(Source location, Expression field) {
-        super(location, field);
+    public Cot(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

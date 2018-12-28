@@ -50,7 +50,7 @@ public abstract class Node<T extends Node<T>> {
     }
 
     public Location sourceLocation() {
-        return source.location();
+        return source.source();
     }
 
     public String sourceText() {

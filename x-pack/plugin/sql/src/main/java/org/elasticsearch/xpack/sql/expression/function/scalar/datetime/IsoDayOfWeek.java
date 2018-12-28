@@ -16,8 +16,8 @@ import java.time.ZoneId;
  * Extract the day of the week (following the ISO standard) from a datetime. 1 is Monday, 2 is Tuesday, etc.
  */
 public class IsoDayOfWeek extends DateTimeFunction {
-    public IsoDayOfWeek(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.ISO_DAY_OF_WEEK);
+    public IsoDayOfWeek(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.ISO_DAY_OF_WEEK);
     }
 
     @Override

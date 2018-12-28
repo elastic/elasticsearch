@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class Sqrt extends MathFunction {
-    public Sqrt(Source location, Expression field) {
-        super(location, field);
+    public Sqrt(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

@@ -18,12 +18,12 @@ import java.util.List;
  */
 public class IfNull extends Coalesce {
 
-    public IfNull(Source location, Expression first, Expression second) {
-        this(location, Arrays.asList(first, second));
+    public IfNull(Source source, Expression first, Expression second) {
+        this(source, Arrays.asList(first, second));
     }
 
-    private IfNull(Source location, List<Expression> expressions) {
-        super(location, expressions);
+    private IfNull(Source source, List<Expression> expressions) {
+        super(source, expressions);
     }
 
     @Override

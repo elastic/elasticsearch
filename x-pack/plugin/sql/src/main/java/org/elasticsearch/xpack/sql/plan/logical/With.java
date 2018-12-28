@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 public class With extends UnaryPlan {
     private final Map<String, SubQueryAlias> subQueries;
 
-    public With(Source location, LogicalPlan child, Map<String, SubQueryAlias> subQueries) {
-        super(location, child);
+    public With(Source source, LogicalPlan child, Map<String, SubQueryAlias> subQueries) {
+        super(source, child);
         this.subQueries = subQueries;
     }
 

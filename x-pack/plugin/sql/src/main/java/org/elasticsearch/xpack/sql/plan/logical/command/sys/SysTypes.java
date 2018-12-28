@@ -37,8 +37,8 @@ public class SysTypes extends Command {
 
     private final Integer type;
 
-    public SysTypes(Source location, int type) {
-        super(location);
+    public SysTypes(Source source, int type) {
+        super(source);
         this.type = Integer.valueOf(type);
     }
 

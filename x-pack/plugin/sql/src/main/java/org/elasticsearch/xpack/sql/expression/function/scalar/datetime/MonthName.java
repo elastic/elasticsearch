@@ -17,8 +17,8 @@ import java.time.ZoneId;
  */
 public class MonthName extends NamedDateTimeFunction {
     
-    public MonthName(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, NameExtractor.MONTH_NAME);
+    public MonthName(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, NameExtractor.MONTH_NAME);
     }
 
     @Override

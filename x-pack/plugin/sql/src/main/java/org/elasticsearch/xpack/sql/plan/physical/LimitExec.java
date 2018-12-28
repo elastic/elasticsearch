@@ -15,8 +15,8 @@ public class LimitExec extends UnaryExec implements Unexecutable {
 
     private final Expression limit;
 
-    public LimitExec(Source location, PhysicalPlan child, Expression limit) {
-        super(location, child);
+    public LimitExec(Source source, PhysicalPlan child, Expression limit) {
+        super(source, child);
         this.limit = limit;
     }
 

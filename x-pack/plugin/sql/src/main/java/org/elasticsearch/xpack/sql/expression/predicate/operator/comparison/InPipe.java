@@ -22,8 +22,8 @@ public class InPipe extends Pipe {
 
     private List<Pipe> pipes;
 
-    public InPipe(Source location, Expression expression, List<Pipe> pipes) {
-        super(location, expression, pipes);
+    public InPipe(Source source, Expression expression, List<Pipe> pipes) {
+        super(source, expression, pipes);
         this.pipes = pipes;
     }
 

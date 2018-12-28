@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  */
 public class Mod extends ArithmeticOperation {
 
-    public Mod(Source location, Expression left, Expression right) {
-        super(location, left, right, BinaryArithmeticOperation.MOD);
+    public Mod(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryArithmeticOperation.MOD);
     }
 
     @Override

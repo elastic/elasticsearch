@@ -21,13 +21,13 @@ public class RangeQuery extends LeafQuery {
     private final boolean includeLower, includeUpper;
     private final String format;
 
-    public RangeQuery(Source location, String field, Object lower, boolean includeLower, Object upper, boolean includeUpper) {
-        this(location, field, lower, includeLower, upper, includeUpper, null);
+    public RangeQuery(Source source, String field, Object lower, boolean includeLower, Object upper, boolean includeUpper) {
+        this(source, field, lower, includeLower, upper, includeUpper, null);
     }
 
-    public RangeQuery(Source location, String field, Object lower, boolean includeLower, Object upper,
+    public RangeQuery(Source source, String field, Object lower, boolean includeLower, Object upper,
             boolean includeUpper, String format) {
-        super(location);
+        super(source);
         this.field = field;
         this.lower = lower;
         this.upper = upper;

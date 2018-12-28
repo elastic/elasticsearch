@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class And extends BinaryLogic implements Negatable<BinaryLogic> {
 
-    public And(Source location, Expression left, Expression right) {
-        super(location, left, right, BinaryLogicOperation.AND);
+    public And(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryLogicOperation.AND);
     }
 
     @Override

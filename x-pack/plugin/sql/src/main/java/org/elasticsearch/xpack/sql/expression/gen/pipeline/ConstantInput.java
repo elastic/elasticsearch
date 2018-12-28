@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class ConstantInput extends LeafInput<Object> {
 
-    public ConstantInput(Source location, Expression expression, Object context) {
-        super(location, expression, context);
+    public ConstantInput(Source source, Expression expression, Object context) {
+        super(source, expression, context);
     }
 
     @Override

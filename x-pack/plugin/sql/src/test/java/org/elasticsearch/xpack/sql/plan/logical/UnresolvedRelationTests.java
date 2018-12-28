@@ -19,11 +19,11 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 
 public class UnresolvedRelationTests extends ESTestCase {
     public void testEqualsAndHashCode() {
-        Source location = new Source(between(1, 1000), between(1, 1000), randomAlphaOfLength(16));
-        TableIdentifier table = new TableIdentifier(location, randomAlphaOfLength(5), randomAlphaOfLength(5));
+        Source source = new Source(between(1, 1000), between(1, 1000), randomAlphaOfLength(16));
+        TableIdentifier table = new TableIdentifier(source, randomAlphaOfLength(5), randomAlphaOfLength(5));
         String alias = randomBoolean() ? null : randomAlphaOfLength(5);
         String unresolvedMessage = randomAlphaOfLength(5);
-        UnresolvedRelation relation = new UnresolvedRelation(location, table, alias, unresolvedMessage);
+        UnresolvedRelation relation = new UnresolvedRelation(source, table, alias, unresolvedMessage);
         List<Function<UnresolvedRelation, UnresolvedRelation>> mutators = new ArrayList<>();
         mutators.add(r -> new UnresolvedRelation(
             SourceTests.mutate(r.source()),

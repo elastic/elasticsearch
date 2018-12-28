@@ -18,22 +18,22 @@ public class SourceTests extends ESTestCase {
         return new Source(between(1, Integer.MAX_VALUE), between(1, Integer.MAX_VALUE), randomAlphaOfLength(25));
     }
 
-    public static Source mutate(Source location) {
+    public static Source mutate(Source source) {
         List<Function<Source, Source>> options = Arrays.asList(
             l -> new Source(
-                randomValueOtherThan(l.location().getLineNumber(), () -> between(1, Integer.MAX_VALUE)),
-                l.location().getColumnNumber() - 1,
+                randomValueOtherThan(l.source().getLineNumber(), () -> between(1, Integer.MAX_VALUE)),
+                l.source().getColumnNumber() - 1,
                 l.text()),
             l -> new Source(
-                l.location().getLineNumber(),
-                randomValueOtherThan(l.location().getColumnNumber() - 1, () -> between(1, Integer.MAX_VALUE)),
+                l.source().getLineNumber(),
+                randomValueOtherThan(l.source().getColumnNumber() - 1, () -> between(1, Integer.MAX_VALUE)),
                 l.text()));
-        return randomFrom(options).apply(location);
+        return randomFrom(options).apply(source);
     }
 
     public void testEqualsAndHashCode() {
         checkEqualsAndHashCode(randomSource(),
-                l -> new Source(l.location().getLineNumber(), l.location().getColumnNumber() - 1, l.text()),
+                l -> new Source(l.source().getLineNumber(), l.source().getColumnNumber() - 1, l.text()),
             SourceTests::mutate);
     }
 }

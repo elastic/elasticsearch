@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class ATan extends MathFunction {
-    public ATan(Source location, Expression field) {
-        super(location, field);
+    public ATan(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

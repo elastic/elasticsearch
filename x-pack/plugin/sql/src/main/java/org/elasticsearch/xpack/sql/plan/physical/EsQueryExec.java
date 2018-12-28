@@ -25,8 +25,8 @@ public class EsQueryExec extends LeafExec {
 
     private final QueryContainer queryContainer;
 
-    public EsQueryExec(Source location, String index, List<Attribute> output, QueryContainer queryContainer) {
-        super(location);
+    public EsQueryExec(Source source, String index, List<Attribute> output, QueryContainer queryContainer) {
+        super(source);
         this.index = index;
         this.output = output;
         this.queryContainer = queryContainer;

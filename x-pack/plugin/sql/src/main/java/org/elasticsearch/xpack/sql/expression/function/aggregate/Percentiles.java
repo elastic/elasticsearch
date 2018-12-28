@@ -14,8 +14,8 @@ public class Percentiles extends CompoundNumericAggregate {
 
     private final List<Expression> percents;
 
-    public Percentiles(Source location, Expression field, List<Expression> percents) {
-        super(location, field, percents);
+    public Percentiles(Source source, Expression field, List<Expression> percents) {
+        super(source, field, percents);
         this.percents = percents;
     }
 

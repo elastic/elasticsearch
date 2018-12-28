@@ -23,8 +23,8 @@ public class Histogram extends GroupingFunction {
     private final Literal interval;
     private final ZoneId zoneId;
 
-    public Histogram(Source location, Expression field, Expression interval, ZoneId zoneId) {
-        super(location, field);
+    public Histogram(Source source, Expression field, Expression interval, ZoneId zoneId) {
+        super(source, field);
         this.interval = (Literal) interval;
         this.zoneId = zoneId;
     }

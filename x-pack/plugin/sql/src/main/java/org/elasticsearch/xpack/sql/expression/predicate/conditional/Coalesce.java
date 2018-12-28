@@ -16,8 +16,8 @@ import static org.elasticsearch.xpack.sql.expression.predicate.conditional.Condi
 
 public class Coalesce extends ArbitraryConditionalFunction {
 
-    public Coalesce(Source location, List<Expression> fields) {
-        super(location, fields, COALESCE);
+    public Coalesce(Source source, List<Expression> fields) {
+        super(source, fields, COALESCE);
     }
 
     @Override

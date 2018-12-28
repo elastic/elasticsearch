@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class Ascii extends UnaryStringFunction {
 
-    public Ascii(Source location, Expression field) {
-        super(location, field);
+    public Ascii(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

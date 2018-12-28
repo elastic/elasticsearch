@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 
 public class IsNotNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction> {
 
-    public IsNotNull(Source location, Expression field) {
-        super(location, field);
+    public IsNotNull(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

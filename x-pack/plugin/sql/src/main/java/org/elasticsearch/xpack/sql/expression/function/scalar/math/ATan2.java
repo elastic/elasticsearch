@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  */
 public class ATan2 extends BinaryNumericFunction {
 
-    public ATan2(Source location, Expression left, Expression right) {
-        super(location, left, right, BinaryMathOperation.ATAN2);
+    public ATan2(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryMathOperation.ATAN2);
     }
 
     @Override

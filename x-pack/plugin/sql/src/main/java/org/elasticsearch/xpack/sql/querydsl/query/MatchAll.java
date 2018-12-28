@@ -11,8 +11,8 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 public class MatchAll extends LeafQuery {
-    public MatchAll(Source location) {
-        super(location);
+    public MatchAll(Source source) {
+        super(source);
     }
 
     @Override

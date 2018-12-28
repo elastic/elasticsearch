@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 public class Not extends UnaryScalarFunction {
 
-    public Not(Source location, Expression child) {
-        super(location, child);
+    public Not(Source source, Expression child) {
+        super(source, child);
     }
 
     @Override

@@ -16,8 +16,8 @@ public class OrderExec extends UnaryExec implements Unexecutable {
 
     private final List<Order> order;
 
-    public OrderExec(Source location, PhysicalPlan child, List<Order> order) {
-        super(location, child);
+    public OrderExec(Source source, PhysicalPlan child, List<Order> order) {
+        super(source, child);
         this.order = order;
     }
 

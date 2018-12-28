@@ -22,8 +22,8 @@ public class Count extends AggregateFunction {
 
     private final boolean distinct;
 
-    public Count(Source location, Expression field, boolean distinct) {
-        super(location, field);
+    public Count(Source source, Expression field, boolean distinct) {
+        super(source, field);
         this.distinct = distinct;
     }
 

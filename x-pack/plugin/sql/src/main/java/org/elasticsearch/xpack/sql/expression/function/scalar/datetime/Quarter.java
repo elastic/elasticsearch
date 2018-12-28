@@ -22,8 +22,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 
 public class Quarter extends BaseDateTimeFunction {
 
-    public Quarter(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId);
+    public Quarter(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId);
     }
 
     @Override

@@ -21,8 +21,8 @@ public class LocalExec extends LeafExec {
 
     private final Executable executable;
 
-    public LocalExec(Source location, Executable executable) {
-        super(location);
+    public LocalExec(Source source, Executable executable) {
+        super(source);
         this.executable = executable;
     }
 

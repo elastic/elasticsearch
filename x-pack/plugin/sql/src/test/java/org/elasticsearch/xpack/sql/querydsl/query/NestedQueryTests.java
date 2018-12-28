@@ -55,15 +55,15 @@ public class NestedQueryTests extends ESTestCase {
     }
 
     private static NestedQuery copy(NestedQuery query) {
-        return new NestedQuery(query.location(), query.path(), query.fields(), query.child());
+        return new NestedQuery(query.source(), query.path(), query.fields(), query.child());
     }
 
     private static NestedQuery mutate(NestedQuery query) {
         List<Function<NestedQuery, NestedQuery>> options = Arrays.asList(
-            q -> new NestedQuery(SourceTests.mutate(q.location()), q.path(), q.fields(), q.child()),
-            q -> new NestedQuery(q.location(), randomValueOtherThan(q.path(), () -> randomAlphaOfLength(5)), q.fields(), q.child()),
-            q -> new NestedQuery(q.location(), q.path(), randomValueOtherThan(q.fields(), NestedQueryTests::randomFields), q.child()),
-            q -> new NestedQuery(q.location(), q.path(), q.fields(), randomValueOtherThan(q.child(), () -> randomQuery(5))));
+            q -> new NestedQuery(SourceTests.mutate(q.source()), q.path(), q.fields(), q.child()),
+            q -> new NestedQuery(q.source(), randomValueOtherThan(q.path(), () -> randomAlphaOfLength(5)), q.fields(), q.child()),
+            q -> new NestedQuery(q.source(), q.path(), randomValueOtherThan(q.fields(), NestedQueryTests::randomFields), q.child()),
+            q -> new NestedQuery(q.source(), q.path(), q.fields(), randomValueOtherThan(q.child(), () -> randomQuery(5))));
         return randomFrom(options).apply(query);
     }
 

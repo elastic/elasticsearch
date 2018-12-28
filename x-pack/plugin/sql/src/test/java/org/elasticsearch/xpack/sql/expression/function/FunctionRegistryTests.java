@@ -254,8 +254,8 @@ public class FunctionRegistryTests extends ESTestCase {
     }
 
     public static class DummyFunction extends ScalarFunction {
-        public DummyFunction(Source location) {
-            super(location, emptyList());
+        public DummyFunction(Source source) {
+            super(source, emptyList());
         }
 
         @Override
@@ -285,8 +285,8 @@ public class FunctionRegistryTests extends ESTestCase {
     }
     
     public static class DummyFunction2 extends DummyFunction {
-        public DummyFunction2(Source location) {
-            super(location);
+        public DummyFunction2(Source source) {
+            super(source);
         }
     }
 }

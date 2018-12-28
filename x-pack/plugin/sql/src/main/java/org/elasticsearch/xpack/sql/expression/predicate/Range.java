@@ -36,8 +36,8 @@ public class Range extends ScalarFunction {
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;
 
-    public Range(Source location, Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
-        super(location, asList(value, lower, upper));
+    public Range(Source source, Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
+        super(source, asList(value, lower, upper));
 
         this.value = value;
         this.lower = lower;

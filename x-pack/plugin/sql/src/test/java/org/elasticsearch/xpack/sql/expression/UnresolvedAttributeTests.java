@@ -15,13 +15,13 @@ import java.util.function.Supplier;
 
 public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAttribute, Expression> {
     public static UnresolvedAttribute randomUnresolvedAttribute() {
-        Source location = SourceTests.randomSource();
+        Source source = SourceTests.randomSource();
         String name = randomAlphaOfLength(5);
         String qualifier = randomQualifier();
         ExpressionId id = randomBoolean() ? null : new ExpressionId();
         String unresolvedMessage = randomUnresolvedMessage();
         Object resolutionMetadata = new Object();
-        return new UnresolvedAttribute(location, name, qualifier, id, unresolvedMessage, resolutionMetadata);
+        return new UnresolvedAttribute(source, name, qualifier, id, unresolvedMessage, resolutionMetadata);
     }
 
     /**

@@ -28,8 +28,8 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 
     private final NameExtractor nameExtractor;
 
-    NamedDateTimeFunction(Source location, Expression field, ZoneId zoneId, NameExtractor nameExtractor) {
-        super(location, field, zoneId);
+    NamedDateTimeFunction(Source source, Expression field, ZoneId zoneId, NameExtractor nameExtractor) {
+        super(source, field, zoneId);
         this.nameExtractor = nameExtractor;
     }
 

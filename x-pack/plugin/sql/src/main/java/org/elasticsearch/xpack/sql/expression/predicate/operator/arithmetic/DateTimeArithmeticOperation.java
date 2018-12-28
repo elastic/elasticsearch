@@ -17,8 +17,8 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
 
-    DateTimeArithmeticOperation(Source location, Expression left, Expression right, BinaryArithmeticOperation operation) {
-        super(location, left, right, operation);
+    DateTimeArithmeticOperation(Source source, Expression left, Expression right, BinaryArithmeticOperation operation) {
+        super(source, left, right, operation);
     }
     
     @Override

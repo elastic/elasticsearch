@@ -17,8 +17,8 @@ import java.time.ZoneId;
  */
 public class MinuteOfDay extends DateTimeFunction {
 
-    public MinuteOfDay(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.MINUTE_OF_DAY);
+    public MinuteOfDay(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.MINUTE_OF_DAY);
     }
 
     @Override

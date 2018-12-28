@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class ASin extends MathFunction {
-    public ASin(Source location, Expression field) {
-        super(location, field);
+    public ASin(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

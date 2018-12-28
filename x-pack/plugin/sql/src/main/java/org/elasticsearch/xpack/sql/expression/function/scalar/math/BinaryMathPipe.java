@@ -21,8 +21,8 @@ public class BinaryMathPipe extends BinaryPipe {
 
     private final BinaryMathOperation operation;
 
-    public BinaryMathPipe(Source location, Expression expression, Pipe left, Pipe right, BinaryMathOperation operation) {
-        super(location, expression, left, right);
+    public BinaryMathPipe(Source source, Expression expression, Pipe left, Pipe right, BinaryMathOperation operation) {
+        super(source, expression, left, right);
         this.operation = operation;
     }
 

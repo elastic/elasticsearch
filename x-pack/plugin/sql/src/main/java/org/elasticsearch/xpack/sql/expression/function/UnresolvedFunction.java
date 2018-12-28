@@ -40,8 +40,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      */
     private final boolean analyzed;
 
-    public UnresolvedFunction(Source location, String name, ResolutionType resolutionType, List<Expression> children) {
-        this(location, name, resolutionType, children, false, null);
+    public UnresolvedFunction(Source source, String name, ResolutionType resolutionType, List<Expression> children) {
+        this(source, name, resolutionType, children, false, null);
     }
 
     /**
@@ -49,9 +49,9 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      * 'did you mean') instead of the default one.
      * @see #withMessage(String)
      */
-    UnresolvedFunction(Source location, String name, ResolutionType resolutionType, List<Expression> children,
+    UnresolvedFunction(Source source, String name, ResolutionType resolutionType, List<Expression> children,
             boolean analyzed, String unresolvedMessage) {
-        super(location, children);
+        super(source, children);
         this.name = name;
         this.resolutionType = resolutionType;
         this.analyzed = analyzed;

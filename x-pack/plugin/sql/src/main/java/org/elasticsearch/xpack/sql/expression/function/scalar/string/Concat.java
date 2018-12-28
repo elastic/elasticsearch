@@ -26,8 +26,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public class Concat extends BinaryScalarFunction {
     
-    public Concat(Source location, Expression source1, Expression source2) {
-        super(location, source1, source2);
+    public Concat(Source source, Expression source1, Expression source2) {
+        super(source, source1, source2);
     }
 
     @Override

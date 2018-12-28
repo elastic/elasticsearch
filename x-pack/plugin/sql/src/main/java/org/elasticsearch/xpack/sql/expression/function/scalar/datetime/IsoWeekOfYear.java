@@ -16,8 +16,8 @@ import java.time.ZoneId;
  * Extract the week of the year from a datetime following the ISO standard.
  */
 public class IsoWeekOfYear extends DateTimeFunction {
-    public IsoWeekOfYear(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.ISO_WEEK_OF_YEAR);
+    public IsoWeekOfYear(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.ISO_WEEK_OF_YEAR);
     }
 
     @Override

@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class MatrixStats extends CompoundNumericAggregate {
 
-    public MatrixStats(Source location, Expression field) {
-        super(location, field);
+    public MatrixStats(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

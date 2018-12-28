@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  */
 public class Random extends MathFunction {
 
-    public Random(Source location, Expression field) {
-        super(location, field);
+    public Random(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

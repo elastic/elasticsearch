@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * to <a href="https://en.wikipedia.org/wiki/Radian">radians</a>.
  */
 public class Radians extends MathFunction {
-    public Radians(Source location, Expression field) {
-        super(location, field);
+    public Radians(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

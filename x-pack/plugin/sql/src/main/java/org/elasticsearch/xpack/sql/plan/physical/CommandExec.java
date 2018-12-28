@@ -20,8 +20,8 @@ public class CommandExec extends LeafExec {
 
     private final Command command;
 
-    public CommandExec(Source location, Command command) {
-        super(location);
+    public CommandExec(Source source, Command command) {
+        super(source);
         this.command = command;
     }
 

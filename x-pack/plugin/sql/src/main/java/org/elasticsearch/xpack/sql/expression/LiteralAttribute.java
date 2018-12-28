@@ -14,9 +14,9 @@ public class LiteralAttribute extends TypedAttribute {
 
     private final Literal literal;
 
-    public LiteralAttribute(Source location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic,
+    public LiteralAttribute(Source source, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic,
             DataType dataType, Literal literal) {
-        super(location, name, dataType, qualifier, nullable, id, synthetic);
+        super(source, name, dataType, qualifier, nullable, id, synthetic);
         this.literal = literal;
     }
 
@@ -27,9 +27,9 @@ public class LiteralAttribute extends TypedAttribute {
     }
 
     @Override
-    protected LiteralAttribute clone(Source location, String name, String qualifier, boolean nullable,
+    protected LiteralAttribute clone(Source source, String name, String qualifier, boolean nullable,
                                      ExpressionId id, boolean synthetic) {
-        return new LiteralAttribute(location, name, qualifier, nullable, id, synthetic, dataType(), literal);
+        return new LiteralAttribute(source, name, qualifier, nullable, id, synthetic, dataType(), literal);
     }
 
     @Override

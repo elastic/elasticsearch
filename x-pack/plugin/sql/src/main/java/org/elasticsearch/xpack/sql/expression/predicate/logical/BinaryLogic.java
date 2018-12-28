@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boolean, BinaryLogicOperation> {
 
-    protected BinaryLogic(Source location, Expression left, Expression right, BinaryLogicOperation operation) {
-        super(location, left, right, operation);
+    protected BinaryLogic(Source source, Expression left, Expression right, BinaryLogicOperation operation) {
+        super(source, left, right, operation);
     }
 
     @Override

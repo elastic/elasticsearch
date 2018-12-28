@@ -18,11 +18,11 @@ public class StringQueryPredicate extends FullTextPredicate {
 
     private final Map<String, Float> fields;
 
-    public StringQueryPredicate(Source location, String query, String options) {
-        super(location, query, options, emptyList());
+    public StringQueryPredicate(Source source, String query, String options) {
+        super(source, query, options, emptyList());
 
         // inferred
-        this.fields = FullTextUtils.parseFields(optionMap(), location);
+        this.fields = FullTextUtils.parseFields(optionMap(), source);
     }
 
     @Override

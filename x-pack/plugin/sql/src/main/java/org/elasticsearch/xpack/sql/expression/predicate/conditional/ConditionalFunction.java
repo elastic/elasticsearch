@@ -21,8 +21,8 @@ public abstract class ConditionalFunction extends ScalarFunction {
 
     protected DataType dataType = DataType.NULL;
 
-    ConditionalFunction(Source location, List<Expression> fields) {
-        super(location, fields);
+    ConditionalFunction(Source source, List<Expression> fields) {
+        super(source, fields);
     }
 
     @Override

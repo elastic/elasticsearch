@@ -18,8 +18,8 @@ public class BinaryArithmeticPipe extends BinaryPipe {
 
     private final BinaryArithmeticOperation operation;
 
-    public BinaryArithmeticPipe(Source location, Expression expression, Pipe left, Pipe right, BinaryArithmeticOperation operation) {
-        super(location, expression, left, right);
+    public BinaryArithmeticPipe(Source source, Expression expression, Pipe left, Pipe right, BinaryArithmeticOperation operation) {
+        super(source, expression, left, right);
         this.operation = operation;
     }
 

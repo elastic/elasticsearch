@@ -20,8 +20,8 @@ public abstract class UnaryPlan extends LogicalPlan {
 
     private final LogicalPlan child;
 
-    UnaryPlan(Source location, LogicalPlan child) {
-        super(location, Collections.singletonList(child));
+    UnaryPlan(Source source, LogicalPlan child) {
+        super(source, Collections.singletonList(child));
         this.child = child;
     }
 

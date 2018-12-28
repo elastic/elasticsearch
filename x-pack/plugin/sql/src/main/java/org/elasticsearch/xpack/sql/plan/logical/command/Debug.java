@@ -45,8 +45,8 @@ public class Debug extends Command {
     private final Format format;
     private final Type type;
 
-    public Debug(Source location, LogicalPlan plan, Type type, Format format) {
-        super(location);
+    public Debug(Source source, LogicalPlan plan, Type type, Format format) {
+        super(source);
         this.plan = plan;
         this.format = format == null ? Format.TEXT : format;
         this.type = type == null ? Type.OPTIMIZED : type;

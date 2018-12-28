@@ -32,8 +32,8 @@ public class ShowColumns extends Command {
     private final String index;
     private final LikePattern pattern;
 
-    public ShowColumns(Source location, String index, LikePattern pattern) {
-        super(location);
+    public ShowColumns(Source source, String index, LikePattern pattern) {
+        super(source);
         this.index = index;
         this.pattern = pattern;
     }

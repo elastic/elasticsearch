@@ -24,8 +24,8 @@ public class TermsQuery extends LeafQuery {
     private final String term;
     private final Set<Object> values;
 
-    public TermsQuery(Source location, String term, List<Expression> values) {
-        super(location);
+    public TermsQuery(Source source, String term, List<Expression> values) {
+        super(source);
         this.term = term;
         values.removeIf(e -> DataTypes.isNull(e.dataType()));
         if (values.isEmpty()) {

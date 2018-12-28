@@ -26,7 +26,7 @@ public final class Source {
         this.text = text;
     }
 
-    public Location location() {
+    public Location source() {
         return location;
     }
 

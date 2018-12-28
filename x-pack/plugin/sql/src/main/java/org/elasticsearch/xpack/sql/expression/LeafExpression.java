@@ -13,8 +13,8 @@ import static java.util.Collections.emptyList;
 
 public abstract class LeafExpression extends Expression {
 
-    protected LeafExpression(Source location) {
-        super(location, emptyList());
+    protected LeafExpression(Source source) {
+        super(source, emptyList());
     }
 
     @Override

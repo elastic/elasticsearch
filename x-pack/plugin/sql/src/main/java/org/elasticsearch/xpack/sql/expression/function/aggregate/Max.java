@@ -19,8 +19,8 @@ import java.util.List;
  */
 public class Max extends NumericAggregate implements EnclosedAgg {
 
-    public Max(Source location, Expression field) {
-        super(location, field);
+    public Max(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

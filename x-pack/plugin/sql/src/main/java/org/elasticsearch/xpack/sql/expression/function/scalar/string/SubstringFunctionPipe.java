@@ -19,10 +19,10 @@ public class SubstringFunctionPipe extends Pipe {
 
     private final Pipe source, start, length;
 
-    public SubstringFunctionPipe(Source location, Expression expression, Pipe source,
+    public SubstringFunctionPipe(Source source, Expression expression, Pipe src,
             Pipe start, Pipe length) {
-        super(location, expression, Arrays.asList(source, start, length));
-        this.source = source;
+        super(source, expression, Arrays.asList(src, start, length));
+        this.source = src;
         this.start = start;
         this.length = length;
     }
@@ -78,7 +78,7 @@ public class SubstringFunctionPipe extends Pipe {
         return new SubstringFunctionProcessor(source.asProcessor(), start.asProcessor(), length.asProcessor());
     }
     
-    public Pipe sourcePipe() {
+    public Pipe src() {
         return source;
     }
     

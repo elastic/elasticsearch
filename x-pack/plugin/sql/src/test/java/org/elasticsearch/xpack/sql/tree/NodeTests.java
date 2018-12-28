@@ -38,8 +38,8 @@ public class NodeTests extends ESTestCase {
 
     public abstract static class Dummy extends Node<Dummy> {
         private final String thing;
-        public Dummy(Source location, List<Dummy> children, String thing) {
-            super(location, children);
+        public Dummy(Source source, List<Dummy> children, String thing) {
+            super(source, children);
             this.thing = thing;
         }
 
@@ -67,8 +67,8 @@ public class NodeTests extends ESTestCase {
     }
 
     public static class ChildrenAreAProperty extends Dummy {
-        public ChildrenAreAProperty(Source location, List<Dummy> children, String thing) {
-            super(location, children, thing);
+        public ChildrenAreAProperty(Source source, List<Dummy> children, String thing) {
+            super(source, children, thing);
         }
 
         @Override
@@ -83,8 +83,8 @@ public class NodeTests extends ESTestCase {
     }
 
     public static class AChildIsAProperty extends Dummy {
-        public AChildIsAProperty(Source location, Dummy child, String thing) {
-            super(location, singletonList(child), thing);
+        public AChildIsAProperty(Source source, Dummy child, String thing) {
+            super(source, singletonList(child), thing);
         }
 
         @Override
@@ -106,8 +106,8 @@ public class NodeTests extends ESTestCase {
     }
 
     public static class NoChildren extends Dummy {
-        public NoChildren(Source location, String thing) {
-            super(location, emptyList(), thing);
+        public NoChildren(Source source, String thing) {
+            super(source, emptyList(), thing);
         }
 
         @Override

@@ -17,8 +17,8 @@ import java.time.ZoneId;
  */
 public class DayOfWeek extends NonIsoDateTimeFunction {
     
-    public DayOfWeek(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, NonIsoDateTimeExtractor.DAY_OF_WEEK);
+    public DayOfWeek(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, NonIsoDateTimeExtractor.DAY_OF_WEEK);
     }
 
     @Override

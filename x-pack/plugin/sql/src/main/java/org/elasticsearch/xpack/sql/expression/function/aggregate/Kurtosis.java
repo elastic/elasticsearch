@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Kurtosis extends NumericAggregate implements MatrixStatsEnclosed {
 
-    public Kurtosis(Source location, Expression field) {
-        super(location, field);
+    public Kurtosis(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

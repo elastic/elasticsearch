@@ -20,8 +20,8 @@ public class Filter extends UnaryPlan {
 
     private final Expression condition;
 
-    public Filter(Source location, LogicalPlan child, Expression condition) {
-        super(location, child);
+    public Filter(Source source, LogicalPlan child, Expression condition) {
+        super(source, child);
         this.condition = condition;
     }
 

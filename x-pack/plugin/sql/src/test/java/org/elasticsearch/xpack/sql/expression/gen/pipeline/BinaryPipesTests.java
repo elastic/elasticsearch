@@ -94,8 +94,8 @@ public class BinaryPipesTests extends ESTestCase {
             this(Source.EMPTY, left, right);
         }
 
-        public DummyBinaryPipe(Source location, Pipe left, Pipe right) {
-            super(location, null, left, right);
+        public DummyBinaryPipe(Source source, Pipe left, Pipe right) {
+            super(source, null, left, right);
         }
 
         @Override
@@ -121,8 +121,8 @@ public class BinaryPipesTests extends ESTestCase {
             this(Source.EMPTY, supportedByAggsOnlyQuery);
         }
 
-        public DummyPipe(Source location, boolean supportedByAggsOnlyQuery) {
-            super(location, null, emptyList());
+        public DummyPipe(Source source, boolean supportedByAggsOnlyQuery) {
+            super(source, null, emptyList());
             this.supportedByAggsOnlyQuery = supportedByAggsOnlyQuery;
         }
 

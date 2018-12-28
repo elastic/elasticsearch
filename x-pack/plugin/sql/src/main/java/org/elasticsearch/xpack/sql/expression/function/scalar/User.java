@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 public class User extends ConfigurationFunction {
 
-    public User(Source location, Configuration configuration) {
-        super(location, configuration, DataType.KEYWORD);
+    public User(Source source, Configuration configuration) {
+        super(source, configuration, DataType.KEYWORD);
     }
 
     @Override

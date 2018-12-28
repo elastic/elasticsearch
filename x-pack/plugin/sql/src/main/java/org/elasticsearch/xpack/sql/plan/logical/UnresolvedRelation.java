@@ -21,12 +21,12 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     private final String alias;
     private final String unresolvedMsg;
 
-    public UnresolvedRelation(Source location, TableIdentifier table, String alias) {
-        this(location, table, alias, null);
+    public UnresolvedRelation(Source source, TableIdentifier table, String alias) {
+        this(source, table, alias, null);
     }
 
-    public UnresolvedRelation(Source location, TableIdentifier table, String alias, String unresolvedMessage) {
-        super(location);
+    public UnresolvedRelation(Source source, TableIdentifier table, String alias, String unresolvedMessage) {
+        super(source);
         this.table = table;
         this.alias = alias;
         this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + table.index() + "]" : unresolvedMessage;

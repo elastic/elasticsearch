@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class Space extends UnaryStringIntFunction {
 
-    public Space(Source location, Expression field) {
-        super(location, field);
+    public Space(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

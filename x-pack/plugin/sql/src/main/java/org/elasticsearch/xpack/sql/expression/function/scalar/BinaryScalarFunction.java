@@ -18,8 +18,8 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
 
     private final Expression left, right;
 
-    protected BinaryScalarFunction(Source location, Expression left, Expression right) {
-        super(location, Arrays.asList(left, right));
+    protected BinaryScalarFunction(Source source, Expression left, Expression right) {
+        super(source, Arrays.asList(left, right));
         this.left = left;
         this.right = right;
     }

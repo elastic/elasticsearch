@@ -26,8 +26,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
 
-    protected UnaryStringIntFunction(Source location, Expression field) {
-        super(location, field);
+    protected UnaryStringIntFunction(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

@@ -23,8 +23,8 @@ public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> implements Ex
 
     private Schema lazySchema;
 
-    public PhysicalPlan(Source location, List<PhysicalPlan> children) {
-        super(location, children);
+    public PhysicalPlan(Source source, List<PhysicalPlan> children) {
+        super(source, children);
     }
 
     public Schema schema() {

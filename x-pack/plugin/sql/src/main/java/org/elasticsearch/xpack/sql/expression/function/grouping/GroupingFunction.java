@@ -30,12 +30,12 @@ public abstract class GroupingFunction extends Function {
 
     private GroupingFunctionAttribute lazyAttribute;
 
-    protected GroupingFunction(Source location, Expression field) {
-        this(location, field, emptyList());
+    protected GroupingFunction(Source source, Expression field) {
+        this(source, field, emptyList());
     }
 
-    protected GroupingFunction(Source location, Expression field, List<Expression> parameters) {
-        super(location, CollectionUtils.combine(singletonList(field), parameters));
+    protected GroupingFunction(Source source, Expression field, List<Expression> parameters) {
+        super(source, CollectionUtils.combine(singletonList(field), parameters));
         this.field = field;
         this.parameters = parameters;
     }

@@ -18,8 +18,8 @@ public class UnresolvedAlias extends UnresolvedNamedExpression {
 
     private final Expression child;
 
-    public UnresolvedAlias(Source location, Expression child) {
-        super(location, singletonList(child));
+    public UnresolvedAlias(Source source, Expression child) {
+        super(source, singletonList(child));
         this.child = child;
     }
 

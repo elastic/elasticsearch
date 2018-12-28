@@ -23,8 +23,8 @@ public class Cast extends UnaryScalarFunction {
 
     private final DataType dataType;
 
-    public Cast(Source location, Expression field, DataType dataType) {
-        super(location, field);
+    public Cast(Source source, Expression field, DataType dataType) {
+        super(source, field);
         this.dataType = dataType;
     }
 

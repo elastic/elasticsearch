@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class NullIfPipe extends BinaryPipe {
 
-    public NullIfPipe(Source location, Expression expression, Pipe left, Pipe right) {
-        super(location, expression, left, right);
+    public NullIfPipe(Source source, Expression expression, Pipe left, Pipe right) {
+        super(source, expression, left, right);
     }
 
     @Override

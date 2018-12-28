@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.sql.type.DataTypeConversion;
  * function.
  */
 public class Floor extends MathFunction {
-    public Floor(Source location, Expression field) {
-        super(location, field);
+    public Floor(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

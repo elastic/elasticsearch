@@ -17,8 +17,8 @@ import java.time.ZoneId;
  */
 public class WeekOfYear extends NonIsoDateTimeFunction {
     
-    public WeekOfYear(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, NonIsoDateTimeExtractor.WEEK_OF_YEAR);
+    public WeekOfYear(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, NonIsoDateTimeExtractor.WEEK_OF_YEAR);
     }
 
     @Override

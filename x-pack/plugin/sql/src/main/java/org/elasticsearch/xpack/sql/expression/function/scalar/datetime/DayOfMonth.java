@@ -16,8 +16,8 @@ import java.time.ZoneId;
  * Extract the day of the month from a datetime.
  */
 public class DayOfMonth extends DateTimeFunction {
-    public DayOfMonth(Source location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.DAY_OF_MONTH);
+    public DayOfMonth(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.DAY_OF_MONTH);
     }
 
     @Override

@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  */
 public class Left extends BinaryStringNumericFunction {
 
-    public Left(Source location, Expression left, Expression right) {
-        super(location, left, right);
+    public Left(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     @Override

@@ -14,8 +14,8 @@ abstract class BinaryPlan extends LogicalPlan {
 
     private final LogicalPlan left, right;
 
-    BinaryPlan(Source location, LogicalPlan left, LogicalPlan right) {
-        super(location, Arrays.asList(left, right));
+    BinaryPlan(Source source, LogicalPlan left, LogicalPlan right) {
+        super(source, Arrays.asList(left, right));
         this.left = left;
         this.right = right;
     }

@@ -26,12 +26,12 @@ public abstract class NamedExpression extends Expression {
     private Pipe lazyPipe = null;
 
 
-    public NamedExpression(Source location, String name, List<Expression> children, ExpressionId id) {
-        this(location, name, children, id, false);
+    public NamedExpression(Source source, String name, List<Expression> children, ExpressionId id) {
+        this(source, name, children, id, false);
     }
 
-    public NamedExpression(Source location, String name, List<Expression> children, ExpressionId id, boolean synthetic) {
-        super(location, children);
+    public NamedExpression(Source source, String name, List<Expression> children, ExpressionId id, boolean synthetic) {
+        super(source, children);
         this.name = name;
         this.id = id == null ? new ExpressionId() : id;
         this.synthetic = synthetic;

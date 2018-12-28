@@ -36,20 +36,20 @@ public class Alias extends NamedExpression {
      */
     private Attribute lazyAttribute;
 
-    public Alias(Source location, String name, Expression child) {
-        this(location, name, null, child, null);
+    public Alias(Source source, String name, Expression child) {
+        this(source, name, null, child, null);
     }
 
-    public Alias(Source location, String name, String qualifier, Expression child) {
-        this(location, name, qualifier, child, null);
+    public Alias(Source source, String name, String qualifier, Expression child) {
+        this(source, name, qualifier, child, null);
     }
 
-    public Alias(Source location, String name, String qualifier, Expression child, ExpressionId id) {
-        this(location, name, qualifier, child, id, false);
+    public Alias(Source source, String name, String qualifier, Expression child, ExpressionId id) {
+        this(source, name, qualifier, child, id, false);
     }
 
-    public Alias(Source location, String name, String qualifier, Expression child, ExpressionId id, boolean synthetic) {
-        super(location, name, singletonList(child), id, synthetic);
+    public Alias(Source source, String name, String qualifier, Expression child, ExpressionId id, boolean synthetic) {
+        super(source, name, singletonList(child), id, synthetic);
         this.child = child;
         this.qualifier = qualifier;
     }

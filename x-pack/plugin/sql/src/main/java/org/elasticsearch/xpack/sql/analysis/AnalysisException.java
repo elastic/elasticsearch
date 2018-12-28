@@ -22,7 +22,7 @@ public class AnalysisException extends ClientSqlException {
 
         Location loc = Location.EMPTY;
         if (source != null && source.source() != null) {
-            loc = source.source().location();
+            loc = source.source().source();
         }
         this.line = loc.getLineNumber();
         this.column = loc.getColumnNumber();
@@ -33,7 +33,7 @@ public class AnalysisException extends ClientSqlException {
 
         Location loc = Location.EMPTY;
         if (source != null && source.source() != null) {
-            loc = source.source().location();
+            loc = source.source().source();
         }
         this.line = loc.getLineNumber();
         this.column = loc.getColumnNumber();

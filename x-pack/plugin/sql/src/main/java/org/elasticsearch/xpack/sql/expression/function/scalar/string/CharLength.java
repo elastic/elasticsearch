@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class CharLength extends UnaryStringFunction {
 
-    public CharLength(Source location, Expression field) {
-        super(location, field);
+    public CharLength(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

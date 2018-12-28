@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class NotEquals extends BinaryComparison implements Negatable<BinaryComparison> {
 
-    public NotEquals(Source location, Expression left, Expression right) {
-        super(location, left, right, BinaryComparisonOperation.NEQ);
+    public NotEquals(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryComparisonOperation.NEQ);
     }
 
     @Override

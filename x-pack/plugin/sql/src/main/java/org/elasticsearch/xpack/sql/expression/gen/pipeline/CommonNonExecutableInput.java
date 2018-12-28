@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.tree.Source;
  * {@link NonExecutableInput} but not shared by all.
  */
 abstract class CommonNonExecutableInput<T> extends NonExecutableInput<T> {
-    CommonNonExecutableInput(Source location, Expression expression, T context) {
-        super(location, expression, context);
+    CommonNonExecutableInput(Source source, Expression expression, T context) {
+        super(source, expression, context);
     }
 
     @Override

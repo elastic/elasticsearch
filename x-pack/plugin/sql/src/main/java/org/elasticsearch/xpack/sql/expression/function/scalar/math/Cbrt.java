@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class Cbrt extends MathFunction {
-    public Cbrt(Source location, Expression field) {
-        super(location, field);
+    public Cbrt(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

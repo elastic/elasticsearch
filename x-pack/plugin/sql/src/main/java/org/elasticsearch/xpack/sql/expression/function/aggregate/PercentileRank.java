@@ -21,8 +21,8 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
 
     private final Expression value;
 
-    public PercentileRank(Source location, Expression field, Expression value) {
-        super(location, field, singletonList(value));
+    public PercentileRank(Source source, Expression field, Expression value) {
+        super(source, field, singletonList(value));
         this.value = value;
     }
 

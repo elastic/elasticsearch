@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * Addition function ({@code a + b}).
  */
 public class Add extends DateTimeArithmeticOperation {
-    public Add(Source location, Expression left, Expression right) {
-        super(location, left, right, BinaryArithmeticOperation.ADD);
+    public Add(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryArithmeticOperation.ADD);
     }
 
     @Override

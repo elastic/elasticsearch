@@ -18,8 +18,8 @@ public class ScriptQuery extends LeafQuery {
 
     private final ScriptTemplate script;
 
-    public ScriptQuery(Source location, ScriptTemplate script) {
-        super(location);
+    public ScriptQuery(Source source, ScriptTemplate script) {
+        super(source);
         // make script null safe
         this.script = Scripts.nullSafeFilter(script);
     }

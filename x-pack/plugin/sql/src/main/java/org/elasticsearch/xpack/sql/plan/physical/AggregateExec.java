@@ -19,9 +19,9 @@ public class AggregateExec extends UnaryExec implements Unexecutable {
     private final List<? extends Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
 
-    public AggregateExec(Source location, PhysicalPlan child,
+    public AggregateExec(Source source, PhysicalPlan child,
             List<? extends Expression> groupings, List<? extends NamedExpression> aggregates) {
-        super(location, child);
+        super(source, child);
         this.groupings = groupings;
         this.aggregates = aggregates;
     }

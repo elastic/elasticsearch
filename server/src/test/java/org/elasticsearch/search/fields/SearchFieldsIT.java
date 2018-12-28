@@ -691,7 +691,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     }
 
     // see #8203
-    public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
+    public void testSingleValueFieldDataField() throws ExecutionException, InterruptedException {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type", "test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));

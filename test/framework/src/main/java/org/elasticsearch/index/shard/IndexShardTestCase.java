@@ -669,8 +669,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return EngineTestCase.getDocIds(shard.getEngine(), true);
     }
 
-    protected void assertDocCount(IndexShard shard, int docDount) throws IOException {
-        assertThat(getShardDocUIDs(shard), hasSize(docDount));
+    protected void assertDocCount(IndexShard shard, int docCount) throws IOException {
+        assertThat(getShardDocUIDs(shard), hasSize(docCount));
     }
 
     protected void assertDocs(IndexShard shard, String... ids) throws IOException {

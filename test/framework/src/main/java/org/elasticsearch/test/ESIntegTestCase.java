@@ -1491,7 +1491,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             for (int i = 0; i < numBogusDocs; i++) {
                 String id = "bogus_doc_"
                         + randomRealisticUnicodeOfLength(unicodeLen)
-                        + Integer.toString(dummmyDocIdGenerator.incrementAndGet());
+                        + Integer.toString(dummyDocIdGenerator.incrementAndGet());
                 Map.Entry<String, Set<String>> indexAndTypes = RandomPicks.randomFrom(random, indicesAndTypes.entrySet());
                 String index = indexAndTypes.getKey();
                 String type = RandomPicks.randomFrom(random, indexAndTypes.getValue());
@@ -1560,7 +1560,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    private AtomicInteger dummmyDocIdGenerator = new AtomicInteger();
+    private AtomicInteger dummyDocIdGenerator = new AtomicInteger();
 
     /** Disables an index block for the specified index */
     public static void disableIndexBlock(String index, String block) {

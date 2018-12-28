@@ -111,9 +111,9 @@ public class ClusterStateCreationUtils {
                 primaryNode = newNode(0).getId();
                 unassignedNodes.remove(primaryNode);
             } else {
-                Set<String> unassignedNodesExecludingPrimary = new HashSet<>(unassignedNodes);
-                unassignedNodesExecludingPrimary.remove(newNode(0).getId());
-                primaryNode = selectAndRemove(unassignedNodesExecludingPrimary);
+                Set<String> unassignedNodesExcludingPrimary = new HashSet<>(unassignedNodes);
+                unassignedNodesExcludingPrimary.remove(newNode(0).getId());
+                primaryNode = selectAndRemove(unassignedNodesExcludingPrimary);
                 unassignedNodes.remove(primaryNode);
             }
             if (primaryState == ShardRoutingState.RELOCATING) {

@@ -963,7 +963,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                 "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
                 Version.CURRENT,
                 Build.CURRENT.getQualifiedVersion());
-        // attemping to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
+        // attempting to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
         final UserException e =
                 expectThrows(UserException.class, () -> assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, true));
         assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));

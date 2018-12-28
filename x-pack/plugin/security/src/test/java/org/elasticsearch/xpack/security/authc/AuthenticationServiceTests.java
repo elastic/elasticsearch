@@ -233,7 +233,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         });
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
-        assertThat(e.getMessage(), containsString("missing authentication token"));
+        assertThat(e.getMessage(), containsString("missing authentication credentials"));
         verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
         verifyNoMoreInteractions(auditTrail);
     }

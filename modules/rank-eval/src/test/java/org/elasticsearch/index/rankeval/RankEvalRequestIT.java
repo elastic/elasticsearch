@@ -154,7 +154,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
-        // if we look only at top 3 documente, the expected P@3 for the first query is
+        // if we look only at top 3 documents, the expected P@3 for the first query is
         // 2/3 and the expected Prec@ for the second is 1/3, divided by 2 to get the average
         expectedPrecision = (1.0 / 3.0 + 2.0 / 3.0) / 2.0;
         assertEquals(expectedPrecision, response.getMetricScore(), Double.MIN_VALUE);

@@ -405,18 +405,7 @@ public class DeterministicTaskQueue {
 
             @Override
             public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-                // TODO: Implement fully like schedule
-                return new Cancellable() {
-                    @Override
-                    public void cancel() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public boolean isCancelled() {
-                        throw new UnsupportedOperationException();
-                    }
-                };
+                return super.scheduleWithFixedDelay(command, interval, executor);
             }
 
             @Override

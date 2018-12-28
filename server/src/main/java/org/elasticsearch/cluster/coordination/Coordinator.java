@@ -103,10 +103,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
     private final DiscoverySettings discoverySettings;
-    // TODO: the following two fields are package-private as some tests require access to them
+    // TODO: the following field is package-private as some tests require access to it
     // These tests can be rewritten to use public methods once Coordinator is more feature-complete
     final Object mutex = new Object();
-    final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
+    private final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
     private volatile ClusterState applierState; // the state that should be exposed to the cluster state applier
 
     private final PeerFinder peerFinder;
@@ -210,7 +210,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     void onFollowerCheckRequest(FollowerCheckRequest followerCheckRequest) {
         synchronized (mutex) {
-            final long previousTerm = getCurrentTerm();
             ensureTermAtLeast(followerCheckRequest.getSender(), followerCheckRequest.getTerm());
 
             if (getCurrentTerm() != followerCheckRequest.getTerm()) {
@@ -219,7 +218,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     + getCurrentTerm() + "], rejecting " + followerCheckRequest);
             }
 
-            if (previousTerm != getCurrentTerm()) {
+            // check if node has accepted a state in this term already. If not, this node has never committed a cluster state in this
+            // term and therefore never removed the NO_MASTER_BLOCK for this term. This logic ensures that we quickly turn a node
+            // into follower, even before receiving the first cluster state update, but also don't have to deal with the situation
+            // where we would possibly have to remove the NO_MASTER_BLOCK from the applierState when turning a candidate back to follower.
+            if (getLastAcceptedState().term() < getCurrentTerm()) {
                 becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
             }
         }
@@ -592,7 +595,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert prevotingRound == null : prevotingRound;
                 assert becomingMaster || getStateForMasterService().nodes().getMasterNodeId() != null : getStateForMasterService();
                 assert leaderChecker.leader() == null : leaderChecker.leader();
-                assert applierState.nodes().getMasterNodeId() == null || getLocalNode().equals(applierState.nodes().getMasterNode());
+                assert getLocalNode().equals(applierState.nodes().getMasterNode()) ||
+                    (applierState.nodes().getMasterNodeId() == null && applierState.term() < getCurrentTerm());
                 assert preVoteCollector.getLeader() == getLocalNode() : preVoteCollector;
                 assert clusterFormationFailureHelper.isRunning() == false;
 
@@ -620,7 +624,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     coordinationState.get().getLastAcceptedConfiguration().equals(coordinationState.get().getLastCommittedConfiguration())
                     : coordinationState.get().getLastAcceptedConfiguration() + " != "
                     + coordinationState.get().getLastCommittedConfiguration();
-
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
@@ -632,6 +635,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert leaderChecker.currentNodeIsMaster() == false;
                 assert lastKnownLeader.equals(Optional.of(leaderChecker.leader()));
                 assert followersChecker.getKnownFollowers().isEmpty();
+                assert lastKnownLeader.get().equals(applierState.nodes().getMasterNode()) ||
+                    (applierState.nodes().getMasterNodeId() == null &&
+                        (applierState.term() < getCurrentTerm() || applierState.version() < getLastAcceptedState().version()));
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader().equals(lastKnownLeader.get()) : preVoteCollector;
                 assert clusterFormationFailureHelper.isRunning() == false;

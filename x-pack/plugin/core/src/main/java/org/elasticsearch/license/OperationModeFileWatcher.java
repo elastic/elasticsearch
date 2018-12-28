@@ -115,7 +115,7 @@ public final class OperationModeFileWatcher implements FileChangesListener {
                     }
                 }
             } finally {
-                // set this after the fact to prevent that we are jumping back and forth first setting to defautl and then reading the
+                // set this after the fact to prevent that we are jumping back and forth first setting to default and then reading the
                 // actual op mode resetting it.
                 this.currentOperationMode = newOperationMode;
             }

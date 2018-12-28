@@ -172,7 +172,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             if (validateCerts) {
                 gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
             } else {
-                // this is only used for testing - alternative we could use the defaul keystore but this requires special configs too..
+                // this is only used for testing - alternative we could use the default keystore but this requires special configs too..
                 gceHttpTransport = new NetHttpTransport.Builder().doNotValidateCertificate().build();
             }
         }

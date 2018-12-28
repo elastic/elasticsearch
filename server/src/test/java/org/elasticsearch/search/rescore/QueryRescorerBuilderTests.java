@@ -212,7 +212,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
     /**
      * test parsing exceptions for incorrect rescorer syntax
      */
-    public void testUnknownFieldsExpection() throws IOException {
+    public void testUnknownFieldsException() throws IOException {
 
         String rescoreElement = "{\n" +
             "    \"window_size\" : 20,\n" +

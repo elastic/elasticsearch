@@ -168,7 +168,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
                     .prepareSearch(indices)
                     .get();
-            fail("expected an authorization excpetion when trying to search on multiple indices where there are no search permissions on " +
+            fail("expected an authorization exception when trying to search on multiple indices where there are no search permissions on " +
                     "one/some of them");
         } catch (ElasticsearchSecurityException e) {
             // expected

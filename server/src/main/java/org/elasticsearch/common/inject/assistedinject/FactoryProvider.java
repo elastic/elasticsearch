@@ -144,7 +144,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
     private void checkDeclaredExceptionsMatch() {
         for (Map.Entry<Method, AssistedConstructor<?>> entry : factoryMethodToConstructor.entrySet()) {
             for (Class<?> constructorException : entry.getValue().getDeclaredExceptions()) {
-                if (!isConstructorExceptionCompatibleWithFactoryExeception(
+                if (!isConstructorExceptionCompatibleWithFactoryException(
                         constructorException, entry.getKey().getExceptionTypes())) {
                     throw newConfigurationException("Constructor %s declares an exception, but no compatible "
                             + "exception is thrown by the factory method %s", entry.getValue(), entry.getKey());
@@ -153,7 +153,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
         }
     }
 
-    private boolean isConstructorExceptionCompatibleWithFactoryExeception(
+    private boolean isConstructorExceptionCompatibleWithFactoryException(
             Class<?> constructorException, Class<?>[] factoryExceptions) {
         for (Class<?> factoryException : factoryExceptions) {
             if (factoryException.isAssignableFrom(constructorException)) {

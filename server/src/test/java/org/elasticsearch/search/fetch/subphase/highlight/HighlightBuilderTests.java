@@ -157,7 +157,7 @@ public class HighlightBuilderTests extends ESTestCase {
     /**
      * test that unknown array fields cause exception
      */
-    public void testUnknownArrayNameExpection() throws IOException {
+    public void testUnknownArrayNameException() throws IOException {
         {
             XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" : [ \"field1\" 1 \"field2\" ]\n" +
@@ -188,7 +188,7 @@ public class HighlightBuilderTests extends ESTestCase {
     /**
      * test that unknown field name cause exception
      */
-    public void testUnknownFieldnameExpection() throws IOException {
+    public void testUnknownFieldnameException() throws IOException {
         {
             XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" : \"value\"\n" +
@@ -213,7 +213,7 @@ public class HighlightBuilderTests extends ESTestCase {
     /**
      * test that unknown field name cause exception
      */
-    public void testUnknownObjectFieldnameExpection() throws IOException {
+    public void testUnknownObjectFieldnameException() throws IOException {
         {
             XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" :  { \"field\" : \"value\" }\n \n" +

@@ -35,7 +35,7 @@ public class IngestDocumentMatcherTests extends ESTestCase {
         sourceAndMetadata1.put("foo", "bar");
         IngestDocument document1 = new IngestDocument(sourceAndMetadata1, new HashMap<>());
         IngestDocument document2 = new IngestDocument(new HashMap<>(), new HashMap<>());
-        assertThrowsOnComparision(document1, document2);
+        assertThrowsOnComparison(document1, document2);
     }
 
     public void testDifferentLengthListData() {
@@ -44,7 +44,7 @@ public class IngestDocumentMatcherTests extends ESTestCase {
             new IngestDocument(Collections.singletonMap(rootKey, Arrays.asList("bar", "baz")), new HashMap<>());
         IngestDocument document2 =
             new IngestDocument(Collections.singletonMap(rootKey, Collections.emptyList()), new HashMap<>());
-        assertThrowsOnComparision(document1, document2);
+        assertThrowsOnComparison(document1, document2);
     }
 
     public void testDifferentNestedListFieldData() {
@@ -53,7 +53,7 @@ public class IngestDocumentMatcherTests extends ESTestCase {
             new IngestDocument(Collections.singletonMap(rootKey, Arrays.asList("bar", "baz")), new HashMap<>());
         IngestDocument document2 =
             new IngestDocument(Collections.singletonMap(rootKey, Arrays.asList("bar", "blub")), new HashMap<>());
-        assertThrowsOnComparision(document1, document2);
+        assertThrowsOnComparison(document1, document2);
     }
 
     public void testDifferentNestedMapFieldData() {
@@ -62,7 +62,7 @@ public class IngestDocumentMatcherTests extends ESTestCase {
             new IngestDocument(Collections.singletonMap(rootKey, Collections.singletonMap("bar", "baz")), new HashMap<>());
         IngestDocument document2 =
             new IngestDocument(Collections.singletonMap(rootKey, Collections.singletonMap("bar", "blub")), new HashMap<>());
-        assertThrowsOnComparision(document1, document2);
+        assertThrowsOnComparison(document1, document2);
     }
 
     public void testOnTypeConflict() {
@@ -72,10 +72,10 @@ public class IngestDocumentMatcherTests extends ESTestCase {
         IngestDocument document2 = new IngestDocument(
             Collections.singletonMap(rootKey, Collections.singletonMap("blub", "blab")), new HashMap<>()
         );
-        assertThrowsOnComparision(document1, document2);
+        assertThrowsOnComparison(document1, document2);
     }
 
-    private static void assertThrowsOnComparision(IngestDocument document1, IngestDocument document2) {
+    private static void assertThrowsOnComparison(IngestDocument document1, IngestDocument document2) {
         expectThrows(AssertionError.class, () -> assertIngestDocument(document1, document2));
         expectThrows(AssertionError.class, () -> assertIngestDocument(document2, document1));
     }

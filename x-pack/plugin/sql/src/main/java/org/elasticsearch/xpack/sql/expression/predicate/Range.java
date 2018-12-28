@@ -103,9 +103,9 @@ public class Range extends ScalarFunction {
         Object val = value.fold();
         Integer lowerCompare = BinaryComparison.compare(lower.fold(), val);
         Integer upperCompare = BinaryComparison.compare(val, upper().fold());
-        boolean lowerComparsion = lowerCompare == null ? false : (includeLower ? lowerCompare <= 0 : lowerCompare < 0);
-        boolean upperComparsion = upperCompare == null ? false : (includeUpper ? upperCompare <= 0 : upperCompare < 0);
-        return lowerComparsion && upperComparsion;
+        boolean lowerComparison = lowerCompare == null ? false : (includeLower ? lowerCompare <= 0 : lowerCompare < 0);
+        boolean upperComparison = upperCompare == null ? false : (includeUpper ? upperCompare <= 0 : upperCompare < 0);
+        return lowerComparison && upperComparison;
     }
 
     /**

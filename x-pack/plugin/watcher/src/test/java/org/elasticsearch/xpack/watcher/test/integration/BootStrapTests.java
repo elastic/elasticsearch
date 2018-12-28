@@ -285,7 +285,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             long notExecutedCount = Arrays.stream(historySearchResponse.getHits().getHits())
                     .filter(hit -> hit.getSourceAsMap().get("state").equals(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED.id()))
                     .count();
-            logger.info("Watches not executed: [{}]: expected watch history count [{}] - [{}] successful watch exections",
+            logger.info("Watches not executed: [{}]: expected watch history count [{}] - [{}] successful watch executions",
                     notExecutedCount, expectedWatchHistoryCount, successfulWatchExecutions);
             assertThat(notExecutedCount, is(expectedWatchHistoryCount - successfulWatchExecutions));
         }, 20, TimeUnit.SECONDS);

@@ -503,9 +503,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                 });
             });
             masterService.setClusterStateSupplier(currentState::get);
-            if (node.isMasterNode()) {
-                masterService.start();
-            }
+            masterService.start();
             ClusterState stateForNode = stateForNode(initialState, node);
             currentState.set(stateForNode);
             clusterService.getClusterApplierService().setInitialState(stateForNode);

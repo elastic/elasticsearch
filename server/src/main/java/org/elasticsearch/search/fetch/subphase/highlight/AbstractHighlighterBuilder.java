@@ -188,9 +188,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalBoolean(forceSource);
         out.writeOptionalWriteable(boundaryScannerType);
         out.writeOptionalVInt(boundaryMaxScan);
-        boolean hasBounaryChars = boundaryChars != null;
-        out.writeBoolean(hasBounaryChars);
-        if (hasBounaryChars) {
+        boolean hasBoundaryChars = boundaryChars != null;
+        out.writeBoolean(hasBoundaryChars);
+        if (hasBoundaryChars) {
             out.writeString(String.valueOf(boundaryChars));
         }
         boolean hasBoundaryScannerLocale = boundaryScannerLocale != null;

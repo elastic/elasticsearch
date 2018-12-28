@@ -713,7 +713,7 @@ final class DocumentParser {
                 return builder;
             } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
                 // We refuse to match pure numbers, which are too likely to be
-                // false positives with date formats that include eg.
+                // false positives with date formats that include e.g.
                 // `epoch_millis` or `YYYY`
                 for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                     try {

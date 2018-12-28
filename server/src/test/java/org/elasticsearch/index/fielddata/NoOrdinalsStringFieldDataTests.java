@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.search.MultiValueMode;
 
 /** Returns an implementation based on paged bytes which doesn't implement WithOrdinals in order to visit different paths in the code,
- *  eg. BytesRefFieldComparatorSource makes decisions based on whether the field data implements WithOrdinals. */
+ *  e.g. BytesRefFieldComparatorSource makes decisions based on whether the field data implements WithOrdinals. */
 public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTests {
 
     public static IndexFieldData<AtomicFieldData> hideOrdinals(final IndexFieldData<?> in) {

@@ -268,7 +268,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             for (IndexableField field : document.getFields()) {
                 final String path = field.name();
                 if (path.equals(previousPath)) {
-                    // Sometimes mappers create multiple Lucene fields, eg. one for indexing,
+                    // Sometimes mappers create multiple Lucene fields, e.g. one for indexing,
                     // one for doc values and one for storing. Deduplicating is not required
                     // for correctness but this simple check helps save utf-8 conversions and
                     // gives Lucene fewer values to deal with.

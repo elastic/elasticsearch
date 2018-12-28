@@ -283,7 +283,7 @@ final class QueryAnalyzer {
     private static BiFunction<Query, Version, Result> spanOrQuery() {
         return (query, version) -> {
             SpanOrQuery spanOrQuery = (SpanOrQuery) query;
-            // handle it like a boolean query to not duplicate eg. logic
+            // handle it like a boolean query to not duplicate e.g. logic
             // about duplicated terms
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (SpanQuery clause : spanOrQuery.getClauses()) {

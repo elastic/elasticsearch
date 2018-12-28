@@ -85,14 +85,14 @@ public class PageCacheRecycler implements Releasable {
 
         // We have a global amount of memory that we need to divide across data types.
         // Since some types are more useful than other ones we give them different weights.
-        // Trying to store all of them in a single stack would be problematic because eg.
+        // Trying to store all of them in a single stack would be problematic because e.g.
         // a work load could fill the recycler with only byte[] pages and then another
         // workload that would work with double[] pages couldn't recycle them because there
         // is no space left in the stack/queue. LRU/LFU policies are not an option either
         // because they would make obtain/release too costly: we really need constant-time
         // operations.
         // Ultimately a better solution would be to only store one kind of data and have the
-        // ability to interpret it either as a source of bytes, doubles, longs, etc. eg. thanks
+        // ability to interpret it either as a source of bytes, doubles, longs, etc. e.g. thanks
         // to direct ByteBuffers or sun.misc.Unsafe on a byte[] but this would have other issues
         // that would need to be addressed such as garbage collection of native memory or safety
         // of Unsafe writes.

@@ -61,7 +61,7 @@ public final class ESToParentBlockJoinQuery extends Query {
         if (innerRewrite != query) {
             // Right now ToParentBlockJoinQuery always rewrites to a ToParentBlockJoinQuery
             // so the else block will never be used. It is useful in the case that
-            // ToParentBlockJoinQuery one day starts to rewrite to a different query, eg.
+            // ToParentBlockJoinQuery one day starts to rewrite to a different query, e.g.
             // a MatchNoDocsQuery if it realizes that it cannot match any docs and rewrites
             // to a MatchNoDocsQuery. In that case it would be fine to lose information
             // about the nested path.

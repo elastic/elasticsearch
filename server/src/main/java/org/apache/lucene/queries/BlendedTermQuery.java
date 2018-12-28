@@ -110,7 +110,7 @@ public abstract class BlendedTermQuery extends Query {
             // we use the max here since it's the only "true" estimation we can make here
             // at least max(df) documents have that term. Sum or Averages don't seem
             // to have a significant meaning here.
-            // TODO: Maybe it could also make sense to assume independent distributions of documents and eg. have:
+            // TODO: Maybe it could also make sense to assume independent distributions of documents and e.g. have:
             //   df = df1 + df2 - (df1 * df2 / maxDoc)?
             max = Math.max(df, max);
             if (minSumTTF != -1 && ctx.totalTermFreq() != -1) {

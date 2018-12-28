@@ -267,7 +267,7 @@ public class TermVectorsService  {
         Map<String, Collection<Object>> values = new HashMap<>();
         for (DocumentField getField : getFields) {
             String field = getField.getName();
-            if (fields.contains(field)) { // some fields are returned even when not asked for, eg. _timestamp
+            if (fields.contains(field)) { // some fields are returned even when not asked for, e.g. _timestamp
                 values.put(field, getField.getValues());
             }
         }

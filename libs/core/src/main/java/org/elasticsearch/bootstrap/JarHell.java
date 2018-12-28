@@ -63,7 +63,7 @@ public class JarHell {
     /** no instantiation */
     private JarHell() {}
 
-    /** Simple driver class, can be used eg. from builds. Returns non-zero on jar-hell */
+    /** Simple driver class, can be used e.g. from builds. Returns non-zero on jar-hell */
     @SuppressForbidden(reason = "command line tool")
     public static void main(String args[]) throws Exception {
         System.out.println("checking for jar hell...");

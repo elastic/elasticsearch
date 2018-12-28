@@ -971,7 +971,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     protected void doTestBigInteger(JsonGenerator generator, ByteArrayOutputStream os) throws Exception {
         // Big integers cannot be handled explicitly, but if some values happen to be big ints,
-        // we can still call parser.map() and get the bigint value so that eg. source filtering
+        // we can still call parser.map() and get the bigint value so that e.g. source filtering
         // keeps working
         BigInteger bigInteger = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
         generator.writeStartObject();

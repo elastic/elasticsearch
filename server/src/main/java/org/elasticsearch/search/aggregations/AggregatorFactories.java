@@ -191,7 +191,7 @@ public class AggregatorFactories {
     public Aggregator[] createSubAggregators(Aggregator parent) throws IOException {
         Aggregator[] aggregators = new Aggregator[countAggregators()];
         for (int i = 0; i < factories.length; ++i) {
-            // TODO: sometimes even sub aggregations always get called with bucket 0, eg. if
+            // TODO: sometimes even sub aggregations always get called with bucket 0, e.g. if
             // you have a terms agg under a top-level filter agg. We should have a way to
             // propagate the fact that only bucket 0 will be collected with single-bucket
             // aggs

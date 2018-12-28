@@ -151,7 +151,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
             return null;
         }
         f = new FieldFilterFields(f);
-        // we need to check for emptyness, so we can return null:
+        // we need to check for emptiness, so we can return null:
         return f.iterator().hasNext() ? f : null;
     }
 

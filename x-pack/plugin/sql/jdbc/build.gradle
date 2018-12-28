@@ -49,7 +49,7 @@ shadowJar {
     configurations = [project.configurations.runtime]
 }
 
-// We need a no-depenencies jar though for qa testing so it doesn't conflict with cli
+// We need a no-dependencies jar though for qa testing so it doesn't conflict with cli
 configurations {
     nodeps
 }

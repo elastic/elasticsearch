@@ -79,7 +79,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
 
     @Override
     protected void doExecute(final Runnable command) {
-        // we are submitting a task, it has not yet started running (because super.excute() has not
+        // we are submitting a task, it has not yet started running (because super.execute() has not
         // been called), but it could be immediately run, or run at a later time. We need the time
         // this task entered the queue, which we get by creating a TimedRunnable, which starts the
         // clock as soon as it is created.

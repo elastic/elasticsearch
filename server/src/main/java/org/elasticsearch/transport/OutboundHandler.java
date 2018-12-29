@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.function.Supplier;
 
-public class OutboundHandler {
+class OutboundHandler {
 
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
 
@@ -47,19 +47,19 @@ public class OutboundHandler {
     private final BigArrays bigArrays;
     private final TransportLogger transportLogger;
 
-    public OutboundHandler(ThreadPool threadPool, BigArrays bigArrays, TransportLogger transportLogger) {
+    OutboundHandler(ThreadPool threadPool, BigArrays bigArrays, TransportLogger transportLogger) {
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
         this.transportLogger = transportLogger;
     }
 
-    public void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
+    void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         SendContext sendContext = new SendContext(channel, () -> bytes, listener);
         internalSendMessage(channel, sendContext);
     }
 
-    public void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) {
+    void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
         SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
@@ -77,7 +77,6 @@ public class OutboundHandler {
             // call listener to ensure that any resources are released
             sendContext.onFailure(ex);
             CloseableChannel.closeChannel(channel);
-//            onException(channel, ex);
         }
     }
 

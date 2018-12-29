@@ -27,7 +27,7 @@ public abstract class NetworkMessage {
     protected final ThreadContext threadContext;
     protected final ThreadContext.StoredContext storedContext;
     protected final long requestId;
-    protected byte status;
+    protected final byte status;
 
     NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId) {
         this.threadContext = threadContext;

@@ -2042,9 +2042,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 throws IOException {
                 // we flip the isHandshake bit back and act like the handler is not found
                 byte status = (byte) (request.status & ~(1 << 3));
-                InboundMessage.Request request1 = new InboundMessage.Request(request.threadContext, request.getVersion(), status,
-                    request.getRequestId(), request.getActionName(), request.getFeatures(), request.getStreamInput());
-                return super.handleRequest(channel, profileName, request1, messageLengthBytes);
+                InboundMessage.Request nonHandshakeRequest = new InboundMessage.Request(request.threadContext, request.getVersion(),
+                    status, request.getRequestId(), request.getActionName(), request.getFeatures(), request.getStreamInput());
+                return super.handleRequest(channel, profileName, nonHandshakeRequest, messageLengthBytes);
             }
         };
 

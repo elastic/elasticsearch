@@ -49,6 +49,10 @@ public abstract class NetworkMessage {
         return TransportStatus.isCompress(status);
     }
 
+    ThreadContext.StoredContext getStoredContext() {
+        return storedContext;
+    }
+
     boolean isResponse() {
         return TransportStatus.isRequest(status) == false;
     }

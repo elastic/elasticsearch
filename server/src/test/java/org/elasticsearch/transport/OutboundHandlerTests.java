@@ -103,7 +103,9 @@ public class OutboundHandlerTests extends ESTestCase {
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress = randomBoolean();
-        Writeable writeable = new Message("message");
+        String value = "message";
+        threadContext.putHeader("header", "header_value");
+        Writeable writeable = new Message(value);
 
         boolean isRequest = randomBoolean();
         if (isRequest) {
@@ -132,22 +134,48 @@ public class OutboundHandlerTests extends ESTestCase {
         }
 
         InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, namedWriteableRegistry, threadPool);
-        InboundMessage inboundMessage = reader.deserialize(reference.slice(6, reference.length() - 6), mock(InetSocketAddress.class));
-        // TODO: Implement test
-        assertEquals(version, inboundMessage.getVersion());
-        assertEquals(requestId, inboundMessage.getRequestId());
-        if (isRequest) {
-            assertTrue(inboundMessage.isRequest());
-            assertFalse(inboundMessage.isResponse());
-        } else {
-            assertTrue(inboundMessage.isResponse());
-            assertFalse(inboundMessage.isRequest());
+        try (InboundMessage inboundMessage = reader.deserialize(reference.slice(6, reference.length() - 6), mock(InetSocketAddress.class))) {
+            assertEquals(version, inboundMessage.getVersion());
+            assertEquals(requestId, inboundMessage.getRequestId());
+            if (isRequest) {
+                assertTrue(inboundMessage.isRequest());
+                assertFalse(inboundMessage.isResponse());
+            } else {
+                assertTrue(inboundMessage.isResponse());
+                assertFalse(inboundMessage.isRequest());
+            }
+            if (isHandshake) {
+                assertTrue(inboundMessage.isHandshake());
+            } else {
+                assertFalse(inboundMessage.isHandshake());
+            }
+            if (compress) {
+                assertTrue(inboundMessage.isCompress());
+            } else {
+                assertFalse(inboundMessage.isCompress());
+            }
+            Message readMessage = new Message();
+            readMessage.readFrom(inboundMessage.getStreamInput());
+            assertEquals(value, readMessage.value);
+
+            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+                ThreadContext.StoredContext storedContext = inboundMessage.getStoredContext();
+                assertNull(threadContext.getHeader("header"));
+                storedContext.restore();
+                assertEquals("header_value", threadContext.getHeader("header"));
+            }
+
+
+
         }
     }
 
-    private static final class Message extends TransportRequest {
+    private static final class Message extends TransportMessage {
 
         public String value;
+
+        private Message() {
+        }
 
         private Message(String value) {
             this.value = value;

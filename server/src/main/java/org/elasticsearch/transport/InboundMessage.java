@@ -38,7 +38,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.TreeSet;
 
-public class InboundMessage extends NetworkMessage implements Closeable {
+abstract class InboundMessage extends NetworkMessage implements Closeable {
 
     private final StreamInput streamInput;
 
@@ -51,64 +51,75 @@ public class InboundMessage extends NetworkMessage implements Closeable {
         return streamInput;
     }
 
-    static InboundMessage deserialize(Version version, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
-                                      BytesReference reference, TcpChannel channel) throws IOException {
-        InetSocketAddress remoteAddress = channel.getRemoteAddress();
-        int messageLengthBytes = reference.length();
-        final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-        // we have additional bytes to read, outside of the header
-        boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
-        StreamInput streamInput = reference.streamInput();
-        boolean success = false;
-        try {
-            long requestId = streamInput.readLong();
-            byte status = streamInput.readByte();
-            Version remoteVersion = Version.fromId(streamInput.readInt());
-            final boolean isHandshake = TransportStatus.isHandshake(status);
-            TcpTransport.ensureVersionCompatibility(remoteVersion, version, isHandshake);
-            if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamInput.available() > 0) {
-                Compressor compressor;
-                try {
-                    final int bytesConsumed = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
-                    compressor = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed));
-                } catch (NotCompressedException ex) {
-                    int maxToRead = Math.min(reference.length(), 10);
-                    StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)
-                        .append("] content bytes out of [").append(reference.length())
-                        .append("] readable bytes with message size [").append(messageLengthBytes).append("] ").append("] are [");
-                    for (int i = 0; i < maxToRead; i++) {
-                        sb.append(reference.get(i)).append(",");
-                    }
-                    sb.append("]");
-                    throw new IllegalStateException(sb.toString());
-                }
-                streamInput = compressor.streamInput(streamInput);
-            }
-            streamInput = new NamedWriteableAwareStreamInput(streamInput, namedWriteableRegistry);
-            streamInput.setVersion(remoteVersion);
+    static class Reader {
 
-            try (ThreadContext.StoredContext existingContext = threadPool.getThreadContext().stashContext()) {
-                threadPool.getThreadContext().readHeaders(streamInput);
-                threadPool.getThreadContext().putTransient("_remote_address", remoteAddress);
-                InboundMessage message;
-                if (TransportStatus.isRequest(status)) {
-                    final Set<String> features;
-                    if (version.onOrAfter(Version.V_6_3_0)) {
-                        features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(streamInput.readStringArray())));
-                    } else {
-                        features = Collections.emptySet();
+        private final Version version;
+        private final NamedWriteableRegistry namedWriteableRegistry;
+        private final ThreadPool threadPool;
+
+        Reader(Version version, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool) {
+            this.version = version;
+            this.namedWriteableRegistry = namedWriteableRegistry;
+            this.threadPool = threadPool;
+        }
+
+        InboundMessage deserialize(BytesReference reference, InetSocketAddress remoteAddress) throws IOException {
+            int messageLengthBytes = reference.length();
+            final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
+            // we have additional bytes to read, outside of the header
+            boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
+            StreamInput streamInput = reference.streamInput();
+            boolean success = false;
+            try {
+                long requestId = streamInput.readLong();
+                byte status = streamInput.readByte();
+                Version remoteVersion = Version.fromId(streamInput.readInt());
+                final boolean isHandshake = TransportStatus.isHandshake(status);
+                TcpTransport.ensureVersionCompatibility(remoteVersion, version, isHandshake);
+                if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamInput.available() > 0) {
+                    Compressor compressor;
+                    try {
+                        final int bytesConsumed = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
+                        compressor = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed));
+                    } catch (NotCompressedException ex) {
+                        int maxToRead = Math.min(reference.length(), 10);
+                        StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)
+                            .append("] content bytes out of [").append(reference.length())
+                            .append("] readable bytes with message size [").append(messageLengthBytes).append("] ").append("] are [");
+                        for (int i = 0; i < maxToRead; i++) {
+                            sb.append(reference.get(i)).append(",");
+                        }
+                        sb.append("]");
+                        throw new IllegalStateException(sb.toString());
                     }
-                    final String action = streamInput.readString();
-                    message = new Request(threadPool.getThreadContext(), version, status, requestId, action, features, streamInput);
-                } else {
-                    message = new Response(threadPool.getThreadContext(), version, status, requestId, streamInput);
+                    streamInput = compressor.streamInput(streamInput);
                 }
-                success = true;
-                return message;
-            }
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(streamInput);
+                streamInput = new NamedWriteableAwareStreamInput(streamInput, namedWriteableRegistry);
+                streamInput.setVersion(remoteVersion);
+
+                try (ThreadContext.StoredContext existingContext = threadPool.getThreadContext().stashContext()) {
+                    threadPool.getThreadContext().readHeaders(streamInput);
+                    threadPool.getThreadContext().putTransient("_remote_address", remoteAddress);
+                    InboundMessage message;
+                    if (TransportStatus.isRequest(status)) {
+                        final Set<String> features;
+                        if (version.onOrAfter(Version.V_6_3_0)) {
+                            features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(streamInput.readStringArray())));
+                        } else {
+                            features = Collections.emptySet();
+                        }
+                        final String action = streamInput.readString();
+                        message = new Request(threadPool.getThreadContext(), version, status, requestId, action, features, streamInput);
+                    } else {
+                        message = new Response(threadPool.getThreadContext(), version, status, requestId, streamInput);
+                    }
+                    success = true;
+                    return message;
+                }
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(streamInput);
+                }
             }
         }
     }

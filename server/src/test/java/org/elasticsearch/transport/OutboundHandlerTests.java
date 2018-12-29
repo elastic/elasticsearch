@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,17 +36,22 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static org.mockito.Mockito.mock;
+
 public class OutboundHandlerTests extends ESTestCase {
 
-    private TestThreadPool threadPool = new TestThreadPool(getClass().getName());;
-    private AtomicReference<Supplier<BytesReference>> messageCaptor = new AtomicReference<>();
+    private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
+    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+    private final AtomicReference<Supplier<BytesReference>> messageCaptor = new AtomicReference<>();
     private OutboundHandler handler;
     private FakeTcpChannel fakeTcpChannel;
 
@@ -99,7 +105,8 @@ public class OutboundHandlerTests extends ESTestCase {
         boolean compress = randomBoolean();
         Writeable writeable = new Message("message");
 
-        if (randomBoolean()) {
+        boolean isRequest = randomBoolean();
+        if (isRequest) {
             message = new OutboundMessage.Request(threadContext, new String[0], writeable, version, actionName, requestId, isHandshake,
                 compress);
         } else {
@@ -124,9 +131,18 @@ public class OutboundHandlerTests extends ESTestCase {
             assertSame(e, exception.get());
         }
 
-        OutboundMessage deserialized = OutboundMessage.deserialize(reference.streamInput());
+        InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, namedWriteableRegistry, threadPool);
+        InboundMessage inboundMessage = reader.deserialize(reference.slice(6, reference.length() - 6), mock(InetSocketAddress.class));
         // TODO: Implement test
-        assertEquals(null, deserialized);
+        assertEquals(version, inboundMessage.getVersion());
+        assertEquals(requestId, inboundMessage.getRequestId());
+        if (isRequest) {
+            assertTrue(inboundMessage.isRequest());
+            assertFalse(inboundMessage.isResponse());
+        } else {
+            assertTrue(inboundMessage.isResponse());
+            assertFalse(inboundMessage.isRequest());
+        }
     }
 
     private static final class Message extends TransportRequest {

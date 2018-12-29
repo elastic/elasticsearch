@@ -37,6 +37,14 @@ public abstract class NetworkMessage {
         this.status = status;
     }
 
+    public Version getVersion() {
+        return version;
+    }
+
+    public long getRequestId() {
+        return requestId;
+    }
+
     boolean isCompress() {
         return TransportStatus.isCompress(status);
     }

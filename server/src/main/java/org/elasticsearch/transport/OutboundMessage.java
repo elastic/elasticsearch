@@ -32,17 +32,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Set;
 
-public abstract class OutboundMessage extends NetworkMessage implements Writeable {
+abstract class OutboundMessage extends NetworkMessage implements Writeable {
 
     private final Writeable message;
 
     OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message, boolean compress) {
         super(threadContext, version, status, requestId);
         this.message = message;
-    }
-
-    static OutboundMessage deserialize(ThreadPool threadPool, BytesReference reference, StreamInput streamInput) throws IOException {
-        return null;
     }
 
     BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {

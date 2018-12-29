@@ -38,7 +38,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.TreeSet;
 
-abstract class InboundMessage extends NetworkMessage implements Closeable {
+public abstract class InboundMessage extends NetworkMessage implements Closeable {
 
     private final StreamInput streamInput;
 
@@ -97,25 +97,23 @@ abstract class InboundMessage extends NetworkMessage implements Closeable {
                 streamInput = new NamedWriteableAwareStreamInput(streamInput, namedWriteableRegistry);
                 streamInput.setVersion(remoteVersion);
 
-                try (ThreadContext.StoredContext existingContext = threadPool.getThreadContext().stashContext()) {
-                    threadPool.getThreadContext().readHeaders(streamInput);
-                    threadPool.getThreadContext().putTransient("_remote_address", remoteAddress);
-                    InboundMessage message;
-                    if (TransportStatus.isRequest(status)) {
-                        final Set<String> features;
-                        if (version.onOrAfter(Version.V_6_3_0)) {
-                            features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(streamInput.readStringArray())));
-                        } else {
-                            features = Collections.emptySet();
-                        }
-                        final String action = streamInput.readString();
-                        message = new Request(threadPool.getThreadContext(), version, status, requestId, action, features, streamInput);
+                threadPool.getThreadContext().readHeaders(streamInput);
+                threadPool.getThreadContext().putTransient("_remote_address", remoteAddress);
+                InboundMessage message;
+                if (TransportStatus.isRequest(status)) {
+                    final Set<String> features;
+                    if (remoteVersion.onOrAfter(Version.V_6_3_0)) {
+                        features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(streamInput.readStringArray())));
                     } else {
-                        message = new Response(threadPool.getThreadContext(), version, status, requestId, streamInput);
+                        features = Collections.emptySet();
                     }
-                    success = true;
-                    return message;
+                    final String action = streamInput.readString();
+                    message = new Request(threadPool.getThreadContext(), remoteVersion, status, requestId, action, features, streamInput);
+                } else {
+                    message = new Response(threadPool.getThreadContext(), remoteVersion, status, requestId, streamInput);
                 }
+                success = true;
+                return message;
             } finally {
                 if (success == false) {
                     IOUtils.closeWhileHandlingException(streamInput);
@@ -129,21 +127,27 @@ abstract class InboundMessage extends NetworkMessage implements Closeable {
         streamInput.close();
     }
 
-    static class Request extends InboundMessage {
+    public static class Request extends InboundMessage {
 
         private final String actionName;
+        private final Set<String> features;
 
         Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName, Set<String> features, StreamInput streamInput) {
             super(threadContext, version, status, requestId, streamInput);
             this.actionName = actionName;
+            this.features = features;
         }
 
         String getActionName() {
             return actionName;
         }
+
+        Set<String> getFeatures() {
+            return features;
+        }
     }
 
-    static class Response extends InboundMessage {
+    public static class Response extends InboundMessage {
 
         Response(ThreadContext threadContext, Version version, byte status, long requestId, StreamInput streamInput) {
             super(threadContext, version, status, requestId, streamInput);

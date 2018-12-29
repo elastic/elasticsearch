@@ -32,6 +32,7 @@ public abstract class NetworkMessage {
     NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId) {
         this.threadContext = threadContext;
         storedContext = threadContext.stashContext();
+        storedContext.restore();
         this.version = version;
         this.requestId = requestId;
         this.status = status;

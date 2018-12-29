@@ -702,7 +702,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                                       final TransportRequest request, TransportRequestOptions options, Version channelVersion,
                                       boolean compressRequest, boolean isHandshake) throws IOException, TransportException {
         Version version = Version.min(this.version, channelVersion);
-        NetworkMessage.Request message = new NetworkMessage.Request(threadPool.getThreadContext(), features, request, version, action,
+        OutboundMessage.Request message = new OutboundMessage.Request(threadPool.getThreadContext(), features, request, version, action,
             requestId, isHandshake, compressRequest);
         ActionListener<Void> listener = ActionListener.wrap(() ->
             messageListener.onRequestSent(node, requestId, action, request, options));
@@ -729,7 +729,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         Version version = Version.min(this.version, nodeVersion);
         TransportAddress address = new TransportAddress(channel.getLocalAddress());
         RemoteTransportException tx = new RemoteTransportException(nodeName, address, action, error);
-        NetworkMessage.Response message = new NetworkMessage.Response(threadPool.getThreadContext(), features, tx, version, requestId,
+        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), features, tx, version, requestId,
             false, false);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, error));
         outboundHandler.sendMessage(channel, message, listener);
@@ -761,7 +761,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         boolean compress,
         boolean isHandshake) {
         Version version = Version.min(this.version, nodeVersion);
-        NetworkMessage.Response message = new NetworkMessage.Response(threadPool.getThreadContext(), features, response, version, requestId,
+        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), features, response, version, requestId,
             isHandshake, compress);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
         outboundHandler.sendMessage(channel, message, listener);

@@ -90,7 +90,7 @@ public class OutboundHandlerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSendMessage() throws IOException {
-        NetworkMessage message;
+        OutboundMessage message;
         ThreadContext threadContext = threadPool.getThreadContext();
         Version version = Version.CURRENT;
         String actionName = "handshake";
@@ -100,10 +100,10 @@ public class OutboundHandlerTests extends ESTestCase {
         Writeable writeable = new Message("message");
 
         if (randomBoolean()) {
-            message = new NetworkMessage.Request(threadContext, new String[0], writeable, version, actionName, requestId, isHandshake,
+            message = new OutboundMessage.Request(threadContext, new String[0], writeable, version, actionName, requestId, isHandshake,
                 compress);
         } else {
-            message = new NetworkMessage.Response(threadContext, new HashSet<>(), writeable, version, requestId, isHandshake, compress);
+            message = new OutboundMessage.Response(threadContext, new HashSet<>(), writeable, version, requestId, isHandshake, compress);
         }
 
         AtomicBoolean isSuccess = new AtomicBoolean(false);
@@ -124,7 +124,7 @@ public class OutboundHandlerTests extends ESTestCase {
             assertSame(e, exception.get());
         }
 
-        NetworkMessage deserialized = NetworkMessage.deserialize(reference.streamInput());
+        OutboundMessage deserialized = OutboundMessage.deserialize(reference.streamInput());
         // TODO: Implement test
         assertEquals(null, deserialized);
     }

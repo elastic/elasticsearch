@@ -59,7 +59,7 @@ public class OutboundHandler {
         internalSendMessage(channel, sendContext);
     }
 
-    public void sendMessage(TcpChannel channel, NetworkMessage networkMessage, ActionListener<Void> listener) {
+    public void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
         SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
@@ -87,11 +87,11 @@ public class OutboundHandler {
 
     private static class MessageSerializer implements CheckedSupplier<BytesReference, IOException>, Releasable {
 
-        private final NetworkMessage message;
+        private final OutboundMessage message;
         private final BigArrays bigArrays;
         private ReleasableBytesStreamOutput bytesStreamOutput;
 
-        private MessageSerializer(NetworkMessage message, BigArrays bigArrays) {
+        private MessageSerializer(OutboundMessage message, BigArrays bigArrays) {
             this.message = message;
             this.bigArrays = bigArrays;
         }

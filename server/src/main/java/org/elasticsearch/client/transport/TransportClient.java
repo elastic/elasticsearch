@@ -127,7 +127,7 @@ public abstract class TransportClient extends AbstractClient {
     }
 
     private static ClientTemplate buildTemplate(Settings providedSettings, Settings defaultSettings,
-                                                Collection<Class<? extends Plugin>> plugins, HostFailureListener failureListner) {
+                                                Collection<Class<? extends Plugin>> plugins, HostFailureListener failureListener) {
         if (Node.NODE_NAME_SETTING.exists(providedSettings) == false) {
             providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
         }
@@ -206,8 +206,8 @@ public abstract class TransportClient extends AbstractClient {
 
             Injector injector = modules.createInjector();
             final TransportClientNodesService nodesService =
-                new TransportClientNodesService(settings, transportService, threadPool, failureListner == null
-                    ? (t, e) -> {} : failureListner);
+                new TransportClientNodesService(settings, transportService, threadPool, failureListener == null
+                    ? (t, e) -> {} : failureListener);
 
             // construct the list of client actions
             final List<ActionPlugin> actionPlugins = pluginsService.filterPlugins(ActionPlugin.class);

@@ -414,7 +414,7 @@ public class NestedIT extends ESIntegTestCase {
                         terms("startDate").field("dates.month.start").subAggregation(
                                 terms("endDate").field("dates.month.end").subAggregation(
                                         terms("period").field("dates.month.label").subAggregation(
-                                                nested("ctxt_idfier_nested", "comments")
+                                                nested("ctxt_identifier_nested", "comments")
                                                 .subAggregation(filter("comment_filter", termQuery("comments.identifier", "29111"))
                                                         .subAggregation(nested("nested_tags", "comments.tags")
                                                                 .subAggregation(
@@ -439,7 +439,7 @@ public class NestedIT extends ESIntegTestCase {
         Terms period = bucket.getAggregations().get("period");
         bucket = period.getBucketByKey("2014-11");
         assertThat(bucket.getDocCount(), equalTo(1L));
-        Nested comments = bucket.getAggregations().get("ctxt_idfier_nested");
+        Nested comments = bucket.getAggregations().get("ctxt_identifier_nested");
         assertThat(comments.getDocCount(), equalTo(2L));
         Filter filter = comments.getAggregations().get("comment_filter");
         assertThat(filter.getDocCount(), equalTo(1L));
@@ -456,7 +456,7 @@ public class NestedIT extends ESIntegTestCase {
         period = bucket.getAggregations().get("period");
         bucket = period.getBucketByKey("2014-12");
         assertThat(bucket.getDocCount(), equalTo(1L));
-        comments = bucket.getAggregations().get("ctxt_idfier_nested");
+        comments = bucket.getAggregations().get("ctxt_identifier_nested");
         assertThat(comments.getDocCount(), equalTo(2L));
         filter = comments.getAggregations().get("comment_filter");
         assertThat(filter.getDocCount(), equalTo(1L));

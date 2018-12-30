@@ -372,8 +372,8 @@ public class DissectParserTests extends ESTestCase {
         assertMatch(pattern, input, expectedKeys, expectedValues, null);
     }
 
-    private void assertMatch(String pattern, String input, List<String> expectedKeys, List<String> expectedValues, String appendSeperator) {
-        Map<String, String> results = new DissectParser(pattern, appendSeperator).parse(input);
+    private void assertMatch(String pattern, String input, List<String> expectedKeys, List<String> expectedValues, String appendSeparator) {
+        Map<String, String> results = new DissectParser(pattern, appendSeparator).parse(input);
         List<String> foundKeys = new ArrayList<>(results.keySet());
         List<String> foundValues = new ArrayList<>(results.values());
         Collections.sort(foundKeys);

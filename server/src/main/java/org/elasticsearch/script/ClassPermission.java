@@ -76,7 +76,7 @@ import java.util.Set;
 public final class ClassPermission extends BasicPermission {
     public static final String STANDARD = "<<STANDARD>>";
     /** Typical set of classes for scripting: basic data types, math, dates, and simple collections */
-    // this is the list from the old grovy sandbox impl (+ some things like String, Iterator, etc that were missing)
+    // this is the list from the old groovy sandbox impl (+ some things like String, Iterator, etc that were missing)
     public static final Set<String> STANDARD_CLASSES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             // jdk classes
             java.lang.Boolean.class.getName(),

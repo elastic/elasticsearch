@@ -293,7 +293,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(5));
 
-        long higestSortValue = 0;
+        long highestSortValue = 0;
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
@@ -303,10 +303,10 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchHits hits = topHits.getHits();
             assertThat(hits.getTotalHits().value, equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
-            higestSortValue += 10;
-            assertThat((Long) hits.getAt(0).getSortValues()[0], equalTo(higestSortValue));
-            assertThat((Long) hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
-            assertThat((Long) hits.getAt(2).getSortValues()[0], equalTo(higestSortValue - 2));
+            highestSortValue += 10;
+            assertThat((Long) hits.getAt(0).getSortValues()[0], equalTo(highestSortValue));
+            assertThat((Long) hits.getAt(1).getSortValues()[0], equalTo(highestSortValue - 1));
+            assertThat((Long) hits.getAt(2).getSortValues()[0], equalTo(highestSortValue - 2));
 
             assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(4));
         }
@@ -517,7 +517,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(5));
 
-        long higestSortValue = 50;
+        long highestSortValue = 50;
         int currentBucket = 4;
         for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(key(bucket), equalTo("val" + currentBucket--));
@@ -526,12 +526,12 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchHits hits = topHits.getHits();
             assertThat(hits.getTotalHits().value, equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
-            assertThat(hits.getAt(0).getSortValues()[0], equalTo(higestSortValue));
-            assertThat(hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
-            assertThat(hits.getAt(2).getSortValues()[0], equalTo(higestSortValue - 2));
+            assertThat(hits.getAt(0).getSortValues()[0], equalTo(highestSortValue));
+            assertThat(hits.getAt(1).getSortValues()[0], equalTo(highestSortValue - 1));
+            assertThat(hits.getAt(2).getSortValues()[0], equalTo(highestSortValue - 2));
             Max max = bucket.getAggregations().get("max_sort");
-            assertThat(max.getValue(), equalTo(((Long) higestSortValue).doubleValue()));
-            higestSortValue -= 10;
+            assertThat(max.getValue(), equalTo(((Long) highestSortValue).doubleValue()));
+            highestSortValue -= 10;
         }
     }
 

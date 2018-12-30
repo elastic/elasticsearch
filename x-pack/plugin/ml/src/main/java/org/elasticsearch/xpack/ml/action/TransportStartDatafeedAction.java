@@ -169,7 +169,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 };
 
         // Verify data extractor factory can be created, then start persistent task
-        Consumer<Job> createDataExtrator = job -> {
+        Consumer<Job> createDataExtractor = job -> {
                 if (RemoteClusterLicenseChecker.containsRemoteIndex(params.getDatafeedIndices())) {
                     final RemoteClusterLicenseChecker remoteClusterLicenseChecker =
                             new RemoteClusterLicenseChecker(client, XPackLicenseState::isMachineLearningAllowedForOperationMode);
@@ -200,7 +200,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                         Job job = jobBuilder.build();
                         validate(job, datafeedConfigHolder.get(), tasks);
                         auditDeprecations(datafeedConfigHolder.get(), job, auditor);
-                        createDataExtrator.accept(job);
+                        createDataExtractor.accept(job);
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }

@@ -1524,9 +1524,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(response);
             assertThat(response.getPrivileges().size(), equalTo(3));
-            final GetPrivilegesResponse exptectedResponse =
+            final GetPrivilegesResponse expectedResponse =
                 new GetPrivilegesResponse(Arrays.asList(readTestappPrivilege, writeTestappPrivilege, allTestappPrivilege));
-            assertThat(response, equalTo(exptectedResponse));
+            assertThat(response, equalTo(expectedResponse));
             //tag::get-privileges-response
             Set<ApplicationPrivilege> privileges = response.getPrivileges();
             //end::get-privileges-response
@@ -1554,10 +1554,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(response);
             assertThat(response.getPrivileges().size(), equalTo(6));
-            final GetPrivilegesResponse exptectedResponse =
+            final GetPrivilegesResponse expectedResponse =
                 new GetPrivilegesResponse(Arrays.asList(readTestappPrivilege, writeTestappPrivilege, allTestappPrivilege,
                     readTestapp2Privilege, writeTestapp2Privilege, allTestapp2Privilege));
-            assertThat(response, equalTo(exptectedResponse));
+            assertThat(response, equalTo(expectedResponse));
         }
 
         {

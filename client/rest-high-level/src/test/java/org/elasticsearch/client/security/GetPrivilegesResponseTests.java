@@ -106,10 +106,10 @@ public class GetPrivilegesResponseTests extends ESTestCase {
             new ApplicationPrivilege("testapp2", "write", Arrays.asList("action:login", "data:write/*"), null);
         final ApplicationPrivilege allTestapp2Privilege =
             new ApplicationPrivilege("testapp2", "all", Arrays.asList("action:login", "data:write/*", "manage:*"), null);
-        final GetPrivilegesResponse exptectedResponse =
+        final GetPrivilegesResponse expectedResponse =
             new GetPrivilegesResponse(Arrays.asList(readTestappPrivilege, writeTestappPrivilege, allTestappPrivilege,
                 readTestapp2Privilege, writeTestapp2Privilege, allTestapp2Privilege));
-        assertThat(response, equalTo(exptectedResponse));
+        assertThat(response, equalTo(expectedResponse));
     }
 
     public void testEqualsHashCode() {

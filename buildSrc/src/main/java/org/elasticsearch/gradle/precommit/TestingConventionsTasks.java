@@ -233,7 +233,7 @@ public class TestingConventionsTasks extends DefaultTask {
             Method getPatternSet = task.getClass().getMethod("getPatternSet");
             return (PatternFilterable) getPatternSet.invoke(task);
         } catch (NoSuchMethodException e) {
-            throw new IllegalStateException("Expecte task to have a `patternSet` " + task, e);
+            throw new IllegalStateException("Expected task to have a `patternSet` " + task, e);
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new IllegalStateException("Failed to get pattern set from task" + task, e);
         }

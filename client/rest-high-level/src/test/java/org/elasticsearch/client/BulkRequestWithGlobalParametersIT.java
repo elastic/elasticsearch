@@ -45,7 +45,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
     @SuppressWarnings("unchecked")
     public void testGlobalPipelineOnBulkRequest() throws IOException {
-        createFieldAddingPipleine("xyz", "fieldNameXYZ", "valueXYZ");
+        createFieldAddingPipeline("xyz", "fieldNameXYZ", "valueXYZ");
 
         BulkRequest request = new BulkRequest();
         request.add(new IndexRequest("test").id("1")
@@ -62,8 +62,8 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
     }
 
     public void testPipelineOnRequestOverridesGlobalPipeline() throws IOException {
-        createFieldAddingPipleine("globalId", "fieldXYZ", "valueXYZ");
-        createFieldAddingPipleine("perIndexId", "someNewField", "someValue");
+        createFieldAddingPipeline("globalId", "fieldXYZ", "valueXYZ");
+        createFieldAddingPipeline("perIndexId", "someNewField", "someValue");
 
         BulkRequest request = new BulkRequest();
         request.pipeline("globalId");
@@ -84,8 +84,8 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
     @SuppressWarnings("unchecked")
     public void testMixPipelineOnRequestAndGlobal() throws IOException {
-        createFieldAddingPipleine("globalId", "fieldXYZ", "valueXYZ");
-        createFieldAddingPipleine("perIndexId", "someNewField", "someValue");
+        createFieldAddingPipeline("globalId", "fieldXYZ", "valueXYZ");
+        createFieldAddingPipeline("perIndexId", "someNewField", "someValue");
 
         // tag::bulk-request-mix-pipeline
         BulkRequest request = new BulkRequest();

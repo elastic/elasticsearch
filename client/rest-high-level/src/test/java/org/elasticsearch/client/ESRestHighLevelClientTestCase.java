@@ -167,7 +167,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         return buildRandomXContentPipeline(pipelineBuilder);
     }
 
-    protected static void createFieldAddingPipleine(String id, String fieldName, String value) throws IOException {
+    protected static void createFieldAddingPipeline(String id, String fieldName, String value) throws IOException {
         XContentBuilder pipeline = jsonBuilder()
             .startObject()
                 .startArray("processors")

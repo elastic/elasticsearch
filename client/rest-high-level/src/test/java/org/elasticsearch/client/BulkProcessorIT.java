@@ -287,7 +287,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
         final CountDownLatch latch = new CountDownLatch(1);
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
-        createFieldAddingPipleine("pipeline_id", "fieldNameXYZ", "valueXYZ");
+        createFieldAddingPipeline("pipeline_id", "fieldNameXYZ", "valueXYZ");
 
         // tag::bulk-processor-mix-parameters
         try (BulkProcessor processor = initBulkProcessorBuilder(listener)
@@ -322,7 +322,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
         final CountDownLatch latch = new CountDownLatch(1);
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
-        createFieldAddingPipleine("pipeline_id", "fieldNameXYZ", "valueXYZ");
+        createFieldAddingPipeline("pipeline_id", "fieldNameXYZ", "valueXYZ");
 
         int numDocs = randomIntBetween(10, 10);
         try (BulkProcessor processor = initBulkProcessorBuilder(listener)

@@ -1028,11 +1028,11 @@ public class JobResultsProvider {
                                             // no need to do an extra search in the case of exactly one document being aggregated
                                             handler.accept((long) extendedStats.getAvg());
                                         } else {
-                                            double coefficientOfVaration = extendedStats.getStdDeviation() / extendedStats.getAvg();
+                                            double coefficientOfVariation = extendedStats.getStdDeviation() / extendedStats.getAvg();
                                             LOGGER.trace("[{}] Coefficient of variation [{}] when calculating established memory use",
-                                                    jobId, coefficientOfVaration);
+                                                    jobId, coefficientOfVariation);
                                             // is there sufficient stability in the latest model size stats readings?
-                                            if (coefficientOfVaration <= ESTABLISHED_MEMORY_CV_THRESHOLD) {
+                                            if (coefficientOfVariation <= ESTABLISHED_MEMORY_CV_THRESHOLD) {
                                                 // yes, so return the latest model size as established
                                                 handleLatestModelSizeStats(jobId, latestModelSizeStats, handler, errorHandler);
                                             } else {

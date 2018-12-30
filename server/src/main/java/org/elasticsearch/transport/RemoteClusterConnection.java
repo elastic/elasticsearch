@@ -146,7 +146,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         if (proxyAddress == null || proxyAddress.isEmpty()) {
             return node;
         } else {
-            // resovle proxy address lazy here
+            // resolve proxy address lazy here
             InetSocketAddress proxyInetAddress = RemoteClusterAware.parseSeedAddress(proxyAddress);
             return new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), node.getHostName(), node
                 .getHostAddress(), new TransportAddress(proxyInetAddress), node.getAttributes(), node.getRoles(), node.getVersion());

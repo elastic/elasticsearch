@@ -52,7 +52,7 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
         logger.trace("starting azure classic discovery plugin...");
     }
 
-    // overrideable for tests
+    // overridable for tests
     protected AzureComputeService createComputeService() {
         return new AzureComputeServiceImpl(settings);
     }

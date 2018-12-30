@@ -86,7 +86,7 @@ public abstract class EnvironmentAwareCommand extends Command {
         execute(terminal, options, createEnv(settings));
     }
 
-    /** Create an {@link Environment} for the command to use. Overrideable for tests. */
+    /** Create an {@link Environment} for the command to use. Overridable for tests. */
     protected Environment createEnv(final Map<String, String> settings) throws UserException {
         final String esPathConf = System.getProperty("es.path.conf");
         if (esPathConf == null) {

@@ -78,7 +78,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         logger.trace("starting gce discovery plugin...");
     }
 
-    // overrideable for tests
+    // overridable for tests
     protected GceInstancesService createGceInstancesService() {
         return new GceInstancesServiceImpl(settings);
     }

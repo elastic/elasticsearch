@@ -1205,7 +1205,7 @@ public class Setting<T> implements ToXContentObject {
             final Setting<List<T>> fallbackSetting,
             final Function<String, T> singleValueParser,
             final Property... properties) {
-        return listSetting(key, fallbackSetting, singleValueParser, (s) -> parseableStringToList(fallbackSetting.getRaw(s)), properties);
+        return listSetting(key, fallbackSetting, singleValueParser, (s) -> parsableStringToList(fallbackSetting.getRaw(s)), properties);
     }
 
     public static <T> Setting<List<T>> listSetting(
@@ -1226,12 +1226,12 @@ public class Setting<T> implements ToXContentObject {
             throw new IllegalArgumentException("default value function must not return null");
         }
         Function<String, List<T>> parser = (s) ->
-                parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
+                parsableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
         return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, properties);
     }
 
-    private static List<String> parseableStringToList(String parsableString) {
+    private static List<String> parsableStringToList(String parsableString) {
         // fromXContent doesn't use named xcontent or deprecation.
         try (XContentParser xContentParser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)) {

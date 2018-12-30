@@ -383,7 +383,7 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     /**
-     * `tags_schema` is not produced by toXContent in the builder but should be parseable, so this
+     * `tags_schema` is not produced by toXContent in the builder but should be parsable, so this
      * adds a simple json test for this.
      */
     public void testParsingTagsSchema() throws IOException {

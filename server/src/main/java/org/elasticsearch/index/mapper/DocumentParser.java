@@ -683,35 +683,35 @@ final class DocumentParser {
         if (token == XContentParser.Token.VALUE_STRING) {
             String text = context.parser().text();
 
-            boolean parseableAsLong = false;
+            boolean parsableAsLong = false;
             try {
                 Long.parseLong(text);
-                parseableAsLong = true;
+                parsableAsLong = true;
             } catch (NumberFormatException e) {
                 // not a long number
             }
 
-            boolean parseableAsDouble = false;
+            boolean parsableAsDouble = false;
             try {
                 Double.parseDouble(text);
-                parseableAsDouble = true;
+                parsableAsDouble = true;
             } catch (NumberFormatException e) {
                 // not a double number
             }
 
-            if (parseableAsLong && context.root().numericDetection()) {
+            if (parsableAsLong && context.root().numericDetection()) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
                     builder = newLongBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());
                 }
                 return builder;
-            } else if (parseableAsDouble && context.root().numericDetection()) {
+            } else if (parsableAsDouble && context.root().numericDetection()) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
                 if (builder == null) {
                     builder = newFloatBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());
                 }
                 return builder;
-            } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
+            } else if (parsableAsLong == false && parsableAsDouble == false && context.root().dateDetection()) {
                 // We refuse to match pure numbers, which are too likely to be
                 // false positives with date formats that include e.g.
                 // `epoch_millis` or `YYYY`

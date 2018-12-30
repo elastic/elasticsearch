@@ -736,10 +736,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      *
      * <ul>
      * <li> Take a reference documentation example.
-     * <li> Stick it into the createParseableQueryJson method of the respective query test.
+     * <li> Stick it into the createParsableQueryJson method of the respective query test.
      * <li> Manually check that what the QueryBuilder generates equals the input json ignoring default options.
      * <li> Put the manual checks into the assertQueryParsedFromJson method.
-     * <li> Now copy the generated json including default options into createParseableQueryJson
+     * <li> Now copy the generated json including default options into createParsableQueryJson
      * <li> By now the roundtrip check for the json should be happy.
      * </ul>
      **/

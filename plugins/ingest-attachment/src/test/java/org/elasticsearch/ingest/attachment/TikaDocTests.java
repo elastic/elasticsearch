@@ -53,12 +53,12 @@ public class TikaDocTests extends ESTestCase {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmp)) {
             for (Path doc : stream) {
               logger.debug("parsing: {}", doc);
-              assertParseable(doc);
+              assertParsable(doc);
             }
         }
     }
 
-    void assertParseable(Path fileName) throws Exception {
+    void assertParsable(Path fileName) throws Exception {
         try {
             byte bytes[] = Files.readAllBytes(fileName);
             String parsedContent = TikaImpl.parse(bytes, new Metadata(), -1);

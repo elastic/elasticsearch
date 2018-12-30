@@ -22,13 +22,13 @@ public class TimeRangeTests extends ESTestCase {
         assertEquals("1462096800", TimeRange.builder().endTime("2016-05-01T10:00:00Z").build().getEnd());
     }
 
-    public void test_UnparseableStartThrows() {
+    public void test_UnparsableStartThrows() {
         ElasticsearchParseException e =
                 ESTestCase.expectThrows(ElasticsearchParseException.class, () -> TimeRange.builder().startTime("bad").build());
         assertEquals(Messages.getMessage(Messages.REST_INVALID_DATETIME_PARAMS, TimeRange.START_PARAM, "bad"), e.getMessage());
     }
 
-    public void test_UnparseableEndThrows() {
+    public void test_UnparsableEndThrows() {
         ElasticsearchParseException e =
                 ESTestCase.expectThrows(ElasticsearchParseException.class, () -> TimeRange.builder().endTime("bad").build());
         assertEquals(Messages.getMessage(Messages.REST_INVALID_DATETIME_PARAMS, TimeRange.END_PARAM, "bad"), e.getMessage());

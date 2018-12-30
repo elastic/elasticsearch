@@ -315,7 +315,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
     }
 
-    public void testResolveEmptyIndicesExpandWilcardsOpenAndClosed() {
+    public void testResolveEmptyIndicesExpandWildcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest();
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
@@ -326,7 +326,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveEmptyIndicesExpandWilcardsOpen() {
+    public void testResolveEmptyIndicesExpandWildcardsOpen() {
         SearchRequest request = new SearchRequest();
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
@@ -335,7 +335,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveAllExpandWilcardsOpenAndClosed() {
+    public void testResolveAllExpandWildcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest("_all");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
@@ -346,7 +346,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveAllExpandWilcardsOpen() {
+    public void testResolveAllExpandWildcardsOpen() {
         SearchRequest request = new SearchRequest("_all");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
@@ -401,7 +401,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsMinusExpandWilcardsOpen() {
+    public void testResolveWildcardsMinusExpandWildcardsOpen() {
         SearchRequest request = new SearchRequest("*", "-foofoo*");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
@@ -412,7 +412,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsMinusExpandWilcardsOpenAndClosed() {
+    public void testResolveWildcardsMinusExpandWildcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest("*", "-foofoo*");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
@@ -423,7 +423,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsExclusionsExpandWilcardsOpenStrict() {
+    public void testResolveWildcardsExclusionsExpandWildcardsOpenStrict() {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz", "foob*");
         request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
@@ -432,7 +432,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder("bar", "foobarfoo", "barbaz", "foobarfoo"));
     }
 
-    public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenIgnoreUnavailable() {
+    public void testResolveWildcardsPlusAndMinusExpandWildcardsOpenIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "+barbaz", "+foob*");
         request.indicesOptions(IndicesOptions.fromOptions(true, true, true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
@@ -443,7 +443,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsExclusionExpandWilcardsOpenAndClosedStrict() {
+    public void testResolveWildcardsExclusionExpandWildcardsOpenAndClosedStrict() {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
@@ -452,7 +452,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsExclusionExpandWilcardsOpenAndClosedIgnoreUnavailable() {
+    public void testResolveWildcardsExclusionExpandWildcardsOpenAndClosedIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz");
         request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();

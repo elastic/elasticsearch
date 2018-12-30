@@ -38,7 +38,7 @@ public class IndicesExistsRequestBuilder
      * Controls whether wildcard expressions will be expanded to existing open indices
      */
     public IndicesExistsRequestBuilder setExpandWildcardsOpen(boolean expandWildcardsOpen) {
-        request.expandWilcardsOpen(expandWildcardsOpen);
+        request.expandWildcardsOpen(expandWildcardsOpen);
         return this;
     }
 
@@ -46,7 +46,7 @@ public class IndicesExistsRequestBuilder
      * Controls whether wildcard expressions will be expanded to existing closed indices
      */
     public IndicesExistsRequestBuilder setExpandWildcardsClosed(boolean expandWildcardsClosed) {
-        request.expandWilcardsClosed(expandWildcardsClosed);
+        request.expandWildcardsClosed(expandWildcardsClosed);
         return this;
     }
 }

@@ -535,7 +535,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
     }
 
-    public void testToQueryWilcardQueryWithSynonyms() throws Exception {
+    public void testToQueryWildcardQueryWithSynonyms() throws Exception {
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), STRING_FIELD_NAME);

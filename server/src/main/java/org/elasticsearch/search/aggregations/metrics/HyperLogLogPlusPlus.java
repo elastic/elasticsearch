@@ -1033,11 +1033,11 @@ public final class HyperLogLogPlusPlus implements Releasable {
             Map<Byte, Integer> values = new HashMap<>();
             for (long i = 0; i < runLens.size(); i++) {
                 byte runLength = runLens.get((bucket << p) + i);
-                Integer numOccurances = values.get(runLength);
-                if (numOccurances == null) {
+                Integer numOccurrences = values.get(runLength);
+                if (numOccurrences == null) {
                     values.put(runLength, 1);
                 } else {
-                    values.put(runLength, numOccurances + 1);
+                    values.put(runLength, numOccurrences + 1);
                 }
             }
             return values;

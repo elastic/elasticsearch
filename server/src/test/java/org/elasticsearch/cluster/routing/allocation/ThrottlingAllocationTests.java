@@ -80,7 +80,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
                 .build();
 
-        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metaData, gatewayAllocator);
+        ClusterState clusterState = createRecoveryStateAndInitializeAllocations(metaData, gatewayAllocator);
 
         logger.info("start one node, do reroute, only 3 should initialize");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
@@ -134,7 +134,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
-        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metaData, gatewayAllocator);
+        ClusterState clusterState = createRecoveryStateAndInitializeAllocations(metaData, gatewayAllocator);
 
         logger.info("with one node, do reroute, only 3 should initialize");
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -195,7 +195,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(9).numberOfReplicas(0))
             .build();
 
-        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metaData, gatewayAllocator);
+        ClusterState clusterState = createRecoveryStateAndInitializeAllocations(metaData, gatewayAllocator);
 
         logger.info("with one node, do reroute, only 5 should initialize");
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -252,7 +252,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
             .build();
 
-        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metaData, gatewayAllocator);
+        ClusterState clusterState = createRecoveryStateAndInitializeAllocations(metaData, gatewayAllocator);
 
         logger.info("with one node, do reroute, only 1 should initialize");
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -330,7 +330,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node2"), 0);
     }
 
-    private ClusterState createRecoveryStateAndInitalizeAllocations(MetaData metaData, TestGatewayAllocator gatewayAllocator) {
+    private ClusterState createRecoveryStateAndInitializeAllocations(MetaData metaData, TestGatewayAllocator gatewayAllocator) {
         DiscoveryNode node1 = newNode("node1");
         MetaData.Builder metaDataBuilder = new MetaData.Builder(metaData);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();

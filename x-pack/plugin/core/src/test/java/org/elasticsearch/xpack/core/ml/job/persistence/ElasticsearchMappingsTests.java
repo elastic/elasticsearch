@@ -51,7 +51,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.WHITESPACE
     );
 
-    public void testResultsMapppingReservedFields() throws Exception {
+    public void testResultsMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
 
         // These are not reserved because they're data types, not field names
@@ -68,7 +68,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
     }
 
-    public void testConfigMapppingReservedFields() throws Exception {
+    public void testConfigMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
 
         // These are not reserved because they're data types, not field names

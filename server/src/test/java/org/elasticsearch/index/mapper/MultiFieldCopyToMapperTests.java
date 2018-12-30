@@ -35,7 +35,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class MultiFieldCopyToMapperTests extends ESTestCase {
 
     public void testExceptionForCopyToInMultiFields() throws IOException {
-        XContentBuilder mapping = createMappinmgWithCopyToInMultiField();
+        XContentBuilder mapping = createMappingWithCopyToInMultiField();
 
         // first check that for newer versions we throw exception if copy_to is found within multi field
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "test");
@@ -48,7 +48,7 @@ public class MultiFieldCopyToMapperTests extends ESTestCase {
         }
     }
 
-    private static XContentBuilder createMappinmgWithCopyToInMultiField() throws IOException {
+    private static XContentBuilder createMappingWithCopyToInMultiField() throws IOException {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject()
             .startObject("type")

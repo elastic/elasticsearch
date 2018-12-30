@@ -234,7 +234,7 @@ public final class IndexSettings {
 
     /**
      * Index setting to enable / disable deletes garbage collection.
-     * This setting is realtime updateable
+     * This setting is realtime updatable
      */
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING =

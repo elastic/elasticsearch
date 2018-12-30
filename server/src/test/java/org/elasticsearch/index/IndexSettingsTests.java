@@ -559,6 +559,6 @@ public class IndexSettingsTests extends ESTestCase {
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () ->
             settings.updateSettings(Settings.builder().put("index.soft_deletes.enabled", randomBoolean()).build(),
                 Settings.builder(), Settings.builder(), "index"));
-        assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
+        assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updatable"));
     }
 }

@@ -104,8 +104,8 @@ public class FieldTypeLookupTests extends ESTestCase {
         ft2.setName("foo");
         ft2.setBoost(2.0f);
         FieldMapper f2 = new MockFieldMapper("foo", ft2);
-        lookup.copyAndAddAll("type", newList(f2), emptyList()); // boost is updateable, so ok since we are implicitly updating all types
-        lookup.copyAndAddAll("type2", newList(f2), emptyList()); // boost is updateable, so ok if forcing
+        lookup.copyAndAddAll("type", newList(f2), emptyList()); // boost is updatable, so ok since we are implicitly updating all types
+        lookup.copyAndAddAll("type2", newList(f2), emptyList()); // boost is updatable, so ok if forcing
         // now with a non changeable setting
         MappedFieldType ft3 = new MockFieldMapper.FakeFieldType();
         ft3.setName("foo");

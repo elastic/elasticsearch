@@ -58,7 +58,7 @@ public abstract class ConcurrentCollections {
     }
 
     /**
-     * Creates a new CHM with an aggressive concurrency level, aimed at highly updateable long living maps.
+     * Creates a new CHM with an aggressive concurrency level, aimed at highly updatable long living maps.
      */
     public static <V> ConcurrentMapLong<V> newConcurrentMapLongWithAggressiveConcurrency() {
         return new ConcurrentHashMapLong<>(ConcurrentCollections.<Long, V>newConcurrentMapWithAggressiveConcurrency());

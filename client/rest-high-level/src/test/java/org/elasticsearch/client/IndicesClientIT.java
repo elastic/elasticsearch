@@ -1196,7 +1196,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.getMessage(), startsWith(
                 "Elasticsearch exception [type=illegal_argument_exception, "
-                + "reason=final index setting [index.number_of_shards], not updateable"));
+                + "reason=final index setting [index.number_of_shards], not updatable"));
     }
 
     @SuppressWarnings("unchecked")

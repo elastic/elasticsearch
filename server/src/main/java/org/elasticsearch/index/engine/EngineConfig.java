@@ -82,7 +82,7 @@ public final class EngineConfig {
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
-     * This setting is <b>not</b> realtime updateable.
+     * This setting is <b>not</b> realtime updatable.
      * This setting is also settable on the node and the index level, it's commonly used in hot/cold node archs where index is likely
      * allocated on both `kind` of nodes.
      */
@@ -183,7 +183,7 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns <code>true</code> iff delete garbage collection in the engine should be enabled. This setting is updateable
+     * Returns <code>true</code> iff delete garbage collection in the engine should be enabled. This setting is updatable
      * in realtime and forces a volatile read. Consumers can safely read this value directly go fetch it's latest value.
      * The default is <code>true</code>
      * <p>

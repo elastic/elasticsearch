@@ -607,7 +607,7 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
-     * Returns <code>true</code> if the setting for the given key is dynamically updateable. Otherwise <code>false</code>.
+     * Returns <code>true</code> if the setting for the given key is dynamically updatable. Otherwise <code>false</code>.
      */
     public boolean isDynamicSetting(String key) {
         final Setting<?> setting = get(key);
@@ -729,9 +729,9 @@ public abstract class AbstractScopedSettings {
                 changed |= toApply.get(key).equals(target.get(key)) == false;
             } else {
                 if (isFinalSetting(key)) {
-                    throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");
+                    throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updatable");
                 } else {
-                    throw new IllegalArgumentException(type + " setting [" + key + "], not dynamically updateable");
+                    throw new IllegalArgumentException(type + " setting [" + key + "], not dynamically updatable");
                 }
             }
         }

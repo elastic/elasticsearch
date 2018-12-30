@@ -153,7 +153,7 @@ public class IndexResolverTests extends ESTestCase {
             if (entry.getValue().size() > 1) {
                 for (EsIndex index : indices) {
                     EsField field = index.mapping().get(fieldName);
-                    UpdateableFieldCapabilities fieldCaps = (UpdateableFieldCapabilities) caps.get(field.getDataType().esType);
+                    UpdatableFieldCapabilities fieldCaps = (UpdatableFieldCapabilities) caps.get(field.getDataType().esType);
                     fieldCaps.indices.add(index.name());
                 }
                 //TODO: what about nonAgg/SearchIndices?
@@ -171,12 +171,12 @@ public class IndexResolverTests extends ESTestCase {
             merged.put(fieldName, map);
         }
         FieldCapabilities caps = map.computeIfAbsent(field.getDataType().esType,
-                esType -> new UpdateableFieldCapabilities(fieldName, esType,
+                esType -> new UpdatableFieldCapabilities(fieldName, esType,
                 isSearchable(field.getDataType()),
                         isAggregatable(field.getDataType())));
 
         if (!field.isAggregatable()) {
-            ((UpdateableFieldCapabilities) caps).nonAggregatableIndices.add(indexName);
+            ((UpdatableFieldCapabilities) caps).nonAggregatableIndices.add(indexName);
         }
 
         for (EsField nested : field.getProperties().values()) {
@@ -192,12 +192,12 @@ public class IndexResolverTests extends ESTestCase {
         return type.isNumeric() || type == DataType.KEYWORD || type == DataType.DATE;
     }
 
-    private static class UpdateableFieldCapabilities extends FieldCapabilities {
+    private static class UpdatableFieldCapabilities extends FieldCapabilities {
         List<String> indices = new ArrayList<>();
         List<String> nonSearchableIndices = new ArrayList<>();
         List<String> nonAggregatableIndices = new ArrayList<>();
 
-        UpdateableFieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable) {
+        UpdatableFieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable) {
             super(name, type, isSearchable, isAggregatable);
         }
 

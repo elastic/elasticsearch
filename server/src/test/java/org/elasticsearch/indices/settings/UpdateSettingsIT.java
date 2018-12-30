@@ -422,7 +422,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .execute()
                 .actionGet()
         );
-        assertThat(ex.getMessage(), containsString("final test setting [index.final], not updateable"));
+        assertThat(ex.getMessage(), containsString("final test setting [index.final], not updatable"));
         indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertThat(indexMetaData.getSettings().get("index.refresh_interval"), equalTo("1s"));
         assertThat(indexMetaData.getSettings().get("index.final"), nullValue());

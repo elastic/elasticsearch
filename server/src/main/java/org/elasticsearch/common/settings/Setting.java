@@ -93,12 +93,12 @@ public class Setting<T> implements ToXContentObject {
         Filtered,
 
         /**
-         * iff this setting can be dynamically updateable
+         * iff this setting can be dynamically updatable
          */
         Dynamic,
 
         /**
-         * mark this setting as final, not updateable even when the context is not dynamic
+         * mark this setting as final, not updatable even when the context is not dynamic
          * i.e. Setting this property on an index scoped setting will fail update when the index is closed
          */
         Final,
@@ -279,7 +279,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * Returns <code>true</code> if this setting is dynamically updateable, otherwise <code>false</code>
+     * Returns <code>true</code> if this setting is dynamically updatable, otherwise <code>false</code>
      */
     public final boolean isDynamic() {
         return properties.contains(Property.Dynamic);

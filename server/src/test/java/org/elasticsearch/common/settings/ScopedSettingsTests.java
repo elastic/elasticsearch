@@ -975,7 +975,7 @@ public class ScopedSettingsTests extends ESTestCase {
             () -> settings.updateSettings(Settings.builder().put("index.number_of_shards", 8).build(),
                 Settings.builder(), Settings.builder(), "index"));
         assertThat(ex.getMessage(),
-            containsString("final index setting [index.number_of_shards], not updateable"));
+            containsString("final index setting [index.number_of_shards], not updatable"));
     }
 
     public void testFinalSettingUpdateFail() {

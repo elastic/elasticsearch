@@ -145,7 +145,7 @@ public class IPFilterTests extends ESTestCase {
         assertAddressIsDeniedForProfile("client", "192.168.0.2");
     }
 
-    public void testThatProfilesAreUpdateable() throws Exception {
+    public void testThatProfilesAreUpdatable() throws Exception {
         Settings settings = Settings.builder()
                 .put("xpack.security.transport.filter.allow", "localhost")
                 .put("xpack.security.transport.filter.deny", "_all")

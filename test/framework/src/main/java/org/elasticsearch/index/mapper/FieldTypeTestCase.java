@@ -38,12 +38,12 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     public abstract static class Modifier {
         /** The name of the property that is being modified. Used in test failure messages. */
         public final String property;
-        /** True if this property is updateable, false otherwise. */
-        public final boolean updateable;
+        /** True if this property is updatable, false otherwise. */
+        public final boolean updatable;
 
-        public Modifier(String property, boolean updateable) {
+        public Modifier(String property, boolean updatable) {
             this.property = property;
-            this.updateable = updateable;
+            this.updatable = updatable;
         }
 
         /** Modifies the property */
@@ -344,7 +344,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             ft2 = createNamedDefaultFieldType();
             modifier.normalizeOther(ft1);
             modifier.modify(ft2);
-            if (modifier.updateable) {
+            if (modifier.updatable) {
                 assertCompatible(modifier.property, ft1, ft2);
                 assertCompatible(modifier.property, ft2, ft1); // always symmetric when not strict
             } else {

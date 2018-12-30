@@ -39,7 +39,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     private Path nodeKeyPath;
     private Path nodeCertPath;
     private Path clientCertPath;
-    private Path updateableCertPath;
+    private Path updatableCertPath;
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
@@ -62,9 +62,9 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
                 Files.copy(origClientCertPath, clientCertPath);
             }
             // Placeholder trusted certificate that will be updated later on
-            if (updateableCertPath == null) {
-                updateableCertPath = tempDir.resolve("updateable.crt");
-                Files.copy(origCertPath, updateableCertPath);
+            if (updatableCertPath == null) {
+                updatableCertPath = tempDir.resolve("updatable.crt");
+                Files.copy(origCertPath, updatableCertPath);
             }
         } catch (IOException e) {
             throw new ElasticsearchException("failed to copy key or certificate", e);
@@ -79,7 +79,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             .put("xpack.ssl.key_passphrase", "testnode")
             .put("xpack.ssl.certificate", nodeCertPath)
             .putList("xpack.ssl.certificate_authorities", Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(),
-                updateableCertPath.toString()))
+                updatableCertPath.toString()))
             .put("resource.reload.interval.high", "1s");
 
         return builder.build();
@@ -102,7 +102,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             .put("xpack.ssl.key", keyPath)
             .put("xpack.ssl.certificate", certPath)
             .putList("xpack.ssl.certificate_authorities", Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(),
-                updateableCertPath.toString()))
+                updatableCertPath.toString()))
             .setSecureSettings(secureSettings)
             .build();
         String node = randomFrom(internalCluster().getNodeNames());
@@ -119,11 +119,11 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         } catch (SSLException | SocketException expected) {
             logger.trace("expected exception", expected);
         }
-        // Copy testnode_updated.crt to the placeholder updateable.crt so that the nodes will start trusting it now
+        // Copy testnode_updated.crt to the placeholder updatable.crt so that the nodes will start trusting it now
         try {
-            Files.move(certPath, updateableCertPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(certPath, updatableCertPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
-            Files.move(certPath, updateableCertPath, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(certPath, updatableCertPath, StandardCopyOption.REPLACE_EXISTING);
         }
         CountDownLatch latch = new CountDownLatch(1);
         assertBusy(() -> {

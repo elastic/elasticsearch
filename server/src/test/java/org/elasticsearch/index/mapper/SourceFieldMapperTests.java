@@ -137,7 +137,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testEnabledNotUpdateable() throws Exception {
+    public void testEnabledNotUpdatable() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         // using default of true
         String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
@@ -153,7 +153,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         assertConflicts(mapping1, mapping3, parser);
     }
 
-    public void testIncludesNotUpdateable() throws Exception {
+    public void testIncludesNotUpdatable() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -171,7 +171,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         assertConflicts(mapping1, mapping1, parser);
     }
 
-    public void testExcludesNotUpdateable() throws Exception {
+    public void testExcludesNotUpdatable() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")

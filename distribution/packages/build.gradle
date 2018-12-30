@@ -240,7 +240,7 @@ Closure commonPackageConfig(String type, boolean oss) {
 
 apply plugin: 'nebula.ospackage-base'
 
-// this is package indepdendent configuration
+// this is package independent configuration
 ospackage {
   maintainer 'Elasticsearch Team <info@elastic.co>'
   summary '''

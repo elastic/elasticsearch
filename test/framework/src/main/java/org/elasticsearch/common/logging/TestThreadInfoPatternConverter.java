@@ -32,7 +32,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 /**
  * Converts {@code %test_thread_info} in log4j patterns into information
- * based on the loggin thread's name. If that thread is part of an
+ * based on the logging thread's name. If that thread is part of an
  * {@link ESIntegTestCase} then this information is the node name.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "TestInfoPatternConverter")

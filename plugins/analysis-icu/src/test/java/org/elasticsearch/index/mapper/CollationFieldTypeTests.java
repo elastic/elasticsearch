@@ -45,7 +45,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsFieldWithinQuery() throws IOException {
         CollationFieldType ft = new CollationFieldType();
-        // current impl ignores args and shourd always return INTERSECTS
+        // current impl ignores args and should always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null,
             RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
             RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),

@@ -398,7 +398,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
 
                             if (entry.state() != State.ABORTED) {
-                                // Replace the snapshot that was just intialized
+                                // Replace the snapshot that was just initialized
                                 ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards =
                                         shards(currentState, entry.indices());
                                 if (!partial) {

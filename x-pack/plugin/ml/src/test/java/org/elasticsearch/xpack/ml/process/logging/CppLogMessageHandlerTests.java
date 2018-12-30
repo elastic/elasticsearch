@@ -148,7 +148,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         executeLoggingTest(is, mockAppender, Level.INFO, "test_throttling");
     }
 
-    public void testThrottlingLastMessageRepeast() throws IllegalAccessException, TimeoutException, IOException {
+    public void testThrottlingLastMessageRepeats() throws IllegalAccessException, TimeoutException, IOException {
 
         InputStream is = new ByteArrayInputStream(String.join("", TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE,
                 TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE_DIFFERENT_MESSAGE).getBytes(StandardCharsets.UTF_8));

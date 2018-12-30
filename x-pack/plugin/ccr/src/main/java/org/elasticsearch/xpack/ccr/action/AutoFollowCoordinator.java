@@ -387,7 +387,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             cleanFollowedRemoteIndices(remoteClusterState, patterns);
         }
 
-        private void checkAutoFollowPattern(String autoFollowPattenName,
+        private void checkAutoFollowPattern(String autoFollowPatternName,
                                             String remoteCluster,
                                             AutoFollowPattern autoFollowPattern,
                                             List<Index> leaderIndicesToFollow,
@@ -409,9 +409,9 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     .collect(Collectors.toList());
                 if (otherMatchingPatterns.size() != 0) {
                     results.set(slot, new Tuple<>(indexToFollow, new ElasticsearchException("index to follow [" + indexToFollow.getName() +
-                        "] for pattern [" + autoFollowPattenName + "] matches with other patterns " + otherMatchingPatterns + "")));
+                        "] for pattern [" + autoFollowPatternName + "] matches with other patterns " + otherMatchingPatterns + "")));
                     if (leaderIndicesCountDown.countDown()) {
-                        resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
+                        resultHandler.accept(new AutoFollowResult(autoFollowPatternName, results.asList()));
                     }
                 } else {
                     final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
@@ -421,31 +421,31 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                         String message = String.format(Locale.ROOT, "index [%s] cannot be followed, because soft deletes are not enabled",
                             indexToFollow.getName());
                         LOGGER.warn(message);
-                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
+                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPatternName, indexToFollow), error -> {
                             ElasticsearchException failure = new ElasticsearchException(message);
                             if (error != null) {
                                 failure.addSuppressed(error);
                             }
                             results.set(slot, new Tuple<>(indexToFollow, failure));
                             if (leaderIndicesCountDown.countDown()) {
-                                resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
+                                resultHandler.accept(new AutoFollowResult(autoFollowPatternName, results.asList()));
                             }
                         });
                         continue;
                     } else if (leaderIndexAlreadyFollowed(autoFollowPattern, indexToFollow, localMetadata)) {
-                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
+                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPatternName, indexToFollow), error -> {
                             results.set(slot, new Tuple<>(indexToFollow, error));
                             if (leaderIndicesCountDown.countDown()) {
-                                resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
+                                resultHandler.accept(new AutoFollowResult(autoFollowPatternName, results.asList()));
                             }
                         });
                         continue;
                     }
 
-                    followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers, error -> {
+                    followLeaderIndex(autoFollowPatternName, remoteCluster, indexToFollow, autoFollowPattern, headers, error -> {
                         results.set(slot, new Tuple<>(indexToFollow, error));
                         if (leaderIndicesCountDown.countDown()) {
-                            resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
+                            resultHandler.accept(new AutoFollowResult(autoFollowPatternName, results.asList()));
                         }
                     });
                 }
@@ -471,7 +471,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             return false;
         }
 
-        private void followLeaderIndex(String autoFollowPattenName,
+        private void followLeaderIndex(String autoFollowPatternName,
                                        String remoteCluster,
                                        Index indexToFollow,
                                        AutoFollowPattern pattern,
@@ -504,7 +504,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
                 // This function updates the auto follow metadata in the cluster to record that the leader index has been followed:
                 // (so that we do not try to follow it in subsequent auto follow runs)
-                Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow);
+                Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction(autoFollowPatternName, indexToFollow);
                 // The coordinator always runs on the elected master node, so we can update cluster state here:
                 updateAutoFollowMetadata(function, onResult);
             };

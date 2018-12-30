@@ -242,7 +242,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * to create new factories of the {@link ScriptContext#statefulFactoryClazz}.
      * @param loader The {@link ClassLoader} that is used to define the factory class and script class.
      * @param context The {@link ScriptContext}'s semantics are used to define the factory class.
-     * @param classType The type to be instaniated in the newFactory or newInstance method.  Depends
+     * @param classType The type to be instantiated in the newFactory or newInstance method.  Depends
      *                  on whether a {@link ScriptContext#statefulFactoryClazz} is specified.
      * @param <T> The factory class.
      * @return A factory class that will return script instances.

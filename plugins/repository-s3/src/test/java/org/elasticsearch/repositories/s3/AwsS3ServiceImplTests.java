@@ -38,8 +38,8 @@ import static org.hamcrest.Matchers.is;
 public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsDefaultToInstanceProviders() {
-        final String inexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
-        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, inexistentClientName);
+        final String nonexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, nonexistentClientName);
         final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, clientSettings);
         assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }

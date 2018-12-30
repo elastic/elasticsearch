@@ -87,7 +87,7 @@ public class XmlFileStructureFinderFactory implements FileStructureFinderFactory
                             ++completeDocCount;
                             // Find the position that's one character beyond end of the end element.
                             // The next document (if there is one) must start after this (possibly
-                            // preceeded by whitespace).
+                            // preceded by whitespace).
                             Location location = xmlReader.getLocation();
                             int endPos = 0;
                             // Line and column numbers start at 1, not 0

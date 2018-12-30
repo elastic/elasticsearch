@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
 
-public class UpdateCalendarJobActionResquestTests extends AbstractStreamableTestCase<UpdateCalendarJobAction.Request> {
+public class UpdateCalendarJobActionRequestTests extends AbstractStreamableTestCase<UpdateCalendarJobAction.Request> {
 
     @Override
     protected UpdateCalendarJobAction.Request createTestInstance() {

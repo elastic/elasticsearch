@@ -32,7 +32,7 @@ public class GetRollupJobRequest implements Validatable {
     private final String jobId;
 
     /**
-     * Create a requets .
+     * Create a requests .
      * @param jobId id of the job to return or {@code _all} to return all jobs
      */
     public GetRollupJobRequest(final String jobId) {

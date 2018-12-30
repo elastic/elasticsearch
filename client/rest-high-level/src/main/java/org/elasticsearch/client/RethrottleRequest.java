@@ -72,6 +72,6 @@ public class RethrottleRequest implements Validatable {
 
     @Override
     public String toString() {
-        return "RethrottleRequest: taskID = " + taskId +"; reqestsPerSecond = " + requestsPerSecond;
+        return "RethrottleRequest: taskID = " + taskId +"; requestsPerSecond = " + requestsPerSecond;
     }
 }

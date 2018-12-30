@@ -82,7 +82,7 @@ class MatrixStatsResults implements Writeable {
         return Collections.unmodifiableMap(results.counts);
     }
 
-    /** return the fied count for the requested field */
+    /** return the field count for the requested field */
     public long getFieldCount(String field) {
         if (results.counts.containsKey(field) == false) {
             return 0;

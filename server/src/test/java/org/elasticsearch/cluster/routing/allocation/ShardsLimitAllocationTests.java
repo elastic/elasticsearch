@@ -230,7 +230,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         // moving the nodes to node2 since we consider INITIALIZING nodes during rebalance
         routingNodes = clusterState.getRoutingNodes();
         clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
-        // now we are done compared to EvenShardCountAllocator since the Balancer is not soely based on the average
+        // now we are done compared to EvenShardCountAllocator since the Balancer is not solely based on the average
         assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(5));
         assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(5));
     }

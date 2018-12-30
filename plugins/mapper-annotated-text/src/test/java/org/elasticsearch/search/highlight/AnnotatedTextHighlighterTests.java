@@ -65,10 +65,10 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         
         // Annotated fields wrap the usual analyzer with one that injects extra tokens
         Analyzer wrapperAnalyzer = new AnnotationAnalyzerWrapper(new StandardAnalyzer());
-        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
-        hiliteAnalyzer.init(markedUpInputs);
-        PassageFormatter passageFormatter = new AnnotatedPassageFormatter(hiliteAnalyzer,new DefaultEncoder());
-        String []plainTextForHighlighter = hiliteAnalyzer.getPlainTextValuesForHighlighter();
+        AnnotatedHighlighterAnalyzer highlightAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
+        highlightAnalyzer.init(markedUpInputs);
+        PassageFormatter passageFormatter = new AnnotatedPassageFormatter(highlightAnalyzer,new DefaultEncoder());
+        String []plainTextForHighlighter = highlightAnalyzer.getPlainTextValuesForHighlighter();
 
         
         Directory dir = newDirectory();
@@ -96,7 +96,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         assertThat(topDocs.totalHits.value, equalTo(1L));
         String rawValue = Strings.arrayToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
         
-        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(searcher, hiliteAnalyzer, null,
+        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(searcher, highlightAnalyzer, null,
                 passageFormatter, locale,
                 breakIterator, rawValue, noMatchSize);
         highlighter.setFieldMatcher((name) -> "text".equals(name));

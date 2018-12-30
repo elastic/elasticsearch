@@ -119,7 +119,7 @@ public class GrokTests extends ESTestCase {
         assertThat(matches.get("stimestamp"), equalTo("11/01/01"));
     }
 
-    public void testWithOniguramaNamedCaptures() {
+    public void testWithOnigurumaNamedCaptures() {
         Grok grok = new Grok(basePatterns, "(?<foo>\\w+)");
         Map<String, Object> matches = grok.captures("hello world");
         assertThat(matches.get("foo"), equalTo("hello"));

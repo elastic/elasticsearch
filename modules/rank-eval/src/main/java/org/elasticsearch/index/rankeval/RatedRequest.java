@@ -94,7 +94,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
      * @param id a unique name for this rated request
      * @param ratedDocs a list of document ratings
      * @param params template parameters
-     * @param templateId a templare id
+     * @param templateId a template id
      */
     public RatedRequest(String id, List<RatedDocument> ratedDocs, Map<String, Object> params,
             String templateId) {

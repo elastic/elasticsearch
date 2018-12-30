@@ -76,7 +76,7 @@ class Initializer {
      * Prepares member injectors for all injected instances. This prompts Guice to do static analysis
      * on the injected instances.
      */
-    void validateOustandingInjections(Errors errors) {
+    void validateOutstandingInjections(Errors errors) {
         for (InjectableReference<?> reference : pendingInjection.values()) {
             try {
                 reference.validate(errors);

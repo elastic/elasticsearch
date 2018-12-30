@@ -118,7 +118,7 @@ class InjectorBuilder {
         injectionRequestProcessor.validate();
         stopwatch.resetAndLog("Static validation");
 
-        initializer.validateOustandingInjections(errors);
+        initializer.validateOutstandingInjections(errors);
         stopwatch.resetAndLog("Instance member validation");
 
         new LookupProcessor(errors).process(shells);

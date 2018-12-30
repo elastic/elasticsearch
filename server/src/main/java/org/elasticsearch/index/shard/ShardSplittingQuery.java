@@ -326,7 +326,7 @@ final class ShardSplittingQuery extends Query {
             if (doc > nextParent) {
                 // we only check once per nested/parent set
                 nextParent = parentDocs.nextSetBit(doc);
-                // never check a child document against the visitor, they neihter have _id nor _routing as stored fields
+                // never check a child document against the visitor, they neither have _id nor _routing as stored fields
                 nextParentMatches = visitor.matches(nextParent);
             }
             return nextParentMatches;

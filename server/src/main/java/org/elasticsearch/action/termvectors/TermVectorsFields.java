@@ -57,7 +57,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * <li>String : "TV"</li>
  * <li>vint: version (=-1)</li>
  * <li>boolean: hasTermStatistics (are the term statistics stored?)</li>
- * <li>boolean: hasFieldStatitsics (are the field statistics stored?)</li>
+ * <li>boolean: hasFieldStatistics (are the field statistics stored?)</li>
  * <li>vint: number of fields</li>
  * <li>
  * <ul>

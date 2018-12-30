@@ -121,7 +121,7 @@ public class HtmlSanitizerTests extends ESTestCase {
         assertThat(sanitizedHtml, equalTo(html));
     }
 
-    public void testDefaultSciptsDisallowed() {
+    public void testDefaultScriptsDisallowed() {
         String html = "<script>doSomethingNefarious()</script>This was a dangerous script";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);

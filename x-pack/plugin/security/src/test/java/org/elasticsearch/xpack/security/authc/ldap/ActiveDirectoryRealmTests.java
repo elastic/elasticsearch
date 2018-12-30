@@ -209,7 +209,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     }
 
     public void testAuthenticateCachesSuccessfulAuthentications() throws Exception {
-        final RealmConfig.RealmIdentifier realmIdentifier = realmId("testAuthenticateCachesSuccesfulAuthentications");
+        final RealmConfig.RealmIdentifier realmIdentifier = realmId("testAuthenticateCachesSuccessfulAuthentications");
         Settings settings = settings(realmIdentifier);
         RealmConfig config = setupRealm(realmIdentifier, settings);
         ActiveDirectorySessionFactory sessionFactory = spy(new ActiveDirectorySessionFactory(config, sslService, threadPool));

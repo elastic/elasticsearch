@@ -294,7 +294,7 @@ public class RollupResponseTranslator {
                                               InternalAggregations aggs) {
 
         int totalShards = rolledResponses.stream().mapToInt(SearchResponse::getTotalShards).sum();
-        int sucessfulShards = rolledResponses.stream().mapToInt(SearchResponse::getSuccessfulShards).sum();
+        int successfulShards = rolledResponses.stream().mapToInt(SearchResponse::getSuccessfulShards).sum();
         int skippedShards = rolledResponses.stream().mapToInt(SearchResponse::getSkippedShards).sum();
         long took = rolledResponses.stream().mapToLong(r -> r.getTook().getMillis()).sum() ;
 
@@ -306,7 +306,7 @@ public class RollupResponseTranslator {
 
         if (liveResponse != null) {
             totalShards += liveResponse.getTotalShards();
-            sucessfulShards += liveResponse.getSuccessfulShards();
+            successfulShards += liveResponse.getSuccessfulShards();
             skippedShards += liveResponse.getSkippedShards();
             took = Math.max(took, liveResponse.getTook().getMillis());
             isTimedOut = isTimedOut && liveResponse.isTimedOut();
@@ -318,7 +318,7 @@ public class RollupResponseTranslator {
             isTimedOut, isTerminatedEarly, numReducePhases);
 
         // Shard failures are ignored atm, so returning an empty array is fine
-        return new SearchResponse(combinedInternal, null, totalShards, sucessfulShards, skippedShards,
+        return new SearchResponse(combinedInternal, null, totalShards, successfulShards, skippedShards,
             took, ShardSearchFailure.EMPTY_ARRAY, rolledResponses.get(0).getClusters());
     }
 

@@ -835,7 +835,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertTrue(snapshotInfo.state().completed());
         }, 1, TimeUnit.MINUTES);
 
-        logger.info("--> verify that snapshot was succesful");
+        logger.info("--> verify that snapshot was successful");
 
         GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo")
             .setSnapshots("test-snap").get();

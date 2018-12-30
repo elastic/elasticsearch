@@ -723,7 +723,7 @@ public class TasksIT extends ESIntegTestCase {
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(1));
     }
 
-    public void testTaskStoringSuccesfulResult() throws Exception {
+    public void testTaskStoringSuccessfulResult() throws Exception {
         registerTaskManageListeners(TestTaskPlugin.TestTaskAction.NAME);  // we need this to get task id of the process
 
         // Start non-blocking test task

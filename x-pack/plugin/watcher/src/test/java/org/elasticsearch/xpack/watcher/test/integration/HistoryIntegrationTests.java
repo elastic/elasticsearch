@@ -185,8 +185,8 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         String ackStatusState = source.getValue("status.actions._logger.ack.state").toString().toUpperCase(Locale.ROOT);
         assertThat(ackStatusState, is(actionStatus.ackStatus().state().toString()));
 
-        Boolean lastExecutionSuccesful = source.getValue("status.actions._logger.last_execution.successful");
-        assertThat(lastExecutionSuccesful, is(actionStatus.lastExecution().successful()));
+        Boolean lastExecutionSuccessful = source.getValue("status.actions._logger.last_execution.successful");
+        assertThat(lastExecutionSuccessful, is(actionStatus.lastExecution().successful()));
 
         // also ensure that the status field is disabled in the watch history
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").addTypes("doc").get();

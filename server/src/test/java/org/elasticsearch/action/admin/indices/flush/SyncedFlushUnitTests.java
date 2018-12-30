@@ -140,7 +140,7 @@ public class SyncedFlushUnitTests extends ESTestCase {
         final Map<String, List<ShardsSyncedFlushResult>> indicesResults = new HashMap<>();
         final int indexCount = randomIntBetween(1, 10);
         int totalShards = 0;
-        int totalSuccesful = 0;
+        int totalSuccessful = 0;
         int totalFailed = 0;
         for (int i = 0; i < indexCount; i++) {
             final String index = "index_" + i;
@@ -180,10 +180,10 @@ public class SyncedFlushUnitTests extends ESTestCase {
             testPlan.expectedFailuresPerIndex.put(index, failures);
             totalFailed += failed;
             totalShards += shards * (replicas + 1);
-            totalSuccesful += successful;
+            totalSuccessful += successful;
         }
         testPlan.result = new SyncedFlushResponse(indicesResults);
-        testPlan.totalCounts = new SyncedFlushResponse.ShardCounts(totalShards, totalSuccesful, totalFailed);
+        testPlan.totalCounts = new SyncedFlushResponse.ShardCounts(totalShards, totalSuccessful, totalFailed);
         return testPlan;
     }
 

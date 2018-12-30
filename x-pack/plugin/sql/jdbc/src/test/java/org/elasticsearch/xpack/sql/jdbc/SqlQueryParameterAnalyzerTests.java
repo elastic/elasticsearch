@@ -54,7 +54,7 @@ public class SqlQueryParameterAnalyzerTests extends ESTestCase {
         assertEquals("Cannot parse given sql; unclosed /* comment", exception.getMessage());
     }
 
-    public void testUnclosedSingleQuoteStrign() {
+    public void testUnclosedSingleQuoteString() {
         SQLException exception = expectThrows(SQLException.class, () -> SqlQueryParameterAnalyzer.parametersCount("SELECT ' '' '' "));
         assertEquals("Cannot parse given sql; unclosed string", exception.getMessage());
     }

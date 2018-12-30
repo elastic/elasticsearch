@@ -75,7 +75,7 @@ public class GeneralCastTests extends ScriptTestCase {
     }
 
     /**
-     * Binary compound postifx with explicit cast
+     * Binary compound postfix with explicit cast
      */
     public void testBinaryPostfix() {
         assertEquals((byte)5, exec("long x = 5L; return (byte) (x++);"));

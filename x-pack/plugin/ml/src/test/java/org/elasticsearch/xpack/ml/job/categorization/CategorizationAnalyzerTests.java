@@ -66,14 +66,14 @@ public class CategorizationAnalyzerTests extends ESTestCase {
     }
 
     public void testVerifyConfigBuilder_GivenValidCustomConfig() throws IOException {
-        Map<String, Object> ignoreStuffInSqaureBrackets = new HashMap<>();
-        ignoreStuffInSqaureBrackets.put("type", "pattern_replace");
-        ignoreStuffInSqaureBrackets.put("pattern", "\\[[^\\]]*\\]");
+        Map<String, Object> ignoreStuffInSquareBrackets = new HashMap<>();
+        ignoreStuffInSquareBrackets.put("type", "pattern_replace");
+        ignoreStuffInSquareBrackets.put("pattern", "\\[[^\\]]*\\]");
         Map<String, Object> ignoreStuffThatBeginsWithADigit = new HashMap<>();
         ignoreStuffThatBeginsWithADigit.put("type", "pattern_replace");
         ignoreStuffThatBeginsWithADigit.put("pattern", "^[0-9].*");
         CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
-            .addCharFilter(ignoreStuffInSqaureBrackets)
+            .addCharFilter(ignoreStuffInSquareBrackets)
             .setTokenizer("classic")
             .addTokenFilter("lowercase")
             .addTokenFilter(ignoreStuffThatBeginsWithADigit)
@@ -107,11 +107,11 @@ public class CategorizationAnalyzerTests extends ESTestCase {
     }
 
     public void testVerifyConfigBuilder_GivenCustomConfigWithInvalidTokenizer() {
-        Map<String, Object> ignoreStuffInSqaureBrackets = new HashMap<>();
-        ignoreStuffInSqaureBrackets.put("type", "pattern_replace");
-        ignoreStuffInSqaureBrackets.put("pattern", "\\[[^\\]]*\\]");
+        Map<String, Object> ignoreStuffInSquareBrackets = new HashMap<>();
+        ignoreStuffInSquareBrackets.put("type", "pattern_replace");
+        ignoreStuffInSquareBrackets.put("pattern", "\\[[^\\]]*\\]");
         CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
-            .addCharFilter(ignoreStuffInSqaureBrackets)
+            .addCharFilter(ignoreStuffInSquareBrackets)
             .setTokenizer("oops!")
             .addTokenFilter("lowercase")
             .addTokenFilter("snowball");
@@ -121,14 +121,14 @@ public class CategorizationAnalyzerTests extends ESTestCase {
     }
 
     public void testVerifyConfigBuilder_GivenNoTokenizer() {
-        Map<String, Object> ignoreStuffInSqaureBrackets = new HashMap<>();
-        ignoreStuffInSqaureBrackets.put("type", "pattern_replace");
-        ignoreStuffInSqaureBrackets.put("pattern", "\\[[^\\]]*\\]");
+        Map<String, Object> ignoreStuffInSquareBrackets = new HashMap<>();
+        ignoreStuffInSquareBrackets.put("type", "pattern_replace");
+        ignoreStuffInSquareBrackets.put("pattern", "\\[[^\\]]*\\]");
         Map<String, Object> ignoreStuffThatBeginsWithADigit = new HashMap<>();
         ignoreStuffThatBeginsWithADigit.put("type", "pattern_replace");
         ignoreStuffThatBeginsWithADigit.put("pattern", "^[0-9].*");
         CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
-            .addCharFilter(ignoreStuffInSqaureBrackets)
+            .addCharFilter(ignoreStuffInSquareBrackets)
             .addTokenFilter("lowercase")
             .addTokenFilter(ignoreStuffThatBeginsWithADigit)
             .addTokenFilter("snowball");
@@ -138,11 +138,11 @@ public class CategorizationAnalyzerTests extends ESTestCase {
     }
 
     public void testVerifyConfigBuilder_GivenCustomConfigWithInvalidTokenFilter() {
-        Map<String, Object> ignoreStuffInSqaureBrackets = new HashMap<>();
-        ignoreStuffInSqaureBrackets.put("type", "pattern_replace");
-        ignoreStuffInSqaureBrackets.put("pattern", "\\[[^\\]]*\\]");
+        Map<String, Object> ignoreStuffInSquareBrackets = new HashMap<>();
+        ignoreStuffInSquareBrackets.put("type", "pattern_replace");
+        ignoreStuffInSquareBrackets.put("pattern", "\\[[^\\]]*\\]");
         CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder()
-            .addCharFilter(ignoreStuffInSqaureBrackets)
+            .addCharFilter(ignoreStuffInSquareBrackets)
             .setTokenizer("classic")
             .addTokenFilter("lowercase")
             .addTokenFilter("oh dear!");
@@ -285,14 +285,14 @@ public class CategorizationAnalyzerTests extends ESTestCase {
     }
 
     public void testCustomAnalyzer() throws IOException {
-        Map<String, Object> ignoreStuffInSqaureBrackets = new HashMap<>();
-        ignoreStuffInSqaureBrackets.put("type", "pattern_replace");
-        ignoreStuffInSqaureBrackets.put("pattern", "\\[[^\\]]*\\]");
+        Map<String, Object> ignoreStuffInSquareBrackets = new HashMap<>();
+        ignoreStuffInSquareBrackets.put("type", "pattern_replace");
+        ignoreStuffInSquareBrackets.put("pattern", "\\[[^\\]]*\\]");
         Map<String, Object> ignoreStuffThatBeginsWithADigit = new HashMap<>();
         ignoreStuffThatBeginsWithADigit.put("type", "pattern_replace");
         ignoreStuffThatBeginsWithADigit.put("pattern", "^[0-9].*");
         CategorizationAnalyzerConfig config = new CategorizationAnalyzerConfig.Builder()
-                .addCharFilter(ignoreStuffInSqaureBrackets)
+                .addCharFilter(ignoreStuffInSquareBrackets)
                 .setTokenizer("classic")
                 .addTokenFilter("lowercase")
                 .addTokenFilter(ignoreStuffThatBeginsWithADigit)

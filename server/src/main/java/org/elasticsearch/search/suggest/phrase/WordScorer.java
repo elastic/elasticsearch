@@ -36,7 +36,7 @@ public abstract class WordScorer {
     protected final IndexReader reader;
     protected final String field;
     protected final Terms terms;
-    protected final long vocabluarySize;
+    protected final long vocabularySize;
     protected final double realWordLikelihood;
     protected final BytesRefBuilder spare = new BytesRefBuilder();
     protected final BytesRef separator;
@@ -55,7 +55,7 @@ public abstract class WordScorer {
         }
         this.terms = terms;
         final long vocSize = terms.getSumTotalTermFreq();
-        this.vocabluarySize =  vocSize == -1 ? reader.maxDoc() : vocSize;
+        this.vocabularySize =  vocSize == -1 ? reader.maxDoc() : vocSize;
         this.useTotalTermFreq = vocSize != -1;
         // terms.size() might be -1 if it's a MultiTerms instance. In that case,
         // use reader.maxDoc() as an approximation. This also protects from
@@ -94,7 +94,7 @@ public abstract class WordScorer {
    }
 
    protected double scoreUnigram(Candidate word)  throws IOException {
-       return (1.0 + frequency(word.term)) / (vocabluarySize + numTerms);
+       return (1.0 + frequency(word.term)) / (vocabularySize + numTerms);
    }
 
    protected double scoreBigram(Candidate word, Candidate w_1) throws IOException {

@@ -503,10 +503,10 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         ShardRouting replicaShardRouting = TestShardRouting.newShardRouting(shardId, localNodeId, false, STARTED);
-        ShardRouting primartShardRouting = TestShardRouting.newShardRouting(shardId, outageNodeId, true, STARTED);
+        ShardRouting primaryShardRouting = TestShardRouting.newShardRouting(shardId, outageNodeId, true, STARTED);
         IndexRoutingTable previousWatchRoutingTable = IndexRoutingTable.builder(watchIndex)
             .addShard(replicaShardRouting)
-            .addShard(primartShardRouting)
+            .addShard(primaryShardRouting)
             .build();
 
         IndexMetaData indexMetaData = IndexMetaData.builder(Watch.INDEX)

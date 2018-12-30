@@ -74,7 +74,7 @@ public final class MlTasks {
             return (DatafeedState) task.getState();
         } else {
             // If we haven't started a datafeed then there will be no persistent task,
-            // which is the same as if the datafeed was't started
+            // which is the same as if the datafeed wasn't started
             return DatafeedState.STOPPED;
         }
     }

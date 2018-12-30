@@ -258,7 +258,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
          * Preprocess a function that contains a star to some other
          * form before attempting to resolve it. For example,
          * {@code DISTINCT} doesn't support {@code *} so it converts
-         * this function into a dead end, unresolveable function.
+         * this function into a dead end, unresolvable function.
          * Or {@code COUNT(*)} can be rewritten to {@code COUNT(1)}
          * so we don't have to resolve {@code *}.
          */

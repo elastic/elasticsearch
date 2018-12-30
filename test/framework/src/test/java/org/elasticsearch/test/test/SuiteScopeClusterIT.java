@@ -29,8 +29,8 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * This test ensures that the cluster initializion for suite scope is not influencing
- * the tests random sequence due to initializtion using the same random instance.
+ * This test ensures that the cluster initialization for suite scope is not influencing
+ * the tests random sequence due to initialization using the same random instance.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SuiteScopeClusterIT extends ESIntegTestCase {

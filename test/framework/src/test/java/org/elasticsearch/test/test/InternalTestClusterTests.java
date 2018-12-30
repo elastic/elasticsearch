@@ -79,7 +79,7 @@ public class InternalTestClusterTests extends ESTestCase {
         return Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class);
     }
 
-    public void testInitializiationIsConsistent() {
+    public void testInitializationIsConsistent() {
         long clusterSeed = randomLong();
         boolean masterNodes = randomBoolean();
         int minNumDataNodes = randomIntBetween(0, 9);

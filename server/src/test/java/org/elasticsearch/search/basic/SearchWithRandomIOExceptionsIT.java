@@ -127,7 +127,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         if (clusterHealthResponse.isTimedOut()) {
             /* some seeds just won't let you create the index at all and we enter a ping-pong mode
              * trying one node after another etc. that is ok but we need to make sure we don't wait
-             * forever when indexing documents so we set numDocs = 1 and expecte all shards to fail
+             * forever when indexing documents so we set numDocs = 1 and expect all shards to fail
              * when we search below.*/
             logger.info("ClusterHealth timed out - only index one doc and expect searches to fail");
             numDocs = 1;

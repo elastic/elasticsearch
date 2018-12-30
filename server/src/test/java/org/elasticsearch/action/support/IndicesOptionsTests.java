@@ -117,10 +117,10 @@ public class IndicesOptionsTests extends ESTestCase {
         boolean allowAliasesToMultipleIndices = randomBoolean();
         boolean forbidClosedIndices = randomBoolean();
         boolean ignoreAliases = randomBoolean();
-        boolean ingoreThrottled = randomBoolean();
+        boolean ignoreThrottled = randomBoolean();
 
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices,expandToOpenIndices,
-                expandToClosedIndices, allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases, ingoreThrottled);
+                expandToClosedIndices, allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases, ignoreThrottled);
 
         assertThat(indicesOptions.ignoreUnavailable(), equalTo(ignoreUnavailable));
         assertThat(indicesOptions.allowNoIndices(), equalTo(allowNoIndices));
@@ -130,7 +130,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
         assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
         assertEquals(ignoreAliases, indicesOptions.ignoreAliases());
-        assertEquals(ingoreThrottled, indicesOptions.ignoreThrottled());
+        assertEquals(ignoreThrottled, indicesOptions.ignoreThrottled());
     }
 
     public void testFromOptionsWithDefaultOptions() {

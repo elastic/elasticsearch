@@ -77,10 +77,10 @@ public class MlJobIT extends ESRestTestCase {
         createFarequoteJob(jobId);
 
         // Explicit _all
-        String explictAll = EntityUtils.toString(
+        String explicitAll = EntityUtils.toString(
                 client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/_all")).getEntity());
-        assertThat(explictAll, containsString("\"count\":1"));
-        assertThat(explictAll, containsString("\"job_id\":\"" + jobId + "\""));
+        assertThat(explicitAll, containsString("\"count\":1"));
+        assertThat(explicitAll, containsString("\"job_id\":\"" + jobId + "\""));
 
         // Implicit _all
         String implicitAll = EntityUtils.toString(

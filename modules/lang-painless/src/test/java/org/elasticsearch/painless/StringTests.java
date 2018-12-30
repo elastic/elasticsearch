@@ -91,7 +91,7 @@ public class StringTests extends ScriptTestCase {
             result.append(s);
         }
         final String s = script.toString();
-        assertTrue("every string part should be separatly pushed to stack.",
+        assertTrue("every string part should be separately pushed to stack.",
                 Debugger.toString(s).contains(String.format(Locale.ROOT, "LDC \"%03d\"", count/2)));
         assertEquals(result.toString(), exec(s));
     }

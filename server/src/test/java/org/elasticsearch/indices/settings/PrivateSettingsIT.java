@@ -68,7 +68,7 @@ public class PrivateSettingsIT extends ESIntegTestCase {
         assertNull(responseAfterAttemptedUpdate.getSetting("test", "index.private"));
     }
 
-    public void testUpdatePrivatelIndexSettingViaDedicatedAPI() {
+    public void testUpdatePrivateIndexSettingViaDedicatedAPI() {
         createIndex("test");
         client().execute(
                 InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,

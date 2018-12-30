@@ -60,7 +60,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
     public void testDateMathExpressionsCanBeAuthorized() throws Exception {
         final String expression = "<datemath-{now/M}>";
         final String expectedIndexName = new IndexNameExpressionResolver().resolveDateMathExpression(expression);
-        final boolean refeshOnOperation = randomBoolean();
+        final boolean refreshOnOperation = randomBoolean();
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue("user1", USERS_PASSWD)));
 
         if (randomBoolean()) {
@@ -68,12 +68,12 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
             assertThat(response.isAcknowledged(), is(true));
         }
         IndexResponse response = client.prepareIndex(expression, "type").setSource("foo", "bar")
-                .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE).get();
+                .setRefreshPolicy(refreshOnOperation ? IMMEDIATE : NONE).get();
 
         assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
         assertThat(response.getIndex(), containsString(expectedIndexName));
 
-        if (refeshOnOperation == false) {
+        if (refreshOnOperation == false) {
             client.admin().indices().prepareRefresh(expression).get();
         }
         SearchResponse searchResponse = client.prepareSearch(expression)
@@ -88,11 +88,11 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
 
         UpdateResponse updateResponse = client.prepareUpdate(expression, "type", response.getId())
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "new", "field")
-                .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE)
+                .setRefreshPolicy(refreshOnOperation ? IMMEDIATE : NONE)
                 .get();
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
 
-        if (refeshOnOperation == false) {
+        if (refreshOnOperation == false) {
             client.admin().indices().prepareRefresh(expression).get();
         }
         GetResponse getResponse = client.prepareGet(expression, "type", response.getId()).setFetchSource(true).get();

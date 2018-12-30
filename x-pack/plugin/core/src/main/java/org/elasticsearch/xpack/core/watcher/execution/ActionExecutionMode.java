@@ -40,9 +40,9 @@ public enum ActionExecutionMode {
     private final boolean force;
     private final boolean simulate;
 
-    ActionExecutionMode(byte id, boolean froce, boolean simulate) {
+    ActionExecutionMode(byte id, boolean force, boolean simulate) {
         this.id = id;
-        this.force = froce;
+        this.force = force;
         this.simulate = simulate;
     }
 

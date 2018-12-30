@@ -44,7 +44,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
      * to rollover and a warm phase with an impossible allocation action. The
      * second policy has a rollover action requiring 1000 document and a warm
      * phase that moves the index to known nodes that will succeed. An index is
-     * created with the fiorst policy set and the test ensures the policy is in
+     * created with the first policy set and the test ensures the policy is in
      * the rollover step. It then changes the policy for the index to the second
      * policy. It indexes a single document and checks that the index moves past
      * the hot phase and through the warm phasee (proving the hot phase

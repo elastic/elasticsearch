@@ -86,9 +86,9 @@ public class ApplicationPrivilegeTests extends ESTestCase {
     public void testEmptyPrivilegeName() {
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("description", "Read access to myapp");
-        final String privilegenName = randomBoolean() ? null : "";
+        final String privilegeName = randomBoolean() ? null : "";
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            new ApplicationPrivilege("myapp", privilegenName, Arrays.asList("data:read/*", "action:login"), metadata));
+            new ApplicationPrivilege("myapp", privilegeName, Arrays.asList("data:read/*", "action:login"), metadata));
         assertThat(e.getMessage(), equalTo("privilege name must be provided"));
     }
 

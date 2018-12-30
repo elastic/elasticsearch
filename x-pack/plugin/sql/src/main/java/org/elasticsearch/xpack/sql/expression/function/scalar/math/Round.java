@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 /**
  * Function that takes two parameters: one is the field/value itself, the other is a non-floating point numeric
  * which indicates how the rounding should behave. If positive, it will round the number till that parameter
- * count digits after the decimal point. If negative, it will round the number till that paramter count
+ * count digits after the decimal point. If negative, it will round the number till that parameter count
  * digits before the decimal point, starting at the decimal point.
  */
 public class Round extends BinaryNumericFunction {

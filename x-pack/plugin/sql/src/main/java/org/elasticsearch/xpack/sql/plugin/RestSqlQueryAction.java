@@ -66,7 +66,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * control the output more easily.
          *
          * First we find the string that the user used to specify the response
-         * format. If there is a {@code format} paramter we use that. If there
+         * format. If there is a {@code format} parameter we use that. If there
          * isn't but there is a {@code Accept} header then we use that. If there
          * isn't then we use the {@code Content-Type} header which is required.
          */

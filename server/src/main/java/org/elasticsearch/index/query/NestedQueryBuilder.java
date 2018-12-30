@@ -383,7 +383,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
                 int parentDocId = hit.docId();
                 final int readerIndex = ReaderUtil.subIndex(parentDocId, searcher().getIndexReader().leaves());
-                // With nested inner hits the nested docs are always in the same segement, so need to use the other segments
+                // With nested inner hits the nested docs are always in the same segment, so need to use the other segments
                 LeafReaderContext ctx = searcher().getIndexReader().leaves().get(readerIndex);
 
                 Query childFilter = childObjectMapper.nestedTypeFilter();

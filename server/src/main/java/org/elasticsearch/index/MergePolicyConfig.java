@@ -210,8 +210,8 @@ public final class MergePolicyConfig {
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
     }
 
-    void setFloorSegmentSetting(ByteSizeValue floorSegementSetting) {
-        mergePolicy.setFloorSegmentMB(floorSegementSetting.getMbFrac());
+    void setFloorSegmentSetting(ByteSizeValue floorSegmentSetting) {
+        mergePolicy.setFloorSegmentMB(floorSegmentSetting.getMbFrac());
     }
 
     void setExpungeDeletesAllowed(Double value) {

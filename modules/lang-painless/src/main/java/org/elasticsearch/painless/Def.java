@@ -174,7 +174,7 @@ public final class Def {
      * A dynamic method call for variable {@code x} of type {@code def} looks like:
      * {@code x.method(args...)}
      * <p>
-     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * This method traverses {@code receiverClass}'s class hierarchy (including interfaces)
      * until it finds a matching whitelisted method. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching method.
      * <p>
@@ -353,7 +353,7 @@ public final class Def {
      *   <li>The value in a list at element {@code field} (integer) when the receiver is a List.
      * </ul>
      * <p>
-     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * This method traverses {@code receiverClass}'s class hierarchy (including interfaces)
      * until it finds a matching whitelisted getter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching getter.
      * <p>
@@ -409,7 +409,7 @@ public final class Def {
      *   <li>The value in a list at element {@code field} (integer) when the receiver is a List.
      * </ul>
      * <p>
-     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * This method traverses {@code receiverClass}'s class hierarchy (including interfaces)
      * until it finds a matching whitelisted setter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching setter.
      * <p>

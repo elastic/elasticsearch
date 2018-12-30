@@ -43,7 +43,6 @@ import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 
@@ -51,7 +50,6 @@ public class OutboundHandlerTests extends ESTestCase {
 
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-    private final AtomicReference<Supplier<BytesReference>> messageCaptor = new AtomicReference<>();
     private OutboundHandler handler;
     private FakeTcpChannel fakeTcpChannel;
 
@@ -59,7 +57,7 @@ public class OutboundHandlerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         TransportLogger transportLogger = new TransportLogger();
-        fakeTcpChannel = new FakeTcpChannel(randomBoolean(), messageCaptor);
+        fakeTcpChannel = new FakeTcpChannel(randomBoolean());
         handler = new OutboundHandler(threadPool, BigArrays.NON_RECYCLING_INSTANCE, transportLogger);
     }
 
@@ -78,15 +76,15 @@ public class OutboundHandlerTests extends ESTestCase {
         ActionListener<Void> listener = ActionListener.wrap((v) -> isSuccess.set(true), exception::set);
         handler.sendBytes(fakeTcpChannel, bytesArray, listener);
 
-        ActionListener<Void> sendContext = (ActionListener<Void>) messageCaptor.get();
-        BytesReference reference = messageCaptor.get().get();
+        BytesReference reference = fakeTcpChannel.getMessageCaptor().get();
+        ActionListener<Void> sendListener  = fakeTcpChannel.getListenerCaptor().get();
         if (randomBoolean()) {
-            sendContext.onResponse(null);
+            sendListener.onResponse(null);
             assertTrue(isSuccess.get());
             assertNull(exception.get());
         } else {
             IOException e = new IOException("failed");
-            sendContext.onFailure(e);
+            sendListener.onFailure(e);
             assertFalse(isSuccess.get());
             assertSame(e, exception.get());
         }
@@ -120,15 +118,15 @@ public class OutboundHandlerTests extends ESTestCase {
         ActionListener<Void> listener = ActionListener.wrap((v) -> isSuccess.set(true), exception::set);
         handler.sendMessage(fakeTcpChannel, message, listener);
 
-        ActionListener<Void> sendContext = (ActionListener<Void>) messageCaptor.get();
-        BytesReference reference = messageCaptor.get().get();
+        BytesReference reference = fakeTcpChannel.getMessageCaptor().get();
+        ActionListener<Void> sendListener  = fakeTcpChannel.getListenerCaptor().get();
         if (randomBoolean()) {
-            sendContext.onResponse(null);
+            sendListener.onResponse(null);
             assertTrue(isSuccess.get());
             assertNull(exception.get());
         } else {
             IOException e = new IOException("failed");
-            sendContext.onFailure(e);
+            sendListener.onFailure(e);
             assertFalse(isSuccess.get());
             assertSame(e, exception.get());
         }

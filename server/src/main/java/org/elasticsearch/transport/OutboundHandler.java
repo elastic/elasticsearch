@@ -72,7 +72,10 @@ class OutboundHandler {
     private void internalSendMessage(TcpChannel channel,  SendContext sendContext) {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         try {
-            channel.sendMessage(sendContext, sendContext);
+            BytesReference reference = sendContext.get();
+            if (reference != null) {
+                channel.sendMessage(reference, sendContext);
+            }
         } catch (RuntimeException ex) {
             // call listener to ensure that any resources are released
             sendContext.onFailure(ex);

@@ -48,7 +48,6 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -193,7 +192,7 @@ public class TcpTransportTests extends ESTestCase {
         final boolean compressed = randomBoolean();
         Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));
         ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
-        AtomicReference<Supplier<BytesReference>> messageCaptor = new AtomicReference<>();
+        AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport("test", Settings.EMPTY, Version.CURRENT, threadPool,
                 PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(), null, null) {
@@ -205,7 +204,7 @@ public class TcpTransportTests extends ESTestCase {
 
                 @Override
                 protected FakeTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
-                    return new FakeTcpChannel(false, messageCaptor);
+                    return new FakeTcpChannel(false);
                 }
 
                 @Override
@@ -242,7 +241,7 @@ public class TcpTransportTests extends ESTestCase {
                 (request1, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE), ThreadPool.Names.SAME,
                 true, true));
 
-            BytesReference reference = messageCaptor.get().get();
+            BytesReference reference = messageCaptor.get();
             assertNotNull(reference);
 
             AtomicReference<BytesReference> responseCaptor = new AtomicReference<>();

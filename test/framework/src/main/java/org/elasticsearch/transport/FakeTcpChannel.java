@@ -24,7 +24,6 @@ import org.elasticsearch.common.concurrent.CompletableContext;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 public class FakeTcpChannel implements TcpChannel {
 
@@ -32,9 +31,10 @@ public class FakeTcpChannel implements TcpChannel {
     private final InetSocketAddress localAddress;
     private final InetSocketAddress remoteAddress;
     private final String profile;
-    private final AtomicReference<Supplier<BytesReference>> messageCaptor;
     private final ChannelStats stats = new ChannelStats();
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
+    private final AtomicReference<BytesReference> messageCaptor;
+    private final AtomicReference<ActionListener<Void>> listenerCaptor;
 
     public FakeTcpChannel() {
         this(false, "profile", new AtomicReference<>());
@@ -44,21 +44,23 @@ public class FakeTcpChannel implements TcpChannel {
         this(isServer, "profile", new AtomicReference<>());
     }
 
-    public FakeTcpChannel(boolean isServer, AtomicReference<Supplier<BytesReference>> messageCaptor) {
+    public FakeTcpChannel(boolean isServer, AtomicReference<BytesReference> messageCaptor) {
         this(isServer, "profile", messageCaptor);
     }
 
-    public FakeTcpChannel(boolean isServer, String profile, AtomicReference<Supplier<BytesReference>> messageCaptor) {
+
+    public FakeTcpChannel(boolean isServer, String profile, AtomicReference<BytesReference> messageCaptor) {
         this(isServer, null, null, profile, messageCaptor);
     }
 
     public FakeTcpChannel(boolean isServer, InetSocketAddress localAddress, InetSocketAddress remoteAddress, String profile,
-                          AtomicReference<Supplier<BytesReference>> messageCaptor) {
+                          AtomicReference<BytesReference> messageCaptor) {
         this.isServer = isServer;
         this.localAddress = localAddress;
         this.remoteAddress = remoteAddress;
         this.profile = profile;
         this.messageCaptor = messageCaptor;
+        this.listenerCaptor = new AtomicReference<>();
     }
 
     @Override
@@ -82,8 +84,9 @@ public class FakeTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(Supplier<BytesReference> messageSupplier, ActionListener<Void> listener) {
-        messageCaptor.set(messageSupplier);
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+        messageCaptor.set(reference);
+        listenerCaptor.set(listener);
     }
 
     @Override
@@ -109,5 +112,13 @@ public class FakeTcpChannel implements TcpChannel {
     @Override
     public ChannelStats getChannelStats() {
         return stats;
+    }
+
+    public AtomicReference<BytesReference> getMessageCaptor() {
+        return messageCaptor;
+    }
+
+    public AtomicReference<ActionListener<Void>> getListenerCaptor() {
+        return listenerCaptor;
     }
 }

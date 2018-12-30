@@ -62,7 +62,7 @@ public interface TypeEncounter<I> {
 
     /**
      * Returns the provider used to obtain instances for the given injection type. The returned
-     * provider will not be valid until the injetor has been created. The provider will throw an
+     * provider will not be valid until the injector has been created. The provider will throw an
      * {@code IllegalStateException} if you try to use it beforehand.
      */
     <T> Provider<T> getProvider(Class<T> type);

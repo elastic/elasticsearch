@@ -128,7 +128,7 @@ public class WatchParser {
         List<ActionWrapper> actions = defaultActions;
         ExecutableTransform transform = null;
         TimeValue throttlePeriod = null;
-        Map<String, Object> metatdata = null;
+        Map<String, Object> metadata = null;
         WatchStatus status = null;
         long version = Versions.MATCH_ANY;
 
@@ -162,7 +162,7 @@ public class WatchParser {
             } else if (WatchField.ACTIONS.match(currentFieldName, parser.getDeprecationHandler())) {
                 actions = actionRegistry.parseActions(id, parser);
             } else if (WatchField.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
-                metatdata = parser.map();
+                metadata = parser.map();
             } else if (WatchField.VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
                 version = parser.longValue();
             } else if (WatchField.STATUS.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -198,6 +198,6 @@ public class WatchParser {
         }
 
 
-        return new Watch(id, trigger, input, condition, transform, throttlePeriod, actions,  metatdata, status, version);
+        return new Watch(id, trigger, input, condition, transform, throttlePeriod, actions,  metadata, status, version);
     }
 }

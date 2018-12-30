@@ -1350,7 +1350,7 @@ public final class TokenService {
     }
 
     /**
-     * Returns the current in-use metdata of this {@link TokenService}
+     * Returns the current in-use metadata of this {@link TokenService}
      */
     public synchronized TokenMetaData getTokenMetaData() {
         return newTokenMetaData(keyCache.currentTokenKeyHash, keyCache.cache.values());

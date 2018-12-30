@@ -36,7 +36,7 @@ import static org.hamcrest.core.Is.is;
 public class GceInstancesServiceImplTests extends ESTestCase {
 
     public void testHeaderContainsMetadataFlavor() throws Exception {
-        final AtomicBoolean addMetdataFlavor = new AtomicBoolean();
+        final AtomicBoolean addMetadataFlavor = new AtomicBoolean();
         final MockHttpTransport transport = new MockHttpTransport() {
             @Override
             public LowLevelHttpRequest buildRequest(String method, final String url) {
@@ -47,7 +47,7 @@ public class GceInstancesServiceImplTests extends ESTestCase {
                         response.setStatusCode(200);
                         response.setContentType(Json.MEDIA_TYPE);
                         response.setContent("value");
-                        if (addMetdataFlavor.get()) {
+                        if (addMetadataFlavor.get()) {
                             response.addHeader("Metadata-Flavor", "Google");
                         }
                         return response;
@@ -66,7 +66,7 @@ public class GceInstancesServiceImplTests extends ESTestCase {
         final String serviceURL = "/computeMetadata/v1/project/project-id";
         assertThat(service.getAppEngineValueFromMetadataServer(serviceURL), is(nullValue()));
 
-        addMetdataFlavor.set(true);
+        addMetadataFlavor.set(true);
         assertThat(service.getAppEngineValueFromMetadataServer(serviceURL), is("value"));
     }
 }

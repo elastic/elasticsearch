@@ -33,7 +33,7 @@ public class VariablesTests extends ESTestCase {
         DateTime triggeredTime = scheduledTime.plusMillis(50);
         DateTime executionTime = triggeredTime.plusMillis(50);
         Payload payload = new Payload.Simple(singletonMap("payload_key", "payload_value"));
-        Map<String, Object> metatdata = singletonMap("metadata_key", "metadata_value");
+        Map<String, Object> metadata = singletonMap("metadata_key", "metadata_value");
         TriggerEvent event = new ScheduleTriggerEvent("_watch_id", triggeredTime, scheduledTime);
         Wid wid = new Wid("_watch_id", executionTime);
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
@@ -41,7 +41,7 @@ public class VariablesTests extends ESTestCase {
                 .executionTime(executionTime)
                 .triggerEvent(event)
                 .payload(payload)
-                .metadata(metatdata)
+                .metadata(metadata)
                 .buildMock();
 
         Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
@@ -57,6 +57,6 @@ public class VariablesTests extends ESTestCase {
         assertThat(ObjectPath.eval("ctx.execution_time", model), Matchers.hasToString(jodaJavaExecutionTime.toString()));
         assertThat(ObjectPath.eval("ctx.trigger", model), is(event.data()));
         assertThat(ObjectPath.eval("ctx.payload", model), is(payload.data()));
-        assertThat(ObjectPath.eval("ctx.metadata", model), is(metatdata));
+        assertThat(ObjectPath.eval("ctx.metadata", model), is(metadata));
     }
 }

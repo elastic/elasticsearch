@@ -55,7 +55,7 @@ public interface ClusterStateTaskExecutor<T> {
      *
      * Note that the tasks given are not necessarily the same as those that will be passed to {@link #execute(ClusterState, List)}.
      * but are guaranteed to be a subset of them. This method can be called multiple times with different lists before execution.
-     * This allows groupd task description by the submitting source.
+     * This allows grouped task description by the submitting source.
      */
     default String describeTasks(List<T> tasks) {
         return String.join(", ", tasks.stream().map(t -> (CharSequence)t.toString()).filter(t -> t.length() > 0)::iterator);

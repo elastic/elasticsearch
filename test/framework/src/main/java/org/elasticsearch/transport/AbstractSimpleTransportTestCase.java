@@ -688,7 +688,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final CyclicBarrier go = new CyclicBarrier(halfSenders * 2 + 1);
         final CountDownLatch done = new CountDownLatch(halfSenders * 2);
         for (int i = 0; i < halfSenders; i++) {
-            // B senders just generated activity so serciveA can respond, we don't test what's going on there
+            // B senders just generated activity so serviceA can respond, we don't test what's going on there
             final int sender = i;
             threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
                 @Override

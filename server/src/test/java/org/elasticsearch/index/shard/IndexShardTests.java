@@ -2775,7 +2775,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
-     * here we are simulating the scenario that happens when we do async shard fetching from GatewaySerivce while we are finishing
+     * here we are simulating the scenario that happens when we do async shard fetching from GatewayService while we are finishing
      * a recovery and concurrently clean files. This should always be possible without any exception. Yet there was a bug where IndexShard
      * acquired the index writer lock before it called into the store that has it's own locking for metadata reads
      */

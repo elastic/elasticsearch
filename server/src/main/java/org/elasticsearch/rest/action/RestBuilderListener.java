@@ -42,7 +42,7 @@ public abstract class RestBuilderListener<Response> extends RestResponseListener
     }
 
     /**
-     * Builds a response to send back over the channel. Implementors should ensure that they close the provided {@link XContentBuilder}
+     * Builds a response to send back over the channel. Implementers should ensure that they close the provided {@link XContentBuilder}
      * using the {@link XContentBuilder#close()} method.
      */
     public abstract RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception;

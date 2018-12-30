@@ -104,7 +104,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected abstract String executor();
 
     /**
-     * @deprecated new implementors should override {@link #read(StreamInput)} and use the
+     * @deprecated new implementers should override {@link #read(StreamInput)} and use the
      *             {@link Writeable.Reader} interface.
      * @return a new response instance. Typically this is used for serialization using the
      *         {@link Streamable#readFrom(StreamInput)} method.

@@ -160,7 +160,7 @@ public abstract class TaskBatcher {
 
     /**
      * Represents a runnable task that supports batching.
-     * Implementors of TaskBatcher can subclass this to add a payload to the task.
+     * Implementers of TaskBatcher can subclass this to add a payload to the task.
      */
     protected abstract class BatchedTask extends SourcePrioritizedRunnable {
         /**

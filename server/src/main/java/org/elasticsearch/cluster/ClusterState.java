@@ -97,7 +97,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
     /**
-     * An interface that implementors use when a class requires a client to maybe have a feature.
+     * An interface that implementers use when a class requires a client to maybe have a feature.
      */
     public interface FeatureAware {
 

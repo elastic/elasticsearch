@@ -79,7 +79,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
     /**
      * Template method to allow implementation details of various types of data (e.g. results, model snapshots).
-     * Implementors need to call {@code listener.onResponse} when they are done in order to continue to the next job.
+     * Implementers need to call {@code listener.onResponse} when they are done in order to continue to the next job.
      */
     protected abstract void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener);
 

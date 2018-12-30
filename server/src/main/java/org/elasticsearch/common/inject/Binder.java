@@ -29,7 +29,7 @@ import java.lang.annotation.Annotation;
 /**
  * Collects configuration information (primarily <i>bindings</i>) which will be
  * used to create an {@link Injector}. Guice provides this object to your
- * application's {@link Module} implementors so they may each contribute
+ * application's {@link Module} implementers so they may each contribute
  * their own bindings and other registrations.
  * <h3>The Guice Binding EDSL</h3>
  * <p>

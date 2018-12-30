@@ -51,17 +51,17 @@ abstract class TrustConfig {
     abstract List<Path> filesToMonitor(@Nullable Environment environment);
 
     /**
-     * {@inheritDoc}. Declared as abstract to force implementors to provide a custom implementation
+     * {@inheritDoc}. Declared as abstract to force implementers to provide a custom implementation
      */
     public abstract String toString();
 
     /**
-     * {@inheritDoc}. Declared as abstract to force implementors to provide a custom implementation
+     * {@inheritDoc}. Declared as abstract to force implementers to provide a custom implementation
      */
     public abstract boolean equals(Object o);
 
     /**
-     * {@inheritDoc}. Declared as abstract to force implementors to provide a custom implementation
+     * {@inheritDoc}. Declared as abstract to force implementers to provide a custom implementation
      */
     public abstract int hashCode();
 

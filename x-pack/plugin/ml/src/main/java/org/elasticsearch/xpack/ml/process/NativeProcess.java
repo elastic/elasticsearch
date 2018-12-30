@@ -24,7 +24,7 @@ public interface NativeProcess extends Closeable {
      * Write the record to the process. The record parameter should not be encoded
      * (i.e. length encoded) the implementation will apply the correct encoding.
      *
-     * @param record Plain array of strings, implementors of this class should
+     * @param record Plain array of strings, implementers of this class should
      *               encode the record appropriately
      * @throws IOException If the write failed
      */

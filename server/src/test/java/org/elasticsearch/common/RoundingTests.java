@@ -286,7 +286,7 @@ public class RoundingTests extends ESTestCase {
      * In this case, when interval crosses DST transition point, rounding in local
      * time can land in a DST gap which results in wrong UTC rounding values.
      */
-    public void testIntervalRounding_NotDivisibleInteval() {
+    public void testIntervalRounding_NotDivisibleInterval() {
         long interval = TimeUnit.MINUTES.toMillis(14);
         ZoneId tz = ZoneId.of("CET");
         Rounding rounding = new Rounding.TimeIntervalRounding(interval, tz);

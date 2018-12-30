@@ -133,11 +133,11 @@ public class BytesReferenceMonitoringDocTests extends BaseMonitoringDocTestCase<
                                        doc.getNode(), doc.getSystem(), doc.getType(), doc.getId());
         });
         mutations.add(doc -> {
-            long intervaMillis;
+            long intervalMillis;
             do {
-                intervaMillis = randomNonNegativeLong();
-            } while (intervaMillis == doc.getIntervalMillis());
-            return createMonitoringDoc(doc.getCluster(), doc.getTimestamp(), intervaMillis,
+                intervalMillis = randomNonNegativeLong();
+            } while (intervalMillis == doc.getIntervalMillis());
+            return createMonitoringDoc(doc.getCluster(), doc.getTimestamp(), intervalMillis,
                                        doc.getNode(), doc.getSystem(), doc.getType(), doc.getId());
         });
         mutations.add(doc -> {

@@ -102,7 +102,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();
         boolean useNested = randomBoolean();
-        IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, useNested);
+        IndexRequestBuilder[] builders = snapshotAndRestore(sourceIdx, 1, true, requireRouting, useNested);
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(sourceIdx).clear().setDocs(true).get();
         long deleted = indicesStatsResponse.getTotal().docs.getDeleted();
         boolean sourceHadDeletions = deleted > 0; // we use indexRandom which might create holes i.e. deleted docs
@@ -132,7 +132,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
     public void testSnapshotAndRestoreWithNested() throws Exception {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();
-        IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, true);
+        IndexRequestBuilder[] builders = snapshotAndRestore(sourceIdx, 1, true, requireRouting, true);
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().clear().setDocs(true).get();
         assertThat(indicesStatsResponse.getTotal().docs.getDeleted(), Matchers.greaterThan(0L));
         assertHits(sourceIdx, builders.length, true);
@@ -218,7 +218,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     }
 
-    private IndexRequestBuilder[] snashotAndRestore(String sourceIdx, int numShards, boolean minimal, boolean requireRouting, boolean
+    private IndexRequestBuilder[] snapshotAndRestore(String sourceIdx, int numShards, boolean minimal, boolean requireRouting, boolean
         useNested)
         throws ExecutionException, InterruptedException, IOException {
         logger.info("-->  starting a master node and a data node");

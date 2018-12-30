@@ -88,7 +88,7 @@ public class Cleanup {
             .forEach(FileUtils::rm);
 
         // disable elasticsearch service
-        // todo add this for windows when adding tests for service intallation
+        // todo add this for windows when adding tests for service installation
         if (Platforms.LINUX && isSystemd()) {
             sh.run("systemctl unmask systemd-sysctl.service");
         }

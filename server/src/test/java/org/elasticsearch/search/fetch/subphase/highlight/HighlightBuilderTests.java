@@ -412,10 +412,10 @@ public class HighlightBuilderTests extends ESTestCase {
                 highlightBuilder.postTags());
 
             XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
-                "    \"tags_schema\" : \"somthing_else\"\n" +
+                "    \"tags_schema\" : \"something_else\"\n" +
                 "}\n");
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [tags_schema]"));
-            assertEquals("Unknown tag schema [somthing_else]", e.getCause().getMessage());
+            assertEquals("Unknown tag schema [something_else]", e.getCause().getMessage());
         }
     }
 

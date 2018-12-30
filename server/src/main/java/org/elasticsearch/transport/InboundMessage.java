@@ -28,11 +28,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -55,22 +53,22 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
         private final Version version;
         private final NamedWriteableRegistry namedWriteableRegistry;
-        private final ThreadPool threadPool;
+        private final ThreadContext threadContext;
 
-        Reader(Version version, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool) {
+        Reader(Version version, NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
             this.version = version;
             this.namedWriteableRegistry = namedWriteableRegistry;
-            this.threadPool = threadPool;
+            this.threadContext = threadContext;
         }
 
-        InboundMessage deserialize(BytesReference reference, InetSocketAddress remoteAddress) throws IOException {
+        InboundMessage deserialize(BytesReference reference) throws IOException {
             int messageLengthBytes = reference.length();
             final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
             // we have additional bytes to read, outside of the header
             boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
             StreamInput streamInput = reference.streamInput();
             boolean success = false;
-            try {
+            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 long requestId = streamInput.readLong();
                 byte status = streamInput.readByte();
                 Version remoteVersion = Version.fromId(streamInput.readInt());
@@ -97,8 +95,8 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 streamInput = new NamedWriteableAwareStreamInput(streamInput, namedWriteableRegistry);
                 streamInput.setVersion(remoteVersion);
 
-                threadPool.getThreadContext().readHeaders(streamInput);
-                threadPool.getThreadContext().putTransient("_remote_address", remoteAddress);
+                threadContext.readHeaders(streamInput);
+
                 InboundMessage message;
                 if (TransportStatus.isRequest(status)) {
                     final Set<String> features;
@@ -108,9 +106,9 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                         features = Collections.emptySet();
                     }
                     final String action = streamInput.readString();
-                    message = new Request(threadPool.getThreadContext(), remoteVersion, status, requestId, action, features, streamInput);
+                    message = new Request(threadContext, remoteVersion, status, requestId, action, features, streamInput);
                 } else {
-                    message = new Response(threadPool.getThreadContext(), remoteVersion, status, requestId, streamInput);
+                    message = new Response(threadContext, remoteVersion, status, requestId, streamInput);
                 }
                 success = true;
                 return message;

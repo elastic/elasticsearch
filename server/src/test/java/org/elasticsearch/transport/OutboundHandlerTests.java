@@ -36,15 +36,12 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.mockito.Mockito.mock;
 
 public class OutboundHandlerTests extends ESTestCase {
 
@@ -129,9 +126,8 @@ public class OutboundHandlerTests extends ESTestCase {
             assertSame(e, exception.get());
         }
 
-        InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, namedWriteableRegistry, threadPool);
-        InetSocketAddress address = mock(InetSocketAddress.class);
-        try (InboundMessage inboundMessage = reader.deserialize(reference.slice(6, reference.length() - 6), address)) {
+        InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, namedWriteableRegistry, threadPool.getThreadContext());
+        try (InboundMessage inboundMessage = reader.deserialize(reference.slice(6, reference.length() - 6))) {
             assertEquals(version, inboundMessage.getVersion());
             assertEquals(requestId, inboundMessage.getRequestId());
             if (isRequest) {

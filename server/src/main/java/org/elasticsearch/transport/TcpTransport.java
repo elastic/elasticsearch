@@ -163,7 +163,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             (v, features, channel, response, requestId) -> sendResponse(v, features, channel, response, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, false, true));
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
-        this.reader = new InboundMessage.Reader(version, namedWriteableRegistry, threadPool);
+        this.reader = new InboundMessage.Reader(version, namedWriteableRegistry, threadPool.getThreadContext());
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
         final Settings defaultFeatures = TransportSettings.DEFAULT_FEATURES_SETTING.get(settings);
@@ -764,7 +764,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * Handles inbound message that has been decoded.
      *
-     * @param channel the channel the message if fomr
+     * @param channel the channel the message is from
      * @param message the message
      */
     public void inboundMessage(TcpChannel channel, BytesReference message) {
@@ -935,9 +935,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         readBytesMetric.inc(reference.length() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
         InetSocketAddress remoteAddress = channel.getRemoteAddress();
 
-        try (InboundMessage message = reader.deserialize(reference, remoteAddress);
-             ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        try (InboundMessage message = reader.deserialize(reference);
+             ThreadContext.StoredContext existing = threadContext.stashContext()) {
+            // Place the context with the headers from the message
             message.getStoredContext().restore();
+            threadContext.putTransient("_remote_address", remoteAddress);
             if (message.isRequest()) {
                 handleRequest(channel, (InboundMessage.Request) message, reference.length());
             } else {

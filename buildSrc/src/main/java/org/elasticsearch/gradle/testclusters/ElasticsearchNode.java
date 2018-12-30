@@ -183,7 +183,7 @@ public class ElasticsearchNode {
         try {
             processBuilder.directory(workingDir);
             Map<String, String> environment = processBuilder.environment();
-            // Don't inherit anything from the environment for as that would  lack reproductability
+            // Don't inherit anything from the environment for as that would  lack reproducibility
             environment.clear();
             if (javaHome != null) {
                 environment.put("JAVA_HOME", getJavaHome().getAbsolutePath());

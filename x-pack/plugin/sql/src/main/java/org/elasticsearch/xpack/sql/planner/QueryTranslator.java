@@ -297,7 +297,7 @@ final class QueryTranslator {
                             }
                         }
                         else {
-                            throw new SqlIllegalArgumentException("Unsupproted grouping function {}", exp);
+                            throw new SqlIllegalArgumentException("Unsupported grouping function {}", exp);
                         }
                     }
                     // bumped into into an invalid function (which should be caught by the verifier)

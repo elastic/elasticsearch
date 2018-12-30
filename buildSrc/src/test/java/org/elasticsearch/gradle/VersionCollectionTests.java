@@ -350,7 +350,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         vc.compareToAuthoritative(authoritativeReleasedVersions);
     }
 
-    public void testCompareToAuthoritativeNotReallyRelesed() {
+    public void testCompareToAuthoritativeNotReallyReleased() {
         List<String> listOfVersions = asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0", "8.0.0");
         List<Version> authoritativeReleasedVersions = Stream.of("7.0.0", "7.0.1")
                 .map(Version::fromString)

@@ -339,7 +339,7 @@ public class VersionTests extends ESTestCase {
     }
 
     public static void assertUnknownVersion(Version version) {
-        assertFalse("Version " + version + " has been releaed don't use a new instance of this version",
+        assertFalse("Version " + version + " has been released don't use a new instance of this version",
             VersionUtils.allReleasedVersions().contains(version));
     }
 

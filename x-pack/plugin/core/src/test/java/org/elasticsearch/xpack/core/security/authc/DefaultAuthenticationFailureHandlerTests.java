@@ -126,9 +126,9 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         final List<String> supportedSchemes = Arrays.asList(basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
         Collections.shuffle(supportedSchemes, random());
         failureResponeHeaders.put("WWW-Authenticate", supportedSchemes);
-        final DefaultAuthenticationFailureHandler failuerHandler = new DefaultAuthenticationFailureHandler(failureResponeHeaders);
+        final DefaultAuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(failureResponeHeaders);
 
-        final ElasticsearchSecurityException ese = failuerHandler.exceptionProcessingRequest(mock(RestRequest.class), null,
+        final ElasticsearchSecurityException ese = failureHandler.exceptionProcessingRequest(mock(RestRequest.class), null,
                 new ThreadContext(Settings.builder().build()));
 
         assertThat(ese, is(notNullValue()));

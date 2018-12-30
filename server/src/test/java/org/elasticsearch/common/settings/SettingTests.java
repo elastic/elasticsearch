@@ -277,14 +277,14 @@ public class SettingTests extends ESTestCase {
 
         // It gets more complicated when there are two settings objects....
         Settings hasFallback = Settings.builder().put("foo.bar", "o").build();
-        Setting<String> fallsback =
+        Setting<String> fallsBack =
                 new Setting<>("foo.baz", secondaryDefault, Function.identity(), Property.NodeScope);
-        assertEquals("o", fallsback.get(hasFallback));
-        assertEquals("some_default", fallsback.get(Settings.EMPTY));
-        assertEquals("some_default", fallsback.get(Settings.EMPTY, Settings.EMPTY));
-        assertEquals("o", fallsback.get(Settings.EMPTY, hasFallback));
-        assertEquals("o", fallsback.get(hasFallback, Settings.EMPTY));
-        assertEquals("a", fallsback.get(
+        assertEquals("o", fallsBack.get(hasFallback));
+        assertEquals("some_default", fallsBack.get(Settings.EMPTY));
+        assertEquals("some_default", fallsBack.get(Settings.EMPTY, Settings.EMPTY));
+        assertEquals("o", fallsBack.get(Settings.EMPTY, hasFallback));
+        assertEquals("o", fallsBack.get(hasFallback, Settings.EMPTY));
+        assertEquals("a", fallsBack.get(
                 Settings.builder().put("foo.bar", "a").build(),
                 Settings.builder().put("foo.bar", "b").build()));
     }

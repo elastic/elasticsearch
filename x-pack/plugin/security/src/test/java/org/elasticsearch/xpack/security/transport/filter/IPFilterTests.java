@@ -199,7 +199,7 @@ public class IPFilterTests extends ESTestCase {
         assertAddressIsDeniedForProfile(IPFilter.HTTP_PROFILE_NAME, "192.168.0.1");
     }
 
-    public void testThatHttpFallsbackToDefault() throws Exception {
+    public void testThatHttpFallsBackToDefault() throws Exception {
         Settings settings = Settings.builder()
                 .put("xpack.security.transport.filter.allow", "127.0.0.1")
                 .put("xpack.security.transport.filter.deny", "10.0.0.0/8")

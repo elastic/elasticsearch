@@ -137,13 +137,13 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
-        TransportService masterTranspotService =
+        TransportService masterTransportService =
                 internalCluster().getInstance(TransportService.class, discoveryNodes.getMasterNode().getName());
 
         logger.info("blocking requests from non master [{}] to master [{}]", nonMasterNode, masterNode);
         MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class,
                 nonMasterNode);
-        nonMasterTransportService.addFailToSendNoConnectRule(masterTranspotService);
+        nonMasterTransportService.addFailToSendNoConnectRule(masterTransportService);
 
         assertNoMaster(nonMasterNode);
 

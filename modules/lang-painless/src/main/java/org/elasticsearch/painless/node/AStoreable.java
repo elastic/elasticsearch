@@ -99,7 +99,7 @@ abstract class AStoreable extends AExpression {
     abstract void load(MethodWriter writer, Globals globals);
 
     /**
-     * Called to store a storabable to local memory.
+     * Called to store a storable to local memory.
      */
     abstract void store(MethodWriter writer, Globals globals);
 

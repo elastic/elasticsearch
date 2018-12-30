@@ -139,7 +139,7 @@ public class MockNode extends Node {
                                                    Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                                    ClusterSettings clusterSettings, Set<String> taskHeaders) {
         // we use the MockTransportService.TestPlugin class as a marker to create a network
-        // module with this MockNetworkService. NetworkService is such an integral part of the systme
+        // module with this MockNetworkService. NetworkService is such an integral part of the system
         // we don't allow to plug it in from plugins or anything. this is a test-only override and
         // can't be done in a production env.
         if (getPluginsService().filterPlugins(MockTransportService.TestPlugin.class).isEmpty()) {

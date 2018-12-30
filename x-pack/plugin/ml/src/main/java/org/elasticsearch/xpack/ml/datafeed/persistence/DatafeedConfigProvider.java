@@ -338,7 +338,7 @@ public class DatafeedConfigProvider {
     }
 
     /**
-     * Expands an expression into the set of matching names. {@code expresssion}
+     * Expands an expression into the set of matching names. {@code expression}
      * may be a wildcard, a datafeed ID or a list of those.
      * If {@code expression} == 'ALL', '*' or the empty string then all
      * datafeed IDs are returned.

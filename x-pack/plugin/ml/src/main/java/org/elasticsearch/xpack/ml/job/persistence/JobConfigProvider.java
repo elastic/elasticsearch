@@ -524,7 +524,7 @@ public class JobConfigProvider {
     }
 
     /**
-     * Expands an expression into the set of matching names. {@code expresssion}
+     * Expands an expression into the set of matching names. {@code expression}
      * may be a wildcard, a job group, a job Id or a list of those.
      * If {@code expression} == 'ALL', '*' or the empty string then all
      * job Ids are returned.

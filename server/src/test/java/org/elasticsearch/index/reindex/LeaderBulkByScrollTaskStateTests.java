@@ -132,7 +132,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                throw new RuntimeException("Expected no interations but was received a failure", e);
+                throw new RuntimeException("Expected no interactions but was received a failure", e);
             }
         };
     }

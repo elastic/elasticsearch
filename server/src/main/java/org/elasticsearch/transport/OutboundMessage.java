@@ -23,11 +23,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Set;
@@ -36,7 +34,7 @@ abstract class OutboundMessage extends NetworkMessage implements Writeable {
 
     private final Writeable message;
 
-    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message, boolean compress) {
+    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message) {
         super(threadContext, version, status, requestId);
         this.message = message;
     }
@@ -92,7 +90,7 @@ abstract class OutboundMessage extends NetworkMessage implements Writeable {
 
         Request(ThreadContext threadContext, String[] features, Writeable message, Version version, String action, long requestId,
                 boolean isHandshake, boolean compress) {
-            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message, compress);
+            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
             this.features = features;
             this.action = action;
         }
@@ -123,9 +121,9 @@ abstract class OutboundMessage extends NetworkMessage implements Writeable {
 
         private final Set<String> features;
 
-        Response(ThreadContext threadContext, Set<String> features, Writeable message, Version version, long requestId, boolean isHandshake,
-                 boolean compress) {
-            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message, compress);
+        Response(ThreadContext threadContext, Set<String> features, Writeable message, Version version, long requestId,
+                 boolean isHandshake, boolean compress) {
+            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
             this.features = features;
         }
 

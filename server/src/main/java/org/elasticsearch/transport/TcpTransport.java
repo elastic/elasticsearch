@@ -755,8 +755,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         boolean compress,
         boolean isHandshake) {
         Version version = Version.min(this.version, nodeVersion);
-        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), features, response, version, requestId,
-            isHandshake, compress);
+        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), features, response, version,
+            requestId, isHandshake, compress);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
         outboundHandler.sendMessage(channel, message, listener);
     }

@@ -83,8 +83,8 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                         compressor = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed));
                     } catch (NotCompressedException ex) {
                         int maxToRead = Math.min(reference.length(), 10);
-                        StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)
-                            .append("] content bytes out of [").append(reference.length())
+                        StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [")
+                            .append(maxToRead).append("] content bytes out of [").append(reference.length())
                             .append("] readable bytes with message size [").append(messageLengthBytes).append("] ").append("] are [");
                         for (int i = 0; i < maxToRead; i++) {
                             sb.append(reference.get(i)).append(",");
@@ -132,7 +132,8 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         private final String actionName;
         private final Set<String> features;
 
-        Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName, Set<String> features, StreamInput streamInput) {
+        Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName, Set<String> features,
+                StreamInput streamInput) {
             super(threadContext, version, status, requestId, streamInput);
             this.actionName = actionName;
             this.features = features;

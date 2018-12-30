@@ -132,7 +132,8 @@ public class OutboundHandlerTests extends ESTestCase {
         }
 
         InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, namedWriteableRegistry, threadPool);
-        try (InboundMessage inboundMessage = reader.deserialize(reference.slice(6, reference.length() - 6), mock(InetSocketAddress.class))) {
+        InetSocketAddress address = mock(InetSocketAddress.class);
+        try (InboundMessage inboundMessage = reader.deserialize(reference.slice(6, reference.length() - 6), address)) {
             assertEquals(version, inboundMessage.getVersion());
             assertEquals(requestId, inboundMessage.getRequestId());
             if (isRequest) {

@@ -54,10 +54,10 @@ public class RollupIndexerJobStats extends IndexerJobStats {
         super();
     }
 
-    public RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
+    public RollupIndexerJobStats(long numPages, long numInputDocuments, long numOutputDocuments, long numInvocations,
                                  long indexTime, long searchTime, long indexTotal, long searchTotal, long indexFailures,
                                  long searchFailures) {
-        super(numPages, numInputDocuments, numOuputDocuments, numInvocations, indexTime, searchTime,
+        super(numPages, numInputDocuments, numOutputDocuments, numInvocations, indexTime, searchTime,
             indexTotal, searchTotal, indexFailures, searchFailures);
     }
 
@@ -70,7 +70,7 @@ public class RollupIndexerJobStats extends IndexerJobStats {
         builder.startObject();
         builder.field(NUM_PAGES.getPreferredName(), numPages);
         builder.field(NUM_INPUT_DOCUMENTS.getPreferredName(), numInputDocuments);
-        builder.field(NUM_OUTPUT_DOCUMENTS.getPreferredName(), numOuputDocuments);
+        builder.field(NUM_OUTPUT_DOCUMENTS.getPreferredName(), numOutputDocuments);
         builder.field(NUM_INVOCATIONS.getPreferredName(), numInvocations);
         builder.field(INDEX_TIME_IN_MS.getPreferredName(), indexTime);
         builder.field(INDEX_TOTAL.getPreferredName(), indexTotal);

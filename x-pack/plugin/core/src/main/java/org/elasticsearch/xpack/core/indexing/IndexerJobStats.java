@@ -26,7 +26,7 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
 
     protected long numPages = 0;
     protected long numInputDocuments = 0;
-    protected long numOuputDocuments = 0;
+    protected long numOutputDocuments = 0;
     protected long numInvocations = 0;
     protected long indexTime = 0;
     protected long searchTime = 0;
@@ -41,12 +41,12 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
     public IndexerJobStats() {
     }
 
-    public IndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
+    public IndexerJobStats(long numPages, long numInputDocuments, long numOutputDocuments, long numInvocations,
                            long indexTime, long searchTime, long indexTotal, long searchTotal,
                            long indexFailures, long searchFailures) {
         this.numPages = numPages;
         this.numInputDocuments = numInputDocuments;
-        this.numOuputDocuments = numOuputDocuments;
+        this.numOutputDocuments = numOutputDocuments;
         this.numInvocations = numInvocations;
         this.indexTime = indexTime;
         this.searchTime = searchTime;
@@ -59,7 +59,7 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
     public IndexerJobStats(StreamInput in) throws IOException {
         this.numPages = in.readVLong();
         this.numInputDocuments = in.readVLong();
-        this.numOuputDocuments = in.readVLong();
+        this.numOutputDocuments = in.readVLong();
         this.numInvocations = in.readVLong();
         if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             this.indexTime = in.readVLong();
@@ -84,7 +84,7 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
     }
 
     public long getOutputDocuments() {
-        return numOuputDocuments;
+        return numOutputDocuments;
     }
 
     public long getIndexFailures() {
@@ -128,7 +128,7 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
 
     public void incrementNumOutputDocuments(long n) {
         assert(n >= 0);
-        numOuputDocuments += n;
+        numOutputDocuments += n;
     }
 
     public void incrementIndexingFailures() {
@@ -161,7 +161,7 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(numPages);
         out.writeVLong(numInputDocuments);
-        out.writeVLong(numOuputDocuments);
+        out.writeVLong(numOutputDocuments);
         out.writeVLong(numInvocations);
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeVLong(indexTime);
@@ -187,7 +187,7 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
 
         return Objects.equals(this.numPages, that.numPages)
             && Objects.equals(this.numInputDocuments, that.numInputDocuments)
-            && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
+            && Objects.equals(this.numOutputDocuments, that.numOutputDocuments)
             && Objects.equals(this.numInvocations, that.numInvocations)
             && Objects.equals(this.indexTime, that.indexTime)
             && Objects.equals(this.searchTime, that.searchTime)
@@ -199,7 +199,7 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
+        return Objects.hash(numPages, numInputDocuments, numOutputDocuments, numInvocations,
             indexTime, searchTime, indexFailures, searchFailures, indexTotal, searchTotal);
     }
 }

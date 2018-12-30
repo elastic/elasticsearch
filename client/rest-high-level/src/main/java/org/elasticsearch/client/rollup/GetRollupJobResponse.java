@@ -185,7 +185,7 @@ public class GetRollupJobResponse {
     public static class RollupIndexerJobStats {
         private final long numPages;
         private final long numInputDocuments;
-        private final long numOuputDocuments;
+        private final long numOutputDocuments;
         private final long numInvocations;
         private long indexTime;
         private long indexTotal;
@@ -194,11 +194,11 @@ public class GetRollupJobResponse {
         private long indexFailures;
         private long searchFailures;
 
-        RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
+        RollupIndexerJobStats(long numPages, long numInputDocuments, long numOutputDocuments, long numInvocations,
                               long indexTime, long indexTotal, long searchTime, long searchTotal, long indexFailures, long searchFailures) {
             this.numPages = numPages;
             this.numInputDocuments = numInputDocuments;
-            this.numOuputDocuments = numOuputDocuments;
+            this.numOutputDocuments = numOutputDocuments;
             this.numInvocations = numInvocations;
             this.indexTime = indexTime;
             this.indexTotal = indexTotal;
@@ -233,7 +233,7 @@ public class GetRollupJobResponse {
          * Number of documents written to the result indices.
          */
         public long getOutputDocuments() {
-            return numOuputDocuments;
+            return numOutputDocuments;
         }
 
         /**
@@ -304,7 +304,7 @@ public class GetRollupJobResponse {
             RollupIndexerJobStats that = (RollupIndexerJobStats) other;
             return Objects.equals(this.numPages, that.numPages)
                 && Objects.equals(this.numInputDocuments, that.numInputDocuments)
-                && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
+                && Objects.equals(this.numOutputDocuments, that.numOutputDocuments)
                 && Objects.equals(this.numInvocations, that.numInvocations)
                 && Objects.equals(this.indexTime, that.indexTime)
                 && Objects.equals(this.searchTime, that.searchTime)
@@ -316,7 +316,7 @@ public class GetRollupJobResponse {
 
         @Override
         public int hashCode() {
-            return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
+            return Objects.hash(numPages, numInputDocuments, numOutputDocuments, numInvocations,
                 indexTime, searchTime, indexFailures, searchFailures, searchTotal, indexTotal);
         }
 
@@ -324,7 +324,7 @@ public class GetRollupJobResponse {
         public final String toString() {
             return "{pages=" + numPages
                     + ", input_docs=" + numInputDocuments
-                    + ", output_docs=" + numOuputDocuments
+                    + ", output_docs=" + numOutputDocuments
                     + ", invocations=" + numInvocations
                     + ", index_failures=" + indexFailures
                     + ", search_failures=" + searchFailures

@@ -265,7 +265,7 @@ public class RunningStats implements Writeable, Cloneable {
             nB2 = nB * nB;              // doc B num samples squared
             // variance
             variances.put(fieldName, varA + varB + d2 * nA * other.docCount / docCount);
-            // skeewness
+            // skewness
             newSkew = skewA + skewB + d3 * nA * nB * (nA - nB) / n2;
             skewness.put(fieldName, newSkew + 3D * d * (nA * varB - nB * varA) / docCount);
             // kurtosis

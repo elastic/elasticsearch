@@ -32,7 +32,7 @@ if /i %SERVICE_CMD% == install goto doInstall
 if /i %SERVICE_CMD% == remove goto doRemove
 if /i %SERVICE_CMD% == start goto doStart
 if /i %SERVICE_CMD% == stop goto doStop
-if /i %SERVICE_CMD% == manager goto doManagment
+if /i %SERVICE_CMD% == manager goto doManagement
 echo Unknown option "%SERVICE_CMD%"
 exit /B 1
 
@@ -61,7 +61,7 @@ goto:eof
 echo The service '%SERVICE_ID%' has been stopped
 goto:eof
 
-:doManagment
+:doManagement
 set EXECUTABLE_MGR=%ES_HOME%\bin\elasticsearch-service-mgr
 "%EXECUTABLE_MGR%" //ES//%SERVICE_ID%
 if not errorlevel 1 goto managed

@@ -464,7 +464,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     }
 
     /**
-     * Acquires a releaseable lock for the given uId. All *UnderLock methods require
+     * Acquires a releasable lock for the given uId. All *UnderLock methods require
      * this lock to be hold by the caller otherwise the visibility guarantees of this version
      * map are broken. We assert on this lock to be hold when calling these methods.
      * @see KeyedLock

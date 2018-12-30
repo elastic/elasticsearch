@@ -435,7 +435,7 @@ public final class XTessellator {
     return node;
   }
 
-  /** Attempt to split a polygon and independently triangulate each side. Return true if the polygon was splitted **/
+  /** Attempt to split a polygon and independently triangulate each side. Return true if the polygon was split **/
   private static boolean splitEarcut(final Node start, final List<Triangle> tessellation, final boolean mortonIndexed) {
     // Search for a valid diagonal that divides the polygon into two.
     Node searchNode = start;

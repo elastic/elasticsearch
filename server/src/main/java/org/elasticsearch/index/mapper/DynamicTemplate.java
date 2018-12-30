@@ -299,7 +299,7 @@ public class DynamicTemplate implements ToXContentObject {
         }
         if (type.equals(mapping.get("type")) == false // either the type was not set, or we updated it through replacements
                 && "text".equals(type)) { // and the result is "text"
-            // now that string has been splitted into text and keyword, we use text for
+            // now that string has been split into text and keyword, we use text for
             // dynamic mappings. However before it used to be possible to index as a keyword
             // by setting index=not_analyzed, so for now we will use a keyword field rather
             // than a text field if index=not_analyzed and the field type was not specified

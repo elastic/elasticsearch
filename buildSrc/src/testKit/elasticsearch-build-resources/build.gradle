@@ -32,7 +32,7 @@ task sample {
 task noConfigAfterExecution {
     dependsOn buildResources
     doLast {
-        println "This should cause an error because we are refferencing " +
+        println "This should cause an error because we are referencing " +
                 "${buildResources.copy('checkstyle_suppressions.xml')} after the `buildResources` task has ran."
     }
 }

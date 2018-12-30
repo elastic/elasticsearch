@@ -116,7 +116,7 @@ abstract class AStoreable extends AExpression {
         writer.swap();                          // negative_index, array
         writer.dupX1();                         // array, negative_index, array
         writeGetLength.accept(writer);          // array, negative_index, length
-        writer.visitInsn(Opcodes.IADD);         // array, noralized_index
-        writer.mark(noFlip);                    // array, noralized_index
+        writer.visitInsn(Opcodes.IADD);         // array, normalized_index
+        writer.mark(noFlip);                    // array, normalized_index
     }
 }

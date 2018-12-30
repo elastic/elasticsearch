@@ -240,7 +240,7 @@ public class CompositeRolesStore {
         Set<String> clusterPrivileges = new HashSet<>();
         final List<ConditionalClusterPrivilege> conditionalClusterPrivileges = new ArrayList<>();
         Set<String> runAs = new HashSet<>();
-        Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
+        Map<Set<String>, MergableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
 
         // Keyed by application + resource
         Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
@@ -267,10 +267,10 @@ public class CompositeRolesStore {
                 if (isExplicitDenial == false) {
                     indicesPrivilegesMap.compute(key, (k, value) -> {
                         if (value == null) {
-                            return new MergeableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
+                            return new MergableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
                                     indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery());
                         } else {
-                            value.merge(new MergeableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
+                            value.merge(new MergableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
                                     indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery()));
                             return value;
                         }
@@ -295,7 +295,7 @@ public class CompositeRolesStore {
                 .cluster(clusterPrivileges, conditionalClusterPrivileges)
                 .runAs(runAsPrivilege);
         indicesPrivilegesMap.entrySet().forEach((entry) -> {
-            MergeableIndicesPrivilege privilege = entry.getValue();
+            MergableIndicesPrivilege privilege = entry.getValue();
             builder.add(fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition), privilege.query,
                     IndexPrivilege.get(privilege.privileges), privilege.indices.toArray(Strings.EMPTY_ARRAY));
         });
@@ -382,13 +382,13 @@ public class CompositeRolesStore {
     /**
      * A mutable class that can be used to represent the combination of one or more {@link IndicesPrivileges}
      */
-    private static class MergeableIndicesPrivilege {
+    private static class MergableIndicesPrivilege {
         private Set<String> indices;
         private Set<String> privileges;
         private FieldPermissionsDefinition fieldPermissionsDefinition;
         private Set<BytesReference> query = null;
 
-        MergeableIndicesPrivilege(String[] indices, String[] privileges, @Nullable String[] grantedFields, @Nullable String[] deniedFields,
+        MergableIndicesPrivilege(String[] indices, String[] privileges, @Nullable String[] grantedFields, @Nullable String[] deniedFields,
                                   @Nullable BytesReference query) {
             this.indices = newHashSet(Objects.requireNonNull(indices));
             this.privileges = newHashSet(Objects.requireNonNull(privileges));
@@ -398,7 +398,7 @@ public class CompositeRolesStore {
             }
         }
 
-        void merge(MergeableIndicesPrivilege other) {
+        void merge(MergableIndicesPrivilege other) {
             assert indices.equals(other.indices) : "index names must be equivalent in order to merge";
             Set<FieldGrantExcludeGroup> groups = new HashSet<>();
             groups.addAll(this.fieldPermissionsDefinition.getFieldGrantExcludeGroups());

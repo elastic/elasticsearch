@@ -394,7 +394,7 @@ public class JobResultsProviderTests extends ESTestCase {
         recordMap2.put("typical", 1122.4);
         recordMap2.put("actual", 933.3);
         recordMap2.put("timestamp", now.getTime());
-        recordMap2.put("function", "irrascible");
+        recordMap2.put("function", "irascible");
         recordMap2.put("bucket_span", 22);
         source.add(recordMap1);
         source.add(recordMap2);
@@ -421,7 +421,7 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals("irritable", records.get(0).getFunction());
         assertEquals(1122.4, records.get(1).getTypical().get(0), 0.000001);
         assertEquals(933.3, records.get(1).getActual().get(0), 0.000001);
-        assertEquals("irrascible", records.get(1).getFunction());
+        assertEquals("irascible", records.get(1).getFunction());
     }
 
     public void testRecords_UsingBuilder() throws IOException {
@@ -441,7 +441,7 @@ public class JobResultsProviderTests extends ESTestCase {
         recordMap2.put("typical", 1122.4);
         recordMap2.put("actual", 933.3);
         recordMap2.put("timestamp", now.getTime());
-        recordMap2.put("function", "irrascible");
+        recordMap2.put("function", "irascible");
         recordMap2.put("bucket_span", 22);
         source.add(recordMap1);
         source.add(recordMap2);
@@ -474,7 +474,7 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals("irritable", records.get(0).getFunction());
         assertEquals(1122.4, records.get(1).getTypical().get(0), 0.000001);
         assertEquals(933.3, records.get(1).getActual().get(0), 0.000001);
-        assertEquals("irrascible", records.get(1).getFunction());
+        assertEquals("irascible", records.get(1).getFunction());
     }
 
     public void testBucketRecords() throws IOException {
@@ -496,7 +496,7 @@ public class JobResultsProviderTests extends ESTestCase {
         recordMap2.put("typical", 1122.4);
         recordMap2.put("actual", 933.3);
         recordMap2.put("timestamp", now.getTime());
-        recordMap2.put("function", "irrascible");
+        recordMap2.put("function", "irascible");
         recordMap2.put("bucket_span", 22);
         source.add(recordMap1);
         source.add(recordMap2);
@@ -521,7 +521,7 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals("irritable", records.get(0).getFunction());
         assertEquals(1122.4, records.get(1).getTypical().get(0), 0.000001);
         assertEquals(933.3, records.get(1).getActual().get(0), 0.000001);
-        assertEquals("irrascible", records.get(1).getFunction());
+        assertEquals("irascible", records.get(1).getFunction());
     }
 
     public void testexpandBucket() throws IOException {

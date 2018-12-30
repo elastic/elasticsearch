@@ -227,7 +227,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
 
             final String checkpointTranslogFile = getFilename(checkpoint.generation);
-            // we open files in reverse order in order to validate tranlsog uuid before we start traversing the translog based on
+            // we open files in reverse order in order to validate translog uuid before we start traversing the translog based on
             // the generation id we found in the lucene commit. This gives for better error messages if the wrong
             // translog was found.
             foundTranslogs.add(openReader(location.resolve(checkpointTranslogFile), checkpoint));

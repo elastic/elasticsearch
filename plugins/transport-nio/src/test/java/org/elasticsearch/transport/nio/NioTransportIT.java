@@ -107,11 +107,9 @@ public class NioTransportIT extends NioIntegTestCase {
         }
 
         @Override
-        protected String handleRequest(TcpChannel channel, String profileName, InboundMessage.Request request,
-                                       int messageLengthBytes) throws IOException {
-            String action = super.handleRequest(channel, profileName, request, messageLengthBytes);
+        protected void handleRequest(TcpChannel channel, InboundMessage.Request request, int messageLengthBytes) throws IOException {
+            super.handleRequest(channel, request, messageLengthBytes);
             channelProfileName = TransportSettings.DEFAULT_PROFILE;
-            return action;
         }
 
         @Override

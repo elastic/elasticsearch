@@ -73,6 +73,8 @@ class OutboundHandler {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         try {
             BytesReference reference = sendContext.get();
+            // If there is a problem serializing the message null will be returned. However, the send context
+            // will properly handle the error so  we do not need to do anything.
             if (reference != null) {
                 channel.sendMessage(reference, sendContext);
             }
@@ -91,7 +93,7 @@ class OutboundHandler {
 
         private final OutboundMessage message;
         private final BigArrays bigArrays;
-        private ReleasableBytesStreamOutput bytesStreamOutput;
+        private volatile ReleasableBytesStreamOutput bytesStreamOutput;
 
         private MessageSerializer(OutboundMessage message, BigArrays bigArrays) {
             this.message = message;

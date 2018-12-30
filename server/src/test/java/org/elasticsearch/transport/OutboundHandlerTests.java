@@ -67,7 +67,6 @@ public class OutboundHandlerTests extends ESTestCase {
         super.tearDown();
     }
 
-    @SuppressWarnings("unchecked")
     public void testSendRawBytes() {
         BytesArray bytesArray = new BytesArray("message".getBytes(StandardCharsets.UTF_8));
 
@@ -92,7 +91,6 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(bytesArray, reference);
     }
 
-    @SuppressWarnings("unchecked")
     public void testSendMessage() throws IOException {
         OutboundMessage message;
         ThreadContext threadContext = threadPool.getThreadContext();
@@ -163,9 +161,6 @@ public class OutboundHandlerTests extends ESTestCase {
                 storedContext.restore();
                 assertEquals("header_value", threadContext.getHeader("header"));
             }
-
-
-
         }
     }
 

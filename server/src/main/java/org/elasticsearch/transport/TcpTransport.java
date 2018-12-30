@@ -932,7 +932,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * This method handles the message receive part for both request and responses
      */
     public final void messageReceived(BytesReference reference, TcpChannel channel) throws IOException {
-        String profileName = channel.getProfile();
         readBytesMetric.inc(reference.length() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
         InetSocketAddress remoteAddress = channel.getRemoteAddress();
 
@@ -940,7 +939,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
              ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
             message.getStoredContext().restore();
             if (message.isRequest()) {
-                handleRequest(channel, profileName, (InboundMessage.Request) message, reference.length());
+                handleRequest(channel, (InboundMessage.Request) message, reference.length());
             } else {
                 final TransportResponseHandler<?> handler;
                 long requestId = message.getRequestId();
@@ -1039,9 +1038,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         });
     }
 
-    protected String handleRequest(TcpChannel channel, String profileName, InboundMessage.Request message, int messageLengthBytes)
-        throws IOException {
+    protected void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) throws IOException {
         final Set<String> features = message.getFeatures();
+        final String profileName = channel.getProfile();
         final String action = message.getActionName();
         final long requestId = message.getRequestId();
         final StreamInput stream = message.getStreamInput();
@@ -1082,7 +1081,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 logger.warn(() -> new ParameterizedMessage("Failed to send error message back to client for action [{}]", action), inner);
             }
         }
-        return action;
     }
 
     // This template method is needed to inject custom error checking logic in tests.

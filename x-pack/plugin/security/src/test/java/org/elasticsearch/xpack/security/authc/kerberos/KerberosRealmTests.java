@@ -69,7 +69,7 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         assertThat(kerberosRealm.supports(usernamePasswordToken), is(false));
     }
 
-    public void testAuthenticateWithValidTicketSucessAuthnWithUserDetails() throws LoginException, GSSException {
+    public void testAuthenticateWithValidTicketSuccessAuthnWithUserDetails() throws LoginException, GSSException {
         final String username = randomPrincipalName();
         final KerberosRealm kerberosRealm = createKerberosRealm(username);
         final String expectedUsername = maybeRemoveRealmName(username);

@@ -106,7 +106,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
 
-    public void testAuthenticateWithValidTicketSucessAuthnWithUserDetailsWhenCacheDisabled()
+    public void testAuthenticateWithValidTicketSuccessAuthnWithUserDetailsWhenCacheDisabled()
             throws LoginException, GSSException, IOException {
         // if cache.ttl <= 0 then the cache is disabled
         settings = buildKerberosRealmSettings(REALM_NAME,

@@ -133,7 +133,7 @@ public class ActionListenerTests extends ESTestCase {
 
         try {
             ActionListener.onFailure(listeners, new Exception("booom"));
-            assertTrue("unexpected succces listener to fail: " + listenerToFail, listenerToFail == -1);
+            assertTrue("unexpected success listener to fail: " + listenerToFail, listenerToFail == -1);
         } catch (RuntimeException ex) {
             assertTrue("listener to fail: " + listenerToFail, listenerToFail >= 0);
             assertNotNull(ex.getCause());

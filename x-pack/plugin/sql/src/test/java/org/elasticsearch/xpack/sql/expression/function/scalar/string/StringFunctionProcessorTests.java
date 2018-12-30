@@ -210,7 +210,7 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         assertEquals(0, proc.process(""));
         assertEquals(1, proc.process('f'));
         assertEquals(3, proc.process('\u20ac')); // euro symbol
-        // euro (3), lamda (2), theta (2), 'white sun with rays' (3), math 'A' (4) symbols
+        // euro (3), lambda (2), theta (2), 'white sun with rays' (3), math 'A' (4) symbols
         assertEquals(14, proc.process("\u20ac\u039B\u03F4\u263C\u1D400"));
 
         stringCharInputValidation(proc);

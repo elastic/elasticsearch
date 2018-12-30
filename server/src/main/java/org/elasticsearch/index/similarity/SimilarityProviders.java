@@ -120,10 +120,10 @@ final class SimilarityProviders {
         distributions.put("spl", new DistributionSPL());
         DISTRIBUTIONS = unmodifiableMap(distributions);
 
-        Map<String, Lambda> lamdas = new HashMap<>();
-        lamdas.put("df", new LambdaDF());
-        lamdas.put("ttf", new LambdaTTF());
-        LAMBDAS = unmodifiableMap(lamdas);
+        Map<String, Lambda> lambdas = new HashMap<>();
+        lambdas.put("df", new LambdaDF());
+        lambdas.put("ttf", new LambdaTTF());
+        LAMBDAS = unmodifiableMap(lambdas);
     }
 
     /**

@@ -936,8 +936,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         InetSocketAddress remoteAddress = channel.getRemoteAddress();
 
         ThreadContext threadContext = threadPool.getThreadContext();
-        try (InboundMessage message = reader.deserialize(reference);
-             ThreadContext.StoredContext existing = threadContext.stashContext()) {
+        try (ThreadContext.StoredContext existing = threadContext.stashContext();
+             InboundMessage message = reader.deserialize(reference)) {
             // Place the context with the headers from the message
             message.getStoredContext().restore();
             threadContext.putTransient("_remote_address", remoteAddress);
@@ -973,19 +973,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     }
                 }
             }
-        }
-    }
-
-    static void ensureVersionCompatibility(Version version, Version currentVersion, boolean isHandshake) {
-        // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
-        // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
-        // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
-        // once the connection is established
-        final Version compatibilityVersion = isHandshake ? currentVersion.minimumCompatibilityVersion() : currentVersion;
-        if (version.isCompatible(compatibilityVersion) == false) {
-            final Version minCompatibilityVersion = isHandshake ? compatibilityVersion : compatibilityVersion.minimumCompatibilityVersion();
-            String msg = "Received " + (isHandshake ? "handshake " : "") + "message from unsupported version: [";
-            throw new IllegalStateException(msg + version + "] minimal compatible version is: [" + minCompatibilityVersion + "]");
         }
     }
 

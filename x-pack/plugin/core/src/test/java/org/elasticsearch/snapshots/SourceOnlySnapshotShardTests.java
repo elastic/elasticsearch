@@ -163,7 +163,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         return "{ \"value\" : \"" + randomAlphaOfLength(10) + "\"}";
     }
 
-    public void testRestoreMinmal() throws IOException {
+    public void testRestoreMinimal() throws IOException {
         IndexShard shard = newStartedShard(true);
         int numInitialDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numInitialDocs; i++) {

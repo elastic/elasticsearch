@@ -429,7 +429,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Returns whether to preserve ILM Policies of this test. Defaults to not
-     * preserviing them. Only runs at all if xpack is installed on the cluster
+     * preserving them. Only runs at all if xpack is installed on the cluster
      * being tested.
      */
     protected boolean preserveILMPoliciesUponCompletion() {

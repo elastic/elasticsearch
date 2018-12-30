@@ -311,7 +311,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals("baz", value3.streamInput().readString());
         assertEquals(3, cache.count());
         final long hitCount = requestCacheStats.stats().getHitCount();
-        // clear all for the indexShard Identity even though is't still open
+        // clear all for the indexShard Identity even though it's still open
         cache.clear(randomFrom(entity, secondEntity));
         cache.cleanCache();
         assertEquals(1, cache.count());

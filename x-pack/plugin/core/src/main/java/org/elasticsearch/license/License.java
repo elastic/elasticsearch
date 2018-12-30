@@ -769,7 +769,7 @@ public class License implements ToXContentObject {
     }
 
     /**
-     * Returns <code>true</code> iff the license is a production licnese
+     * Returns <code>true</code> iff the license is a production license
      */
     public boolean isProductionLicense() {
         switch (operationMode()) {

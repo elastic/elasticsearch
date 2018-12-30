@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Trigonometric_functions#sine">Sine</a>
- * fuction.
+ * function.
  */
 public class Sin extends MathFunction {
     public Sin(Location location, Expression field) {

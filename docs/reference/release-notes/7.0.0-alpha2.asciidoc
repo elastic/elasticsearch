@@ -18,7 +18,7 @@ Index APIs::
 * Always enforce cluster-wide shard limit {pull}34892[#34892] (issues: {issue}20705[#20705], {issue}34021[#34021])
 
 Ranking::
-* Forbid negative scores in functon_score query {pull}35709[#35709] (issue: {issue}33309[#33309])
+* Forbid negative scores in function_score query {pull}35709[#35709] (issue: {issue}33309[#33309])
 
 Scripting::
 * Delete deprecated getValues from ScriptDocValues {pull}36183[#36183] (issue: {issue}22919[#22919])

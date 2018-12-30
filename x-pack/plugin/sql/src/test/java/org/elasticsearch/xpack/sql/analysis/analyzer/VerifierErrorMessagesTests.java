@@ -384,7 +384,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT TRUNCATE(1.2, 'bar')"));
     }
 
-    public void testInvalidTypeForBooleanFuntion_WithTwoArgs() {
+    public void testInvalidTypeForBooleanFunction_WithTwoArgs() {
         assertEquals("1:8: [OR] first argument must be [boolean], found value [1] type [integer]",
             error("SELECT 1 OR true"));
         assertEquals("1:8: [OR] second argument must be [boolean], found value [2] type [integer]",

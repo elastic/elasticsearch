@@ -29,7 +29,7 @@ import java.util.Set;
 public class RescoreContext {
     private final int windowSize;
     private final Rescorer rescorer;
-    private Set<Integer> resroredDocs; //doc Ids for which rescoring was applied
+    private Set<Integer> restoredDocs; //doc Ids for which rescoring was applied
 
     /**
      * Build the context.
@@ -55,10 +55,10 @@ public class RescoreContext {
     }
 
     public void setRescoredDocs(Set<Integer> docIds) {
-        resroredDocs = docIds;
+        restoredDocs = docIds;
     }
 
     public boolean isRescored(int docId) {
-        return resroredDocs.contains(docId);
+        return restoredDocs.contains(docId);
     }
 }

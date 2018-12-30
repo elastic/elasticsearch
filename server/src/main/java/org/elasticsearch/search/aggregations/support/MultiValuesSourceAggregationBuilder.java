@@ -39,7 +39,7 @@ import java.util.Objects;
  * Similar to {@link ValuesSourceAggregationBuilder}, except it references multiple ValuesSources (e.g. so that an aggregation
  * can pull values from multiple fields).
  *
- * A limitation of this class is that all the ValuesSource's being refereenced must be of the same type.
+ * A limitation of this class is that all the ValuesSource's being referenced must be of the same type.
  */
 public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends MultiValuesSourceAggregationBuilder<VS, AB>>
         extends AbstractAggregationBuilder<AB> {

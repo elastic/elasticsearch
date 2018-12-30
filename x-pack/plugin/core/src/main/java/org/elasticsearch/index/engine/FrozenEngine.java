@@ -198,7 +198,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
     @SuppressForbidden( reason = "we manage references explicitly here")
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
         store.incRef();
-        boolean releaseRefeference = true;
+        boolean releaseReference = true;
         try  {
             final boolean maybeOpenReader;
             switch (source) {
@@ -235,10 +235,10 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     LazyDirectoryReader lazyDirectoryReader = new LazyDirectoryReader(reader, this);
                     Searcher newSearcher = new Searcher(source, new IndexSearcher(lazyDirectoryReader),
                         () -> IOUtils.close(lazyDirectoryReader, store::decRef));
-                    releaseRefeference = false;
+                    releaseReference = false;
                     return newSearcher;
                 } finally {
-                    if (releaseRefeference) {
+                    if (releaseReference) {
                         reader.decRef(); // don't call close here we manage reference ourselves
                     }
                 }
@@ -246,7 +246,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
-            if (releaseRefeference) {
+            if (releaseReference) {
                 store.decRef();
             }
         }

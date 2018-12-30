@@ -81,7 +81,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             }
             BytesRef singlePageOrNull = getSinglePageOrNull(slice);
             if (singlePageOrNull != null) {
-                // we can't assert the offset since if the length is smaller than the refercence
+                // we can't assert the offset since if the length is smaller than the reference
                 // the offset can be anywhere
                 assertEquals(sliceLength, singlePageOrNull.length);
             }

@@ -139,7 +139,7 @@ public final class RandomDocumentPicks {
         String type = randomString(random);
         String id = randomString(random);
         String routing = null;
-        Long version = randomNonNegtiveLong(random);
+        Long version = randomNonNegativeLong(random);
         VersionType versionType = RandomPicks.randomFrom(random,
             new VersionType[]{VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE});
         if (random.nextBoolean()) {
@@ -219,7 +219,7 @@ public final class RandomDocumentPicks {
         return RandomStrings.randomUnicodeOfCodepointLengthBetween(random, 1, 10);
     }
 
-    private static Long randomNonNegtiveLong(Random random) {
+    private static Long randomNonNegativeLong(Random random) {
         long randomLong = random.nextLong();
         return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
     }

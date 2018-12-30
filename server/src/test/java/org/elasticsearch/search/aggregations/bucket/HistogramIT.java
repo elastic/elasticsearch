@@ -1070,7 +1070,7 @@ public class HistogramIT extends ESIntegTestCase {
     /**
      * see issue #9634, negative interval in histogram should raise exception
      */
-    public void testExceptionOnNegativerInterval() {
+    public void testExceptionOnNegativeInterval() {
         try {
             client().prepareSearch("empty_bucket_idx")
                     .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(-1).minDocCount(0)).get();

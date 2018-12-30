@@ -2301,7 +2301,7 @@ public class InternalEngine extends Engine {
      * @param writer   the index writer to commit
      * @param translog the translog
      * @param syncId   the sync flush ID ({@code null} if not committing a synced flush)
-     * @throws IOException if an I/O exception occurs committing the specfied writer
+     * @throws IOException if an I/O exception occurs committing the specified writer
      */
     protected void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
         ensureCanFlush();

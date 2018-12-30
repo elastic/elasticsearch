@@ -507,17 +507,17 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         private final DecayFunction func;
         protected final MultiValueMode mode;
 
-        public AbstractDistanceScoreFunction(double userSuppiedScale, double decay, double offset, DecayFunction func,
+        public AbstractDistanceScoreFunction(double userSuppliedScale, double decay, double offset, DecayFunction func,
                 MultiValueMode mode) {
             super(CombineFunction.MULTIPLY);
             this.mode = mode;
-            if (userSuppiedScale <= 0.0) {
+            if (userSuppliedScale <= 0.0) {
                 throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAME + " : scale must be > 0.0.");
             }
             if (decay <= 0.0 || decay >= 1.0) {
                 throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAME + " : decay must be in the range [0..1].");
             }
-            this.scale = func.processScale(userSuppiedScale, decay);
+            this.scale = func.processScale(userSuppliedScale, decay);
             this.func = func;
             if (offset < 0.0d) {
                 throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAME + " : offset must be > 0.0");

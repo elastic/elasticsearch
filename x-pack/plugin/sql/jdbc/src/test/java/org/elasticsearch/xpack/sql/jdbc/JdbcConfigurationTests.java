@@ -107,7 +107,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertEquals("Cannot enable SSL: HTTPS protocol being used in the URL and SSL disabled in properties", e.getMessage());
     }
 
-    public void testTimoutOverride() throws Exception {
+    public void testTimeoutOverride() throws Exception {
         Properties properties  = new Properties();
         properties.setProperty(CONNECT_TIMEOUT, "3"); // Should be overridden
         properties.setProperty(PAGE_TIMEOUT, "4");

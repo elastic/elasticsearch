@@ -103,7 +103,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
     }
 
 
-    public void testRemoveGivenMulipleBatches() throws IOException {
+    public void testRemoveGivenMultipleBatches() throws IOException {
         // This is testing AbstractExpiredJobDataRemover.WrappedBatchedJobsIterator
         int totalHits = 7;
         List<SearchResponse> responses = new ArrayList<>();

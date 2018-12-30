@@ -514,7 +514,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertThat(e.getMessage(), containsString("Date histogram must have nested max aggregation for time_field [max_time]"));
     }
 
-    public void testValidateAggregations_GivenMulitpleHistogramAggs() {
+    public void testValidateAggregations_GivenMultipleHistogramAggs() {
         DateHistogramAggregationBuilder nestedDateHistogram = AggregationBuilders.dateHistogram("nested_time");
         AvgAggregationBuilder avg = AggregationBuilders.avg("avg").subAggregation(nestedDateHistogram);
         TermsAggregationBuilder nestedTerms = AggregationBuilders.terms("nested_terms");

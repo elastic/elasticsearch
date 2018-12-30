@@ -105,7 +105,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
         try {
             client.prepareSearch("test", "test2").setQuery(matchAllQuery()).get();
-            fail("expected an authorization exception when one of mulitple indices is forbidden");
+            fail("expected an authorization exception when one of multiple indices is forbidden");
         } catch (ElasticsearchSecurityException e) {
             // expected
             assertThat(e.status(), is(RestStatus.FORBIDDEN));

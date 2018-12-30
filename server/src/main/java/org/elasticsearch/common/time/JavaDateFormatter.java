@@ -91,7 +91,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public DateFormatter withZone(ZoneId zoneId) {
-        // shortcurt to not create new objects unnecessarily
+        // shortcut to not create new objects unnecessarily
         if (zoneId.equals(parsers[0].getZone())) {
             return this;
         }
@@ -106,7 +106,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public DateFormatter withLocale(Locale locale) {
-        // shortcurt to not create new objects unnecessarily
+        // shortcut to not create new objects unnecessarily
         if (locale.equals(parsers[0].getLocale())) {
             return this;
         }

@@ -309,7 +309,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                     // many shards and do not know how documents are distributed
                     PostingsEnum docsAndPositions = iterator.postings(null, PostingsEnum.ALL);
                     // docs and pos only returns something if positions or
-                    // payloads or offsets are stored / requestd Otherwise use
+                    // payloads or offsets are stored / requested Otherwise use
                     // DocsEnum?
                     assertThat(infoString, docsAndPositions.nextDoc(), equalTo(0));
                     assertThat(infoString, freq[j], equalTo(docsAndPositions.freq()));

@@ -142,7 +142,7 @@
  * loads from a postfix node works in the same fashion.  Stores work somewhat differently as
  * described by later documentation.
  * <p>
- * Storebable nodes have three methods for writing -- setup, load, and store.  These methods
+ * Storeable nodes have three methods for writing -- setup, load, and store.  These methods
  * are used in conjunction with a parent node aware of the storeable node (lhs) that has a node
  * representing a value to store (rhs). The setup method is always once called before a store
  * to give storeable nodes a chance to write any prefixes they may have and any values such as

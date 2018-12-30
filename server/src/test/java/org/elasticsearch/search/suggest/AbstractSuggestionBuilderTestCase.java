@@ -228,7 +228,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     private SB mutate(SB firstBuilder) throws IOException {
         SB mutation = copy(firstBuilder);
         assertNotSame(mutation, firstBuilder);
-        // change ither one of the shared SuggestionBuilder parameters, or delegate to the specific tests mutate method
+        // change either one of the shared SuggestionBuilder parameters, or delegate to the specific tests mutate method
         if (randomBoolean()) {
             switch (randomIntBetween(0, 5)) {
             case 0:

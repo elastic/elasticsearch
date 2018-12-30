@@ -603,7 +603,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /**
      * Creates a URL and opens a connection.
      *
-     * If the URL returns a 404, {@code null} is returned, otherwise the open URL opject is returned.
+     * If the URL returns a 404, {@code null} is returned, otherwise the open URL object is returned.
      */
     // pkg private for tests
     URL openUrl(String urlString) throws IOException {

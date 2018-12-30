@@ -37,7 +37,7 @@ class FileContentsTask extends DefaultTask {
   Object contents
 
   /**
-   * The file to be built. Takes any objecct and coerces to a file.
+   * The file to be built. Takes any object and coerces to a file.
    */
   void setFile(Object file) {
     this.file = file as File

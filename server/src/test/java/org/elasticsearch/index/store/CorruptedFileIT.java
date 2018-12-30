@@ -176,7 +176,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         ClusterHealthResponse health = client().admin().cluster()
             .health(Requests.clusterHealthRequest("test").waitForGreenStatus()
-                .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
+                .timeout("5m") // sometimes due to cluster rebalancing and random settings default timeout is just not enough.
                 .waitForNoRelocatingShards(true)).actionGet();
         if (health.isTimedOut()) {
             logger.info("cluster state:\n{}\n{}",

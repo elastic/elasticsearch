@@ -46,13 +46,13 @@ final class CandidateScorer {
                 return a.compareTo(b) < 0;
             }
         };
-        int numMissspellings = 1;
+        int numMisspellings = 1;
         if (errorFraction >= 1.0) {
-            numMissspellings = (int) errorFraction;
+            numMisspellings = (int) errorFraction;
         } else {
-            numMissspellings = Math.round(errorFraction * sets.length);
+            numMisspellings = Math.round(errorFraction * sets.length);
         }
-        findCandidates(sets, new Candidate[sets.length], 0, Math.max(1, numMissspellings), corrections, cutoffScore, 0.0);
+        findCandidates(sets, new Candidate[sets.length], 0, Math.max(1, numMisspellings), corrections, cutoffScore, 0.0);
         Correction[] result = new Correction[corrections.size()];
         for (int i = result.length - 1; i >= 0; i--) {
             result[i] = corrections.pop();
@@ -62,26 +62,26 @@ final class CandidateScorer {
 
     }
 
-    public void findCandidates(CandidateSet[] candidates, Candidate[] path, int ord, int numMissspellingsLeft,
+    public void findCandidates(CandidateSet[] candidates, Candidate[] path, int ord, int numMisspellingsLeft,
             PriorityQueue<Correction> corrections, double cutoffScore, final double pathScore) throws IOException {
         CandidateSet current = candidates[ord];
         if (ord == candidates.length - 1) {
             path[ord] = current.originalTerm;
             updateTop(candidates, path, corrections, cutoffScore, pathScore + scorer.score(path, candidates, ord, gramSize));
-            if (numMissspellingsLeft > 0) {
+            if (numMisspellingsLeft > 0) {
                 for (int i = 0; i < current.candidates.length; i++) {
                     path[ord] = current.candidates[i];
                     updateTop(candidates, path, corrections, cutoffScore, pathScore + scorer.score(path, candidates, ord, gramSize));
                 }
             }
         } else {
-            if (numMissspellingsLeft > 0) {
+            if (numMisspellingsLeft > 0) {
                 path[ord] = current.originalTerm;
-                findCandidates(candidates, path, ord + 1, numMissspellingsLeft, corrections, cutoffScore,
+                findCandidates(candidates, path, ord + 1, numMisspellingsLeft, corrections, cutoffScore,
                     pathScore + scorer.score(path, candidates, ord, gramSize));
                 for (int i = 0; i < current.candidates.length; i++) {
                     path[ord] = current.candidates[i];
-                    findCandidates(candidates, path, ord + 1, numMissspellingsLeft - 1, corrections, cutoffScore,
+                    findCandidates(candidates, path, ord + 1, numMisspellingsLeft - 1, corrections, cutoffScore,
                         pathScore + scorer.score(path, candidates, ord, gramSize));
                 }
             } else {

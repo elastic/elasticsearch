@@ -132,7 +132,7 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     /**
-     * Defaults to all queryiable fields extracted from the mapping for query terms
+     * Defaults to all queryable fields extracted from the mapping for query terms
      * @param context The query shard context
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */

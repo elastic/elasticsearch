@@ -137,7 +137,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         Influence influence3 = new Influence("spoiler", Collections.singletonList("no"));
         record.setInfluencers(Arrays.asList(influence1, influence2, influence3));
 
-        // influencer fields with the same name as a by/over/partitiion field
+        // influencer fields with the same name as a by/over/partition field
         // come second in the list
         BytesReference bytes = XContentHelper.toXContent(record, XContentType.JSON, false);
         XContentParser parser = createParser(XContentType.JSON.xContent(), bytes);

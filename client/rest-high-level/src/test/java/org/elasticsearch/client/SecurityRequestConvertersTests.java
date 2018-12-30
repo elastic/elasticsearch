@@ -384,9 +384,9 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final Map<String, Object> metadata = Collections.singletonMap(randomAlphaOfLengthBetween(4, 7), randomAlphaOfLengthBetween(4, 7));
         final String[] runAsPrivilege = randomArray(3, String[]::new, () -> randomAlphaOfLength(5));
         final List<String> applicationPrivilegeNames = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
-        final List<String> applicationResouceNames = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
+        final List<String> applicationResourceNames = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
         final ApplicationResourcePrivileges applicationResourcePrivilege = new ApplicationResourcePrivileges(
-                randomAlphaOfLengthBetween(4, 7), applicationPrivilegeNames, applicationResouceNames);
+                randomAlphaOfLengthBetween(4, 7), applicationPrivilegeNames, applicationResourceNames);
         final List<String> indicesName = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
         final List<String> indicesPrivilegeName = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
         final List<String> indicesPrivilegeGrantedName = Arrays.asList(randomArray(3, String[]::new, () -> randomAlphaOfLength(5)));

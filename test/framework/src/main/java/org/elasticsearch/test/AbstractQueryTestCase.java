@@ -307,7 +307,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * Returns a set of object names that won't trigger any exception (uncluding their children) when testing that unknown
+     * Returns a set of object names that won't trigger any exception (including their children) when testing that unknown
      * objects cause parse exceptions through {@link #testUnknownObjectException()}. Default is an empty set. Can be overridden
      * by subclasses that test queries which contain objects that get parsed on the data nodes (e.g. score functions) or objects
      * that can contain arbitrary content (e.g. documents for percolate or more like this query, params for scripts). In such

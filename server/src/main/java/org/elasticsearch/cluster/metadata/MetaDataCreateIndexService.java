@@ -797,7 +797,7 @@ public class MetaDataCreateIndexService {
     public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
         if (indexVersionCreated.onOrAfter(Version.V_7_0_0)) {
             // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
-            // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
+            // until we have a fully upgraded cluster. Additionally it will make integration testing easier since mixed clusters
             // will always have the behavior of the min node in the cluster.
             //
             // We use as a default number of routing shards the higher number that can be expressed

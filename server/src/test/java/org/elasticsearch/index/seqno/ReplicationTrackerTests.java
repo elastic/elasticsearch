@@ -577,11 +577,11 @@ public class ReplicationTrackerTests extends ESTestCase {
         final long minimumActiveLocalCheckpoint = (long) activeLocalCheckpoints.values().stream().min(Integer::compareTo).get();
         assertThat(tracker.getGlobalCheckpoint(), equalTo(minimumActiveLocalCheckpoint));
         assertThat(updatedGlobalCheckpoint.get(), equalTo(minimumActiveLocalCheckpoint));
-        final long minimumInitailizingLocalCheckpoint = (long) initializingLocalCheckpoints.values().stream().min(Integer::compareTo).get();
+        final long minimumInitializingLocalCheckpoint = (long) initializingLocalCheckpoints.values().stream().min(Integer::compareTo).get();
 
         // now we are going to add a new allocation ID and bring it in sync which should move it to the in-sync allocation IDs
         final long localCheckpoint =
-                randomIntBetween(0, Math.toIntExact(Math.min(minimumActiveLocalCheckpoint, minimumInitailizingLocalCheckpoint) - 1));
+                randomIntBetween(0, Math.toIntExact(Math.min(minimumActiveLocalCheckpoint, minimumInitializingLocalCheckpoint) - 1));
 
         // using a different length than we have been using above ensures that we can not collide with a previous allocation ID
         final AllocationId newSyncingAllocationId = AllocationId.newInitializing();

@@ -44,7 +44,7 @@ import java.util.function.BiPredicate;
  * {@link ShardRoutingState#RELOCATING relocating} state are ignored by this
  * {@link AllocationDecider} until the shard changed its state to either
  * {@link ShardRoutingState#STARTED started},
- * {@link ShardRoutingState#INITIALIZING inializing} or
+ * {@link ShardRoutingState#INITIALIZING initializing} or
  * {@link ShardRoutingState#UNASSIGNED unassigned}
  * <p>
  * Note: Reducing the number of shards per node via the index update API can

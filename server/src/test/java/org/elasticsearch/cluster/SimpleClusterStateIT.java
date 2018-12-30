@@ -254,9 +254,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().index("fuu").getState(), equalTo(IndexMetaData.State.CLOSE));
 
         // ignore_unavailable set to true should not raise exception on fzzbzz
-        IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);
+        IndicesOptions ignoreUnavailable = IndicesOptions.fromOptions(true, true, true, false);
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("fzzbzz")
-                .setIndicesOptions(ignoreUnavailabe).get();
+                .setIndicesOptions(ignoreUnavailable).get();
         assertThat(clusterStateResponse.getState().metaData().indices().isEmpty(), is(true));
 
         // empty wildcard expansion result should work when allowNoIndices is

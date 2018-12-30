@@ -74,7 +74,7 @@ class OutboundHandler {
         try {
             BytesReference reference = sendContext.get();
             // If there is a problem serializing the message null will be returned. However, the send context
-            // will properly handle the error so  we do not need to do anything.
+            // will properly handle the error so we do not need to do anything.
             if (reference != null) {
                 channel.sendMessage(reference, sendContext);
             }

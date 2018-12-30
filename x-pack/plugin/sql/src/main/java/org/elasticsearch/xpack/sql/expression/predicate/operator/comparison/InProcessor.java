@@ -18,14 +18,14 @@ public class InProcessor implements Processor {
 
     public static final String NAME = "in";
 
-    private final List<Processor> processsors;
+    private final List<Processor> processors;
 
     InProcessor(List<Processor> processors) {
-        this.processsors = processors;
+        this.processors = processors;
     }
 
     public InProcessor(StreamInput in) throws IOException {
-        processsors = in.readNamedWriteableList(Processor.class);
+        processors = in.readNamedWriteableList(Processor.class);
     }
 
     @Override
@@ -35,13 +35,13 @@ public class InProcessor implements Processor {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(processsors);
+        out.writeNamedWriteableList(processors);
     }
 
     @Override
     public Object process(Object input) {
-        Object leftValue = processsors.get(processsors.size() - 1).process(input);
-        return apply(leftValue, Processors.process(processsors.subList(0, processsors.size() - 1), leftValue));
+        Object leftValue = processors.get(processors.size() - 1).process(input);
+        return apply(leftValue, Processors.process(processors.subList(0, processors.size() - 1), leftValue));
     }
 
     public static Boolean apply(Object input, List<Object> values) {
@@ -62,11 +62,11 @@ public class InProcessor implements Processor {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InProcessor that = (InProcessor) o;
-        return Objects.equals(processsors, that.processsors);
+        return Objects.equals(processors, that.processors);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(processsors);
+        return Objects.hash(processors);
     }
 }

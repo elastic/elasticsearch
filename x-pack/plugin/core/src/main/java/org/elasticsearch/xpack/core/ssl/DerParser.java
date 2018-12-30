@@ -252,7 +252,7 @@ class DerParser {
         public String getOid() throws IOException {
 
             if (type != DerParser.OBJECT_OID) {
-                throw new IOException("Ivalid DER: object is not object OID");
+                throw new IOException("Invalid DER: object is not object OID");
             }
             StringBuilder sb = new StringBuilder(64);
             switch (value[0] / 40) {

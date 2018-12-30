@@ -361,12 +361,12 @@ public class ThreadContextTests extends ESTestCase {
         }
         {
             Settings otherSettings = Settings.builder().put("request.headers.default", "5").build();
-            ThreadContext otherhreadContext = new ThreadContext(otherSettings);
-            otherhreadContext.readHeaders(out.bytes().streamInput());
+            ThreadContext otherThreadContext = new ThreadContext(otherSettings);
+            otherThreadContext.readHeaders(out.bytes().streamInput());
 
-            assertEquals("bar", otherhreadContext.getHeader("foo"));
-            assertNull(otherhreadContext.getTransient("ctx.foo"));
-            assertEquals("5", otherhreadContext.getHeader("default"));
+            assertEquals("bar", otherThreadContext.getHeader("foo"));
+            assertNull(otherThreadContext.getTransient("ctx.foo"));
+            assertEquals("5", otherThreadContext.getHeader("default"));
         }
     }
 

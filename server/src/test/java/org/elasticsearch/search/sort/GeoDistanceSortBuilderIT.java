@@ -74,11 +74,11 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(3, 2), new GeoPoint(4, 1)};
-        createShuffeldJSONArray(d1Builder, d1Points);
+        createShuffledJSONArray(d1Builder, d1Points);
 
         XContentBuilder d2Builder = jsonBuilder();
         GeoPoint[] d2Points = {new GeoPoint(5, 1), new GeoPoint(6, 2)};
-        createShuffeldJSONArray(d2Builder, d2Points);
+        createShuffledJSONArray(d2Builder, d2Points);
 
         logger.info("d1: {}", d1Builder);
         logger.info("d2: {}", d2Builder);
@@ -148,11 +148,11 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(0, 1), new GeoPoint(0, 4), new GeoPoint(0, 10)};
-        createShuffeldJSONArray(d1Builder, d1Points);
+        createShuffledJSONArray(d1Builder, d1Points);
 
         XContentBuilder d2Builder = jsonBuilder();
         GeoPoint[] d2Points = {new GeoPoint(0, 1), new GeoPoint(0, 5), new GeoPoint(0, 6)};
-        createShuffeldJSONArray(d2Builder, d2Points);
+        createShuffledJSONArray(d2Builder, d2Points);
 
         logger.info("d1: {}", d1Builder);
         logger.info("d2: {}", d2Builder);
@@ -182,7 +182,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 closeTo(GeoDistance.ARC.calculate(0, 0, 0, 5, DistanceUnit.METERS), 10d));
     }
 
-    protected void createShuffeldJSONArray(XContentBuilder builder, GeoPoint[] pointsArray) throws IOException {
+    protected void createShuffledJSONArray(XContentBuilder builder, GeoPoint[] pointsArray) throws IOException {
         List<GeoPoint> points = new ArrayList<>();
         points.addAll(Arrays.asList(pointsArray));
         builder.startObject();
@@ -213,11 +213,11 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(2.5, 1), new GeoPoint(2.75, 2), new GeoPoint(3, 3), new GeoPoint(3.25, 4)};
-        createShuffeldJSONArray(d1Builder, d1Points);
+        createShuffledJSONArray(d1Builder, d1Points);
 
         XContentBuilder d2Builder = jsonBuilder();
         GeoPoint[] d2Points = {new GeoPoint(4.5, 1), new GeoPoint(4.75, 2), new GeoPoint(5, 3), new GeoPoint(5.25, 4)};
-        createShuffeldJSONArray(d2Builder, d2Points);
+        createShuffledJSONArray(d2Builder, d2Points);
 
         indexRandom(true,
                 client().prepareIndex("index", "type", "d1").setSource(d1Builder),

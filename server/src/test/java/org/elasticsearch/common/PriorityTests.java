@@ -81,10 +81,10 @@ public class PriorityTests extends ESTestCase {
         for (Priority p : Priority.values()) {
             assertEquals(0, p.compareTo(p));
         }
-        List<Priority> shuffeledAndSorted = Arrays.asList(Priority.values());
-        Collections.shuffle(shuffeledAndSorted, random());
-        Collections.sort(shuffeledAndSorted);
-        for (List<Priority> priorities : Arrays.asList(shuffeledAndSorted,
+        List<Priority> shuffledAndSorted = Arrays.asList(Priority.values());
+        Collections.shuffle(shuffledAndSorted, random());
+        Collections.sort(shuffledAndSorted);
+        for (List<Priority> priorities : Arrays.asList(shuffledAndSorted,
             Arrays.asList(Priority.values()))) { // #values() guarantees order!
             assertSame(Priority.IMMEDIATE, priorities.get(0));
             assertSame(Priority.URGENT, priorities.get(1));

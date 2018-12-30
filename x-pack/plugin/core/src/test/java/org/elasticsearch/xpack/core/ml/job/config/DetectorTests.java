@@ -201,7 +201,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         }
     }
 
-    public void testVerifyFunctionForPreSummariedInput() {
+    public void testVerifyFunctionForPreSummarizedInput() {
         Collection<Object[]> testCaseArguments = getCharactersAndValidity();
         for (Object [] args : testCaseArguments) {
             String character = (String) args[0];

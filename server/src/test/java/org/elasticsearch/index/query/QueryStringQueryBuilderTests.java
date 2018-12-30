@@ -747,7 +747,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertFalse(queryBuilder.enablePositionIncrements());
     }
 
-    public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
+    public void testToQueryFuzzyQueryAutoFuzziness() throws Exception {
         int length = randomIntBetween(1, 10);
         StringBuilder queryString = new StringBuilder();
         for (int i = 0; i < length; i++) {

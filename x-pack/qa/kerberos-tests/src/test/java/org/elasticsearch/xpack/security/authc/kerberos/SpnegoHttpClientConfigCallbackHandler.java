@@ -253,7 +253,7 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      * customizable we are constructing it in memory.
      * <p>
      * As we are using this instead of jaas.conf, this requires refresh of
-     * {@link Configuration} and reqires appropriate security permissions to do so.
+     * {@link Configuration} and requires appropriate security permissions to do so.
      */
     private static class PasswordJaasConf extends AbstractJaasConf {
 

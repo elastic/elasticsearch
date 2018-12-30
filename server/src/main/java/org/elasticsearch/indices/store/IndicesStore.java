@@ -74,7 +74,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesStore.class);
 
-    // TODO this class can be foled into either IndicesService and partially into IndicesClusterStateService
+    // TODO this class can be folded into either IndicesService and partially into IndicesClusterStateService
     // there is no need for a separate public service
     public static final Setting<TimeValue> INDICES_STORE_DELETE_SHARD_TIMEOUT =
         Setting.positiveTimeSetting("indices.store.delete.shard.timeout", new TimeValue(30, TimeUnit.SECONDS),

@@ -111,7 +111,7 @@ public final class ResponseCollectorService implements ClusterStateListener {
     public static class ComputedNodeStats implements Writeable {
         // We store timestamps with nanosecond precision, however, the
         // formula specifies milliseconds, therefore we need to convert
-        // the values so the times don't unduely weight the formula
+        // the values so the times don't unduly weight the formula
         private final double FACTOR = 1000000.0;
         private final int clientNum;
 

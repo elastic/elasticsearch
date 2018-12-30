@@ -457,7 +457,7 @@ public final class TermVectorsFields extends Fields {
         }
 
         @Override
-        // can return -1 if posistions were not requested or
+        // can return -1 if positions were not requested or
         // stored but offsets were stored and requested
         public int nextPosition() throws IOException {
             assert curPos + 1 < freq;

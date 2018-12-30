@@ -48,7 +48,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
 
     static PolygonBuilder mutatePolygonBuilder(PolygonBuilder pb) {
         if (randomBoolean()) {
-            pb = polyWithOposingOrientation(pb);
+            pb = polyWithOpposingOrientation(pb);
         } else {
             // change either point in shell or in random hole
             LineStringBuilder lineToChange;
@@ -79,7 +79,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
      * Takes an input polygon and returns an identical one, only with opposing orientation setting.
      * This is done so we don't have to expose a setter for orientation in the actual class
      */
-    private static PolygonBuilder polyWithOposingOrientation(PolygonBuilder pb) {
+    private static PolygonBuilder polyWithOpposingOrientation(PolygonBuilder pb) {
         PolygonBuilder mutation = new PolygonBuilder(pb.shell(),
                 pb.orientation() == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
         for (LineStringBuilder hole : pb.holes()) {
@@ -91,7 +91,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
     static PolygonBuilder createRandomShape() {
         PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(random(), ShapeType.POLYGON);
         if (randomBoolean()) {
-            pgb = polyWithOposingOrientation(pgb);
+            pgb = polyWithOpposingOrientation(pgb);
         }
         return pgb;
     }

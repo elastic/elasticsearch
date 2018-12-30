@@ -135,7 +135,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                         // not met, we can't advance any way, so don't attempt
                         // to run the current step
                         nextStepKey = null;
-                        ToXContentObject stepInfo = result.getInfomationContext();
+                        ToXContentObject stepInfo = result.getInformationContext();
                         if (stepInfo == null) {
                             return state;
                         } else {

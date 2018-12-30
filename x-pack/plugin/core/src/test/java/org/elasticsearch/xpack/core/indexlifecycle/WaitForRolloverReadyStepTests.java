@@ -156,7 +156,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 conditionsMet.set(complete);
             }
 
@@ -188,7 +188,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 conditionsMet.set(complete);
             }
 
@@ -216,7 +216,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Should have failed with indexing_complete but index is not write index");
             }
 
@@ -273,7 +273,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 actionCompleted.set(complete);
             }
 
@@ -332,7 +332,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");
             }
 
@@ -360,7 +360,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
         step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");
             }
 
@@ -385,7 +385,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
         step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");
             }
 

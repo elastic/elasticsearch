@@ -324,7 +324,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
         ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
         assertFalse(actualResult.isComplete());
-        assertNull(actualResult.getInfomationContext());
+        assertNull(actualResult.getInformationContext());
     }
 
     private void assertAllocateStatus(Index index, int shards, int replicas, CheckShrinkReadyStep step, Settings.Builder existingSettings,
@@ -348,6 +348,6 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
         ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
         assertEquals(expectedResult.isComplete(), actualResult.isComplete());
-        assertEquals(expectedResult.getInfomationContext(), actualResult.getInfomationContext());
+        assertEquals(expectedResult.getInformationContext(), actualResult.getInformationContext());
     }
 }

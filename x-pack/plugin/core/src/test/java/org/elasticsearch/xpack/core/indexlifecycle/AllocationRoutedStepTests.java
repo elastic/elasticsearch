@@ -314,7 +314,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         Result actualResult = step.isConditionMet(index, clusterState);
         assertFalse(actualResult.isComplete());
-        assertNull(actualResult.getInfomationContext());
+        assertNull(actualResult.getInformationContext());
     }
 
     private void assertAllocateStatus(Index index, int shards, int replicas, AllocationRoutedStep step, Settings.Builder existingSettings,
@@ -334,6 +334,6 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
         Result actualResult = step.isConditionMet(index, clusterState);
         assertEquals(expectedResult.isComplete(), actualResult.isComplete());
-        assertEquals(expectedResult.getInfomationContext(), actualResult.getInfomationContext());
+        assertEquals(expectedResult.getInformationContext(), actualResult.getInformationContext());
     }
 }

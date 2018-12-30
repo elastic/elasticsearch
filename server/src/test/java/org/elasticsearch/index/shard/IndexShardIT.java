@@ -187,7 +187,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             // check if we are synced upto the current write location
             Translog.Location lastWriteLocation = tlog.getLastWriteLocation();
             try {
-                // the lastWriteLocaltion has a Integer.MAX_VALUE size so we have to create a new one
+                // the lastWriteLocation has a Integer.MAX_VALUE size so we have to create a new one
                 return tlog.ensureSynced(new Translog.Location(lastWriteLocation.generation, lastWriteLocation.translogLocation, 0));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

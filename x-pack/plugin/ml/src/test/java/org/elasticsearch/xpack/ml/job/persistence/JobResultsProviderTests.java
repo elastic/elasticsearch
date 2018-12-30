@@ -187,7 +187,7 @@ public class JobResultsProviderTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testCreateJobRelatedIndicies_createsAliasBecauseIndexNameIsSet() {
+    public void testCreateJobRelatedIndices_createsAliasBecauseIndexNameIsSet() {
         String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar";
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias("foo");

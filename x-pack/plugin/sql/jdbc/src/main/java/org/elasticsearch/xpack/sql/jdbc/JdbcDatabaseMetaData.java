@@ -840,7 +840,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getIndexInfo(String catalog, String schema, String table, boolean unique, boolean approximate) throws SQLException {
-        throw new SQLFeatureNotSupportedException("Indicies not supported");
+        throw new SQLFeatureNotSupportedException("Indices not supported");
     }
 
     @Override

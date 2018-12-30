@@ -243,19 +243,19 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private String type;
         private boolean isSearchable;
         private boolean isAggregatable;
-        private List<IndexCaps> indiceList;
+        private List<IndexCaps> indicesList;
 
         Builder(String name, String type) {
             this.name = name;
             this.type = type;
             this.isSearchable = true;
             this.isAggregatable = true;
-            this.indiceList = new ArrayList<>();
+            this.indicesList = new ArrayList<>();
         }
 
         void add(String index, boolean search, boolean agg) {
             IndexCaps indexCaps = new IndexCaps(index, search, agg);
-            indiceList.add(indexCaps);
+            indicesList.add(indexCaps);
             this.isSearchable &= search;
             this.isAggregatable &= agg;
         }
@@ -264,9 +264,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             final String[] indices;
             /* Eclipse can't deal with o -> o.name, maybe because of
              * https://bugs.eclipse.org/bugs/show_bug.cgi?id=511750 */
-            Collections.sort(indiceList, Comparator.comparing((IndexCaps o) -> o.name));
+            Collections.sort(indicesList, Comparator.comparing((IndexCaps o) -> o.name));
             if (withIndices) {
-                indices = indiceList.stream()
+                indices = indicesList.stream()
                     .map(caps -> caps.name)
                     .toArray(String[]::new);
             } else {
@@ -275,10 +275,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
             final String[] nonSearchableIndices;
             if (isSearchable == false &&
-                indiceList.stream().anyMatch((caps) -> caps.isSearchable)) {
+                indicesList.stream().anyMatch((caps) -> caps.isSearchable)) {
                 // Iff this field is searchable in some indices AND non-searchable in others
                 // we record the list of non-searchable indices
-                nonSearchableIndices = indiceList.stream()
+                nonSearchableIndices = indicesList.stream()
                     .filter((caps) -> caps.isSearchable == false)
                     .map(caps -> caps.name)
                     .toArray(String[]::new);
@@ -288,10 +288,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
             final String[] nonAggregatableIndices;
             if (isAggregatable == false &&
-                indiceList.stream().anyMatch((caps) -> caps.isAggregatable)) {
+                indicesList.stream().anyMatch((caps) -> caps.isAggregatable)) {
                 // Iff this field is aggregatable in some indices AND non-searchable in others
                 // we keep the list of non-aggregatable indices
-                nonAggregatableIndices = indiceList.stream()
+                nonAggregatableIndices = indicesList.stream()
                     .filter((caps) -> caps.isAggregatable == false)
                     .map(caps -> caps.name)
                     .toArray(String[]::new);

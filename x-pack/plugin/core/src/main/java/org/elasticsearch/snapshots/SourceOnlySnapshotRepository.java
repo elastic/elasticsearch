@@ -80,7 +80,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 IndexMetaData index = metaData.index(indexId.getName());
                 IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(index);
                 // for a minimal restore we basically disable indexing on all fields and only create an index
-                // that is valid from an operational perspective. ie. it will have all metadata fields like version/
+                // that is valid from an operational perspective. i.e. it will have all metadata fields like version/
                 // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
                 ImmutableOpenMap<String, MappingMetaData> mappings = index.getMappings();
                 Iterator<ObjectObjectCursor<String, MappingMetaData>> iterator = mappings.iterator();
@@ -108,7 +108,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                               IndexShardSnapshotStatus snapshotStatus) {
         if (shard.mapperService().documentMapper() != null // if there is no mapping this is null
             && shard.mapperService().documentMapper().sourceMapper().isComplete() == false) {
-            throw new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
+            throw new IllegalStateException("Can't snapshot _source only on an index that has incomplete source i.e. has _source disabled " +
                 "or filters the source");
         }
         ShardPath shardPath = shard.shardPath();

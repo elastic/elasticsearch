@@ -553,7 +553,7 @@ class BuildPlugin implements Plugin<Project> {
         RepositoryHandler repos = project.repositories
         if (System.getProperty("repos.mavenLocal") != null) {
             // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
-            // useful for development ie. bwc tests where we install stuff in the local repository
+            // useful for development i.e. bwc tests where we install stuff in the local repository
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal()
         }

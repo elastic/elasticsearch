@@ -916,7 +916,7 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns true if the this index should be searched throttled ie. using the
+     * Returns true if the this index should be searched throttled i.e. using the
      * {@link org.elasticsearch.threadpool.ThreadPool.Names#SEARCH_THROTTLED} thread-pool
      */
     public boolean isSearchThrottled() {

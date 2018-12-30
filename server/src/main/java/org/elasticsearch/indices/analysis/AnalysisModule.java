@@ -281,7 +281,7 @@ public final class AnalysisModule {
          * @param name        the name of the analysis component
          * @return a new provider instance
          * @throws IOException              if an {@link IOException} occurs
-         * @throws IllegalArgumentException if the provider requires analysis settings ie. if {@link #requiresAnalysisSettings()} returns
+         * @throws IllegalArgumentException if the provider requires analysis settings i.e. if {@link #requiresAnalysisSettings()} returns
          *                                  <code>true</code>
          */
         default T get(Environment environment, String name) throws IOException {

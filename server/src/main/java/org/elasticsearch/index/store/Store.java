@@ -111,10 +111,10 @@ import static java.util.Collections.unmodifiableMap;
  * of file abstraction in Lucene used to read and write Lucene indices.
  * This class also provides access to metadata information like checksums for committed files. A committed
  * file is a file that belongs to a segment written by a Lucene commit. Files that have not been committed
- * ie. created during a merge or a shard refresh / NRT reopen are not considered in the MetadataSnapshot.
+ * i.e. created during a merge or a shard refresh / NRT reopen are not considered in the MetadataSnapshot.
  * <p>
  * Note: If you use a store it's reference count should be increased before using it by calling #incRef and a
- * corresponding #decRef must be called in a try/finally block to release the store again ie.:
+ * corresponding #decRef must be called in a try/finally block to release the store again i.e.:
  * <pre>
  *      store.incRef();
  *      try {
@@ -947,7 +947,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * Returns a diff between the two snapshots that can be used for recovery. The given snapshot is treated as the
          * recovery target and this snapshot as the source. The returned diff will hold a list of files that are:
          * <ul>
-         * <li>identical: they exist in both snapshots and they can be considered the same ie. they don't need to be recovered</li>
+         * <li>identical: they exist in both snapshots and they can be considered the same i.e. they don't need to be recovered</li>
          * <li>different: they exist in both snapshots but their they are not identical</li>
          * <li>missing: files that exist in the source but not in the target</li>
          * </ul>
@@ -1093,7 +1093,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public static final class RecoveryDiff {
         /**
-         * Files that exist in both snapshots and they can be considered the same ie. they don't need to be recovered
+         * Files that exist in both snapshots and they can be considered the same i.e. they don't need to be recovered
          */
         public final List<StoreFileMetaData> identical;
         /**

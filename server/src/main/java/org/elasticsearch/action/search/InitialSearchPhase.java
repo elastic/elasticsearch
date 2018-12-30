@@ -304,7 +304,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         onShardSuccess(result);
         // we need to increment successful ops first before we compare the exit condition otherwise if we
         // are fast we could concurrently update totalOps but then preempt one of the threads which can
-        // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
+        // cause the successor to read a wrong value from successfulOps if second phase is very fast i.e. count etc.
         // increment all the "future" shards to update the total ops since we some may work and some may not...
         // and when that happens, we break on total ops, so we must maintain them
         successfulShardExecution(shardIt);

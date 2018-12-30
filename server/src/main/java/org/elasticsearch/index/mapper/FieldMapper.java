@@ -82,7 +82,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             if (index) {
                 if (fieldType.indexOptions() == IndexOptions.NONE) {
                     /*
-                     * the logic here is to reset to the default options only if we are not indexed ie. options are null
+                     * the logic here is to reset to the default options only if we are not indexed i.e. options are null
                      * if the fieldType has a non-null option we are all good it might have been set through a different
                      * call.
                      */

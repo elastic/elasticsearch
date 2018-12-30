@@ -1014,7 +1014,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Processes all pending deletes for the given index. This method will acquire all locks for the given index and will
      * process all pending deletes for this index. Pending deletes might occur if the OS doesn't allow deletion of files because
-     * they are used by a different process ie. on Windows where files might still be open by a virus scanner. On a shared
+     * they are used by a different process i.e. on Windows where files might still be open by a virus scanner. On a shared
      * filesystem a replica might not have been closed when the primary is deleted causing problems on delete calls so we
      * schedule there deletes later.
      * @param index the index to process the pending deletes for
@@ -1283,7 +1283,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         Supplier<BytesReference> supplier = () -> {
             /* BytesStreamOutput allows to pass the expected size but by default uses
-             * BigArrays.PAGE_SIZE_IN_BYTES which is 16k. A common cached result ie.
+             * BigArrays.PAGE_SIZE_IN_BYTES which is 16k. A common cached result i.e.
              * a date histogram with 3 buckets is ~100byte so 16k might be very wasteful
              * since we don't shrink to the actual size once we are done serializing.
              * By passing 512 as the expected size we will resize the byte array in the stream

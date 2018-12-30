@@ -47,7 +47,7 @@ public abstract class FilterClient extends AbstractClient {
 
     /**
      * A Constructor that allows to pass settings and threadpool separately. This is useful if the
-     * client is a proxy and not yet fully constructed ie. both dependencies are not available yet.
+     * client is a proxy and not yet fully constructed i.e. both dependencies are not available yet.
      */
     protected FilterClient(Settings settings, ThreadPool threadPool, Client in) {
         super(settings, threadPool);

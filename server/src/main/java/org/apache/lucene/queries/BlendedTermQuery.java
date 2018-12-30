@@ -47,7 +47,7 @@ import java.util.Objects;
  * significant in other fields like in a scenario where documents represent
  * users with a "first_name" and a "second_name". When someone searches
  * for "simon" it will very likely get "paul simon" first since "simon" is a
- * an uncommon last name ie. has a low document frequency. This query
+ * an uncommon last name i.e. has a low document frequency. This query
  * tries to "lie" about the global statistics like document frequency as well
  * total term frequency to rank based on the estimated statistics.
  * <p>

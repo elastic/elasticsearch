@@ -77,7 +77,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(Environment.PATH_DATA_SETTING.getKey(), "")
                 // by default this value is 1 sec in tests (30 sec in practice) but we adding disruption here
                 // which is between 1 and 2 sec can cause each of the shard deletion requests to timeout.
-                // to prevent this we are setting the timeout here to something highish ie. the default in practice
+                // to prevent this we are setting the timeout here to something highish i.e. the default in practice
                 .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(30, TimeUnit.SECONDS))
                 .build();
     }

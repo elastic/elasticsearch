@@ -550,7 +550,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
-     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * instance a shard can not match any documents based on it's rewrite method i.e. if date filters are mandatory to match but the shard
      * bounds and the query are disjoint. The default is {@code 128}
      */
     public SearchRequestBuilder setPreFilterShardSize(int preFilterShardSize) {

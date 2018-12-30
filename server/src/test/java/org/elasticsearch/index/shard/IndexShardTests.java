@@ -2591,7 +2591,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 targetShard.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(1L));
             assertDocCount(targetShard, 2);
         }
-        // now check that it's persistent ie. that the added shards are committed
+        // now check that it's persistent i.e. that the added shards are committed
         {
             final IndexShard newShard = reinitShard(targetShard);
             recoverShardFromStore(newShard);

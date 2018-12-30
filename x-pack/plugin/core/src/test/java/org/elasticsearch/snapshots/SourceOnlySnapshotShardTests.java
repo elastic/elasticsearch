@@ -99,7 +99,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 runAsSnapshot(shard.getThreadPool(),
                     () -> repository.snapshotShard(shard, shard.store(), snapshotId, indexId,
                         snapshotRef.getIndexCommit(), indexShardSnapshotStatus)));
-            assertEquals("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
+            assertEquals("Can't snapshot _source only on an index that has incomplete source i.e. has _source disabled or filters the source"
                 , illegalStateException.getMessage());
         }
         closeShards(shard);

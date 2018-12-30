@@ -105,7 +105,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, useNested);
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(sourceIdx).clear().setDocs(true).get();
         long deleted = indicesStatsResponse.getTotal().docs.getDeleted();
-        boolean sourceHadDeletions = deleted > 0; // we use indexRandom which might create holes ie. deleted docs
+        boolean sourceHadDeletions = deleted > 0; // we use indexRandom which might create holes i.e. deleted docs
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
         assertMappings(sourceIdx, requireRouting, useNested);
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {

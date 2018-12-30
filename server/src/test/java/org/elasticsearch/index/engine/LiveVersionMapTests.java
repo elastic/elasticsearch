@@ -257,7 +257,7 @@ public class LiveVersionMapTests extends ESTestCase {
         deletes.entrySet().forEach(e -> {
             try (Releasable r = map.acquireLock(e.getKey())) {
                 VersionValue value = map.getUnderLock(e.getKey());
-                // here we keep track of the deletes and ensure that all deletes that are not visible anymore ie. not in the map
+                // here we keep track of the deletes and ensure that all deletes that are not visible anymore i.e. not in the map
                 // have a timestamp that is smaller or equal to the maximum timestamp that we pruned on
                 final DeleteVersionValue delete = e.getValue();
                 if (value == null) {
@@ -280,7 +280,7 @@ public class LiveVersionMapTests extends ESTestCase {
         assertTrue(map.isSafeAccessRequired());
         assertFalse(map.isUnsafe());
         int numIters = randomIntBetween(1, 5);
-        for (int i = 0; i < numIters; i++) { // if we don't do anything ie. no adds etc we will stay with the safe access required
+        for (int i = 0; i < numIters; i++) { // if we don't do anything i.e. no adds etc we will stay with the safe access required
             map.beforeRefresh();
             map.afterRefresh(randomBoolean());
             assertTrue("failed in iter: " + i, map.isSafeAccessRequired());

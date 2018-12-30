@@ -184,7 +184,7 @@ public class VersionTests extends ESTestCase {
         assertThat(Version.V_6_5_0.minimumCompatibilityVersion(), equalTo(major56x));
         assertThat(Version.V_6_3_1.minimumCompatibilityVersion(), equalTo(major56x));
 
-        // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
+        // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version i.e. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
         Version lastVersion = Version.V_6_7_0; // TODO: remove this once min compat version is a constant instead of method
         assertEquals(lastVersion.major, Version.V_7_0_0.minimumCompatibilityVersion().major);

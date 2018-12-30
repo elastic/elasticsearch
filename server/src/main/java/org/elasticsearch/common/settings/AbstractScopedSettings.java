@@ -245,7 +245,7 @@ public abstract class AbstractScopedSettings {
     public synchronized <A,B> void addAffixUpdateConsumer(Setting.AffixSetting<A> settingA, Setting.AffixSetting<B> settingB,
                                                           BiConsumer<String, Tuple<A, B>> consumer,
                                                           BiConsumer<String, Tuple<A, B>> validator) {
-        // it would be awesome to have a generic way to do that ie. a set of settings that map to an object with a builder
+        // it would be awesome to have a generic way to do that i.e. a set of settings that map to an object with a builder
         // down the road this would be nice to have!
         ensureSettingIsRegistered(settingA);
         ensureSettingIsRegistered(settingB);
@@ -896,7 +896,7 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
-     * Returns <code>true</code> iff the setting is a private setting ie. it should be treated as valid even though it has no internal
+     * Returns <code>true</code> iff the setting is a private setting i.e. it should be treated as valid even though it has no internal
      * representation. Otherwise <code>false</code>
      */
     // TODO this should be replaced by Setting.Property.HIDDEN or something like this.

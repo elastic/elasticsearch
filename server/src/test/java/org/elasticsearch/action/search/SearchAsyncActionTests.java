@@ -176,7 +176,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
         };
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        // for the sake of this test we place the replica on the same node. ie. this is not a mistake since we limit per node now
+        // for the sake of this test we place the replica on the same node. i.e. this is not a mistake since we limit per node now
         DiscoveryNode replicaNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);

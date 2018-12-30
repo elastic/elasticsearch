@@ -655,7 +655,7 @@ public abstract class Engine implements Closeable {
      * safe manner, preferably in a try/finally block.
      *
      * @param source the source API or routing that triggers this searcher acquire
-     * @param scope the scope of this searcher ie. if the searcher will be used for get or search purposes
+     * @param scope the scope of this searcher i.e. if the searcher will be used for get or search purposes
      *
      * @see Searcher#close()
      */

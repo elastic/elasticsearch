@@ -197,7 +197,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 @Override
                 public boolean isCacheable(LeafReaderContext ctx) {
                     // TODO: Change this to true when we can assume that scripts are pure functions
-                    // ie. the return value is always the same given the same conditions and may not
+                    // i.e. the return value is always the same given the same conditions and may not
                     // depend on the current timestamp, other documents, etc.
                     return false;
                 }

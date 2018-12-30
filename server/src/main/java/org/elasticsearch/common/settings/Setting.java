@@ -99,7 +99,7 @@ public class Setting<T> implements ToXContentObject {
 
         /**
          * mark this setting as final, not updateable even when the context is not dynamic
-         * ie. Setting this property on an index scoped setting will fail update when the index is closed
+         * i.e. Setting this property on an index scoped setting will fail update when the index is closed
          */
         Final,
 

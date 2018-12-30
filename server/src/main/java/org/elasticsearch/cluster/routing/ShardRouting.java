@@ -178,7 +178,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns <code>true</code> iff this shard is assigned to a node ie. not
+     * Returns <code>true</code> iff this shard is assigned to a node i.e. not
      * {@link ShardRoutingState#UNASSIGNED unassigned}. Otherwise <code>false</code>
      */
     public boolean assignedToNode() {

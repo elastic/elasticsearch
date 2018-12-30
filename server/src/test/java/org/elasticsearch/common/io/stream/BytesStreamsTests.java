@@ -170,7 +170,7 @@ public class BytesStreamsTests extends ESTestCase {
 
         // now write the rest - more than fits into the remaining page + a full page after
         // that,
-        // ie. we cross over into a third
+        // i.e. we cross over into a third
         out.writeBytes(expectedData, initialOffset, additionalLength);
         assertEquals(expectedData.length, out.size());
         assertArrayEquals(expectedData, BytesReference.toBytes(out.bytes()));

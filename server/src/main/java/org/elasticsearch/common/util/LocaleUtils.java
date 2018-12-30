@@ -32,7 +32,7 @@ public class LocaleUtils {
     /**
      * Parse the given locale as {@code language}, {@code language-country} or
      * {@code language-country-variant}.
-     * Either underscores or hyphens may be used as separators, but consistently, ie.
+     * Either underscores or hyphens may be used as separators, but consistently, i.e.
      * you may not use an hyphen to separate the language from the country and an
      * underscore to separate the country from the variant.
      * @throws IllegalArgumentException if there are too many parts in the locale string

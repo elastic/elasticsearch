@@ -1929,7 +1929,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assumeTrue("Works only on BSD network stacks and apparently windows",
             Constants.MAC_OS_X || Constants.FREE_BSD || Constants.WINDOWS);
         try (ServerSocket socket = new MockServerSocket()) {
-            // note - this test uses backlog=1 which is implementation specific ie. it might not work on some TCP/IP stacks
+            // note - this test uses backlog=1 which is implementation specific i.e. it might not work on some TCP/IP stacks
             // on linux (at least newer ones) the listen(addr, backlog=1) should just ignore new connections if the queue is full which
             // means that once we received an ACK from the client we just drop the packet on the floor (which is what we want) and we run
             // into a connection timeout quickly. Yet other implementations can for instance can terminate the connection within the 3 way

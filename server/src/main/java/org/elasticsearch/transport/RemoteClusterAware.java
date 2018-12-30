@@ -338,7 +338,7 @@ public abstract class RemoteClusterAware {
     }
 
     private static int indexOfPortSeparator(String remoteHost) {
-        int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
+        int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address i.e. [::1]:9300
         if (portSeparator == -1 || portSeparator == remoteHost.length()) {
             throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] instead");
         }

@@ -298,7 +298,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private static boolean lessThan(float delta, float threshold) {
             /* deltas close to the threshold are "rounded" to the threshold manually
                to prevent floating point problems if the delta is very close to the
-               threshold ie. 1.000000002 which can trigger unnecessary balance actions*/
+               threshold i.e. 1.000000002 which can trigger unnecessary balance actions*/
             return delta <= (threshold + 0.001f);
         }
 
@@ -913,7 +913,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (currentWeight == minWeight) {
                         /*  we have an equal weight tie breaking:
                          *  1. if one decision is YES prefer it
-                         *  2. prefer the node that holds the primary for this index with the next id in the ring ie.
+                         *  2. prefer the node that holds the primary for this index with the next id in the ring i.e.
                          *  for the 3 shards 2 replica case we try to build up:
                          *    1 2 0
                          *    2 0 1

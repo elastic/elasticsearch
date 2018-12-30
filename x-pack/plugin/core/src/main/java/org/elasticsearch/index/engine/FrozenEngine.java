@@ -264,7 +264,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
     /*
      * We register this listener for a frozen index that will
-     *  1. reset the reader every time the search context is validated which happens when the context is looked up ie. on a fetch phase
+     *  1. reset the reader every time the search context is validated which happens when the context is looked up i.e. on a fetch phase
      *  etc.
      *  2. register a releasable resource that is cleaned after each phase that releases the reader for this searcher
      */
@@ -337,7 +337,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 delegate = null;
                 if (tryIncRef()) { // only do this if we are not closed already
                     // we end up in this case when we are not closed but in an intermediate
-                    // state were we want to release all or the real leaf readers ie. in between search phases
+                    // state were we want to release all or the real leaf readers i.e. in between search phases
                     // but still want to keep this Lazy reference open. In oder to let the heavy real leaf
                     // readers to be GCed we need to null our the references.
                     try {

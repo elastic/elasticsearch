@@ -378,7 +378,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         final boolean isTooOld = versionValue.time < maxTimestampToPrune;
         final boolean isSafeToPrune = versionValue.seqNo <= maxSeqNoToPrune;
         // version value can't be removed it's
-        // not yet flushed to lucene ie. it's part of this current maps object
+        // not yet flushed to lucene i.e. it's part of this current maps object
         final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
         return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps;
     }

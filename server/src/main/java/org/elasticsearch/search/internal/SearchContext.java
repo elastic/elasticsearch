@@ -74,7 +74,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * state from one query / fetch phase to another.
  *
  * This class also implements {@link RefCounted} since in some situations like in {@link org.elasticsearch.search.SearchService}
- * a SearchContext can be closed concurrently due to independent events ie. when an index gets removed. To prevent accessing closed
+ * a SearchContext can be closed concurrently due to independent events i.e. when an index gets removed. To prevent accessing closed
  * IndexReader / IndexSearcher instances the SearchContext can be guarded by a reference count and fail if it's been closed by
  * an external event.
  */

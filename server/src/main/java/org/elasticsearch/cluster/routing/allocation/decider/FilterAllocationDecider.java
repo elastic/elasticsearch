@@ -108,7 +108,7 @@ public class FilterAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.unassigned()) {
-            // only for unassigned - we filter allocation right after the index creation ie. for shard shrinking etc. to ensure
+            // only for unassigned - we filter allocation right after the index creation i.e. for shard shrinking etc. to ensure
             // that once it has been allocated post API the replicas can be allocated elsewhere without user interaction
             // this is a setting that can only be set within the system!
             IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());

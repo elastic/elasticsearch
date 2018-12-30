@@ -189,8 +189,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         void onCached(Key key, BytesReference value);
 
         /**
-         * Returns <code>true</code> iff the resource behind this entity is still open ie.
-         * entities associated with it can remain in the cache. ie. IndexShard is still open.
+         * Returns <code>true</code> iff the resource behind this entity is still open i.e.
+         * entities associated with it can remain in the cache. i.e. IndexShard is still open.
          */
         boolean isOpen();
 

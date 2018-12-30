@@ -14,7 +14,7 @@
       "params": {
         "force": {
           "type" : "boolean",
-          "description" : "Whether a flush should be forced even if it is not necessarily needed ie. if no changes will be committed to the index. This is useful if transaction log IDs should be incremented even if no uncommitted changes are present. (This setting can be considered as internal)"
+          "description" : "Whether a flush should be forced even if it is not necessarily needed i.e. if no changes will be committed to the index. This is useful if transaction log IDs should be incremented even if no uncommitted changes are present. (This setting can be considered as internal)"
         },
         "wait_if_ongoing": {
           "type" : "boolean",

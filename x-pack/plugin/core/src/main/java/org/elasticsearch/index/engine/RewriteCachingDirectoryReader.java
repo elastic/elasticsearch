@@ -32,7 +32,7 @@ import java.util.Map;
 
 /**
  * This special DirectoryReader is used to handle can_match requests against frozen indices.
- * It' caches all relevant point value data for every point value field ie. min/max packed values etc.
+ * It' caches all relevant point value data for every point value field i.e. min/max packed values etc.
  * to hold enough information to rewrite a date range query and make a decisions if an index can match or not.
  * This allows frozen indices to be searched with wildcards in a very efficient way without opening a reader on them.
  */

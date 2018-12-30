@@ -53,13 +53,13 @@ public final class MockEngineSupport {
 
     /**
      * Allows tests to wrap an index reader randomly with a given ratio. This
-     * is disabled by default ie. {@code 0.0d} since reader wrapping is insanely
+     * is disabled by default i.e. {@code 0.0d} since reader wrapping is insanely
      * slow if {@link AssertingDirectoryReader} is used.
      */
     public static final Setting<Double> WRAP_READER_RATIO =
         Setting.doubleSetting("index.engine.mock.random.wrap_reader_ratio", 0.0d, 0.0d, Property.IndexScope);
     /**
-     * Allows tests to prevent an engine from being flushed on close ie. to test translog recovery...
+     * Allows tests to prevent an engine from being flushed on close i.e. to test translog recovery...
      */
     public static final Setting<Boolean> DISABLE_FLUSH_ON_CLOSE =
         Setting.boolSetting("index.mock.disable_flush_on_close", false, Property.IndexScope);

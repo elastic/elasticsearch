@@ -82,9 +82,9 @@ def process_file(file_path, line_callback):
     return False
 
 # Checks the pom.xml for the release version.
-# This method fails if the pom file has no SNAPSHOT version set ie.
+# This method fails if the pom file has no SNAPSHOT version set i.e.
 # if the version is already on a release version we fail.
-# Returns the next version string ie. 0.90.7
+# Returns the next version string i.e. 0.90.7
 def find_release_version():
   with open('pom.xml', encoding='utf-8') as file:
     for line in file:

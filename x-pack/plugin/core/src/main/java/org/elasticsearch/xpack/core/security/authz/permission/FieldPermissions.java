@@ -165,7 +165,7 @@ public final class FieldPermissions implements Accountable {
         return fieldPermissionsDefinition;
     }
 
-    /** Return whether field-level security is enabled, ie. whether any field might be filtered out. */
+    /** Return whether field-level security is enabled, i.e. whether any field might be filtered out. */
     public boolean hasFieldLevelSecurity() {
         return permittedFieldsAutomatonIsTotal == false;
     }

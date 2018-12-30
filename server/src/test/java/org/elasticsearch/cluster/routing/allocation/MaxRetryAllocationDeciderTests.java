@@ -223,7 +223,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             routingTable.index("idx").shard(0).shards().get(0)));
         routingTable = clusterState.routingTable();
 
-        // all counters have been reset to 0 ie. no unassigned info
+        // all counters have been reset to 0 i.e. no unassigned info
         assertEquals(routingTable.index("idx").shards().size(), 1);
         assertNull(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo());
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), STARTED);

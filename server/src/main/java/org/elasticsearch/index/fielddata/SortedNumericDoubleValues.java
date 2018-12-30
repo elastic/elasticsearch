@@ -35,7 +35,7 @@ public abstract class SortedNumericDoubleValues {
     /** Advance the iterator to exactly {@code target} and return whether
      *  {@code target} has a value.
      *  {@code target} must be greater than or equal to the current
-     *  doc ID and must be a valid doc ID, ie. &ge; 0 and
+     *  doc ID and must be a valid doc ID, i.e. &ge; 0 and
      *  &lt; {@code maxDoc}.*/
     public abstract boolean advanceExact(int target) throws IOException;
 

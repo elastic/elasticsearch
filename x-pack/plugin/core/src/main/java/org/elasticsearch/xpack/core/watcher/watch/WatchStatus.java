@@ -129,7 +129,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
     }
 
     /**
-     * Called whenever an watch is checked, ie. the condition of the watch is evaluated to see if
+     * Called whenever an watch is checked, i.e. the condition of the watch is evaluated to see if
      * the watch should be executed.
      *
      * @param metCondition  indicates whether the watch's condition was met.

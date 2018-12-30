@@ -722,7 +722,7 @@ public class MetaDataCreateIndexService {
         }
 
         if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
-            // this method applies all necessary checks ie. if the target shards are less than the source shards
+            // this method applies all necessary checks i.e. if the target shards are less than the source shards
             // of if the source shards are divisible by the number of target shards
             IndexMetaData.getRoutingFactor(sourceMetaData.getNumberOfShards(),
                 IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));

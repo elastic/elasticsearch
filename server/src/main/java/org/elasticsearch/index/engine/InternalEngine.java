@@ -1962,7 +1962,7 @@ public class InternalEngine extends Engine {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
             engineFailed = true;
         } else if (failedEngine.get() == null && isClosed.get() == false) { // we are closed but the engine is not failed yet?
-            // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
+            // this smells like a bug - we only expect ACE if we are in a fatal case i.e. either translog or IW is closed by
             // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
             throw new AssertionError("Unexpected AlreadyClosedException", ex);
         } else {
@@ -2034,7 +2034,7 @@ public class InternalEngine extends Engine {
 
     /**
      * Closes the engine without acquiring the write lock. This should only be
-     * called while the write lock is hold or in a disaster condition ie. if the engine
+     * called while the write lock is hold or in a disaster condition i.e. if the engine
      * is failed.
      */
     @Override

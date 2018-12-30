@@ -45,7 +45,7 @@ public class ResizeAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         if (unassignedInfo != null && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-            // we only make decisions here if we have an unassigned info and we have to recover from another index ie. split / shrink
+            // we only make decisions here if we have an unassigned info and we have to recover from another index i.e. split / shrink
             final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
             Index resizeSourceIndex = indexMetaData.getResizeSourceIndex();
             assert resizeSourceIndex != null;

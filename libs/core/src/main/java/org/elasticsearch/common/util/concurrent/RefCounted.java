@@ -24,9 +24,9 @@ package org.elasticsearch.common.util.concurrent;
  *  to itself are not in user anymore. This implements basic reference counting
  *  for instance if async operations holding on to services that are close concurrently
  *  but should be functional until all async operations have joined
- *  Classes implementing this interface should ref counted at any time ie. if an object is used it's reference count should
+ *  Classes implementing this interface should ref counted at any time i.e. if an object is used it's reference count should
  *  be increased before using it by calling #incRef and a corresponding #decRef must be called in a try/finally
- *  block to release the object again ie.:
+ *  block to release the object again i.e.:
  * <pre>
  *      inst.incRef();
  *      try {

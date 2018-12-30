@@ -114,7 +114,7 @@ final class PatternRule implements IpFilterRule {
         try {
             return address.isAnyLocalAddress() || address.isLoopbackAddress() || NetworkInterface.getByInetAddress(address) != null;
         } catch (SocketException e) {
-            // not defined - ie. it's not a local address
+            // not defined - i.e. it's not a local address
             return false;
         }
     }

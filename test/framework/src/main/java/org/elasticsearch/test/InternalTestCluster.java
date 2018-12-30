@@ -1712,7 +1712,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Restarts all nodes in a rolling restart fashion ie. only restarts on node a time.
+     * Restarts all nodes in a rolling restart fashion i.e. only restarts on node a time.
      */
     public synchronized void rollingRestart(RestartCallback callback) throws Exception {
         int numNodesRestarted = 0;

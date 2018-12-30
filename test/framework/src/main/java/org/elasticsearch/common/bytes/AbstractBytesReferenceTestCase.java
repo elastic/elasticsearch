@@ -446,7 +446,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
                 // original reference has pages
                 assertEquals(sliceOffset % PAGE_SIZE, singlePageOrNull.offset);
             } else {
-                // orig ref has no pages ie. BytesArray
+                // orig ref has no pages i.e. BytesArray
                 assertEquals(sliceOffset, singlePageOrNull.offset);
             }
         }

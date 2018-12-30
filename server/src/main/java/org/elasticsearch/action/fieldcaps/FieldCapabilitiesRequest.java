@@ -44,7 +44,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private String[] fields = Strings.EMPTY_ARRAY;
-    // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
+    // pkg private API mainly for cross cluster search to signal that we do multiple reductions i.e. the results should not be merged
     private boolean mergeResults = true;
 
     private static ObjectParser<FieldCapabilitiesRequest, Void> PARSER =

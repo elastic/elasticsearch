@@ -115,7 +115,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     public void onRetry() {
         for (BulkItemRequest item : items) {
             if (item.request() instanceof ReplicationRequest) {
-                // all replication requests need to be notified here as well to ie. make sure that internal optimizations are
+                // all replication requests need to be notified here as well to i.e. make sure that internal optimizations are
                 // disabled see IndexRequest#canHaveDuplicates()
                 ((ReplicationRequest<?>) item.request()).onRetry();
             }

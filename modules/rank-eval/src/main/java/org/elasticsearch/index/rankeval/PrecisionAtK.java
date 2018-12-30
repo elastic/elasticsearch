@@ -59,7 +59,7 @@ public class PrecisionAtK implements EvaluationMetric {
     private static final int DEFAULT_K = 10;
 
     private final boolean ignoreUnlabeled;
-    private final int relevantRatingThreshhold;
+    private final int relevantRatingThreshold;
     private final int k;
 
     /**
@@ -81,7 +81,7 @@ public class PrecisionAtK implements EvaluationMetric {
         if (k <= 0) {
             throw new IllegalArgumentException("Window size k must be positive.");
         }
-        this.relevantRatingThreshhold = threshold;
+        this.relevantRatingThreshold = threshold;
         this.ignoreUnlabeled = ignoreUnlabeled;
         this.k = k;
     }
@@ -107,7 +107,7 @@ public class PrecisionAtK implements EvaluationMetric {
     }
 
     PrecisionAtK(StreamInput in) throws IOException {
-        relevantRatingThreshhold = in.readVInt();
+        relevantRatingThreshold = in.readVInt();
         ignoreUnlabeled = in.readBoolean();
         k = in.readVInt();
     }
@@ -118,7 +118,7 @@ public class PrecisionAtK implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(relevantRatingThreshhold);
+        out.writeVInt(relevantRatingThreshold);
         out.writeBoolean(ignoreUnlabeled);
         out.writeVInt(k);
     }
@@ -133,7 +133,7 @@ public class PrecisionAtK implements EvaluationMetric {
      * "relevant" for this metric. Defaults to 1.
      */
     public int getRelevantRatingThreshold() {
-        return relevantRatingThreshhold;
+        return relevantRatingThreshold;
     }
 
     /**
@@ -166,7 +166,7 @@ public class PrecisionAtK implements EvaluationMetric {
         for (RatedSearchHit hit : ratedSearchHits) {
             OptionalInt rating = hit.getRating();
             if (rating.isPresent()) {
-                if (rating.getAsInt() >= this.relevantRatingThreshhold) {
+                if (rating.getAsInt() >= this.relevantRatingThreshold) {
                     truePositives++;
                 } else {
                     falsePositives++;
@@ -190,7 +190,7 @@ public class PrecisionAtK implements EvaluationMetric {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(NAME);
-        builder.field(RELEVANT_RATING_FIELD.getPreferredName(), this.relevantRatingThreshhold);
+        builder.field(RELEVANT_RATING_FIELD.getPreferredName(), this.relevantRatingThreshold);
         builder.field(IGNORE_UNLABELED_FIELD.getPreferredName(), this.ignoreUnlabeled);
         builder.field(K_FIELD.getPreferredName(), this.k);
         builder.endObject();
@@ -207,14 +207,14 @@ public class PrecisionAtK implements EvaluationMetric {
             return false;
         }
         PrecisionAtK other = (PrecisionAtK) obj;
-        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold)
+        return Objects.equals(relevantRatingThreshold, other.relevantRatingThreshold)
                 && Objects.equals(k, other.k)
                 && Objects.equals(ignoreUnlabeled, other.ignoreUnlabeled);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(relevantRatingThreshhold, ignoreUnlabeled, k);
+        return Objects.hash(relevantRatingThreshold, ignoreUnlabeled, k);
     }
 
     public static final class Detail implements MetricDetail {

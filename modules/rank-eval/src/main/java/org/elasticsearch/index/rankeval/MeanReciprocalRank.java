@@ -52,20 +52,20 @@ public class MeanReciprocalRank implements EvaluationMetric {
     private final int k;
 
     /** ratings equal or above this value will be considered relevant */
-    private final int relevantRatingThreshhold;
+    private final int relevantRatingThreshold;
 
     public MeanReciprocalRank() {
         this(DEFAULT_RATING_THRESHOLD, DEFAULT_K);
     }
 
     MeanReciprocalRank(StreamInput in) throws IOException {
-        this.relevantRatingThreshhold = in.readVInt();
+        this.relevantRatingThreshold = in.readVInt();
         this.k = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(this.relevantRatingThreshhold);
+        out.writeVInt(this.relevantRatingThreshold);
         out.writeVInt(this.k);
     }
 
@@ -82,7 +82,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
             throw new IllegalArgumentException("Window size k must be positive.");
         }
         this.k = k;
-        this.relevantRatingThreshhold = relevantRatingThreshold;
+        this.relevantRatingThreshold = relevantRatingThreshold;
     }
 
     int getK() {
@@ -103,7 +103,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
      * Return the rating threshold above which ratings are considered to be "relevant".
      */
     public int getRelevantRatingThreshold() {
-        return relevantRatingThreshhold;
+        return relevantRatingThreshold;
     }
 
     /**
@@ -117,7 +117,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
         for (RatedSearchHit hit : ratedHits) {
             OptionalInt rating = hit.getRating();
             if (rating.isPresent()) {
-                if (rating.getAsInt() >= this.relevantRatingThreshhold) {
+                if (rating.getAsInt() >= this.relevantRatingThreshold) {
                     firstRelevant = rank;
                     break;
                 }
@@ -155,7 +155,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(NAME);
-        builder.field(RELEVANT_RATING_FIELD.getPreferredName(), this.relevantRatingThreshhold);
+        builder.field(RELEVANT_RATING_FIELD.getPreferredName(), this.relevantRatingThreshold);
         builder.field(K_FIELD.getPreferredName(), this.k);
         builder.endObject();
         builder.endObject();
@@ -171,13 +171,13 @@ public class MeanReciprocalRank implements EvaluationMetric {
             return false;
         }
         MeanReciprocalRank other = (MeanReciprocalRank) obj;
-        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold)
+        return Objects.equals(relevantRatingThreshold, other.relevantRatingThreshold)
                 && Objects.equals(k, other.k);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(relevantRatingThreshhold, k);
+        return Objects.hash(relevantRatingThreshold, k);
     }
 
     public static final class Detail implements MetricDetail {

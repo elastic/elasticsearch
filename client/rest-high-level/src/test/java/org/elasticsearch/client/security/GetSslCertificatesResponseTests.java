@@ -43,8 +43,8 @@ public class GetSslCertificatesResponseTests extends ESTestCase {
             .test();
     }
     public void testEqualsAndHashCode() {
-        final GetSslCertificatesResponse reponse = createTestInstance();
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(reponse, this::copy,
+        final GetSslCertificatesResponse response = createTestInstance();
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(response, this::copy,
             this::mutate);
     }
 

@@ -354,7 +354,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         logger.info("new master is operation");
         // complete the step
-        AcknowledgedResponse repsonse = client().admin().indices().prepareUpdateSettings("test")
+        AcknowledgedResponse response = client().admin().indices().prepareUpdateSettings("test")
             .setSettings(Collections.singletonMap("index.lifecycle.test.complete", true)).get();
 
         assertBusy(() -> {

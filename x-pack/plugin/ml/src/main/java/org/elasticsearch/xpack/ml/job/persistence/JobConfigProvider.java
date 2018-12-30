@@ -460,7 +460,7 @@ public class JobConfigProvider {
 
     /**
      * For the list of job Ids find all that match existing jobs Ids.
-     * The repsonse is all the job Ids in {@code ids} that match an existing
+     * The response is all the job Ids in {@code ids} that match an existing
      * job Id.
      * @param ids Job Ids to find 
      * @param listener The matched Ids listener

@@ -71,10 +71,10 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     @Override
     protected FollowStatsAction.StatsResponses newResponse(
             final FollowStatsAction.StatsRequest request,
-            final List<FollowStatsAction.StatsResponse> statsRespons,
+            final List<FollowStatsAction.StatsResponse> statsResponse,
             final List<TaskOperationFailure> taskOperationFailures,
             final List<FailedNodeException> failedNodeExceptions) {
-        return new FollowStatsAction.StatsResponses(taskOperationFailures, failedNodeExceptions, statsRespons);
+        return new FollowStatsAction.StatsResponses(taskOperationFailures, failedNodeExceptions, statsResponse);
     }
 
     @Override

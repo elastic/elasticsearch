@@ -72,7 +72,7 @@ public class TransportExplainLifecycleAction
     @Override
     protected void doMasterOperation(ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state,
             ActionListener<ExplainLifecycleResponse> listener) {
-        Map<String, IndexLifecycleExplainResponse> indexReponses = new HashMap<>();
+        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetaData idxMetadata = state.metaData().index(index);
             Settings idxSettings = idxMetadata.getSettings();
@@ -113,9 +113,9 @@ public class TransportExplainLifecycleAction
             } else {
                 indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             }
-            indexReponses.put(indexResponse.getIndex(), indexResponse);
+            indexResponses.put(indexResponse.getIndex(), indexResponse);
         }
-        listener.onResponse(new ExplainLifecycleResponse(indexReponses));
+        listener.onResponse(new ExplainLifecycleResponse(indexResponses));
     }
 
 }

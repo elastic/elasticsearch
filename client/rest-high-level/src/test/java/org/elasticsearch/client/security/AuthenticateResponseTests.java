@@ -47,8 +47,8 @@ public class AuthenticateResponseTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        final AuthenticateResponse reponse = createTestInstance();
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(reponse, this::copy,
+        final AuthenticateResponse response = createTestInstance();
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(response, this::copy,
             this::mutate);
     }
 

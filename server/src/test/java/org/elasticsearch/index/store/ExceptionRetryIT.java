@@ -112,9 +112,9 @@ public class ExceptionRetryIT extends ESIntegTestCase {
 
         BulkResponse response = bulkBuilder.get();
         if (response.hasFailures()) {
-            for (BulkItemResponse singleIndexRespons : response.getItems()) {
-                if (singleIndexRespons.isFailed()) {
-                    fail("None of the bulk items should fail but got " + singleIndexRespons.getFailureMessage());
+            for (BulkItemResponse singleIndexResponse : response.getItems()) {
+                if (singleIndexResponse.isFailed()) {
+                    fail("None of the bulk items should fail but got " + singleIndexResponse.getFailureMessage());
                 }
             }
         }

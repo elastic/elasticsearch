@@ -202,7 +202,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
     }
 
     private static final ConstructingObjectParser<GraphExploreResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "GraphExploreResponsenParser", true,
+            "GraphExploreResponseParser", true,
             args -> {
                 GraphExploreResponse result = new GraphExploreResponse();  
                 result.vertices = new HashMap<>();

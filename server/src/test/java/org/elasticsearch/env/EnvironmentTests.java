@@ -62,7 +62,7 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/test/repos/../repo1"), nullValue());
         assertThat(environment.resolveRepoFile("/test/repos/../repos/repo1"), notNullValue());
-        assertThat(environment.resolveRepoFile("/somethingeles/repos/repo1"), nullValue());
+        assertThat(environment.resolveRepoFile("/somethingelse/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("/test/other/repo"), notNullValue());
 
 

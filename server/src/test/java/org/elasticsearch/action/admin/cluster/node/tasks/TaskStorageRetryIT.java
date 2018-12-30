@@ -117,7 +117,7 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
      */
     private NodeClient nodeClient() {
         /*
-         * Luckilly our test infrastructure already returns it, but we can't
+         * Luckily our test infrastructure already returns it, but we can't
          * change the return type in the superclass because it is wrapped other
          * places.
          */

@@ -149,7 +149,7 @@ public final class QueryRescorer implements Rescorer {
             }
 
             // TODO: this is wrong, i.e. we are comparing apples and oranges at this point.  It would be better if we always rescored all
-            // incoming first pass hits, instead of allowing recoring of just the top subset:
+            // incoming first pass hits, instead of allowing rescoring of just the top subset:
             Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
         }
         return in;

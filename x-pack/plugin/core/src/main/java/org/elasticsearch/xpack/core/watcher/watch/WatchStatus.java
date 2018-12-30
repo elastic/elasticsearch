@@ -151,7 +151,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
     }
 
     /**
-     * Notifies this status that the givne actions were acked. If the current state of one of these actions is
+     * Notifies this status that the given actions were acked. If the current state of one of these actions is
      * {@link ActionStatus.AckStatus.State#ACKABLE ACKABLE},
      * then we'll it'll change to {@link ActionStatus.AckStatus.State#ACKED ACKED}
      * (when set to {@link ActionStatus.AckStatus.State#ACKED ACKED}, the AckThrottler

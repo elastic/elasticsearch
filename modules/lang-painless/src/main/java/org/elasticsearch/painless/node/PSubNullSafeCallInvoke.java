@@ -34,7 +34,7 @@ import static java.util.Objects.requireNonNull;
  */
 public class PSubNullSafeCallInvoke extends AExpression {
     /**
-     * The expression gaurded by the null check. Required at construction time and replaced at analysis time.
+     * The expression guarded by the null check. Required at construction time and replaced at analysis time.
      */
     private AExpression guarded;
 

@@ -221,7 +221,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
         failSomePrimaries(TEST_INDEX_1);
         assertAllPrimaryTerm();
 
-        // stablize cluster
+        // stabilize cluster
         changed = true;
         while (changed) {
             changed = startInitializingShards(TEST_INDEX_1);

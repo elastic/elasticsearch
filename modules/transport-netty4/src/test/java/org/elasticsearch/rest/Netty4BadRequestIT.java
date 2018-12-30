@@ -52,18 +52,18 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             @SuppressWarnings("unchecked") final Map<String, Object> settings =
                     (Map<String, Object>)((Map<String, Object>)entry.getValue()).get("settings");
-                    final int maxIntialLineLength;
+                    final int maxInitialLineLength;
             if (settings.containsKey("http")) {
                 @SuppressWarnings("unchecked") final Map<String, Object> httpSettings = (Map<String, Object>)settings.get("http");
                 if (httpSettings.containsKey(key)) {
-                    maxIntialLineLength = ByteSizeValue.parseBytesSizeValue((String)httpSettings.get(key), key).bytesAsInt();
+                    maxInitialLineLength = ByteSizeValue.parseBytesSizeValue((String)httpSettings.get(key), key).bytesAsInt();
                 } else {
-                    maxIntialLineLength = httpMaxInitialLineLength.getDefault(Settings.EMPTY).bytesAsInt();
+                    maxInitialLineLength = httpMaxInitialLineLength.getDefault(Settings.EMPTY).bytesAsInt();
                 }
             } else {
-                maxIntialLineLength = httpMaxInitialLineLength.getDefault(Settings.EMPTY).bytesAsInt();
+                maxInitialLineLength = httpMaxInitialLineLength.getDefault(Settings.EMPTY).bytesAsInt();
             }
-            maxMaxInitialLineLength = Math.max(maxMaxInitialLineLength, maxIntialLineLength);
+            maxMaxInitialLineLength = Math.max(maxMaxInitialLineLength, maxInitialLineLength);
         }
 
         final String path = "/" + new String(new byte[maxMaxInitialLineLength], Charset.forName("UTF-8")).replace('\0', 'a');

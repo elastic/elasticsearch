@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.not;
  * features from this file just because the version constants have been removed.
  */
 public class RemoteRequestBuildersTests extends ESTestCase {
-    public void testIntialSearchPath() {
+    public void testInitialSearchPath() {
         Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
         BytesReference query = new BytesArray("{}");
 

@@ -480,7 +480,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
         String quoteFieldSuffix = null;
         boolean autoGenerateSynonymsPhraseQuery = true;
-        int fuzzyPrefixLenght = SimpleQueryStringBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;
+        int fuzzyPrefixLength = SimpleQueryStringBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;
         int fuzzyMaxExpansions = SimpleQueryStringBuilder.DEFAULT_FUZZY_MAX_EXPANSIONS;
         boolean fuzzyTranspositions = SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS;
 
@@ -538,7 +538,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                 } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName, parser.getDeprecationHandler())) {
                     autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                 } else if (FUZZY_PREFIX_LENGTH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    fuzzyPrefixLenght = parser.intValue();
+                    fuzzyPrefixLength = parser.intValue();
                 } else if (FUZZY_MAX_EXPANSIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyMaxExpansions = parser.intValue();
                 } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -569,7 +569,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         }
         qb.analyzeWildcard(analyzeWildcard).boost(boost).quoteFieldSuffix(quoteFieldSuffix);
         qb.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
-        qb.fuzzyPrefixLength(fuzzyPrefixLenght);
+        qb.fuzzyPrefixLength(fuzzyPrefixLength);
         qb.fuzzyMaxExpansions(fuzzyMaxExpansions);
         qb.fuzzyTranspositions(fuzzyTranspositions);
         return qb;

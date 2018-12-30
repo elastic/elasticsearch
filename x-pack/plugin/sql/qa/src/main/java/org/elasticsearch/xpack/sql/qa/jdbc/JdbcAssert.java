@@ -73,7 +73,7 @@ public class JdbcAssert {
      * This means promoting integer types to long and floating types to double and comparing their values.
      * For example in a non-lenient, strict case a comparison between an int and a tinyint would fail, with lenientDataType it will succeed
      * as long as the actual value is the same.
-     * Also, has the option of treating the numeric results for floating point numbers in a leninent way, if chosen to. Usually,
+     * Also, has the option of treating the numeric results for floating point numbers in a lenient way, if chosen to. Usually,
      * we would want lenient treatment for floating point numbers in sql-spec tests where the comparison is being made with H2.
      */
     public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,

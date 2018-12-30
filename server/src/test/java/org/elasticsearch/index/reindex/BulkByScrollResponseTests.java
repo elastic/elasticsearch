@@ -45,7 +45,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     private boolean includeUpdated;
     private boolean includeCreated;
 
-    public void testRountTrip() throws IOException {
+    public void testRoundTrip() throws IOException {
         BulkByScrollResponse response = new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()),
                 BulkByScrollTaskStatusTests.randomStatus(), randomIndexingFailures(), randomSearchFailures(), randomBoolean());
         BulkByScrollResponse tripped = new BulkByScrollResponse();

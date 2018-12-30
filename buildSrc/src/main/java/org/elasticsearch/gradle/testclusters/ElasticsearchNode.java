@@ -219,7 +219,7 @@ public class ElasticsearchNode {
     synchronized void stop(boolean tailLogs) {
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
-            // Another exception here would eat the orriginal.
+            // Another exception here would eat the original.
             return;
         }
         logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);

@@ -46,7 +46,7 @@ public class ClientYamlTestResponseException extends IOException {
     }
 
     /**
-     * Exposes the origina {@link ResponseException}. Note that the entity will always be null as it
+     * Exposes the original {@link ResponseException}. Note that the entity will always be null as it
      * gets eagerly consumed and exposed through {@link #getRestTestResponse()}.
      */
     public ResponseException getResponseException() {

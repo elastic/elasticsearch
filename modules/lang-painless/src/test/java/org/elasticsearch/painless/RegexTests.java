@@ -60,7 +60,7 @@ public class RegexTests extends ScriptTestCase {
         assertEquals(true, exec("def a = /foo/; return 'foo' ==~ a"));
     }
 
-    public void testPatternInIfStement() {
+    public void testPatternInIfStatement() {
         assertEquals(true, exec("if (/foo/.matcher('foo').matches()) { return true } else { return false }"));
         assertEquals(true, exec("if ('foo' ==~ /foo/) { return true } else { return false }"));
     }

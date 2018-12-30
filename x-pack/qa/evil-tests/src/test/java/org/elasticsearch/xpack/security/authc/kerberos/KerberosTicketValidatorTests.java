@@ -95,7 +95,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         }
     }
 
-    public void testValidKebrerosTicket() throws PrivilegedActionException, GSSException, LoginException {
+    public void testValidKerberosTicket() throws PrivilegedActionException, GSSException, LoginException {
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);
         final SecureString password = new SecureString("pwd".toCharArray());

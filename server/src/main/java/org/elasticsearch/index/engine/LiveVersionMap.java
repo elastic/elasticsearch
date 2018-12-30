@@ -56,7 +56,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // respect that and fill the version map. The nice part here is that we are only really requiring this for a single ID and since
         // we hold the ID lock in the engine while we do all this it's safe to do it globally unlocked.
         // NOTE: these values can both be non-volatile since it's ok to read a stale value per doc ID. We serialize changes in the engine
-        // that will prevent concurrent updates to the same document ID and therefore we can rely on the happens-before guanratee of the
+        // that will prevent concurrent updates to the same document ID and therefore we can rely on the happens-before guarantee of the
         // map reference itself.
         private boolean unsafe;
 

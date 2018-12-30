@@ -43,7 +43,7 @@ public class VersionUtils {
      * rules here match up with the rules in gradle then this should
      * produce sensible results.
      * @return a tuple containing versions with backwards compatibility
-     * guarantees in v1 and versions without the guranteees in v2
+     * guarantees in v1 and versions without the guarantees in v2
      */
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
         // group versions into major version

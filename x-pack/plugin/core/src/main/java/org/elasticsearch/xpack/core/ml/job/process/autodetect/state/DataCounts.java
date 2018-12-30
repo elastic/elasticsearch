@@ -421,7 +421,7 @@ public class DataCounts implements ToXContentObject, Writeable {
     /**
      * The wall clock time the latest record was seen.
      *
-     * @return Wall clock time of the lastest record
+     * @return Wall clock time of the latest record
      */
     public Date getLastDataTimeStamp() {
         return lastDataTimeStamp;

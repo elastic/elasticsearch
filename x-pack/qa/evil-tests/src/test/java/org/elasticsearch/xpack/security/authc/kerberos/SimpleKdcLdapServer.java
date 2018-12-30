@@ -222,7 +222,7 @@ public class SimpleKdcLdapServer {
                 return null;
             }
         });
-        logger.info("SimpleKdcServer stoppped.");
+        logger.info("SimpleKdcServer stopped.");
     }
 
     private static int getServerPort(String transport) {

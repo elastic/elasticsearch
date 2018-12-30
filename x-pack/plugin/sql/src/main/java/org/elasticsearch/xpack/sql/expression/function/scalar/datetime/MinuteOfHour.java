@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import java.time.ZoneId;
 
 /**
- * Exract the minute of the hour from a datetime.
+ * Extract the minute of the hour from a datetime.
  */
 public class MinuteOfHour extends DateTimeFunction {
     public MinuteOfHour(Location location, Expression field, ZoneId zoneId) {

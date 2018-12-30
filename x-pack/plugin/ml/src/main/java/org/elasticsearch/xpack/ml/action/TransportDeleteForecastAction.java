@@ -92,8 +92,8 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
             QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE));
 
         if (MetaData.ALL.equals(request.getForecastId()) == false) {
-            Set<String> forcastIds = new HashSet<>(Arrays.asList(Strings.tokenizeToStringArray(forecastsExpression, ",")));
-            innerBool.must(QueryBuilders.termsQuery(Forecast.FORECAST_ID.getPreferredName(), forcastIds));
+            Set<String> forecastIds = new HashSet<>(Arrays.asList(Strings.tokenizeToStringArray(forecastsExpression, ",")));
+            innerBool.must(QueryBuilders.termsQuery(Forecast.FORECAST_ID.getPreferredName(), forecastIds));
         }
 
         source.query(builder.filter(innerBool));

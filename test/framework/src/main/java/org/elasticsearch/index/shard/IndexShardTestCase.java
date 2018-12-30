@@ -374,7 +374,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     /**
      * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
-     * @param listeners new listerns to use for the newly created shard
+     * @param listeners new listeners to use for the newly created shard
      */
     protected IndexShard reinitShard(IndexShard current, IndexingOperationListener... listeners) throws IOException {
         final ShardRouting shardRouting = current.routingEntry();
@@ -387,7 +387,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
      * @param routing   the shard routing to use for the newly created shard.
-     * @param listeners new listerns to use for the newly created shard
+     * @param listeners new listeners to use for the newly created shard
      */
     protected IndexShard reinitShard(IndexShard current, ShardRouting routing, IndexingOperationListener... listeners) throws IOException {
         return reinitShard(current, routing, current.engineFactory, listeners);
@@ -397,7 +397,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
      * @param routing   the shard routing to use for the newly created shard.
-     * @param listeners new listerns to use for the newly created shard
+     * @param listeners new listeners to use for the newly created shard
      * @param engineFactory the engine factory for the new shard
      */
     protected IndexShard reinitShard(IndexShard current, ShardRouting routing, EngineFactory engineFactory,

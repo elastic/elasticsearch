@@ -1141,7 +1141,7 @@ public class TranslogTests extends ESTestCase {
                 assertTrue("at least one operation pending", translog.syncNeeded());
                 assertTrue("this operation has not been synced", translog.ensureSynced(location));
                 // we are the last location so everything should be synced
-                assertFalse("the last call to ensureSycned synced all previous ops", translog.syncNeeded());
+                assertFalse("the last call to ensureSynced synced all previous ops", translog.syncNeeded());
                 seqNo = ++count;
                 translog.add(new Translog.Index("test", "" + op, seqNo, primaryTerm.get(),
                     Integer.toString(seqNo).getBytes(Charset.forName("UTF-8"))));
@@ -1182,7 +1182,7 @@ public class TranslogTests extends ESTestCase {
                 assertTrue("at least one operation pending", translog.syncNeeded());
                 assertTrue("this operation has not been synced", translog.ensureSynced(locations.stream()));
                 // we are the last location so everything should be synced
-                assertFalse("the last call to ensureSycned synced all previous ops", translog.syncNeeded());
+                assertFalse("the last call to ensureSynced synced all previous ops", translog.syncNeeded());
             } else if (rarely()) {
                 rollAndCommit(translog);
                 // not syncing now

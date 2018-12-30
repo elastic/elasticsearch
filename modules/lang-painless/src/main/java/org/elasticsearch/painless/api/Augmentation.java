@@ -453,7 +453,7 @@ public class Augmentation {
     public static String replaceAll(CharSequence receiver, Pattern pattern, Function<Matcher, String> replacementBuilder) {
         Matcher m = pattern.matcher(receiver);
         if (false == m.find()) {
-            // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
+            // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
         StringBuffer result = new StringBuffer(initialBufferForReplaceWith(receiver));
@@ -471,7 +471,7 @@ public class Augmentation {
     public static String replaceFirst(CharSequence receiver, Pattern pattern, Function<Matcher, String> replacementBuilder) {
         Matcher m = pattern.matcher(receiver);
         if (false == m.find()) {
-            // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
+            // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
         StringBuffer result = new StringBuffer(initialBufferForReplaceWith(receiver));

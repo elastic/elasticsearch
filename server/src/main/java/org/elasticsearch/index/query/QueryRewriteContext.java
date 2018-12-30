@@ -77,7 +77,7 @@ public class QueryRewriteContext {
 
     /**
      * Registers an async action that must be executed before the next rewrite round in order to make progress.
-     * This should be used if a rewriteabel needs to fetch some external resources in order to be executed i.e. a document
+     * This should be used if a rewritable needs to fetch some external resources in order to be executed i.e. a document
      * from an index.
      */
     public void registerAsyncAction(BiConsumer<Client, ActionListener<?>> asyncAction) {

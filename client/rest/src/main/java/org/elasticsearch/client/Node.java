@@ -186,19 +186,19 @@ public class Node {
         }
 
         /**
-         * Teturns whether or not the node <strong>could</strong> be elected master.
+         * Returns whether or not the node <strong>could</strong> be elected master.
          */
         public boolean isMasterEligible() {
             return masterEligible;
         }
         /**
-         * Teturns whether or not the node stores data.
+         * Returns whether or not the node stores data.
          */
         public boolean isData() {
             return data;
         }
         /**
-         * Teturns whether or not the node runs ingest pipelines.
+         * Returns whether or not the node runs ingest pipelines.
          */
         public boolean isIngest() {
             return ingest;

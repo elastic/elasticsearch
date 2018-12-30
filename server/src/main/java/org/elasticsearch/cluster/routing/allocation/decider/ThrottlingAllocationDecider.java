@@ -92,19 +92,19 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
                 this::setPrimariesInitialRecoveries);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-                this::setConcurrentIncomingRecoverries);
+                this::setConcurrentIncomingRecoveries);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-                this::setConcurrentOutgoingRecoverries);
+                this::setConcurrentOutgoingRecoveries);
 
         logger.debug("using node_concurrent_outgoing_recoveries [{}], node_concurrent_incoming_recoveries [{}], " +
                         "node_initial_primaries_recoveries [{}]",
                 concurrentOutgoingRecoveries, concurrentIncomingRecoveries, primariesInitialRecoveries);
     }
 
-    private void setConcurrentIncomingRecoverries(int concurrentIncomingRecoveries) {
+    private void setConcurrentIncomingRecoveries(int concurrentIncomingRecoveries) {
         this.concurrentIncomingRecoveries = concurrentIncomingRecoveries;
     }
-    private void setConcurrentOutgoingRecoverries(int concurrentOutgoingRecoveries) {
+    private void setConcurrentOutgoingRecoveries(int concurrentOutgoingRecoveries) {
         this.concurrentOutgoingRecoveries = concurrentOutgoingRecoveries;
     }
 

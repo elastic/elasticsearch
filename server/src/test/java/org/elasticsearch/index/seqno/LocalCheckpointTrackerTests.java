@@ -232,7 +232,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         final AtomicBoolean complete = new AtomicBoolean();
         final Thread thread = new Thread(() -> {
             try {
-                // sychronize starting with the test thread
+                // synchronize starting with the test thread
                 barrier.await();
                 tracker.waitForOpsToComplete(seqNo);
                 complete.set(true);

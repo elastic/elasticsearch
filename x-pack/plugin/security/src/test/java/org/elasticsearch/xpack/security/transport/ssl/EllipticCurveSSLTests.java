@@ -46,7 +46,7 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
                 .put("xpack.ssl.key", keyPath)
                 .put("xpack.ssl.certificate", certPath)
                 .put("xpack.ssl.certificate_authorities", certPath)
-                .put("xpack.ssl.verification_mode", "certificate") // disable hostname verificate since these certs aren't setup for that
+                .put("xpack.ssl.verification_mode", "certificate") // disable hostname verification since these certs aren't setup for that
                 .build();
     }
 

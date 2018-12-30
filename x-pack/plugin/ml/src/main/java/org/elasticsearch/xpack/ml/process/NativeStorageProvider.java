@@ -85,7 +85,7 @@ public class NativeStorageProvider {
                     return getUsableSpace(p) >= requestedSize.getBytes() + minLocalStorageAvailable.getBytes();
                 }
             } catch (IOException e) {
-                LOGGER.debug("Failed to optain information about path [{}]: {}", path, e);
+                LOGGER.debug("Failed to obtain information about path [{}]: {}", path, e);
             }
         }
 

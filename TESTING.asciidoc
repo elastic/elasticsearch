@@ -166,7 +166,7 @@ systemProp.tests.jvms=8
 ----------------------------
 
 Its difficult to pick the "right" number here. Hypercores don't count for CPU
-intensive tests and you should leave some slack for JVM-interal threads like
+intensive tests and you should leave some slack for JVM-internal threads like
 the garbage collector. And you have to have enough RAM to handle each JVM.
 
 === Test compatibility.

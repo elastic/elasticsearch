@@ -156,8 +156,8 @@ public class PrecisionAtKTests extends ESTestCase {
     public void testParseFromXContent() throws IOException {
         String xContent = " {\n" + "   \"relevant_rating_threshold\" : 2" + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
-            PrecisionAtK precicionAt = PrecisionAtK.fromXContent(parser);
-            assertEquals(2, precicionAt.getRelevantRatingThreshold());
+            PrecisionAtK precisionAt = PrecisionAtK.fromXContent(parser);
+            assertEquals(2, precisionAt.getRelevantRatingThreshold());
         }
     }
 

@@ -2588,7 +2588,7 @@ public class TranslogTests extends ESTestCase {
                 for (int i = 0; i < 1; i++) {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null", next);
-                    assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.utf8ToString()));
+                    assertEquals("payload mismatch", i, Integer.parseInt(next.getSource().source.utf8ToString()));
                 }
             }
             tlog.add(new Translog.Index("test", "" + 1, 1, primaryTerm.get(),

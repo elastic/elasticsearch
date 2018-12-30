@@ -72,7 +72,7 @@ public class ShardPathTests extends ESTestCase {
         }
     }
 
-    public void testFailLoadShardPathIndexUUIDMissmatch() throws IOException {
+    public void testFailLoadShardPathIndexUUIDMismatch() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
             Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "foobar")
                     .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);

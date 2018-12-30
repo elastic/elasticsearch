@@ -71,7 +71,7 @@ public class DatafeedJobBuilder {
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
 
         // Step 5. Build datafeed job object
-        Consumer<Context> contextHanlder = context -> {
+        Consumer<Context> contextHandler = context -> {
             TimeValue frequency = getFrequencyOrDefault(datafeedConfigHolder.get(), jobHolder.get());
             TimeValue queryDelay = datafeedConfigHolder.get().getQueryDelay();
             DelayedDataDetector delayedDataDetector =
@@ -90,7 +90,7 @@ public class DatafeedJobBuilder {
         ActionListener<DataExtractorFactory> dataExtractorFactoryHandler = ActionListener.wrap(
                 dataExtractorFactory -> {
                     context.dataExtractorFactory = dataExtractorFactory;
-                    contextHanlder.accept(context);
+                    contextHandler.accept(context);
                 }, e -> {
                     auditor.error(jobHolder.get().getId(), e.getMessage());
                     listener.onFailure(e);

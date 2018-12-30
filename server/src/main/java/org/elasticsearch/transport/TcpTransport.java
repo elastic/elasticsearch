@@ -619,20 +619,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (channel.isOpen()) {
                 BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
-                ActionListener<Void> listener = new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(Void v) {
-                        CloseableChannel.closeChannel(channel);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        // TODO: Maybe we do not need this log since we log a warn on a normal failure
-                        logger.debug("failed to send message to httpOnTransport channel", e);
-                        CloseableChannel.closeChannel(channel);
-                    }
-                };
-                outboundHandler.sendBytes(channel, message, listener);
+                outboundHandler.sendBytes(channel, message, ActionListener.wrap(() -> CloseableChannel.closeChannel(channel)));
             }
         } else {
             logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);

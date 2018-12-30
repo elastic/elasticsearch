@@ -52,7 +52,7 @@ public final class TransportLogger {
         if (logger.isTraceEnabled()) {
             try {
                 if (message.get(0) != 'E') {
-                    // TODO: Add some validation that this is the http on transport exception
+                    // This is not an Elasticsearch transport message.
                     return;
                 }
                 BytesReference withoutHeader = message.slice(HEADER_SIZE, message.length() - HEADER_SIZE);

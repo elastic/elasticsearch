@@ -182,7 +182,7 @@ public class LegacyUpdateMappingIntegrationIT extends ESIntegTestCase {
             {
                 mappingBuilder.startObject(MapperService.DEFAULT_MAPPING);
                 {
-                    mappingBuilder.startObject("properites");
+                    mappingBuilder.startObject("properties");
                     {
                         mappingBuilder.startObject("f");
                         {

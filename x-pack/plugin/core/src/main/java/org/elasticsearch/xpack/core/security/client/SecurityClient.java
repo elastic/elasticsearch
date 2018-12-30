@@ -135,7 +135,7 @@ public class SecurityClient {
      ****************/
 
     /**
-     * Clears the roles cache. This API only works for the naitve roles that are stored in an elasticsearch index. It is
+     * Clears the roles cache. This API only works for the native roles that are stored in an elasticsearch index. It is
      * possible to clear the cache of all roles or to specify the names of individual roles that should have their cache
      * cleared.
      */
@@ -144,7 +144,7 @@ public class SecurityClient {
     }
 
     /**
-     * Clears the roles cache. This API only works for the naitve roles that are stored in an elasticsearch index. It is
+     * Clears the roles cache. This API only works for the native roles that are stored in an elasticsearch index. It is
      * possible to clear the cache of all roles or to specify the names of individual roles that should have their cache
      * cleared.
      */
@@ -153,7 +153,7 @@ public class SecurityClient {
     }
 
     /**
-     * Clears the roles cache. This API only works for the naitve roles that are stored in an elasticsearch index. It is
+     * Clears the roles cache. This API only works for the native roles that are stored in an elasticsearch index. It is
      * possible to clear the cache of all roles or to specify the names of individual roles that should have their cache
      * cleared.
      */

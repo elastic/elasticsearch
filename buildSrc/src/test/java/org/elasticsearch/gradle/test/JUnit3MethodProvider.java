@@ -39,7 +39,7 @@ public final class JUnit3MethodProvider implements TestMethodProvider {
         Map<Method,MethodModel> methods = classModel.getMethods();
         ArrayList<Method> result = new ArrayList<>();
         for (MethodModel mm : methods.values()) {
-            // Skip any methods that have overrieds/ shadows.
+            // Skip any methods that have overrides/ shadows.
             if (mm.getDown() != null) continue;
 
             Method m = mm.element;

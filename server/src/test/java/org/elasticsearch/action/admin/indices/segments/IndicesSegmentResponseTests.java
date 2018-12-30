@@ -35,7 +35,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class IndicesSegmentResponseTests extends ESTestCase {
 
-    public void testToXContentSerialiationWithSortedFields() throws Exception {
+    public void testToXContentSerializationWithSortedFields() throws Exception {
         ShardRouting shardRouting = TestShardRouting.newShardRouting("foo", 0, "node_id", true, ShardRoutingState.STARTED);
         Segment segment = new Segment("my");
 

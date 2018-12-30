@@ -251,7 +251,7 @@ additional names that can be used:
     `NameID` elements are an optional, but frequently provided, field within a
     SAML Assertion that the IdP may use to identify the Subject of that
     Assertion. In some cases the `NameID` will relate to the user's login
-    identifier (username) wihin the IdP, but in many cases they will be
+    identifier (username) within the IdP, but in many cases they will be
     internally generated identifiers that have no obvious meaning outside
     of the IdP.
 

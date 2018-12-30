@@ -112,8 +112,8 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * <li>vint: endOffset_1 (if offset)</li>
  * <li>BytesRef: payload_1 (if payloads)</li>
  * <li>...</li>
- * <li>vint: endOffset_freqency (if offset)</li>
- * <li>BytesRef: payload_freqency (if payloads)</li>
+ * <li>vint: endOffset_frequency (if offset)</li>
+ * <li>BytesRef: payload_frequency (if payloads)</li>
  * </ul></li>
  * </ul>
  */

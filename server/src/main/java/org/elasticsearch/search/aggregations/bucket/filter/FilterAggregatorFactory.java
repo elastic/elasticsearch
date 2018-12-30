@@ -52,7 +52,7 @@ public class FilterAggregatorFactory extends AggregatorFactory<FilterAggregatorF
      * if the aggregation collects documents reducing the overhead of the
      * aggregation in the case where no documents are collected.
      * 
-     * Note that as aggregations are initialsed and executed in a serial manner,
+     * Note that as aggregations are initialised and executed in a serial manner,
      * no concurrency considerations are necessary here.
      */
     public Weight getWeight() {
@@ -61,7 +61,7 @@ public class FilterAggregatorFactory extends AggregatorFactory<FilterAggregatorF
             try {
                 weight = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             } catch (IOException e) {
-                throw new AggregationInitializationException("Failed to initialse filter", e);
+                throw new AggregationInitializationException("Failed to initialise filter", e);
             }
         }
         return weight;

@@ -121,7 +121,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
@@ -152,7 +152,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
@@ -176,7 +176,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
@@ -202,7 +202,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
@@ -241,7 +241,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
@@ -267,7 +267,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             assertEquals(Strings.toString(mapping), mapper2.mappingSource().toString());
 
             ThrowingRunnable runnable = () -> mapper2
-                    .parse(SourceToParse.source(
+                    .parse(new SourceToParse(
                             "test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().startObject("field")
                                     .field(getFromField(), "5.2").field(getToField(), "10").endObject().endObject()),
                             XContentType.JSON));
@@ -287,7 +287,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(GT_FIELD.getPreferredName(), "2.34")
@@ -296,7 +296,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .endObject()),
             XContentType.JSON));
 
-        ParsedDocument doc2 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc2 = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(GT_FIELD.getPreferredName(), "2")
@@ -324,7 +324,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
         // test null value for min and max
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .nullField(getFromField())
@@ -339,7 +339,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(storedField.stringValue(), containsString(expected));
 
         // test null max value
-        doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+        doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
@@ -367,7 +367,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(storedField.stringValue(), containsString(strVal));
 
         // test null range
-        doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .nullField("field")
@@ -394,7 +394,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
         // test no bounds specified
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .endObject()

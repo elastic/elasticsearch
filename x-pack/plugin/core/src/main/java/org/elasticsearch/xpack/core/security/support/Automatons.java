@@ -154,7 +154,7 @@ public final class Automatons {
                         length += 1;
                         automata.add(Automata.makeChar(nextChar));
                         break;
-                    } // else fallthru, lenient parsing with a trailing \
+                    } // else fallthrough, lenient parsing with a trailing \
                 default:
                     automata.add(Automata.makeChar(c));
             }

@@ -77,11 +77,11 @@ final class CompositeAggregator extends BucketsAggregator {
                         int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         // check that the provided size is not greater than the search.max_buckets setting
-        int limit = context.aggregations().multiBucketConsumer().getLimit();
-        if (size > context.aggregations().multiBucketConsumer().getLimit()) {
+        int bucketLimit = context.aggregations().multiBucketConsumer().getLimit();
+        if (size > bucketLimit) {
             throw new MultiBucketConsumerService.TooManyBucketsException("Trying to create too many buckets. Must be less than or equal" +
-                " to: [" + limit + "] but was [" + size + "]. This limit can be set by changing the [" + MAX_BUCKET_SETTING.getKey() +
-                "] cluster level setting.", limit);
+                " to: [" + bucketLimit + "] but was [" + size + "]. This limit can be set by changing the [" + MAX_BUCKET_SETTING.getKey() +
+                "] cluster level setting.", bucketLimit);
         }
         this.size = size;
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
@@ -98,10 +98,9 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected void doClose() {
-        if (queue != null) {
+        try {
             Releasables.close(queue);
-        }
-        if (sources != null) {
+        } finally {
             Releasables.close(sources);
         }
     }
@@ -130,13 +129,12 @@ final class CompositeAggregator extends BucketsAggregator {
 
         int num = Math.min(size, queue.size());
         final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
-        int pos = queue.size() - 1;
         while (queue.size() > 0) {
             int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = bucketAggregations(slot);
             int docCount = queue.getDocCount(slot);
-            buckets[pos--] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
+            buckets[queue.size()] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
         return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,

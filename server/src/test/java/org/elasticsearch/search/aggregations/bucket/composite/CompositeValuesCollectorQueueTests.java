@@ -133,9 +133,9 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
     }
 
     private void testRandomCase(ClassAndName... types) throws IOException {
-        //testRandomCase(true, true, types);
+        testRandomCase(true, true, types);
         testRandomCase(true, false, types);
-        //testRandomCase(false, true, types);
+        testRandomCase(false, true, types);
         testRandomCase(false, false, types);
     }
 

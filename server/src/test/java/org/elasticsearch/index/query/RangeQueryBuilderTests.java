@@ -37,7 +37,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -92,7 +91,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     if (randomBoolean()) {
                         String format = "yyyy-MM-dd'T'HH:mm:ss";
                         query.format(format);
-                        DateFormatter formatter = DateFormatters.forPattern(format);
+                        DateFormatter formatter = DateFormatter.forPattern(format);
                         query.from(formatter.format(start));
                         query.to(formatter.format(end));
                     }

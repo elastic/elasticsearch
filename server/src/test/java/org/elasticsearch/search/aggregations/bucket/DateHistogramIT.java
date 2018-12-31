@@ -94,7 +94,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private static String format(ZonedDateTime date, String pattern) {
-        return DateFormatters.forPattern(pattern).format(date);
+        return DateFormatter.forPattern(pattern).format(date);
     }
 
     private IndexRequestBuilder indexDoc(String idx, ZonedDateTime date, int value) throws Exception {
@@ -201,7 +201,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private static String getBucketKeyAsString(ZonedDateTime key, ZoneId tz) {
-        return DateFormatters.forPattern("strict_date_optional_time").withZone(tz).format(key);
+        return DateFormatter.forPattern("strict_date_optional_time").withZone(tz).format(key);
     }
 
     public void testSingleValuedField() throws Exception {
@@ -1125,7 +1125,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .get();
 
-        DateMathParser parser = DateFormatters.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis").toDateMathParser();
+        DateMathParser parser = DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis").toDateMathParser();
 
         // we pick a random timezone offset of +12/-12 hours and insert two documents
         // one at 00:00 in that time zone and one at 12:00
@@ -1185,7 +1185,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .get();
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        DateFormatter formatter = DateFormatters.forPattern("date_optional_time");
+        DateFormatter formatter = DateFormatter.forPattern("date_optional_time");
         builders.add(indexDoc(index, DateFormatters.toZonedDateTime(formatter.parse("2016-01-03T08:00:00.000Z")), 1));
         builders.add(indexDoc(index, DateFormatters.toZonedDateTime(formatter.parse("2016-01-03T08:00:00.000Z")), 2));
         builders.add(indexDoc(index, DateFormatters.toZonedDateTime(formatter.parse("2016-01-06T08:00:00.000Z")), 3));

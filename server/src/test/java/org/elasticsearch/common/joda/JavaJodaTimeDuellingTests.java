@@ -476,20 +476,45 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSamePrinterOutput("strictYear", javaDate, jodaDate);
         assertSamePrinterOutput("strictYearMonth", javaDate, jodaDate);
         assertSamePrinterOutput("strictYearMonthDay", javaDate, jodaDate);
-        assertSamePrinterOutput("strict_date_optional_time||epoch_millis", javaDate, jodaDate);
+        assertSamePrinterOutput("strict_date_optional_time", javaDate, jodaDate);
+        assertSamePrinterOutput("epoch_millis", javaDate, jodaDate);
+    }
+
+    public void testSamePrinterOutputWithTimeZone() {
+        String format = "strict_date_optional_time";
+        String dateInput = "2017-02-01T08:02:00.000-01:00";
+        DateFormatter javaFormatter = DateFormatter.forPattern(format);
+        TemporalAccessor javaDate = javaFormatter.parse(dateInput);
+
+        DateFormatter jodaFormatter = Joda.forPattern(format);
+        DateTime dateTime = jodaFormatter.parseJoda(dateInput);
+
+        String javaDateString = javaFormatter.withZone(ZoneOffset.ofHours(-1)).format(javaDate);
+        String jodaDateString = jodaFormatter.withZone(ZoneOffset.ofHours(-1)).formatJoda(dateTime);
+        String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
+            format, jodaDateString, javaDateString);
+        assertThat(message, javaDateString, is(jodaDateString));
+    }
+
+    public void testDateFormatterWithLocale() {
+        Locale locale = randomLocale(random());
+        String pattern = randomBoolean() ? "strict_date_optional_time||date_time" : "date_time||strict_date_optional_time";
+        DateFormatter formatter = DateFormatter.forPattern(pattern).withLocale(locale);
+        assertThat(formatter.pattern(), is(pattern));
+        assertThat(formatter.locale(), is(locale));
     }
 
     public void testSeveralTimeFormats() {
-        DateFormatter jodaFormatter = DateFormatter.forPattern("year_month_day||ordinal_date");
-        DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||ordinal_date");
+        DateFormatter jodaFormatter = Joda.forPattern("year_month_day||ordinal_date");
+        DateFormatter javaFormatter = DateFormatter.forPattern("year_month_day||ordinal_date");
         assertSameDate("2018-12-12", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
         assertSameDate("2018-128", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
     }
 
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
-        String javaTimeOut = DateFormatters.forPattern(format).format(javaDate);
-        String jodaTimeOut = DateFormatter.forPattern(format).formatJoda(jodaDate);
+        String javaTimeOut = DateFormatter.forPattern(format).format(javaDate);
+        String jodaTimeOut = Joda.forPattern(format).formatJoda(jodaDate);
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
                 format, jodaTimeOut, javaTimeOut);
         assertThat(message, javaTimeOut, is(jodaTimeOut));
@@ -497,7 +522,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     private void assertSameDate(String input, String format) {
         DateFormatter jodaFormatter = Joda.forPattern(format);
-        DateFormatter javaFormatter = DateFormatters.forPattern(format);
+        DateFormatter javaFormatter = DateFormatter.forPattern(format);
 
         assertSameDate(input, format, jodaFormatter, javaFormatter);
     }
@@ -526,7 +551,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJavaTimeParseException(String input, String format) {
-        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
+        DateFormatter javaTimeFormatter = DateFormatter.forPattern(format);
         ElasticsearchParseException e= expectThrows(ElasticsearchParseException.class, () -> javaTimeFormatter.parse(input));
         // using starts with because the message might contain a position in addition
         assertThat(e.getMessage(), startsWith("could not parse input [" + input + "] with date formatter [" + format + "]"));

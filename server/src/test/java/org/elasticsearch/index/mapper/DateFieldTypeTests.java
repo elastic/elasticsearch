@@ -32,6 +32,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -62,13 +63,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         addModifier(new Modifier("format", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(DateFormatters.forPattern("basic_week_date"));
+                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
             }
         });
         addModifier(new Modifier("locale", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(DateFormatters.forPattern("strict_date_optional_time").withLocale(Locale.CANADA));
+                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("strict_date_optional_time").withLocale(Locale.CANADA));
             }
         });
         nowInMillis = randomNonNegativeLong();

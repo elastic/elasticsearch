@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
 
@@ -176,7 +175,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         public DateTime(StreamInput in) throws IOException {
-            this.formatter = DateFormatters.forPattern(in.readString());
+            this.formatter = DateFormatter.forPattern(in.readString());
             this.parser = formatter.toDateMathParser();
             String zoneId = in.readString();
             if (in.getVersion().before(Version.V_7_0_0)) {

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.watcher.history;
 
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 
 import java.time.ZonedDateTime;
@@ -15,7 +14,7 @@ public final class HistoryStoreField {
 
     public static final String INDEX_PREFIX = ".watcher-history-";
     public static final String INDEX_PREFIX_WITH_TEMPLATE = INDEX_PREFIX + WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION + "-";
-    private static final DateFormatter indexTimeFormat = DateFormatters.forPattern("YYYY.MM.dd");
+    private static final DateFormatter indexTimeFormat = DateFormatter.forPattern("YYYY.MM.dd");
 
     /**
      * Calculates the correct history index name for a given time

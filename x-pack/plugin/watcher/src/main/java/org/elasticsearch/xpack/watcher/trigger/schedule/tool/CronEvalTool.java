@@ -12,7 +12,6 @@ import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.time.Instant;
@@ -29,11 +28,11 @@ public class CronEvalTool extends LoggingAwareCommand {
         exit(new CronEvalTool().main(args, Terminal.DEFAULT));
     }
 
-    private static final DateFormatter UTC_FORMATTER = DateFormatters.forPattern("EEE, d MMM yyyy HH:mm:ss")
+    private static final DateFormatter UTC_FORMATTER = DateFormatter.forPattern("EEE, d MMM yyyy HH:mm:ss")
         .withZone(ZoneOffset.UTC)
         .withLocale(Locale.ROOT);
 
-    private static final DateFormatter LOCAL_FORMATTER = DateFormatters.forPattern("EEE, d MMM yyyy HH:mm:ss Z")
+    private static final DateFormatter LOCAL_FORMATTER = DateFormatter.forPattern("EEE, d MMM yyyy HH:mm:ss Z")
         .withZone(ZoneId.systemDefault());
 
     private final OptionSpec<Integer> countOption;

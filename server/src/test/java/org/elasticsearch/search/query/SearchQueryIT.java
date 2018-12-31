@@ -29,7 +29,7 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -435,7 +435,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         ));
 
         ZoneId timeZone = randomZone();
-        String now = DateFormatters.forPattern("strict_date_optional_time").format(Instant.now().atZone(timeZone));
+        String now = DateFormatter.forPattern("strict_date_optional_time").format(Instant.now().atZone(timeZone));
         logger.info(" --> Using time_zone [{}], now is [{}]", timeZone.getId(), now);
         client().prepareIndex("test", "type", "1").setSource("past", now).get();
         refresh();

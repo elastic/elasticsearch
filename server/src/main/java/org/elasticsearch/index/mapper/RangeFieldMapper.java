@@ -49,7 +49,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -151,7 +150,7 @@ public class RangeFieldMapper extends FieldMapper {
                     Objects.equals(builder.pattern, formatter.pattern()) == false;
 
                 if (hasPatternChanged || Objects.equals(builder.locale, formatter.locale()) == false) {
-                    fieldType().setDateTimeFormatter(DateFormatters.forPattern(pattern).withLocale(locale));
+                    fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
                 }
             } else if (pattern != null) {
                 throw new IllegalArgumentException("field [" + name() + "] of type [" + fieldType().rangeType

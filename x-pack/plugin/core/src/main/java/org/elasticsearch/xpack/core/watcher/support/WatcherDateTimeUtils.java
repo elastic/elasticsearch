@@ -28,7 +28,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 public class WatcherDateTimeUtils {
 
-    public static final DateFormatter dateTimeFormatter = DateFormatters.forPattern("strict_date_optional_time||epoch_millis");
+    public static final DateFormatter dateTimeFormatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
     public static final DateMathParser dateMathParser = dateTimeFormatter.toDateMathParser();
 
 

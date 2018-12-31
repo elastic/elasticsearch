@@ -138,7 +138,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
     }
 
     public void testRewriteTimeZone() throws IOException {
-        DateFormatter format = DateFormatters.forPattern("strict_date_optional_time");
+        DateFormatter format = DateFormatter.forPattern("strict_date_optional_time");
 
         try (Directory dir = newDirectory();
                 IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {

@@ -7,7 +7,6 @@ package org.elasticsearch.license.licensor;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -36,7 +35,7 @@ public class TestUtils {
     public static final String PUBLIC_KEY_RESOURCE = "/public.key";
     public static final String PRIVATE_KEY_RESOURCE = "/private.key";
 
-    private static final DateFormatter dateFormatter = DateFormatters.forPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
+    private static final DateFormatter dateFormatter = DateFormatter.forPattern("yyyy-MM-dd");
     private static final DateMathParser dateMathParser = dateFormatter.toDateMathParser();
 
     public static String dumpLicense(License license) throws Exception {

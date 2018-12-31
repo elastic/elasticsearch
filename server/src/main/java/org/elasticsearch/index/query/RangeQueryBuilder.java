@@ -30,7 +30,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -281,7 +281,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             throw new IllegalArgumentException("format cannot be null");
         }
         // this just ensure that the pattern is actually valid, no need to keep it here
-        DateFormatters.forPattern(format);
+        DateFormatter.forPattern(format);
         this.format = format;
         return this;
     }
@@ -295,7 +295,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     DateMathParser getForceDateParser() { // pkg private for testing
         if (Strings.isEmpty(format) == false) {
-            return DateFormatters.forPattern(this.format).toDateMathParser();
+            return DateFormatter.forPattern(this.format).toDateMathParser();
         }
         return null;
     }

@@ -42,7 +42,7 @@ public class DateFormattersTests extends ESTestCase {
     // but is able to parse the rest
     // as this feature is supported it also makes sense to make it exact
     public void testEpochMillisParser() {
-        DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
+        DateFormatter formatter = DateFormatter.forPattern("epoch_millis");
         {
             Instant instant = Instant.from(formatter.parse("12345.6789"));
             assertThat(instant.getEpochSecond(), is(12L));
@@ -81,7 +81,7 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testInvalidEpochMilliParser() {
-        DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
+        DateFormatter formatter = DateFormatter.forPattern("epoch_millis");
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> formatter.parse("invalid"));
         assertThat(e.getMessage(), is("invalid number [invalid]"));
 
@@ -93,7 +93,7 @@ public class DateFormattersTests extends ESTestCase {
     // but is able to parse the rest
     // as this feature is supported it also makes sense to make it exact
     public void testEpochSecondParser() {
-        DateFormatter formatter = DateFormatters.forPattern("epoch_second");
+        DateFormatter formatter = DateFormatter.forPattern("epoch_second");
 
         assertThat(Instant.from(formatter.parse("1234.567")).toEpochMilli(), is(1234567L));
         assertThat(Instant.from(formatter.parse("1234.")).getNano(), is(0));
@@ -122,79 +122,79 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testEpochMilliParsersWithDifferentFormatters() {
-        DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time||epoch_millis");
+        DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
         TemporalAccessor accessor = formatter.parse("123");
         assertThat(DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli(), is(123L));
         assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
     }
 
     public void testLocales() {
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").locale(), is(Locale.ROOT));
+        assertThat(DateFormatter.forPattern("strict_date_optional_time").locale(), is(Locale.ROOT));
         Locale locale = randomLocale(random());
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").withLocale(locale).locale(), is(locale));
+        assertThat(DateFormatter.forPattern("strict_date_optional_time").withLocale(locale).locale(), is(locale));
         if (locale.equals(Locale.ROOT)) {
-            DateFormatter millisFormatter = DateFormatters.forPattern("epoch_millis");
+            DateFormatter millisFormatter = DateFormatter.forPattern("epoch_millis");
             assertThat(millisFormatter.withLocale(locale), is(millisFormatter));
-            DateFormatter secondFormatter = DateFormatters.forPattern("epoch_second");
+            DateFormatter secondFormatter = DateFormatter.forPattern("epoch_second");
             assertThat(secondFormatter.withLocale(locale), is(secondFormatter));
         } else {
             IllegalArgumentException e =
-                expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_millis").withLocale(locale));
+                expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern("epoch_millis").withLocale(locale));
             assertThat(e.getMessage(), is("epoch_millis date formatter can only be in locale ROOT"));
-            e = expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_second").withLocale(locale));
+            e = expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern("epoch_second").withLocale(locale));
             assertThat(e.getMessage(), is("epoch_second date formatter can only be in locale ROOT"));
         }
     }
 
     public void testTimeZones() {
         // zone is null by default due to different behaviours between java8 and above
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").zone(), is(nullValue()));
+        assertThat(DateFormatter.forPattern("strict_date_optional_time").zone(), is(nullValue()));
         ZoneId zoneId = randomZone();
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").withZone(zoneId).zone(), is(zoneId));
+        assertThat(DateFormatter.forPattern("strict_date_optional_time").withZone(zoneId).zone(), is(zoneId));
         if (zoneId.equals(ZoneOffset.UTC)) {
-            DateFormatter millisFormatter = DateFormatters.forPattern("epoch_millis");
+            DateFormatter millisFormatter = DateFormatter.forPattern("epoch_millis");
             assertThat(millisFormatter.withZone(zoneId), is(millisFormatter));
-            DateFormatter secondFormatter = DateFormatters.forPattern("epoch_second");
+            DateFormatter secondFormatter = DateFormatter.forPattern("epoch_second");
             assertThat(secondFormatter.withZone(zoneId), is(secondFormatter));
         } else {
             IllegalArgumentException e =
-                expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_millis").withZone(zoneId));
+                expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern("epoch_millis").withZone(zoneId));
             assertThat(e.getMessage(), is("epoch_millis date formatter can only be in zone offset UTC"));
-            e = expectThrows(IllegalArgumentException.class, () -> DateFormatters.forPattern("epoch_second").withZone(zoneId));
+            e = expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern("epoch_second").withZone(zoneId));
             assertThat(e.getMessage(), is("epoch_second date formatter can only be in zone offset UTC"));
         }
     }
 
     public void testEqualsAndHashcode() {
-        assertThat(DateFormatters.forPattern("strict_date_optional_time"),
-            sameInstance(DateFormatters.forPattern("strict_date_optional_time")));
-        assertThat(DateFormatters.forPattern("YYYY"), equalTo(DateFormatters.forPattern("YYYY")));
-        assertThat(DateFormatters.forPattern("YYYY").hashCode(),
-            is(DateFormatters.forPattern("YYYY").hashCode()));
+        assertThat(DateFormatter.forPattern("strict_date_optional_time"),
+            sameInstance(DateFormatter.forPattern("strict_date_optional_time")));
+        assertThat(DateFormatter.forPattern("YYYY"), equalTo(DateFormatter.forPattern("YYYY")));
+        assertThat(DateFormatter.forPattern("YYYY").hashCode(),
+            is(DateFormatter.forPattern("YYYY").hashCode()));
 
         // different timezone, thus not equals
-        assertThat(DateFormatters.forPattern("YYYY").withZone(ZoneId.of("CET")), not(equalTo(DateFormatters.forPattern("YYYY"))));
+        assertThat(DateFormatter.forPattern("YYYY").withZone(ZoneId.of("CET")), not(equalTo(DateFormatter.forPattern("YYYY"))));
 
         // different locale, thus not equals
-        DateFormatter f1 = DateFormatters.forPattern("YYYY").withLocale(Locale.CANADA);
+        DateFormatter f1 = DateFormatter.forPattern("YYYY").withLocale(Locale.CANADA);
         DateFormatter f2 = f1.withLocale(Locale.FRENCH);
         assertThat(f1, not(equalTo(f2)));
 
         // different pattern, thus not equals
-        assertThat(DateFormatters.forPattern("YYYY"), not(equalTo(DateFormatters.forPattern("YY"))));
+        assertThat(DateFormatter.forPattern("YYYY"), not(equalTo(DateFormatter.forPattern("YY"))));
 
-        DateFormatter epochSecondFormatter = DateFormatters.forPattern("epoch_second");
-        assertThat(epochSecondFormatter, sameInstance(DateFormatters.forPattern("epoch_second")));
-        assertThat(epochSecondFormatter, equalTo(DateFormatters.forPattern("epoch_second")));
-        assertThat(epochSecondFormatter.hashCode(), is(DateFormatters.forPattern("epoch_second").hashCode()));
+        DateFormatter epochSecondFormatter = DateFormatter.forPattern("epoch_second");
+        assertThat(epochSecondFormatter, sameInstance(DateFormatter.forPattern("epoch_second")));
+        assertThat(epochSecondFormatter, equalTo(DateFormatter.forPattern("epoch_second")));
+        assertThat(epochSecondFormatter.hashCode(), is(DateFormatter.forPattern("epoch_second").hashCode()));
 
-        DateFormatter epochMillisFormatter = DateFormatters.forPattern("epoch_millis");
-        assertThat(epochMillisFormatter.hashCode(), is(DateFormatters.forPattern("epoch_millis").hashCode()));
-        assertThat(epochMillisFormatter, sameInstance(DateFormatters.forPattern("epoch_millis")));
-        assertThat(epochMillisFormatter, equalTo(DateFormatters.forPattern("epoch_millis")));
+        DateFormatter epochMillisFormatter = DateFormatter.forPattern("epoch_millis");
+        assertThat(epochMillisFormatter.hashCode(), is(DateFormatter.forPattern("epoch_millis").hashCode()));
+        assertThat(epochMillisFormatter, sameInstance(DateFormatter.forPattern("epoch_millis")));
+        assertThat(epochMillisFormatter, equalTo(DateFormatter.forPattern("epoch_millis")));
     }
 
-    public void testForceJava8() {
+    public void testSupportBackwardsJava8Format() {
         assertThat(DateFormatter.forPattern("8yyyy-MM-dd"), instanceOf(JavaDateFormatter.class));
         // named formats too
         assertThat(DateFormatter.forPattern("8date_optional_time"), instanceOf(JavaDateFormatter.class));

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.ml.filestructurefinder.TimestampFormatFinder.TimestampMatch;
 
 import java.util.Arrays;
@@ -316,7 +316,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
                 String timestampFormat = javaTimestampFormats.get(i);
                 switch (timestampFormat) {
                     case "ISO8601":
-                        parsed = DateFormatters.forPattern("strict_date_optional_time_nanos").withZone(defaultZone).parse(text);
+                        parsed = DateFormatter.forPattern("strict_date_optional_time_nanos").withZone(defaultZone).parse(text);
                         break;
                     default:
                         java.time.format.DateTimeFormatter parser = new java.time.format.DateTimeFormatterBuilder()

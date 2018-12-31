@@ -123,7 +123,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             builder.field(ParseField.CommonFields.FIELD.getPreferredName(), fieldName);
         }
         if (timeZone != null) {
-            builder.field(ParseField.CommonFields.TIME_ZONE.getPreferredName(), timeZone);
+            builder.field(ParseField.CommonFields.TIME_ZONE.getPreferredName(), timeZone.getId());
         }
         builder.endObject();
         return builder;

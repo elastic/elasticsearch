@@ -282,18 +282,16 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             if (i == 64) {
                 // Anomaly has 100 docs, but we don't care about the value
                 for (int j = 0; j < 100; j++) {
-                    Request createDocRequest = new Request("PUT", "/painless/_doc/" +
-                        time.format(DateTimeFormatter.ISO_DATE_TIME) + "_" + j);
-                    createDocRequest.setJsonEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" +
-                        time.format(DateTimeFormatter.ISO_DATE_TIME) + "\"}");
+                    String formattedTime = time.format(DateTimeFormatter.ISO_DATE_TIME);
+                    Request createDocRequest = new Request("PUT", "/painless/_doc/" + formattedTime + "_" + j);
+                    createDocRequest.setJsonEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + formattedTime + "\"}");
                     client().performRequest(createDocRequest);
                 }
             } else {
                 // Non-anomalous values will be what's seen when the anomaly is reported
-                Request createDocRequest = new Request("PUT", "/painless/_doc/" +
-                    time.format(DateTimeFormatter.ISO_DATE_TIME));
-                createDocRequest.setJsonEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" +
-                    time.format(DateTimeFormatter.ISO_DATE_TIME) + "\"}");
+                String formattedTime = time.format(DateTimeFormatter.ISO_DATE_TIME);
+                Request createDocRequest = new Request("PUT", "/painless/_doc/" + formattedTime);
+                createDocRequest.setJsonEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + formattedTime + "\"}");
                 client().performRequest(createDocRequest);
             }
         }

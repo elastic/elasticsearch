@@ -40,7 +40,8 @@ public class GroupByDateHistogram extends GroupByKey {
     @Override
     protected CompositeValuesSourceBuilder<?> createSourceBuilder() {
         return new DateHistogramValuesSourceBuilder(id())
-                .interval(interval);
+                .interval(interval)
+                .timeZone(zoneId);
     }
 
     @Override

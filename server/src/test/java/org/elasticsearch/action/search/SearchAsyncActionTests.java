@@ -50,6 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -62,19 +63,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);
         int numShards = 10;
-        AtomicReference<TestSearchResponse> response = new AtomicReference<>();
-        ActionListener<SearchResponse> responseListener = new ActionListener<SearchResponse>() {
-            @Override
-            public void onResponse(SearchResponse searchResponse) {
-                response.set((TestSearchResponse) searchResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("test failed", e);
-                fail(e.getMessage());
-            }
-        };
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {}, e -> fail(e.getMessage()));
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
 
@@ -90,6 +79,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
         }
         CountDownLatch latch = new CountDownLatch(numShards - numSkipped);
+        AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
 
         SearchTransportService transportService = new SearchTransportService(null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
@@ -142,7 +132,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
-
+                            assertTrue(searchPhaseDidRun.compareAndSet(false, true));
                         }
                     };
                 }
@@ -155,6 +145,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             };
         asyncAction.start();
         latch.await();
+        assertTrue(searchPhaseDidRun.get());
         SearchResponse searchResponse = asyncAction.buildSearchResponse(null, null);
         assertEquals(shardsIter.size() - numSkipped, numRequests.get());
         assertEquals(0, searchResponse.getFailedShards());
@@ -169,19 +160,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         request.setMaxConcurrentShardRequests(numConcurrent);
         int numShards = 10;
         CountDownLatch latch = new CountDownLatch(numShards);
-        AtomicReference<TestSearchResponse> response = new AtomicReference<>();
-        ActionListener<SearchResponse> responseListener = new ActionListener<SearchResponse>() {
-            @Override
-            public void onResponse(SearchResponse searchResponse) {
-                response.set((TestSearchResponse) searchResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("test failed", e);
-                fail(e.getMessage());
-            }
-        };
+        AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {}, e -> fail(e.getMessage()));
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         // for the sake of this test we place the replica on the same node. ie. this is not a mistake since we limit per node now
         DiscoveryNode replicaNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -253,7 +233,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
-
+                            assertTrue(searchPhaseDidRun.compareAndSet(false, true));
                         }
                     };
                 }
@@ -268,6 +248,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertEquals(numConcurrent, numRequests.get());
         awaitInitialRequests.countDown();
         latch.await();
+        assertTrue(searchPhaseDidRun.get());
         assertEquals(10, numRequests.get());
     }
 
@@ -276,18 +257,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         request.allowPartialSearchResults(true);
         request.setMaxConcurrentShardRequests(randomIntBetween(1, 100));
         AtomicReference<TestSearchResponse> response = new AtomicReference<>();
-        ActionListener<SearchResponse> responseListener = new ActionListener<SearchResponse>() {
-            @Override
-            public void onResponse(SearchResponse searchResponse) {
-                response.set((TestSearchResponse) searchResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("test failed", e);
-                fail(e.getMessage());
-            }
-        };
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(
+            searchResponse -> response.set((TestSearchResponse) searchResponse), e -> fail(e.getMessage()));
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
 

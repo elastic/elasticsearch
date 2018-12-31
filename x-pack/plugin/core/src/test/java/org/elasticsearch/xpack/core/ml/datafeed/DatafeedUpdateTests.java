@@ -78,7 +78,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         if (randomBoolean() && datafeed == null) {
             // can only test with a single agg as the xcontent order gets randomized by test base class and then
             // the actual xcontent isn't the same and test fail.
-            // Testing with a single agg is ok as we don't have special list writeable / xconent logic
+            // Testing with a single agg is ok as we don't have special list writeable / xcontent logic
             AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
             aggs.addAggregator(AggregationBuilders.avg(randomAlphaOfLength(10)).field(randomAlphaOfLength(10)));
             builder.setAggregations(aggs);

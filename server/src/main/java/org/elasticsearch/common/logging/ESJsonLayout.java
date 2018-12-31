@@ -38,8 +38,8 @@ public class ESJsonLayout extends AbstractStringLayout {
         "\"timestamp\": \"%d{ISO8601}\", " +
         "\"level\": \"%-5p\", " +
         "\"class\": \"%c{1.}\", " +
-        "\"cluster_name\": \"${sys:es.logs.cluster_name}\", " +
-        "\"node_name\": \"%node_name\", " +
+        "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
+        "\"node.name\": \"%node_name\", " +
         "%node_and_cluster_id " +
         "\"message\": \"%enc{%.-10000m}{JSON}\" " +
         "%replace{%cEx}{\",}{\",\n} " +

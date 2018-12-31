@@ -49,7 +49,7 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
      * @param options options, may be null.
      */
     private JsonThrowablePatternConverter(final Configuration config, final String[] options) {
-        super("CUstomExtendedThrowable", "throwable", options, config);
+        super("CustomExtendedThrowable", "throwable", options, config);
         this.throwablePatternConverter = ExtendedThrowablePatternConverter.newInstance(config, options);
     }
 

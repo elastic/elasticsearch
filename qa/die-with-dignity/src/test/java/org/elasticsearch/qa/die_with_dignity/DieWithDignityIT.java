@@ -25,6 +25,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -38,6 +39,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -85,28 +87,49 @@ public class DieWithDignityIT extends ESRestTestCase {
             }
         });
 
+
         // parse the logs and ensure that Elasticsearch died with the expected cause
-        final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));
+        Path path = PathUtils.get(System.getProperty("log"));
+        try(InputStream inputStream = Files.newInputStream(path)){
+            JsonLogs jsonLogs = new JsonLogs(inputStream);
+            final Iterator<JsonLogLine> it = jsonLogs.iterator();
 
-        final Iterator<String> it = lines.iterator();
+            boolean fatalError = false;
+            boolean fatalErrorInThreadExiting = false;
 
-        boolean fatalError = false;
-        boolean fatalErrorInThreadExiting = false;
-
-        while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
-            final String line = it.next();
-            if (line.matches(".*\\[ERROR\\]\\[o\\.e\\.ExceptionsHelper\\s*\\] \\[node-0\\] fatal error")) {
-                fatalError = true;
-            } else if (line.matches(".*\\[ERROR\\]\\[o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler\\] \\[node-0\\]"
-                    + " fatal error in thread \\[Thread-\\d+\\], exiting$")) {
-                fatalErrorInThreadExiting = true;
-                assertTrue(it.hasNext());
-                assertThat(it.next(), equalTo("java.lang.OutOfMemoryError: die with dignity"));
+            while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
+                final JsonLogLine line = it.next();
+                System.out.println("xxx "+ isFatalError(line) +" " + isFatalErrorInThreadExiting(line)+" "+line);
+                if (isFatalError(line)) {
+                    fatalError = true;
+                } else if (isFatalErrorInThreadExiting(line)) {
+                    fatalErrorInThreadExiting = true;
+                    assertThat(line.exceptions(),
+                        hasItem(Matchers.containsString("java.lang.OutOfMemoryError: die with dignity")));
+                }
             }
+
+            assertTrue(fatalError);
+            assertTrue(fatalErrorInThreadExiting);
         }
 
-        assertTrue(fatalError);
-        assertTrue(fatalErrorInThreadExiting);
+    }
+
+    private boolean isFatalErrorInThreadExiting(JsonLogLine line) {
+//        return line.matches(".*\\[ERROR\\]\\[o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler\\] \\[node-0\\]"
+//                + " fatal error in thread \\[Thread-\\d+\\], exiting$");
+        return line.level().trim().equals("ERROR") //TODO remove trim
+            && line.clazz().equals("o.e.b.ElasticsearchUncaughtExceptionHandler")
+            && line.nodeName().equals("node-0")
+            && line.message().matches("fatal error in thread \\[Thread-\\d+\\], exiting$");
+    }
+
+    private boolean isFatalError(JsonLogLine line) {
+//        return line.matches(".*\\[ERROR\\]\\[o\\.e\\.ExceptionsHelper\\s*\\] \\[node-0\\] fatal error");
+        return line.level().trim().equals("ERROR") //TODO remove trim
+            && line.clazz().equals("o.e.ExceptionsHelper")
+            && line.nodeName().equals("node-0")
+            && line.message().contains("fatal error");
     }
 
     @Override

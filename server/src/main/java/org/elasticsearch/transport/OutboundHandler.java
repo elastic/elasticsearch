@@ -36,7 +36,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.function.Supplier;
 
 class OutboundHandler {
 

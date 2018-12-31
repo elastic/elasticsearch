@@ -1,0 +1,27 @@
+:es: Elasticsearch
+:es-sql: {es} SQL
+:version: 6.5.0
+:product: {es-sql} ODBC Driver
+
+[role="xpack"]
+[testenv="platinum"]
+[[sql-odbc]]
+== SQL ODBC
+
+[[sql-odbc-overview]]
+[float]
+=== Overview
+
+experimental[]
+
+{product} is a feature-rich 3.80 ODBC driver for {es}.
+It is a core level driver, exposing all of the functionality accessible through the {es}'s SQL ODBC API, converting ODBC calls into
+{es-sql}.
+
+* <<sql-odbc-installation, Driver installation>>
+* <<sql-odbc-setup, Configuration>>
+
+include::odbc/installation.asciidoc[]
+include::odbc/configuration.asciidoc[]
+
+// vim: set noet fenc=utf-8 ff=dos sts=0 sw=4 ts=4 tw=138

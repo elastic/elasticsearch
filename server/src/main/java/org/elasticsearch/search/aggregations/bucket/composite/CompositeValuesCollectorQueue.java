@@ -98,14 +98,14 @@ final class CompositeValuesCollectorQueue implements Releasable {
     /**
      * Returns the lowest value (exclusive) of the leading source.
      */
-    Comparable<?> getLowerValueLeadSource() {
+    Comparable getLowerValueLeadSource() {
         return afterKeyIsSet ? arrays[0].getAfter() : null;
     }
 
     /**
      * Returns the upper value (inclusive) of the leading source.
      */
-    Comparable<?> getUpperValueLeadSource() throws IOException {
+    Comparable getUpperValueLeadSource() throws IOException {
         return size() >= maxSize ? arrays[0].toComparable(keys.lastKey()) : null;
     }
     /**
@@ -158,7 +158,7 @@ final class CompositeValuesCollectorQueue implements Releasable {
      */
     CompositeKey toCompositeKey(int slot) throws IOException {
         assert slot < maxSize;
-        Comparable<?>[] values = new Comparable<?>[arrays.length];
+        Comparable[] values = new Comparable[arrays.length];
         for (int i = 0; i < values.length; i++) {
             values[i] = arrays[i].toComparable(slot);
         }
@@ -178,7 +178,7 @@ final class CompositeValuesCollectorQueue implements Releasable {
      * for each document.
      * The provided collector <code>in</code> is called on each composite bucket.
      */
-    LeafBucketCollector getLeafCollector(Comparable<?> forceLeadSourceValue,
+    LeafBucketCollector getLeafCollector(Comparable forceLeadSourceValue,
                                          LeafReaderContext context, LeafBucketCollector in) throws IOException {
         int last = arrays.length - 1;
         LeafBucketCollector collector = in;

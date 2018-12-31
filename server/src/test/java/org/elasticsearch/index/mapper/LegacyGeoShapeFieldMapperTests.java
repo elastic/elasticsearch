@@ -64,12 +64,12 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
+        assertEquals(mapping, defaultMapper.mappingSource().toString());
 
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().tree(),
             equalTo(LegacyGeoShapeFieldMapper.DeprecatedParameters.Defaults.TREE));
-        assertThat(geoShapeFieldMapper.fieldType().treeLevels(),
-            equalTo(LegacyGeoShapeFieldMapper.DeprecatedParameters.Defaults.QUADTREE_LEVELS));
+        assertThat(geoShapeFieldMapper.fieldType().treeLevels(), equalTo(0));
         assertThat(geoShapeFieldMapper.fieldType().pointsOnly(),
             equalTo(LegacyGeoShapeFieldMapper.DeprecatedParameters.Defaults.POINTS_ONLY));
         assertThat(geoShapeFieldMapper.fieldType().distanceErrorPct(),
@@ -628,7 +628,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             String serialized = toXContentString((LegacyGeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
             assertTrue(serialized, serialized.contains("\"precision\":\"6.0m\""));
-            assertTrue(serialized, serialized.contains("\"tree_levels\":10"));
+            assertFalse(serialized, serialized.contains("\"tree_levels\":"));
         }
         {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")

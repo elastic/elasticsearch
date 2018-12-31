@@ -15,8 +15,13 @@ module. This module is divided into the following sections:
 
 <<modules-discovery-quorums>>::
 
-    This section describes the detailed design behind the master election and
-    auto-reconfiguration logic.
+    This section describes how {es} uses a quorum-based voting mechanism to
+    make decisions even if some nodes are unavailable.
+
+<<modules-discovery-voting>>::
+
+    This section describes the concept of voting configurations, which {es}
+    automatically updates as nodes leave and join the cluster.
 
 <<modules-discovery-bootstrap-cluster>>::
 
@@ -44,7 +49,11 @@ module. This module is divided into the following sections:
 
     Cluster state publishing is the process by which the elected master node
     updates the cluster state on all the other nodes in the cluster.
-    
+
+<<cluster-fault-detection>>::
+
+    {es} performs health checks to detect and remove faulty nodes.
+
 <<modules-discovery-settings,Settings>>::
 
     There are settings that enable users to influence the discovery, cluster

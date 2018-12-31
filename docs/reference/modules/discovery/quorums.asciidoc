@@ -18,13 +18,13 @@ cluster. In many cases you can do this simply by starting or stopping the nodes
 as required. See <<modules-discovery-adding-removing-nodes>>.
 
 As nodes are added or removed Elasticsearch maintains an optimal level of fault
-tolerance by updating the cluster's _voting configuration_, which is the set of
-master-eligible nodes whose responses are counted when making decisions such as
-electing a new master or committing a new cluster state. A decision is made only
-after more than half of the nodes in the voting configuration have responded.
-Usually the voting configuration is the same as the set of all the
-master-eligible nodes that are currently in the cluster. However, there are some
-situations in which they may be different.
+tolerance by updating the cluster's <<modules-discovery-voting,voting
+configuration>>, which is the set of master-eligible nodes whose responses are
+counted when making decisions such as electing a new master or committing a new
+cluster state. A decision is made only after more than half of the nodes in the
+voting configuration have responded.  Usually the voting configuration is the
+same as the set of all the master-eligible nodes that are currently in the
+cluster. However, there are some situations in which they may be different.
 
 To be sure that the cluster remains available you **must not stop half or more
 of the nodes in the voting configuration at the same time**. As long as more
@@ -37,46 +37,6 @@ After a node has joined or left the cluster the elected master must issue a
 cluster-state update that adjusts the voting configuration to match, and this
 can take a short time to complete. It is important to wait for this adjustment
 to complete before removing more nodes from the cluster.
-
-[float]
-==== Setting the initial quorum
-
-When a brand-new cluster starts up for the first time, it must elect its first
-master node. To do this election, it needs to know the set of master-eligible
-nodes whose votes should count. This initial voting configuration is known as
-the _bootstrap configuration_ and is set in the
-<<modules-discovery-bootstrap-cluster,cluster bootstrapping process>>.
-
-It is important that the bootstrap configuration identifies exactly which nodes
-should vote in the first election. It is not sufficient to configure each node
-with an expectation of how many nodes there should be in the cluster. It is also
-important to note that the bootstrap configuration must come from outside the
-cluster: there is no safe way for the cluster to determine the bootstrap
-configuration correctly on its own.
-
-If the bootstrap configuration is not set correctly, when you start a brand-new
-cluster there is a risk that you will accidentally form two separate clusters
-instead of one. This situation can lead to data loss: you might start using both
-clusters before you notice that anything has gone wrong and it is impossible to
-merge them together later.
-
-NOTE: To illustrate the problem with configuring each node to expect a certain
-cluster size, imagine starting up a three-node cluster in which each node knows
-that it is going to be part of a three-node cluster. A majority of three nodes
-is two, so normally the first two nodes to discover each other form a cluster
-and the third node joins them a short time later. However, imagine that four
-nodes were erroneously started instead of three. In this case, there are enough
-nodes to form two separate clusters. Of course if each node is started manually
-then it's unlikely that too many nodes are started. If you're using an automated
-orchestrator, however, it's certainly possible to get into this situation--
-particularly if the orchestrator is not resilient to failures such as network
-partitions.
-
-The initial quorum is only required the very first time a whole cluster starts
-up. New nodes joining an established cluster can safely obtain all the
-information they need from the elected master. Nodes that have previously been
-part of a cluster will have stored to disk all the information that is required
-when they restart.
 
 [float]
 ==== Master elections
@@ -103,3 +63,4 @@ and then started again then it will automatically recover, such as during a
 <<restart-upgrade,full cluster restart>>. There is no need to take any further
 action with the APIs described here in these cases, because the set of master
 nodes is not changing permanently.
+

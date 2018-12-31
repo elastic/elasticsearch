@@ -334,7 +334,7 @@ public class AggregationPath {
                         "Either drop the key (a la \"" + lastToken.name + "\") or change it to \"doc_count\" (a la \"" + lastToken.name +
                         ".doc_count\")");
             }
-            return;   // perfectly valid to sort on single-bucket aggregation (will be sored on its doc_count)
+            return;   // perfectly valid to sort on single-bucket aggregation (will be sorted on its doc_count)
         }
 
         if (aggregator instanceof NumericMetricsAggregator.SingleValue) {

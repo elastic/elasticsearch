@@ -142,7 +142,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
 
         BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("synonymAnalyzer"), "Some developers are odd",
-            new String[]{ "some", "developers", "develop", "programm", "are", "odd" },
+            new String[]{ "some", "developers", "develop", "program", "are", "odd" },
             new int[]{ 1, 1, 0, 0, 1, 1 });
     }
 
@@ -178,7 +178,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
 
         BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("synonymAnalyzer"), "programmers",
-            new String[]{ "programmers", "programm", "develop" },
+            new String[]{ "programmers", "program", "develop" },
             new int[]{ 1, 0, 0 });
     }
 

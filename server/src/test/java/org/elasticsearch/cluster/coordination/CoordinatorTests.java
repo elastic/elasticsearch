@@ -1698,7 +1698,7 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    private static Runnable onNode(DiscoveryNode node, Runnable runnable) {
+    public static Runnable onNode(DiscoveryNode node, Runnable runnable) {
         final String nodeId = "{" + node.getId() + "}{" + node.getEphemeralId() + "}";
         return new Runnable() {
             @Override

@@ -62,7 +62,6 @@ public class SearchAsyncActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);
         int numShards = 10;
-        CountDownLatch latch = new CountDownLatch(numShards);
         AtomicReference<TestSearchResponse> response = new AtomicReference<>();
         ActionListener<SearchResponse> responseListener = new ActionListener<SearchResponse>() {
             @Override
@@ -90,6 +89,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 numSkipped++;
             }
         }
+        CountDownLatch latch = new CountDownLatch(numShards - numSkipped);
 
         SearchTransportService transportService = new SearchTransportService(null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
@@ -156,7 +156,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         asyncAction.start();
         latch.await();
         SearchResponse searchResponse = asyncAction.buildSearchResponse(null, null);
-        assertEquals(shardsIter.size()-numSkipped, numRequests.get());
+        assertEquals(shardsIter.size() - numSkipped, numRequests.get());
         assertEquals(0, searchResponse.getFailedShards());
         assertEquals(numSkipped, searchResponse.getSkippedShards());
         assertEquals(shardsIter.size(), searchResponse.getSuccessfulShards());

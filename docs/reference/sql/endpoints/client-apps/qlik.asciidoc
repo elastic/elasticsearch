@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
-[[sql-odbc-applications-qlik]]
+[[sql-client-apps-qlik]]
 === Qlik Sense Desktop
 
 experimental[]

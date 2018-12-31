@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
-[[sql-odbc-applications-microstrat]]
+[[sql-client-apps-microstrat]]
 === MicroStrategy Desktop
 
 experimental[]

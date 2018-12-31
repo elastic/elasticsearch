@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
-[[sql-odbc-applications-excel]]
+[[sql-client-apps-excel]]
 === Microsoft Excel
 
 experimental[]

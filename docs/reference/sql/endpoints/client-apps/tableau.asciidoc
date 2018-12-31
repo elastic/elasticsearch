@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
-[[sql-odbc-applications-tableau]]
+[[sql-client-apps-tableau]]
 === Tableau Desktop
 
 experimental[]

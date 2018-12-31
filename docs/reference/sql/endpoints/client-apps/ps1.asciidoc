@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
-[[sql-odbc-applications-ps1]]
+[[sql-client-apps-ps1]]
 === Microsoft PowerShell
 
 experimental[]

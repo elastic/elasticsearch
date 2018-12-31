@@ -63,7 +63,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);
         int numShards = 10;
-        ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {}, e -> fail(e.getMessage()));
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
+            (e) -> { throw new AssertionError("unexpected", e);});
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
 
@@ -161,7 +162,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         int numShards = 10;
         CountDownLatch latch = new CountDownLatch(numShards);
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
-        ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {}, e -> fail(e.getMessage()));
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
+            (e) -> { throw new AssertionError("unexpected", e);});
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         // for the sake of this test we place the replica on the same node. ie. this is not a mistake since we limit per node now
         DiscoveryNode replicaNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -258,7 +260,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         request.setMaxConcurrentShardRequests(randomIntBetween(1, 100));
         AtomicReference<TestSearchResponse> response = new AtomicReference<>();
         ActionListener<SearchResponse> responseListener = ActionListener.wrap(
-            searchResponse -> response.set((TestSearchResponse) searchResponse), e -> fail(e.getMessage()));
+            searchResponse -> response.set((TestSearchResponse) searchResponse),
+            (e) -> { throw new AssertionError("unexpected", e);});
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
 

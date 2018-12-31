@@ -740,7 +740,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final long requestId,
         final String action,
         boolean compress,
-        boolean isHandshake) {
+        boolean isHandshake) throws IOException {
         Version version = Version.min(this.version, nodeVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), features, response, version,
             requestId, isHandshake, compress);

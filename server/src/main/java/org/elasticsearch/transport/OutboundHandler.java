@@ -56,10 +56,15 @@ class OutboundHandler {
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         SendContext sendContext = new SendContext(channel, () -> bytes, listener);
-        internalSendMessage(channel, sendContext);
+        try {
+            internalSendMessage(channel, sendContext);
+        } catch (IOException e) {
+            // This should not happen as the bytes are already serialized
+            throw new AssertionError(e);
+        }
     }
 
-    void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) {
+    void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
         SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
@@ -69,20 +74,17 @@ class OutboundHandler {
     /**
      * sends a message to the given channel, using the given callbacks.
      */
-    private void internalSendMessage(TcpChannel channel,  SendContext sendContext) {
+    private void internalSendMessage(TcpChannel channel,  SendContext sendContext) throws IOException {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        BytesReference reference = sendContext.get();
         try {
-            BytesReference reference = sendContext.get();
-            // If there is a problem serializing the message null will be returned. However, the send context
-            // will properly handle the error so we do not need to do anything.
-            if (reference != null) {
-                channel.sendMessage(reference, sendContext);
-            }
+            channel.sendMessage(reference, sendContext);
         } catch (RuntimeException ex) {
-            // call listener to ensure that any resources are released
             sendContext.onFailure(ex);
             CloseableChannel.closeChannel(channel);
+            throw ex;
         }
+
     }
 
     MeanMetric getTransmittedBytes() {
@@ -112,7 +114,7 @@ class OutboundHandler {
         }
     }
 
-    private class SendContext extends NotifyOnceListener<Void> implements Supplier<BytesReference> {
+    private class SendContext extends NotifyOnceListener<Void> implements CheckedSupplier<BytesReference, IOException> {
 
         private final TcpChannel channel;
         private final CheckedSupplier<BytesReference, IOException> messageSupplier;
@@ -133,16 +135,16 @@ class OutboundHandler {
             this.optionalReleasable = optionalReleasable;
         }
 
-        public BytesReference get() {
+        public BytesReference get() throws IOException {
             BytesReference message;
             try {
                 message = messageSupplier.get();
                 messageSize = message.length();
                 transportLogger.logOutboundMessage(channel, message);
                 return message;
-            } catch (IOException e) {
+            } catch (IOException | RuntimeException e) {
                 onFailure(e);
-                return null;
+                throw e;
             }
         }
 

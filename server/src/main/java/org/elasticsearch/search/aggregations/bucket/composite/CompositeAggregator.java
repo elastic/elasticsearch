@@ -89,8 +89,7 @@ final class CompositeAggregator extends BucketsAggregator {
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
         this.sources = new SingleDimensionValuesSource[sourceConfigs.length];
         for (int i = 0; i < sourceConfigs.length; i++) {
-            this.sources[i] = createValuesSource(context.bigArrays(), context.searcher().getIndexReader(),
-                context.query(), sourceConfigs[i], size, i);
+            this.sources[i] = createValuesSource(context.bigArrays(), context.searcher().getIndexReader(), sourceConfigs[i], size);
         }
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.sortedDocsProducer = sources[0].createSortedDocsProducerOrNull(context.searcher().getIndexReader(), context.query());
@@ -272,13 +271,13 @@ final class CompositeAggregator extends BucketsAggregator {
         };
     }
 
-    private SingleDimensionValuesSource<?> createValuesSource(BigArrays bigArrays, IndexReader reader, Query query,
-                                                              CompositeValuesSourceConfig config, int size, int sortRank) {
+    private SingleDimensionValuesSource<?> createValuesSource(BigArrays bigArrays, IndexReader reader,
+                                                              CompositeValuesSourceConfig config, int size) {
 
         final int reverseMul = config.reverseMul();
         if (config.valuesSource() instanceof ValuesSource.Bytes.WithOrdinals && reader instanceof DirectoryReader) {
             ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) config.valuesSource();
-            SingleDimensionValuesSource<?> source = new GlobalOrdinalValuesSource(
+            return new GlobalOrdinalValuesSource(
                 bigArrays,
                 config.fieldType(),
                 vs::globalOrdinalsValues,
@@ -287,25 +286,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 size,
                 reverseMul
             );
-
-            if (sortRank == 0 && source.createSortedDocsProducerOrNull(reader, query) != null) {
-                // this the leading source and we can optimize it with the sorted docs producer but
-                // we don't want to use global ordinals because the number of visited documents
-                // should be low and global ordinals need one lookup per visited term.
-                Releasables.close(source);
-                return new BinaryValuesSource(
-                    bigArrays,
-                    this::addRequestCircuitBreakerBytes,
-                    config.fieldType(),
-                    vs::bytesValues,
-                    config.format(),
-                    config.missingBucket(),
-                    size,
-                    reverseMul
-                );
-            } else {
-                return source;
-            }
         } else if (config.valuesSource() instanceof ValuesSource.Bytes) {
             ValuesSource.Bytes vs = (ValuesSource.Bytes) config.valuesSource();
             return new BinaryValuesSource(

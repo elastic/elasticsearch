@@ -146,11 +146,7 @@ public class MetaDataCreateIndexService {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }
         if (state.routingTable().hasIndex(index)) {
-            String x = "{  \"asdf\": \"console\",  \"asdfasdf\": \"2018-12-27T15:25:47,213\",  \"asdfdd\": [    \"java.lang" +
-                ".NullPointerException: asdf\"  ]}";
-            logger.warn("test "+x);
-            throw new NullPointerException("asdf");
-//            throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
+            throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
         }
         if (state.metaData().hasIndex(index)) {
             throw new ResourceAlreadyExistsException(state.metaData().index(index).getIndex());

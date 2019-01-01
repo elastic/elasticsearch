@@ -346,12 +346,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterStateWithTemplate(templateString);
         final ClusterState clusterState = clusterStateBuilder.build();
 
-        assertTrue(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
-            SecurityIndexManager.SECURITY_TEMPLATE_NAME, clusterState, logger,
-            Version.V_6_0_0::before));
-        assertFalse(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
-            SecurityIndexManager.SECURITY_TEMPLATE_NAME, clusterState, logger,
-            Version.V_6_0_0::after));
+        assertTrue(TemplateUtils.checkTemplateExistsAndVersionMatches(SecurityIndexManager.SECURITY_TEMPLATE_NAME,
+                SecurityIndexManager.SECURITY_VERSION_STRING, clusterState, logger, Version.V_6_0_0::before));
+        assertFalse(TemplateUtils.checkTemplateExistsAndVersionMatches(SecurityIndexManager.SECURITY_TEMPLATE_NAME,
+                SecurityIndexManager.SECURITY_VERSION_STRING, clusterState, logger, Version.V_6_0_0::after));
     }
 
     public void testUpToDateMappingsAreIdentifiedAsUpToDate() throws IOException {

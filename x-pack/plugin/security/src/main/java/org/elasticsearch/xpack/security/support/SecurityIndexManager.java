@@ -63,7 +63,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Manages the lifecycle of a single index, its template, mapping and and data upgrades/migrations.
+ * Manages the lifecycle of a single index, its mapping and and data upgrades/migrations.
  */
 public class SecurityIndexManager implements ClusterStateListener {
 
@@ -196,13 +196,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         } else {
             return clusterState.routingTable().index(metaData.getIndex());
         }
-    }
-
-    public static boolean checkTemplateExistsAndVersionMatches(
-            String templateName, ClusterState state, Logger logger, Predicate<Version> predicate) {
-
-        return TemplateUtils.checkTemplateExistsAndVersionMatches(templateName, SECURITY_VERSION_STRING,
-            state, logger, predicate);
     }
 
     private boolean checkIndexMappingUpToDate(ClusterState clusterState) {

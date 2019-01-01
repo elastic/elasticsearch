@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
@@ -120,6 +122,55 @@ public class PutMappingRequestTests extends ESTestCase {
         parsedPutMappingRequest.source(originalBytes, xContentType);
 
         assertMappingsEqual(putMappingRequest.source(), parsedPutMappingRequest.source());
+    }
+
+    public void testTypelessMappingDetection() throws IOException {
+        BytesReference mappingAsBytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+            .startObject("some_type")
+                .startObject("properties")
+                    .startObject("field").field("type", "keyword").endObject()
+                .endObject()
+            .endObject()
+         .endObject());
+        Map<String, Object> mapping = XContentHelper.convertToMap(mappingAsBytes, false, XContentType.JSON).v2();
+        assertFalse(PutMappingRequest.isTypeless(mapping));
+
+        mappingAsBytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("field").field("type", "keyword").endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        mapping = XContentHelper.convertToMap(mappingAsBytes, false, XContentType.JSON).v2();
+        assertFalse(PutMappingRequest.isTypeless(mapping));
+
+        mappingAsBytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+            .startObject("_source").field("enabled", false).endObject()
+            .startObject("some_field").field("type", "keyword").endObject()
+        .endObject());
+        mapping = XContentHelper.convertToMap(mappingAsBytes, false, XContentType.JSON).v2();
+        assertTrue(PutMappingRequest.isTypeless(mapping));
+
+        mappingAsBytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("field").field("type", "keyword").endObject()
+            .endObject()
+        .endObject());
+        mapping = XContentHelper.convertToMap(mappingAsBytes, false, XContentType.JSON).v2();
+        assertTrue(PutMappingRequest.isTypeless(mapping));
+
+        mappingAsBytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+            .startObject("_routing").field("required", true).endObject()
+         .endObject());
+        mapping = XContentHelper.convertToMap(mappingAsBytes, false, XContentType.JSON).v2();
+        assertTrue(PutMappingRequest.isTypeless(mapping));
+
+        mappingAsBytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+            .startObject("_source").field("enabled", false).endObject()
+            .endObject());
+        mapping = XContentHelper.convertToMap(mappingAsBytes, false, XContentType.JSON).v2();
+        assertTrue(PutMappingRequest.isTypeless(mapping));
     }
 
     private void assertMappingsEqual(String expected, String actual) throws IOException {

@@ -418,6 +418,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (type.charAt(0) == '.') {
             throw new IllegalArgumentException("mapping type name [" + type + "] must not start with a '.'");
         }
+        if (type.equals("properties")) {
+            throw new InvalidTypeNameException("mapping type cannot be named [properties]");
+        }
     }
 
     private synchronized Map<String, DocumentMapper> internalMerge(@Nullable DocumentMapper defaultMapper,

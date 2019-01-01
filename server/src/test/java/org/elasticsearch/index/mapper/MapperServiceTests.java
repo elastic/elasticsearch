@@ -87,6 +87,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         e = expectThrows(InvalidTypeNameException.class, () -> MapperService.validateTypeName("_document"));
         assertEquals("mapping type name [_document] can't start with '_' unless it is called [_doc]", e.getMessage());
 
+        e = expectThrows(InvalidTypeNameException.class, () -> MapperService.validateTypeName("_routing"));
+        assertEquals("mapping type name [_routing] can't start with '_' unless it is called [_doc]", e.getMessage());
+
         MapperService.validateTypeName("_doc"); // no exception
     }
 

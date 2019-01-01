@@ -290,6 +290,21 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         }
     }
 
+    /**
+     * Gives a best-effort attempt at determining whether a mapping definition is typeless.
+     *
+     * The mappings are considered typeless if any recognized component of the mapping definition,
+     * such as 'properties', '_routing', or '_source', appears at the root level.
+     */
+    public static boolean isTypeless(Map<String, Object> mappings) {
+        for (String key : mappings.keySet()) {
+            if (key.equals("properties") || RESERVED_FIELDS.contains(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

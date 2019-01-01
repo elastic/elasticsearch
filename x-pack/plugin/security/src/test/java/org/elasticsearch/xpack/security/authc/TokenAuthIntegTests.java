@@ -149,7 +149,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
-            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_ALIAS_NAME)
                     .setSource(SearchSourceBuilder.searchSource()
                         .query(QueryBuilders.termQuery("doc_type", "token")))
                     .setSize(1)
@@ -162,7 +162,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the creation time to the day before
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
-        client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
+        client.prepareUpdate(SecurityIndexManager.SECURITY_ALIAS_NAME, "doc", docId.get())
             .setDoc("creation_time", dayBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -180,8 +180,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     assertEquals("token malformed", e.getMessage());
                 }
             }
-            client.admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
-            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            client.admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_ALIAS_NAME).get();
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_ALIAS_NAME)
                     .setSource(SearchSourceBuilder.searchSource()
                         .query(QueryBuilders.termQuery("doc_type", "token")))
                     .setTerminateAfter(1)

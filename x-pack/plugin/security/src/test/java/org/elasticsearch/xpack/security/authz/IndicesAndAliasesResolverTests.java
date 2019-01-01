@@ -81,7 +81,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_ALIAS_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -121,7 +121,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         final boolean withAlias = randomBoolean();
-        final String securityIndexName = SECURITY_INDEX_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");
+        final String securityIndexName = SECURITY_ALIAS_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");
         MetaData metaData = MetaData.builder()
                 .put(indexBuilder("foo").putAlias(AliasMetaData.builder("foofoobar"))
                         .putAlias(AliasMetaData.builder("foounauthorized")).settings(settings))
@@ -1223,14 +1223,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         {
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, SearchAction.NAME);
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-            assertThat(indices, hasItem(SecurityIndexManager.SECURITY_INDEX_NAME));
+            assertThat(indices, hasItem(SecurityIndexManager.SECURITY_ALIAS_NAME));
         }
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
-            aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_INDEX_NAME));
+            aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_ALIAS_NAME));
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, IndicesAliasesAction.NAME);
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
-            assertThat(indices, hasItem(SecurityIndexManager.SECURITY_INDEX_NAME));
+            assertThat(indices, hasItem(SecurityIndexManager.SECURITY_ALIAS_NAME));
         }
     }
 
@@ -1238,7 +1238,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(XPackUser.INSTANCE, SearchAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-        assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
+        assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_ALIAS_NAME)));
     }
 
     public void testNonXPackUserAccessingSecurityIndex() {
@@ -1250,7 +1250,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             SearchRequest request = new SearchRequest();
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(allAccessUser, SearchAction.NAME);
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-            assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
+            assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_ALIAS_NAME)));
         }
 
         {
@@ -1258,7 +1258,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias1").index("*"));
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(allAccessUser, IndicesAliasesAction.NAME);
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
-            assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
+            assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_ALIAS_NAME)));
         }
     }
 

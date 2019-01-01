@@ -320,7 +320,7 @@ public class AuthorizationService {
             // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
             // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
             logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
-                authentication.getUser().principal(), action, SecurityIndexManager.SECURITY_INDEX_NAME);
+                authentication.getUser().principal(), action, SecurityIndexManager.SECURITY_ALIAS_NAME);
             throw denial(auditId, authentication, action, request, permission.names());
         } else {
             putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);

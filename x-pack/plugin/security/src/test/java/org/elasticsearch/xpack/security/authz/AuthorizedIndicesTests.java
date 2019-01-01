@@ -85,7 +85,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder(SecurityIndexManager.SECURITY_INDEX_NAME).settings(indexSettings)
+                .put(new IndexMetaData.Builder(SecurityIndexManager.SECURITY_ALIAS_NAME).settings(indexSettings)
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
@@ -101,12 +101,12 @@ public class AuthorizedIndicesTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder(SecurityIndexManager.SECURITY_INDEX_NAME).settings(indexSettings)
+                .put(new IndexMetaData.Builder(SecurityIndexManager.SECURITY_ALIAS_NAME).settings(indexSettings)
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
         AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, role, SearchAction.NAME, metaData);
         List<String> list = authorizedIndices.get();
-        assertThat(list, containsInAnyOrder("an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME));
+        assertThat(list, containsInAnyOrder("an-index", "another-index", SecurityIndexManager.SECURITY_ALIAS_NAME));
     }
 }

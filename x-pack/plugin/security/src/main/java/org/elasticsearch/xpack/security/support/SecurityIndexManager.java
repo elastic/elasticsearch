@@ -72,33 +72,43 @@ public class SecurityIndexManager implements ClusterStateListener {
     public static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
     public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
-    public static final String SECURITY_INDEX_NAME = ".security";
+    public static final String SECURITY_ALIAS_NAME = ".security";
     private static final Logger LOGGER = LogManager.getLogger(SecurityIndexManager.class);
 
     private final String indexName;
+    private final int internalIndexFormat;
+    private final String aliasName;
+    private final String templateName;
     private final Client client;
 
     private final List<BiConsumer<State, State>> stateChangeListeners = new CopyOnWriteArrayList<>();
 
     private volatile State indexState;
 
-    public SecurityIndexManager(Client client, String indexName, ClusterService clusterService) {
-        this(client, indexName, new State(false, false, false, false, null, null));
+    public static SecurityIndexManager buildSecurityIndexManager(Client client, ClusterService clusterService) {
+        return new SecurityIndexManager(client, INTERNAL_SECURITY_INDEX, INTERNAL_INDEX_FORMAT, SECURITY_ALIAS_NAME, SECURITY_TEMPLATE_NAME, clusterService);
+    }
+
+    public SecurityIndexManager(Client client, String indexName, int internalIndexFormat, String aliasName, String templateName, ClusterService clusterService) {
+        this(client, indexName, internalIndexFormat, aliasName, templateName, new State(false, false, false, false, null, null));
         clusterService.addListener(this);
     }
 
-    private SecurityIndexManager(Client client, String indexName, State indexState) {
+    private SecurityIndexManager(Client client, String indexName, int internalIndexFormat, String aliasName, String templateName, State indexState) {
         this.client = client;
         this.indexName = indexName;
+        this.internalIndexFormat = internalIndexFormat;
+        this.aliasName = aliasName;
+        this.templateName = templateName;
         this.indexState = indexState;
     }
 
     public SecurityIndexManager freeze() {
-        return new SecurityIndexManager(null, indexName, indexState);
+        return new SecurityIndexManager(null, indexName, internalIndexFormat, aliasName, templateName, indexState);
     }
 
     public static List<String> indexNames() {
-        return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
+        return Collections.unmodifiableList(Arrays.asList(SECURITY_ALIAS_NAME, INTERNAL_SECURITY_INDEX));
     }
 
     public boolean checkMappingVersion(Predicate<Version> requiredVersion) {
@@ -130,13 +140,13 @@ public class SecurityIndexManager implements ClusterStateListener {
     public ElasticsearchException getUnavailableReason() {
         final State localState = this.indexState;
         if (localState.indexAvailable) {
-            throw new IllegalStateException("caller must make sure to use a frozen state and check indexAvailable");
+            throw new IllegalStateException("caller must make sure to use a frozen state and check indexAvailable [" + indexName + "]");
         }
 
         if (localState.indexExists) {
-            return new UnavailableShardsException(null, "at least one primary shard for the security index is unavailable");
+            return new UnavailableShardsException(null, "at least one primary shard for the security index [" + indexName + "] is unavailable");
         } else {
-            return new IndexNotFoundException(SECURITY_INDEX_NAME);
+            return new IndexNotFoundException(indexName);
         }
     }
 
@@ -161,7 +171,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         final IndexMetaData indexMetaData = resolveConcreteIndex(indexName, event.state().metaData());
         final boolean indexExists = indexMetaData != null;
         final boolean isIndexUpToDate = indexExists == false ||
-            INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()).intValue() == INTERNAL_INDEX_FORMAT;
+            INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()).intValue() == internalIndexFormat;
         final boolean indexAvailable = checkIndexAvailable(event.state());
         final boolean mappingIsUpToDate = indexExists == false || checkIndexMappingUpToDate(event.state());
         final Version mappingVersion = oldestIndexMappingVersion(event.state());
@@ -293,8 +303,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                             "the upgrade API is run on the security index"));
         } else if (indexState.indexExists == false) {
             Tuple<String, Settings> mappingAndSettings = loadMappingAndSettingsSourceFromTemplate();
-            CreateIndexRequest request = new CreateIndexRequest(INTERNAL_SECURITY_INDEX)
-                    .alias(new Alias(SECURITY_INDEX_NAME))
+            CreateIndexRequest request = new CreateIndexRequest(indexName)
+                    .alias(new Alias(aliasName))
                     .mapping("doc", mappingAndSettings.v1(), XContentType.JSON)
                     .waitForActiveShards(ActiveShardCount.ALL)
                     .settings(mappingAndSettings.v2());
@@ -322,7 +332,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                         }
                     }, client.admin().indices()::create);
         } else if (indexState.mappingUpToDate == false) {
-            PutMappingRequest request = new PutMappingRequest(INTERNAL_SECURITY_INDEX)
+            PutMappingRequest request = new PutMappingRequest(indexName)
                     .source(loadMappingAndSettingsSourceFromTemplate().v1(), XContentType.JSON)
                     .type("doc");
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
@@ -339,9 +349,9 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     private Tuple<String, Settings> loadMappingAndSettingsSourceFromTemplate() {
-        final byte[] template = TemplateUtils.loadTemplate("/" + SECURITY_TEMPLATE_NAME + ".json",
+        final byte[] template = TemplateUtils.loadTemplate("/" + templateName + ".json",
                 Version.CURRENT.toString(), SecurityIndexManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest(SECURITY_TEMPLATE_NAME).source(template, XContentType.JSON);
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(template, XContentType.JSON);
         return new Tuple<>(request.mappings().get("doc"), request.settings());
     }
 

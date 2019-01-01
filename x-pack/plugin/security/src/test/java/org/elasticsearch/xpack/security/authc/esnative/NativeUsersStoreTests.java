@@ -110,7 +110,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
 
         final GetResult result = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
+                SecurityIndexManager.SECURITY_ALIAS_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
             0, 1, 1L,
@@ -179,7 +179,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         nativeUsersStore.verifyPassword(username, password, future);
 
         final GetResult getResult = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
+                SecurityIndexManager.SECURITY_ALIAS_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 UNASSIGNED_SEQ_NO, 0, 1L,
@@ -221,7 +221,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE);
         final BytesReference source = BytesReference.bytes(jsonBuilder().map(values));
         final GetResult getResult = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
+                SecurityIndexManager.SECURITY_ALIAS_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 0, 1, 1L,

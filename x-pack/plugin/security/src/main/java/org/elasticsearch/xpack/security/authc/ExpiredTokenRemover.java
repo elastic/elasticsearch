@@ -51,7 +51,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
 
     @Override
     public void doRun() {
-        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(SecurityIndexManager.SECURITY_INDEX_NAME);
+        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(SecurityIndexManager.SECURITY_ALIAS_NAME);
         if (timeout != TimeValue.MINUS_ONE) {
             expiredDbq.setTimeout(timeout);
             expiredDbq.getSearchRequest().source().timeout(timeout);

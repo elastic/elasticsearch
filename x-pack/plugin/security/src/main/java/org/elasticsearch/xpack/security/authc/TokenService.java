@@ -264,7 +264,7 @@ public final class TokenService {
                 builder.endObject();
                 final String documentId = getTokenDocumentId(userToken);
                 IndexRequest request =
-                        client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, documentId)
+                        client.prepareIndex(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE, documentId)
                                 .setOpType(OpType.CREATE)
                                 .setSource(builder)
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
@@ -360,7 +360,7 @@ public final class TokenService {
                                 securityIndex.checkIndexVersionThenExecute(
                                     ex -> listener.onFailure(traceLog("prepare security index", tokenId, ex)),
                                     () -> {
-                                        final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE,
+                                        final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE,
                                             getTokenDocumentId(tokenId)).request();
                                         Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", tokenId, ex));
                                         executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
@@ -584,7 +584,7 @@ public final class TokenService {
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String tokenId : tokenIds) {
-                UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, getTokenDocumentId(tokenId))
+                UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE, getTokenDocumentId(tokenId))
                     .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
                     .setFetchSource(srcPrefix, null)
                     .request();
@@ -667,7 +667,7 @@ public final class TokenService {
             logger.warn("Failed to find token for refresh token [{}] after [{}] attempts", refreshToken, attemptCount.get());
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
         } else {
-            SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_ALIAS_NAME)
                 .setQuery(QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
                     .filter(QueryBuilders.termQuery("refresh_token.token", refreshToken)))
@@ -724,7 +724,7 @@ public final class TokenService {
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
         } else {
             Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
-            GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId).request();
+            GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE, tokenDocId).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                 ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
@@ -745,7 +745,7 @@ public final class TokenService {
                                 in.setVersion(authVersion);
                                 Authentication authentication = new Authentication(in);
                                 UpdateRequest updateRequest =
-                                    client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
+                                    client.prepareUpdate(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE, tokenDocId)
                                         .setVersion(response.getVersion())
                                         .setDoc("refresh_token", Collections.singletonMap("refreshed", true))
                                         .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
@@ -870,7 +870,7 @@ public final class TokenService {
                     )
                 );
 
-            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_ALIAS_NAME)
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
@@ -914,7 +914,7 @@ public final class TokenService {
                     )
                 );
 
-            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_ALIAS_NAME)
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
@@ -1024,7 +1024,7 @@ public final class TokenService {
             listener.onResponse(null);
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE,
+                final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE,
                     getTokenDocumentId(userToken)).request();
                 Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,

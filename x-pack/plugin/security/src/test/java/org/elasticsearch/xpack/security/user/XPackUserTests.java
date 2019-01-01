@@ -31,7 +31,7 @@ public class XPackUserTests extends ESTestCase {
     public void testXPackUserCannotAccessSecurityIndex() {
         final String action = randomFrom(GetAction.NAME, SearchAction.NAME, IndexAction.NAME);
         final Predicate<String> predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(SecurityIndexManager.SECURITY_INDEX_NAME), Matchers.is(false));
+        assertThat(predicate.test(SecurityIndexManager.SECURITY_ALIAS_NAME), Matchers.is(false));
         assertThat(predicate.test(SecurityIndexManager.INTERNAL_SECURITY_INDEX), Matchers.is(false));
     }
 

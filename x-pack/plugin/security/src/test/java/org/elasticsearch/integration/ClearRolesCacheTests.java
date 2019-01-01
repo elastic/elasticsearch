@@ -56,7 +56,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
             logger.debug("--> created role [{}]", role);
         }
 
-        ensureGreen(SecurityIndexManager.SECURITY_INDEX_NAME);
+        ensureGreen(SecurityIndexManager.SECURITY_ALIAS_NAME);
 
         final Set<String> rolesSet = new HashSet<>(Arrays.asList(roles));
         // warm up the caches on every node

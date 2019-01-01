@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
-[[sql-odbc-applications-qlik]]
+[[sql-client-apps-qlik]]
 === Qlik Sense Desktop
 
 experimental[]
@@ -15,8 +15,8 @@ ____
 ==== Prerequisites
 
 * Qlik Sense Desktop November 2018 or higher
-* {product}
-* A preconfigured User or System DSN (see <<sql-odbc-setup>> section on how to configure a DSN).
+* {es-sql} <<sql-odbc, ODBC driver>>
+* A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
 
 ==== Data loading
 

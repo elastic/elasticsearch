@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
-[[sql-odbc-applications-ps1]]
+[[sql-client-apps-ps1]]
 === Microsoft PowerShell
 
 experimental[]
@@ -16,8 +16,8 @@ connect to {es}.
 ==== Prerequisites
 
 * Microsoft PowerShell
-* {product}
-* A preconfigured User or System DSN (see <<sql-odbc-setup>> section on how to configure a DSN).
+* {es-sql} <<sql-odbc, ODBC driver>>
+* A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
 
 ==== Writing a script
 

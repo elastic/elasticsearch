@@ -328,7 +328,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
         final ClusterState clusterState = clusterStateBuilder.build();
         IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger, Version.CURRENT::equals));
+            () -> SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, Version.CURRENT::equals));
         assertEquals("Cannot read security-version string in index " + SECURITY_INDEX_NAME, exception.getMessage());
     }
 

@@ -199,19 +199,12 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     private boolean checkIndexMappingUpToDate(ClusterState clusterState) {
-        return checkIndexMappingVersionMatches(clusterState, Version.CURRENT::equals);
+        return checkIndexMappingVersionMatches(indexName, clusterState, Version.CURRENT::equals);
     }
 
-    private boolean checkIndexMappingVersionMatches(ClusterState clusterState,
-                                                    Predicate<Version> predicate) {
-        return checkIndexMappingVersionMatches(indexName, clusterState, LOGGER, predicate);
-    }
-
-    public static boolean checkIndexMappingVersionMatches(String indexName,
-                                                          ClusterState clusterState, Logger logger,
-                                                          Predicate<Version> predicate) {
-        return loadIndexMappingVersions(indexName, clusterState, logger)
-                .stream().allMatch(predicate);
+    // public and static for testing
+    public static boolean checkIndexMappingVersionMatches(String indexName, ClusterState clusterState, Predicate<Version> predicate) {
+        return loadIndexMappingVersions(indexName, clusterState, LOGGER).stream().allMatch(predicate);
     }
 
     private Version oldestIndexMappingVersion(ClusterState clusterState) {

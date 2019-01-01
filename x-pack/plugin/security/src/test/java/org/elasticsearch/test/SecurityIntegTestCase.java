@@ -489,10 +489,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
-                assertTrue("security index mapping not sufficient to read:\n" +
-                                Strings.toString(clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject()),
-                    SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger,
-                        Version.CURRENT.minimumIndexCompatibilityVersion()::onOrBefore));
+                assertTrue(
+                        "security index mapping not sufficient to read:\n"
+                                + Strings.toString(clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject()),
+                        SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState,
+                                Version.CURRENT.minimumIndexCompatibilityVersion()::onOrBefore));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);

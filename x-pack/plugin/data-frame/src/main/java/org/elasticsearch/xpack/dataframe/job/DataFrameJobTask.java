@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -248,11 +249,11 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
             if (jobConfig == null) {
                 CountDownLatch latch = new CountDownLatch(1);
 
-                jobConfigManager.getJobConfiguration(jobId, ActionListener.wrap(config -> {
+                jobConfigManager.getJobConfiguration(jobId, new LatchedActionListener<>(ActionListener.wrap(config -> {
                     jobConfig = config;
                 }, e -> {
                     throw new RuntimeException(DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_JOB_CONFIGURATION, jobId), e);
-                }));
+                }), latch));
 
                 try {
                     latch.await(LOAD_JOB_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS);

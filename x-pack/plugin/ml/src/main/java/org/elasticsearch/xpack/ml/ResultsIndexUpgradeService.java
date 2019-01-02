@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -340,9 +341,9 @@ public class ResultsIndexUpgradeService {
             reindexRequest.setSourceIndices(oldIndex);
             reindexRequest.setDestIndex(newIndex);
             // Don't worry if these indices already exist, we validated settings.index.created.version earlier
-            reindexRequest.setConflicts("proceed");
+            reindexRequest.setAbortOnVersionConflict(false);
             // If the document exists already in the new index, don't want to update or overwrite as we are pulling from "old data"
-            reindexRequest.setDestOpType("create");
+            reindexRequest.setDestOpType(DocWriteRequest.OpType.CREATE.getLowercase());
             newIndices.add(newIndex);
             chainTaskExecutor.add(chainedListener ->
                 executeAsyncWithOrigin(client,

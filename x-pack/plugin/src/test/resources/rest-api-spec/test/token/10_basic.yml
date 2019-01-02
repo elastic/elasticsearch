@@ -79,7 +79,6 @@ teardown:
         body:
           token: $token
 
-  - match: { created: true}
   - match: { invalidated_tokens: 1 }
   - match: { previously_invalidated_tokens: 0 }
   - match: { error_count: 0 }
@@ -120,7 +119,6 @@ teardown:
         body:
           username: "token_user"
 
-  - match: { created: true}
   - match: { invalidated_tokens: 2 }
   - match: { previously_invalidated_tokens: 0 }
   - match: { error_count: 0 }
@@ -162,7 +160,6 @@ teardown:
         body:
           realm_name: "default_native"
 
-  - match: { created: true}
   - match: { invalidated_tokens: 2 }
   - match: { previously_invalidated_tokens: 0 }
   - match: { error_count: 0 }

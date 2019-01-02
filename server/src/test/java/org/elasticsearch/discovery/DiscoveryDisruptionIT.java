@@ -30,7 +30,6 @@ import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -133,11 +132,8 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * Test cluster join with issues in cluster state publishing *
      */
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
-        // TODO: enable this for Zen2 once lag-detection is implemented
-        String masterNode = internalCluster().startMasterOnlyNode(
-            Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
-        String nonMasterNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
+        String masterNode = internalCluster().startMasterOnlyNode();
+        String nonMasterNode = internalCluster().startDataOnlyNode();
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 

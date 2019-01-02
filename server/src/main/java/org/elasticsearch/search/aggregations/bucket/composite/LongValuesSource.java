@@ -125,7 +125,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    void setAfter(Comparable<?> value) {
+    void setAfter(Comparable value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value instanceof Number) {
@@ -169,7 +169,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable<?> value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != Long.class) {
             throw new IllegalArgumentException("Expected Long, got " + value.getClass());
         }

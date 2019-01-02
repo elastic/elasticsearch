@@ -346,6 +346,9 @@ public final class InternalSqlScriptUtils {
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {
+        if (dateTime == null) {
+            return null;
+        }
         if (dateTime instanceof JodaCompatibleZonedDateTime) {
             return ((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime();
         }

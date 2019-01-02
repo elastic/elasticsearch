@@ -22,9 +22,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.ResultsIndexUpgradeAction;
-import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -34,20 +32,9 @@ import org.elasticsearch.xpack.ml.ResultsIndexUpgradeService;
 import org.junit.After;
 import org.junit.Assert;
 
-import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeedBuilder;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
@@ -58,9 +45,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
 public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
-
-    private AtomicBoolean shouldContinueToIndex = new AtomicBoolean(true);
-    private AtomicLong dataCount = new AtomicLong(0);
 
     @After
     public void cleanup() throws Exception {
@@ -318,92 +302,6 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         assertThat(newJob3Total, greaterThan(job3Total));
     }
 
-    public void testMigrationWithOpenJob() throws Exception {
-        dataCount.set(0);
-        shouldContinueToIndex.set(true);
-        Tuple<Long, String> amountAndIndex = createDataIndex();
-        String dataIndex = amountAndIndex.v2();
-        dataCount.set(amountAndIndex.v1());
-        Job closedJob = createAndOpenJobAndStartDataFeedWithData("test-migration-open-job-closed", dataIndex, false);
-        Job openedJob = createAndOpenJobAndDataFeedWithDataAndNoEnd(
-            "test-migration-open-job-opened",
-            "data-for-migration-1",
-            false);
-        long closedJobTotal = getJobResultsCount(closedJob.getId());
-
-        Thread puttingData = new Thread(() -> {
-            while (shouldContinueToIndex.get()) {
-                try {
-                    Thread.sleep(1000);
-                    long indexed = postSomeDataToJob(openedJob.getId());
-                    logger.info("POST [" +  indexed + "] data points to job [" + openedJob.getId() + "]");
-                    dataCount.addAndGet(indexed);
-                } catch (InterruptedException | IOException ex) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }, "testMigrationWithOpenJobIndexer");
-        puttingData.start();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
-
-        ResultsIndexUpgradeService resultsIndexUpgradeService = new ResultsIndexUpgradeService(indexNameExpressionResolver,
-            logger,
-            ThreadPool.Names.SAME,
-            indexMetaData -> true);
-
-        PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
-
-        resultsIndexUpgradeService.upgrade(ESIntegTestCase.client(),
-            new ResultsIndexUpgradeAction.Request(),
-            ESIntegTestCase.client().admin().cluster().prepareState().get().getState(),
-            future);
-
-        AcknowledgedResponse response = future.get();
-        assertThat(response.isAcknowledged(), is(true));
-
-        ClusterState state = admin().cluster().state(new ClusterStateRequest()).actionGet().getState();
-        String[] indices = indexNameExpressionResolver.concreteIndexNames(state,
-            IndicesOptions.strictExpandOpenAndForbidClosed(),
-            AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*");
-
-        // Our backing index size should be four as we have a shared and custom index and upgrading doubles the number of indices
-        Assert.assertThat(indices.length, equalTo(2));
-
-        assertThat(getJobResultsCount(closedJob.getId()), equalTo(closedJobTotal));
-
-        shouldContinueToIndex.set(false);
-        puttingData.join();
-        flushJob(openedJob.getId(), true);
-        assertBusy(() -> {
-            GetJobsStatsAction.Response.JobStats stats = getJobStats(openedJob.getId()).get(0);
-            assertThat(stats.getDataCounts().getInputRecordCount(), equalTo(dataCount.get()));
-        });
-
-        assertThat(getJobResultsCount(openedJob.getId()), greaterThan(closedJobTotal));
-
-        stopDatafeed(openedJob.getId() + "-datafeed");
-        closeJob(openedJob.getId());
-        waitUntilJobIsClosed(openedJob.getId());
-    }
-
-    private long postSomeDataToJob(String jobId) throws IOException {
-        long numDocs = ESTestCase.randomIntBetween(15, 30);
-        long now = System.currentTimeMillis();
-        long abitAgo = now - 100;
-        long delta = 100/numDocs;
-        final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
-        List<String> data = new ArrayList<>();
-        for (int count = 0; count < numDocs; count++) {
-            Map<String, Object> record = new HashMap<>();
-            String timeStr = Instant.ofEpochSecond(abitAgo).atZone(ZoneId.of("UTC")).format(formatter);
-            record.put("time", timeStr);
-            data.add(createJsonRecord(record));
-            abitAgo += delta;
-        }
-        postData(jobId, data.stream().collect(Collectors.joining()));
-        return numDocs;
-    }
-
     private long getTotalDocCount(String indexName) {
         SearchResponse searchResponse = ESIntegTestCase.client().prepareSearch(indexName)
             .setSize(10_000)
@@ -446,31 +344,6 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, System.currentTimeMillis());
         waitUntilJobIsClosed(jobId);
-        return job;
-    }
-
-    private Job createAndOpenJobAndDataFeedWithDataAndNoEnd(String jobId, String dataIndex, boolean isCustom) throws Exception {
-        Job.Builder jobbuilder = createScheduledJob(jobId);
-        if (isCustom) {
-            jobbuilder.setResultsIndexName(jobId);
-        }
-        registerJob(jobbuilder);
-
-        Job job = putJob(jobbuilder).getResponse();
-
-        openJob(job.getId());
-        ESTestCase.assertBusy(() -> Assert.assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
-
-        DatafeedConfig.Builder builder = createDatafeedBuilder(job.getId() + "-datafeed",
-            job.getId(),
-            Collections.singletonList(dataIndex));
-        builder.setQueryDelay(TimeValue.timeValueSeconds(60));
-        builder.setFrequency(TimeValue.timeValueSeconds(60));
-        DatafeedConfig datafeedConfig = builder.build();
-        registerDatafeed(datafeedConfig);
-        putDatafeed(datafeedConfig);
-        StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedConfig.getId(), 0L);
-        client().execute(StartDatafeedAction.INSTANCE, request).actionGet();
         return job;
     }
 

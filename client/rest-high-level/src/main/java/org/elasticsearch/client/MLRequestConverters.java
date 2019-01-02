@@ -686,7 +686,7 @@ final class MLRequestConverters {
 
         BytesReference sample = findFileStructureRequest.getSample();
         BytesRef source = sample.toBytesRef();
-        HttpEntity byteEntity = new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));
+        HttpEntity byteEntity = new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));
         request.setEntity(byteEntity);
         return request;
     }

@@ -671,7 +671,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(method, request.getMethod());
 
         HttpEntity entity = request.getEntity();
-        assertTrue(entity instanceof ByteArrayEntity);
+        assertTrue(entity instanceof NByteArrayEntity);
         assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType().getValue());
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());

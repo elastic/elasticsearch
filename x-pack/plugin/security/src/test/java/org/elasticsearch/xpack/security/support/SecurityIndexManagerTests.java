@@ -208,7 +208,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         // index doesn't exist and now exists with wrong format
         ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME,
-                SecurityIndexManager.INTERNAL_INDEX_FORMAT - 1);
+                SecurityIndexManager.INTERNAL_SECURITY_INDEX_FORMAT - 1);
         markShardsAvailable(clusterStateBuilder);
         manager.clusterChanged(event(clusterStateBuilder));
         assertTrue(listenerCalled.get());
@@ -224,7 +224,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         listenerCalled.set(false);
         // index doesn't exist and now exists with correct format
-        clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME, SecurityIndexManager.INTERNAL_INDEX_FORMAT);
+        clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME, SecurityIndexManager.INTERNAL_SECURITY_INDEX_FORMAT);
         markShardsAvailable(clusterStateBuilder);
         manager.clusterChanged(event(clusterStateBuilder));
         assertTrue(listenerCalled.get());
@@ -245,7 +245,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String templateName) throws IOException {
-        return createClusterState(indexName, templateName, templateName, SecurityIndexManager.INTERNAL_INDEX_FORMAT);
+        return createClusterState(indexName, templateName, templateName, SecurityIndexManager.INTERNAL_SECURITY_INDEX_FORMAT);
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String templateName, int format) throws IOException {

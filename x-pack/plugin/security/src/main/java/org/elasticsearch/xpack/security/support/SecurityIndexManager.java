@@ -67,13 +67,20 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class SecurityIndexManager implements ClusterStateListener {
 
+    public static final String SECURITY_ALIAS_NAME = ".security";
+    public static final int INTERNAL_SECURITY_INDEX_FORMAT = 6;
     public static final String INTERNAL_SECURITY_INDEX = ".security-" + IndexUpgradeCheckVersion.UPRADE_VERSION;
-    public static final int INTERNAL_INDEX_FORMAT = 6;
+    public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
+
+    public static final String SECURITY_TOKENS_ALIAS_NAME = ".security-tokens";
+    public static final String INTERNAL_SECURITY_TOKENS_INDEX = ".security-tokens-" + IndexUpgradeCheckVersion.UPRADE_VERSION;
+    public static final int INTERNAL_SECURITY_TOKENS_INDEX_FORMAT = 7;
+    public static final String SECURITY_TOKENS_TEMPLATE_NAME = "security-tokens-index-template";
+
     public static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
-    public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
-    public static final String SECURITY_ALIAS_NAME = ".security";
-    private static final Logger LOGGER = LogManager.getLogger(SecurityIndexManager.class);
+
+    private static final Logger logger = LogManager.getLogger();
 
     private final String indexName;
     private final int internalIndexFormat;
@@ -86,15 +93,23 @@ public class SecurityIndexManager implements ClusterStateListener {
     private volatile State indexState;
 
     public static SecurityIndexManager buildSecurityIndexManager(Client client, ClusterService clusterService) {
-        return new SecurityIndexManager(client, INTERNAL_SECURITY_INDEX, INTERNAL_INDEX_FORMAT, SECURITY_ALIAS_NAME, SECURITY_TEMPLATE_NAME, clusterService);
+        return new SecurityIndexManager(client, INTERNAL_SECURITY_INDEX, INTERNAL_SECURITY_INDEX_FORMAT, SECURITY_ALIAS_NAME,
+                SECURITY_TEMPLATE_NAME, clusterService);
     }
 
-    public SecurityIndexManager(Client client, String indexName, int internalIndexFormat, String aliasName, String templateName, ClusterService clusterService) {
+    public static SecurityIndexManager buildSecurityTokensIndexManager(Client client, ClusterService clusterService) {
+        return new SecurityIndexManager(client, INTERNAL_SECURITY_TOKENS_INDEX, INTERNAL_SECURITY_TOKENS_INDEX_FORMAT,
+                SECURITY_TOKENS_ALIAS_NAME, SECURITY_TOKENS_TEMPLATE_NAME, clusterService);
+    }
+
+    public SecurityIndexManager(Client client, String indexName, int internalIndexFormat, String aliasName, String templateName,
+            ClusterService clusterService) {
         this(client, indexName, internalIndexFormat, aliasName, templateName, new State(false, false, false, false, null, null));
         clusterService.addListener(this);
     }
 
-    private SecurityIndexManager(Client client, String indexName, int internalIndexFormat, String aliasName, String templateName, State indexState) {
+    private SecurityIndexManager(Client client, String indexName, int internalIndexFormat, String aliasName, String templateName,
+            State indexState) {
         this.client = client;
         this.indexName = indexName;
         this.internalIndexFormat = internalIndexFormat;
@@ -164,7 +179,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we think we don't have the
             // .security index but they may not have been restored from the cluster state on disk
-            LOGGER.debug("security index manager waiting until state has been recovered");
+            logger.debug("security index manager waiting until state has been recovered");
             return;
         }
         final State previousState = indexState;
@@ -192,7 +207,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         if (routingTable != null && routingTable.allPrimaryShardsActive()) {
             return true;
         }
-        LOGGER.debug("Security index [{}] is not yet active", indexName);
+        logger.debug("Security index [{}] is not yet active", indexName);
         return false;
     }
 
@@ -214,11 +229,11 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     // public and static for testing
     public static boolean checkIndexMappingVersionMatches(String indexName, ClusterState clusterState, Predicate<Version> predicate) {
-        return loadIndexMappingVersions(indexName, clusterState, LOGGER).stream().allMatch(predicate);
+        return loadIndexMappingVersions(indexName, clusterState, logger).stream().allMatch(predicate);
     }
 
     private Version oldestIndexMappingVersion(ClusterState clusterState) {
-        final Set<Version> versions = loadIndexMappingVersions(indexName, clusterState, LOGGER);
+        final Set<Version> versions = loadIndexMappingVersions(indexName, clusterState, logger);
         return versions.stream().min(Version::compareTo).orElse(null);
     }
 

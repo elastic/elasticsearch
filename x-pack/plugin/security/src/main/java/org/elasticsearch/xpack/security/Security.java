@@ -252,7 +252,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_SECURITY_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_ALIAS_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
 
@@ -430,7 +430,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityIndex.set(SecurityIndexManager.buildSecurityIndexManager(client, clusterService));
 
-        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService);
+        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(),
+                SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService), clusterService);
         this.tokenService.set(tokenService);
         components.add(tokenService);
 
@@ -1077,9 +1078,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         public void accept(DiscoveryNode node, ClusterState state) {
             if (state.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
                 IndexMetaData indexMetaData = state.getMetaData().getIndices().get(SECURITY_ALIAS_NAME);
-                if (indexMetaData != null && INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()) < INTERNAL_INDEX_FORMAT) {
-                    throw new IllegalStateException("Security index is not on the current version [" + INTERNAL_INDEX_FORMAT + "] - " +
-                        "The Upgrade API must be run for 7.x nodes to join the cluster");
+                if (indexMetaData != null && INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()) < INTERNAL_SECURITY_INDEX_FORMAT) {
+                    throw new IllegalStateException("Index [" + SECURITY_ALIAS_NAME + "] is not on the current version ["
+                            + INTERNAL_SECURITY_INDEX_FORMAT + "]. The Upgrade API must be run for 7.x nodes to join the cluster");
                 }
             }
         }

@@ -112,7 +112,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 logger.info("settings map {}", settingsMap);
                 if (settingsMap.containsKey("index")) {
                     int format = Integer.parseInt(String.valueOf(((Map<String, Object>)settingsMap.get("index")).get("format")));
-                    needsUpgrade = format == SecurityIndexManager.INTERNAL_INDEX_FORMAT ? false : true;
+                    needsUpgrade = format == SecurityIndexManager.INTERNAL_SECURITY_INDEX_FORMAT ? false : true;
                 } else {
                     needsUpgrade = true;
                 }

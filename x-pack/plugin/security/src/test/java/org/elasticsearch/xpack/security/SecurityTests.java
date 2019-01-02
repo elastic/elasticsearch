@@ -67,7 +67,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_SECURITY_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_ALIAS_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -341,7 +341,7 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(joinValidator);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_ALIAS_NAME)
-            .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_INDEX_FORMAT - 1))
+            .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_SECURITY_INDEX_FORMAT - 1))
             .numberOfShards(1).numberOfReplicas(0)
             .build();
         DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.V_6_1_0);
@@ -351,7 +351,7 @@ public class SecurityTests extends ESTestCase {
             .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
         IllegalStateException e = expectThrows(IllegalStateException.class,
             () -> joinValidator.accept(node, clusterState));
-        assertThat(e.getMessage(), equalTo("Security index is not on the current version [6] - " +
+        assertThat(e.getMessage(), equalTo("Index [.security] is not on the current version [6]. " +
             "The Upgrade API must be run for 7.x nodes to join the cluster"));
     }
 
@@ -360,7 +360,7 @@ public class SecurityTests extends ESTestCase {
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        int indexFormat = randomBoolean() ? INTERNAL_INDEX_FORMAT : INTERNAL_INDEX_FORMAT - 1;
+        int indexFormat = randomBoolean() ? INTERNAL_SECURITY_INDEX_FORMAT : INTERNAL_SECURITY_INDEX_FORMAT - 1;
         IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_ALIAS_NAME)
             .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
             .numberOfShards(1).numberOfReplicas(0)
@@ -380,7 +380,7 @@ public class SecurityTests extends ESTestCase {
         Version version = randomBoolean() ? Version.CURRENT : Version.V_6_1_0;
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_ALIAS_NAME)
-            .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_INDEX_FORMAT))
+            .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_SECURITY_INDEX_FORMAT))
             .numberOfShards(1).numberOfReplicas(0)
             .build();
         DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), version);

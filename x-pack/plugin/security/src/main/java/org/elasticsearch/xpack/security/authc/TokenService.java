@@ -176,6 +176,7 @@ public final class TokenService {
     private final TimeValue deleteInterval;
     private final Client client;
     private final SecurityIndexManager securityIndex;
+    private final SecurityIndexManager securityTokensIndex;
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
     private volatile TokenKeys keyCache;
@@ -189,8 +190,8 @@ public final class TokenService {
      * @param clock    the clock that will be used for comparing timestamps
      * @param client   the client to use when checking for revocations
      */
-    public TokenService(Settings settings, Clock clock, Client client,
-                        SecurityIndexManager securityIndex, ClusterService clusterService) throws GeneralSecurityException {
+    public TokenService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex,
+            SecurityIndexManager securityTokensIndex, ClusterService clusterService) throws GeneralSecurityException {
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
 
@@ -200,6 +201,7 @@ public final class TokenService {
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
         this.client = client;
         this.securityIndex = securityIndex;
+        this.securityTokensIndex = securityTokensIndex;
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = isTokenServiceEnabled(settings);

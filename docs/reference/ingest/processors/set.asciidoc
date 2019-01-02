@@ -1,0 +1,21 @@
+[[set-options]]
+.Set Options
+[options="header"]
+|======
+| Name       | Required  | Default  | Description
+| `field` | yes       | -        | The field to insert, upsert, or update. Supports <<accessing-template-fields,template snippets>>.
+| `value` | yes       | -        | The value to be set for the field. Supports <<accessing-template-fields,template snippets>>.
+| `override` | no        | true     | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
+include::common-options.asciidoc[]
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "set": {
+    "field": "host.os.name",
+    "value": "{{os}}"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

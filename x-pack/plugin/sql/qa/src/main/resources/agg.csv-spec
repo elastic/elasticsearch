@@ -262,9 +262,51 @@ SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp 
 null                |10   
 ;
 
-histogramDateWithDateFunction-Ignore
-SELECT YEAR(HISTOGRAM(birth_date, INTERVAL 1 YEAR)) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
+histogramDateWithMonthOnTop
+schema::h:i|c:l
+SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
 
-          
-     
+       h       |       c       
+---------------+---------------
+12             |7              
+10             |17             
+8              |16             
+6              |16             
+4              |18             
+2              |10             
+0              |6              
+null           |10    
+;
+
+histogramDateWithYearOnTop
+schema::h:i|c:l
+SELECT HISTOGRAM(YEAR(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
+       h       |       c       
+---------------+---------------
+1964           |5              
+1962           |13             
+1960           |16             
+1958           |16             
+1956           |9              
+1954           |12             
+1952           |19             
+null           |10   
+;
+
+histogramNumericWithExpression
+schema::h:i|c:l
+SELECT HISTOGRAM(emp_no % 100, 10) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
+
+       h       |       c       
+---------------+---------------
+90             |10             
+80             |10             
+70             |10             
+60             |10             
+50             |10             
+40             |10             
+30             |10             
+20             |10             
+10             |10             
+0              |10   
 ;

@@ -22,6 +22,7 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -76,8 +77,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     ShardSearchLocalRequest() {
     }
 
-    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
-                            AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias, String[] indexRoutings) {
+    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards, AliasFilter aliasFilter, float indexBoost,
+                            long nowInMillis, @Nullable String clusterAlias, String[] indexRoutings) {
         this(shardId, numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost,
                 searchRequest.allowPartialSearchResults(), indexRoutings, searchRequest.preference());
@@ -112,7 +113,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.indexRoutings = indexRoutings;
         this.preference = preference;
     }
-
 
     @Override
     public ShardId shardId() {

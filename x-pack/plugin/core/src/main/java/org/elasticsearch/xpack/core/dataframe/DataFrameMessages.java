@@ -14,8 +14,8 @@ public class DataFrameMessages {
     public static final String REST_STOP_JOB_WAIT_FOR_COMPLETION_TIMEOUT =
             "Timed out after [{0}] while waiting for data frame job [{1}] to stop";
     public static final String REST_STOP_JOB_WAIT_FOR_COMPLETION_INTERRUPT = "Interrupted while waiting for data frame job [{0}] to stop";
-    public static final String REST_PUT_DATA_FRAME_JOB_EXISTS = "Job with id [{1}] already exists";
-    public static final String REST_DELETE_DATA_FRAME_UNKNOWN_JOB = "Job with id [{1}] could not be found";
+    public static final String REST_PUT_DATA_FRAME_JOB_EXISTS = "Job with id [{0}] already exists";
+    public static final String REST_DELETE_DATA_FRAME_UNKNOWN_JOB = "Job with id [{0}] could not be found";
     public static final String REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION =
             "Failed to validate data frame configuration";
     public static final String REST_PUT_DATA_FRAME_FAILED_PERSIST_JOB_CONFIGURATION = "Failed to persist data frame configuration";

@@ -46,6 +46,7 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
@@ -196,7 +197,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     1,
                     randomNonNegativeLong(),
                     false,
-                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON));
+                    new SourceToParse("index", "type", "replica", new BytesArray("{}"), XContentType.JSON));
             shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean());
             oldPrimary.store().close();
@@ -209,8 +210,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 promotedReplica.applyIndexOperationOnPrimary(
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,
-                        SourceToParse.source("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
-                        randomNonNegativeLong(),
+                        new SourceToParse("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 0, randomNonNegativeLong(),
                         false);
             }
             final IndexShard recoveredReplica =

@@ -15,6 +15,8 @@ Last but not least, {es-sql} tries to obey the https://en.wikipedia.org/wiki/Pri
 
 === Mapping concepts across SQL and {es}
 
+beta[]
+
 While SQL and {es} have different terms for the way the data is organized (and different semantics), essentially their purpose is the same.
 
 So let's start from the bottom; these roughly are:
@@ -64,4 +66,4 @@ Multiple clusters, each with its own namespace, connected to each other in a fed
 
 |===
 
-As one can see while the mapping between the concepts are not exactly one to one and the semantics somewhat different, there are more things in common than differences. In fact, thanks to SQL declarative nature, many concepts can move across {es} transparently and the terminology of the two likely to be used interchangeably through-out the rest of the material.
+As one can see while the mapping between the concepts are not exactly one to one and the semantics somewhat different, there are more things in common than differences. In fact, thanks to SQL declarative nature, many concepts can move across {es} transparently and the terminology of the two likely to be used interchangeably throughout the rest of the material.

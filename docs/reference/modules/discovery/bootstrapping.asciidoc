@@ -1,0 +1,99 @@
+[[modules-discovery-bootstrap-cluster]]
+=== Bootstrapping a cluster
+
+Starting an Elasticsearch cluster for the very first time requires the initial
+set of <<master-node,master-eligible nodes>> to be explicitly defined on one or
+more of the master-eligible nodes in the cluster. This is known as _cluster
+bootstrapping_.  This is only required the very first time the cluster starts
+up: nodes that have already joined a cluster store this information in their
+data folder and freshly-started nodes that are joining an existing cluster
+obtain this information from the cluster's elected master. 
+
+The initial set of master-eligible nodes is defined in the 
+<<initial_master_nodes,`cluster.initial_master_nodes` setting>>. When you
+start a master-eligible node, you can provide this setting on the command line
+or in the `elasticsearch.yml` file. After the cluster has formed, this setting
+is no longer required and is ignored. It need not be set
+on master-ineligible nodes, nor on master-eligible nodes that are started to
+join an existing cluster. Note that master-eligible nodes should use storage
+that persists across restarts. If they do not, and
+`cluster.initial_master_nodes` is set, and a full cluster restart occurs, then
+another brand-new cluster will form and this may result in data loss.
+
+It is technically sufficient to set `cluster.initial_master_nodes` on a single
+master-eligible node in the cluster, and only to mention that single node in the
+setting's value, but this provides no fault tolerance before the cluster has
+fully formed. It is therefore better to bootstrap using at least three
+master-eligible nodes, each with a `cluster.initial_master_nodes` setting
+containing all three nodes.
+
+NOTE: In alpha releases, all listed master-eligible nodes are required to be
+discovered before bootstrapping can take place. This requirement will be relaxed
+in production-ready releases.
+
+WARNING: You must set `cluster.initial_master_nodes` to the same list of nodes
+on each node on which it is set in order to be sure that only a single cluster
+forms during bootstrapping and therefore to avoid the risk of data loss.
+
+For a cluster with 3 master-eligible nodes (with <<node.name,node names>>
+`master-a`, `master-b` and `master-c`) the configuration will look as follows:
+
+[source,yaml]
+--------------------------------------------------
+cluster.initial_master_nodes:
+  - master-a
+  - master-b
+  - master-c
+--------------------------------------------------
+
+Alternatively the IP addresses or hostnames (<<node.name,if node name defaults
+to the host name>>) can be used. If there is more than one Elasticsearch node
+with the same IP address or hostname then the transport ports must also be given
+to specify exactly which node is meant:
+
+[source,yaml]
+--------------------------------------------------
+cluster.initial_master_nodes:
+  - 10.0.10.101
+  - 10.0.10.102:9300
+  - 10.0.10.102:9301
+  - master-node-hostname
+--------------------------------------------------
+
+Like all node settings, it is also possible to specify the initial set of master
+nodes on the command-line that is used to start Elasticsearch:
+
+[source,bash]
+--------------------------------------------------
+$ bin/elasticsearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
+--------------------------------------------------
+
+[float]
+==== Choosing a cluster name
+
+The <<cluster.name,`cluster.name`>> setting enables you to create multiple
+clusters which are separated from each other. Nodes verify that they agree on
+their cluster name when they first connect to each other, and Elasticsearch
+will only form a cluster from nodes that all have the same cluster name. The
+default value for the cluster name is `elasticsearch`, but it is recommended to
+change this to reflect the logical name of the cluster.
+
+[float]
+==== Auto-bootstrapping in development mode
+
+If the cluster is running with a completely default configuration then it will
+automatically bootstrap a cluster based on the nodes that could be discovered to
+be running on the same host within a short time after startup. This means that
+by default it is possible to start up several nodes on a single machine and have
+them automatically form a cluster which is very useful for development
+environments and experimentation.  However, since nodes may not always
+successfully discover each other quickly enough this automatic bootstrapping
+cannot be relied upon and cannot be used in production deployments.
+
+If any of the following settings are configured then auto-bootstrapping will not
+take place, and you must configure `cluster.initial_master_nodes` as described
+in the <<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>>:
+
+* `discovery.zen.hosts_provider`
+* `discovery.zen.ping.unicast.hosts`
+* `cluster.initial_master_nodes`

@@ -55,6 +55,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -894,10 +895,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetaData.rolloverInfos);
         }
 
-        public String index() {
-            return index;
-        }
-
         public Builder index(String index) {
             this.index = index;
             return this;
@@ -942,27 +939,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             return this;
         }
 
-        /**
-         * Returns the number of replicas.
-         *
-         * @return the provided value or -1 if it has not been set.
-         */
-        public int numberOfReplicas() {
-            return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
-        }
-
         public Builder routingPartitionSize(int routingPartitionSize) {
             settings = Settings.builder().put(settings).put(SETTING_ROUTING_PARTITION_SIZE, routingPartitionSize).build();
             return this;
-        }
-
-        /**
-         * Returns the routing partition size.
-         *
-         * @return the provided value or -1 if it has not been set.
-         */
-        public int routingPartitionSize() {
-            return settings.getAsInt(SETTING_ROUTING_PARTITION_SIZE, -1);
         }
 
         public Builder creationDate(long creationDate) {
@@ -1036,10 +1015,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             return this;
         }
 
-        public RolloverInfo getRolloverInfo(String alias) {
-            return rolloverInfos.get(alias);
-        }
-
         public Builder putRolloverInfo(RolloverInfo rolloverInfo) {
             rolloverInfos.put(rolloverInfo.getAlias(), rolloverInfo);
             return this;
@@ -1105,6 +1080,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 throw new IllegalStateException("you must set the number of shards before setting/reading primary terms");
             }
             primaryTerms = new long[numberOfShards()];
+            Arrays.fill(primaryTerms, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
         }
 
 
@@ -1135,7 +1111,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
             int numberOfReplicas = maybeNumberOfReplicas;
             if (numberOfReplicas < 0) {
-                throw new IllegalArgumentException("must specify non-negative number of shards for index [" + index + "]");
+                throw new IllegalArgumentException("must specify non-negative number of replicas for index [" + index + "]");
             }
 
             int routingPartitionSize = INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
@@ -1557,14 +1533,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         if (sourceNumberOfShards < targetNumberOfShards) { // split
             factor = targetNumberOfShards / sourceNumberOfShards;
             if (factor * sourceNumberOfShards != targetNumberOfShards || factor <= 1) {
-                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a " +
+                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a " +
                     "factor of ["
                     + targetNumberOfShards + "]");
             }
         } else if (sourceNumberOfShards > targetNumberOfShards) { // shrink
             factor = sourceNumberOfShards / targetNumberOfShards;
             if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
-                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a " +
+                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a " +
                     "multiple of ["
                     + targetNumberOfShards + "]");
             }

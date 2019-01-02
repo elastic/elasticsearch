@@ -80,12 +80,12 @@ public class NodeRestUsageIT extends ESRestTestCase {
         // Do some requests to get some rest usage stats
         client().performRequest(new Request("PUT", "/test"));
         for (int i = 0; i < 3; i++) {
-            final Request index = new Request("POST", "/test/doc/1");
+            final Request index = new Request("POST", "/test/_doc/1");
             index.setJsonEntity("{\"foo\": \"bar\"}");
             client().performRequest(index);
         }
         client().performRequest(new Request("GET", "/test/_search"));
-        final Request index4 = new Request("POST", "/test/doc/4");
+        final Request index4 = new Request("POST", "/test/_doc/4");
         index4.setJsonEntity("{\"foo\": \"bar\"}");
         client().performRequest(index4);
         client().performRequest(new Request("POST", "/test/_refresh"));

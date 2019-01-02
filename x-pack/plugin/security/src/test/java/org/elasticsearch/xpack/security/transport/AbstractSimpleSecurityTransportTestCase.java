@@ -26,6 +26,7 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -115,9 +116,9 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         int port = serviceA.boundAddress().publishAddress().getPort();
         Settings settings = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
-            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-            .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-            .put("transport.tcp.port", port)
+            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+            .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+            .put(TransportSettings.PORT.getKey(), port)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {

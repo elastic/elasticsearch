@@ -258,7 +258,7 @@ public class BigArraysTests extends ESTestCase {
         random().nextBytes(array1);
         final ByteArray array2 = bigArrays.newByteArray(array1.length, randomBoolean());
         for (int i = 0; i < array1.length; ) {
-            final int len = Math.min(array1.length - i, randomBoolean() ? randomInt(10) : randomInt(3 * BigArrays.BYTE_PAGE_SIZE));
+            final int len = Math.min(array1.length - i, randomBoolean() ? randomInt(10) : randomInt(3 * PageCacheRecycler.BYTE_PAGE_SIZE));
             array2.set(i, array1, i, len);
             i += len;
         }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
@@ -30,6 +31,7 @@ import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
@@ -37,10 +39,16 @@ import org.elasticsearch.index.shard.ShardPath;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
 public class FsDirectoryService extends DirectoryService {
+    /*
+     * We are mmapping norms, docvalues as well as term dictionaries, all other files are served through NIOFS
+     * this provides good random access performance and does not lead to page cache thrashing.
+     */
+    private static final Set<String> PRIMARY_EXTENSIONS = Collections.unmodifiableSet(Sets.newHashSet("nvd", "dvd", "tim"));
 
     protected final IndexStore indexStore;
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
@@ -78,27 +86,36 @@ public class FsDirectoryService extends DirectoryService {
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         final String storeType =
                 indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
+        IndexModule.Type type;
         if (IndexModule.Type.FS.match(storeType)) {
-            final IndexModule.Type type =
-                    IndexModule.defaultStoreType(IndexModule.NODE_STORE_ALLOW_MMAPFS.get(indexSettings.getNodeSettings()));
-            switch (type) {
-                case MMAPFS:
-                    return new MMapDirectory(location, lockFactory);
-                case SIMPLEFS:
-                    return new SimpleFSDirectory(location, lockFactory);
-                case NIOFS:
-                    return new NIOFSDirectory(location, lockFactory);
-                default:
-                    throw new AssertionError("unexpected built-in store type [" + type + "]");
-            }
-        } else if (IndexModule.Type.SIMPLEFS.match(storeType)) {
-            return new SimpleFSDirectory(location, lockFactory);
-        } else if (IndexModule.Type.NIOFS.match(storeType)) {
-            return new NIOFSDirectory(location, lockFactory);
-        } else if (IndexModule.Type.MMAPFS.match(storeType)) {
-            return new MMapDirectory(location, lockFactory);
+            type = IndexModule.defaultStoreType(IndexModule.NODE_STORE_ALLOW_MMAPFS.get(indexSettings.getNodeSettings()));
+        } else {
+            type = IndexModule.Type.fromSettingsKey(storeType);
         }
-        throw new IllegalArgumentException("No directory found for type [" + storeType + "]");
+        switch (type) {
+            case HYBRIDFS:
+                // Use Lucene defaults
+                final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
+                if (primaryDirectory instanceof MMapDirectory) {
+                    return new FileSwitchDirectory(PRIMARY_EXTENSIONS, primaryDirectory, new NIOFSDirectory(location, lockFactory), true) {
+                        @Override
+                        public String[] listAll() throws IOException {
+                            // Avoid doing listAll twice:
+                            return primaryDirectory.listAll();
+                        }
+                    };
+                } else {
+                    return primaryDirectory;
+                }
+            case MMAPFS:
+                return new MMapDirectory(location, lockFactory);
+            case SIMPLEFS:
+                return new SimpleFSDirectory(location, lockFactory);
+            case NIOFS:
+                return new NIOFSDirectory(location, lockFactory);
+            default:
+                throw new AssertionError("unexpected built-in store type [" + type + "]");
+        }
     }
 
     private static Directory setPreload(Directory directory, Path location, LockFactory lockFactory,

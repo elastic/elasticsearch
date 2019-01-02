@@ -23,6 +23,7 @@ public class DataFrameMessages {
 
     public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for job[{1}]";
     public static final String FAILED_TO_LOAD_JOB_CONFIGURATION = "Failed to load data frame job configuration for job [{0}]";
+    public static final String FAILED_TO_PARSE_JOB_CONFIGURATION = "Failed to parse job configuration for data frame job [{0}]";
 
     private DataFrameMessages() {
     }

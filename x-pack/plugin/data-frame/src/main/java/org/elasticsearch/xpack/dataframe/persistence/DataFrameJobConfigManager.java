@@ -72,9 +72,7 @@ public class DataFrameJobConfigManager {
 
             executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> {
                 listener.onResponse(true);
-            }, e -> {
-                listener.onFailure(e);
-            }));
+            }, listener::onFailure));
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchParseException("Failed to serialise job with id [" + jobConfig.getId() + "]", e));
         }
@@ -90,9 +88,7 @@ public class DataFrameJobConfigManager {
             }
             BytesReference source = getResponse.getSourceAsBytesRef();
             parseJobLenientlyFromSource(source, jobId, resultListener);
-        }, e -> {
-            resultListener.onFailure(e);
-        }));
+        }, resultListener::onFailure));
     }
 
     public void deleteJobConfiguration(String jobId, ActionListener<Boolean> listener) {
@@ -107,9 +103,7 @@ public class DataFrameJobConfigManager {
                 return;
             }
             listener.onResponse(true);
-        }, e -> {
-            listener.onFailure(e);
-        }));
+        },  listener::onFailure));
     }
 
     private void parseJobLenientlyFromSource(BytesReference source, String jobId, ActionListener<DataFrameJobConfig> jobListener)  {
@@ -118,7 +112,7 @@ public class DataFrameJobConfigManager {
                      .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
             jobListener.onResponse(DataFrameJobConfig.PARSER.parse(parser, jobId));
         } catch (Exception e) {
-            logger.error("parse error", e);
+            logger.error(DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_PARSE_JOB_CONFIGURATION, jobId), e);
             jobListener.onFailure(e);
         }
     }

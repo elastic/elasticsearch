@@ -12,16 +12,20 @@ The following variables are available in all watcher contexts.
         The server generated unique identifer for the run watch.
 
 `ctx['metadata']` (`Map`, read-only)::
-        Any metadata associated with the watch.
+        Metadata can be added to the top level of the watch definition. This
+        is user defined and is typically used to consolidate duplicate values
+        in a watch.
 
 `ctx['execution_time']` (`ZonedDateTime`, read-only)::
-        The start time for the watch.
+        The time the watch began execution.
 
 `ctx['trigger']['scheduled_time']` (`ZonedDateTime`, read-only)::
-        The scheduled trigger time for the watch.
+        The scheduled trigger time for the watch. This is the time the
+        watch should be executed.
 
 `ctx['trigger']['triggered_time']` (`ZonedDateTime`, read-only)::
-        The actual trigger time for the watch.
+        The actual trigger time for the watch. This is the time the
+        watch was triggered for execution.
 
 `ctx['payload']` (`Map`, read-only)::
         The accessible watch data based upon the
@@ -34,125 +38,3 @@ The standard <<painless-api-reference, Painless API>> is available.
 
 To run this example, first follow the steps in
 <<painless-context-examples, context examples>>.
-
-==== Metadata in a watch
-
-Metadata can be added to the top level of the watch definition. This
-is user defined and is typically used to consolidate duplicate values
-in a watch.
-
-[source,Painless]
-----
-POST _watcher/watch/_execute
-{
-  "watch" : {
-    "metadata" : { "high_threshold": 50000 },
-    "trigger" : { "schedule" : { "interval" : "24h" } },
-    "condition" : {
-      "script" :
-      """
-        return ctx.metadata.high_threshold == 50000     <1>
-      """
-    },
-    "actions" : {
-      "my_log" : {
-        "logging" : {
-          "text" : "High threshold was reached"
-        }
-      }
-    }
-  }
-}
-----
-<1> The metadata field is accessed in the script
-
-==== Time values in a watch
-
-There are 3 time values that are available as part of the context. The
-execution_time is the actual time the watch is executed. The other two
-are accessed from the trigger object within the context. The trigger
-object holds the time in which the watch should be triggered, as well
-as when the job was scheduled to run. The following example shows some
-date math between the values.
-
-[source,Painless]
-----
-POST _watcher/watch/_execute
-{
-  "watch" : {
-    "metadata" : { "high_threshold": 50000 },
-    "trigger" : { "schedule" : { "interval" : "24h" } },
-    "transform" : {
-      "script" :
-      """
-        if (ctx.execution_time.isEqual(ctx.trigger.scheduled_time)) {
-          return ['output': 'the times are equal']
-        } else if (ctx.execution_time.isAfter(ctx.trigger.scheduled_time)) {
-          return ['output': 'the watch was executed after it was triggered']
-        } else if (ctx.execution_time.isBefore(ctx.trigger.scheduled_time)) {
-          return ['output': 'the watch was executed before it was triggered']
-        } else {
-          return ['output': 'something went wrong!']
-        }
-      """
-    },
-    "actions" : {
-      "my_log" : {
-        "logging" : {
-          "text" : "The time math showed {{ctx.payload.output}}"
-        }
-      }
-    }
-  }
-}
-----
-
-==== Payload in a watch
-
-The payload contains the output of the execution of the inputs of a watch.
-
-[source,Painless]
-----
-POST _xpack/watcher/watch/_execute
-{
-  "watch" : {
-    "trigger" : { "schedule" : { "interval" : "24h" } },
-    "input" : {
-      "search" : {
-        "request" : {
-          "indices" : [ "seats" ],
-          "body" : {
-            "query" : {
-              "term": { "sold": "true"}
-            },
-            "aggs" : {
-              "theatres" : {
-                "terms" : { "field" : "play" },
-                "aggs" : {
-                  "money" : {
-                    "sum": { "field" : "cost" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "transform" : {
-      "script":
-      """
-        return [ 'elements': ctx.payload.aggregations.theatres.buckets.size() ]
-      """
-    },
-    "actions" : {
-      "my_log" : {
-        "logging" : {
-          "text" : "The payload contains {{ctx.payload.elements}} elements"
-        }
-      }
-    }
-  }
-}
-
-----

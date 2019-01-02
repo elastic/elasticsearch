@@ -1,10 +1,3 @@
-==== Complete Example
-
-While these examples are contrived, a more complete watch shown below contains
-both <<painless-watcher-condition-context, conditions>> and
-<<painless-watcher-transform-context, transforms>>, and is the basis of the
-above examples. It is shown for completeness.
-
 [source,Painless]
 ----
 POST _watcher/watch/_execute
@@ -38,10 +31,8 @@ POST _watcher/watch/_execute
       "script" :
       """
         return ctx.payload.aggregations.theatres.buckets.stream()
-          .filter(t -> t.money.value < ctx.metadata.low_threshold ||
-                       t.money.value > ctx.metadata.high_threshold)
-          .collect(Collectors.toList())
-          .size() > 0
+          .anyMatch(theatre -> theatre.money.value < ctx.metadata.low_threshold ||
+                               theatre.money.value > ctx.metadata.high_threshold)
       """
     },
     "transform" : {
@@ -75,15 +66,14 @@ POST _watcher/watch/_execute
           """
           def formatter = NumberFormat.getCurrencyInstance();
           return [
-            'msg': ctx.payload.money_makers.stream()
+            'plays_value': ctx.payload.money_makers.stream()
               .map(t-> formatter.format(t.total_value) + ' for the play ' + t.play)
-              .collect(Collectors.toList())
-              .join(", ")
+              .collect(Collectors.joining(", "))
           ]
           """
         },
         "logging" : {
-          "text" : "The following plays contain the higest grossing total income: {{ctx.payload.msg}}"
+          "text" : "The following plays contain the highest grossing total income: {{ctx.payload.plays_value}}"
         }
       },
       "log_duds" : {
@@ -95,15 +85,70 @@ POST _watcher/watch/_execute
           """
           def formatter = NumberFormat.getCurrencyInstance();
           return [
-            'msg': ctx.payload.duds.stream()
+            'plays_value': ctx.payload.duds.stream()
               .map(t-> formatter.format(t.total_value) + ' for the play ' + t.play)
-              .collect(Collectors.toList())
-              .join(", ")
+              .collect(Collectors.joining(", "))
           ]
           """
         },
         "logging" : {
-          "text" : "The following plays need more advertising due to their low total income: {{ctx.payload.msg}}"
+          "text" : "The following plays need more advertising due to their low total income: {{ctx.payload.plays_value}}"
+        }
+      }
+    }
+  }
+}
+----
+
+The following example shows the use of metadata and transforming dates into a readable format.
+
+[source,Painless]
+----
+POST _xpack/watcher/watch/_execute
+{
+  "watch" : {
+    "metadata" : { "min_hits": 10000 },
+    "trigger" : { "schedule" : { "interval" : "24h" } },
+    "input" : {
+      "search" : {
+        "request" : {
+          "indices" : [ "seats" ],
+          "body" : {
+            "query" : {
+              "term": { "sold": "true"}
+            },
+            "aggs" : {
+              "theatres" : {
+                "terms" : { "field" : "play" },
+                "aggs" : {
+                  "money" : {
+                    "sum": { "field" : "cost" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "condition" : {
+      "script" :
+      """
+        return ctx.payload.hits.total > ctx.metadata.min_hits
+      """
+    },
+    "transform" : {
+      "script" :
+      """
+        def theDate = ZonedDateTime.ofInstant(ctx.execution_time.toInstant(), ZoneId.systemDefault());
+        return ['human_date': DateTimeFormatter.RFC_1123_DATE_TIME.format(theDate),
+                'aggregations': ctx.payload.aggregations]
+      """
+    },
+    "actions" : {
+      "my_log" : {
+        "logging" : {
+          "text" : "The watch was successfully executed on {{ctx.payload.human_date}} and contained {{ctx.payload.aggregations.theatres.buckets.size}} buckets"
         }
       }
     }

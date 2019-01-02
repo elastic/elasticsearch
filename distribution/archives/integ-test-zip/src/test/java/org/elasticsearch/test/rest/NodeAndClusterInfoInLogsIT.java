@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.rest;
 
-import org.elasticsearch.common.logging.NodeNameInLogsIntegTestCase;
+import org.elasticsearch.common.logging.NodeAndClusterInfoIntegTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.security.PrivilegedAction;
 
 import static org.hamcrest.Matchers.is;
 
-public class NodeNameInLogsIT extends NodeNameInLogsIntegTestCase {
+public class NodeAndClusterInfoInLogsIT extends NodeAndClusterInfoIntegTestCase {
     @Override
     protected Matcher<String> nodeNameMatcher() {
         return is("node-0");

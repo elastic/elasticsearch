@@ -30,6 +30,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class JsonLogs implements Iterable<JsonLogLine>, Closeable {
 
@@ -56,6 +58,10 @@ public class JsonLogs implements Iterable<JsonLogLine>, Closeable {
         reader.close();
     }
 
+    public Stream<JsonLogLine> stream() {
+        return StreamSupport.stream(spliterator(), false);
+    }
+
     private class JsonIterator implements Iterator<JsonLogLine> {
 
         @Override
@@ -78,4 +84,6 @@ public class JsonLogs implements Iterable<JsonLogLine>, Closeable {
             }
         }
     }
+
+
 }

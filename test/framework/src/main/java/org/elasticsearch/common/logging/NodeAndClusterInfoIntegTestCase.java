@@ -26,9 +26,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Iterator;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests that extend this class verify that the node name appears in the first
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
  * DEBUG or TRACE level logging. Those nodes log a few lines before they
  * resolve the node name.
  */
-public abstract class NodeNameInLogsIntegTestCase extends ESRestTestCase {
+public abstract class NodeAndClusterInfoIntegTestCase extends ESRestTestCase {
     /**
      * Number of lines in the log file to check for the node name. We don't
      * just check the entire log file because it could be quite long and
@@ -59,22 +60,39 @@ public abstract class NodeNameInLogsIntegTestCase extends ESRestTestCase {
 
     public void testNodeNameIsOnAllLinesOfLog() throws IOException {
         try (JsonLogs jsonLogs = new JsonLogs(openReader(getLogFile()))) {
-            Iterator<JsonLogLine> it = jsonLogs.iterator();
 
-            assertTrue("no logs at all?!", it.hasNext());
-            JsonLogLine firstLine = it.next();
+            JsonLogLine firstLine = null;
+            String expectedNodeId = null;
+            String expectedClusterId = null;
+            for (JsonLogLine jsonLogLine : jsonLogs) {
+                if (firstLine == null) {
+                    firstLine = jsonLogLine;
+                }
+
+                if (jsonLogLine.nodeId() != null && expectedNodeId == null) {
+                    //nodeId and clusterid are set together
+                    expectedNodeId = jsonLogLine.nodeId();
+                    expectedClusterId = jsonLogLine.clusterUuid();
+                }
 
 
-            String nodeName = firstLine.nodeName();
-            assertThat(nodeName, nodeNameMatcher());
+                assertThat(jsonLogLine.type(), not(isEmptyOrNullString()));
+                assertThat(jsonLogLine.timestamp(), not(isEmptyOrNullString()));
+                assertThat(jsonLogLine.level(), not(isEmptyOrNullString()));
+                assertThat(jsonLogLine.clazz(), not(isEmptyOrNullString()));
+                assertThat(jsonLogLine.message(), not(isEmptyOrNullString()));
 
+                //all lines should have the same nodeName and clusterName
+                assertThat(jsonLogLine.nodeName(), equalTo(firstLine.nodeName()));
+                assertThat(jsonLogLine.clusterName(), equalTo(firstLine.clusterName()));
 
-            for (int lineNumber = 1; lineNumber < LINES_TO_CHECK && it.hasNext(); lineNumber++) {
-                JsonLogLine logLine = it.next();
-                assertThat(logLine.nodeName(), equalTo(nodeName));
+                //initially empty, but once found all lines shoudl have same nodeId and clusterid
+                assertThat(jsonLogLine.nodeId(), equalTo(expectedNodeId));
+                assertThat(jsonLogLine.clusterUuid(), equalTo(expectedClusterId));
             }
         }
     }
+
 
     @SuppressForbidden(reason = "PathUtils doesn't have permission to read this file")
     private Path getLogFile() {

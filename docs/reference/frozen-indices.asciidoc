@@ -64,4 +64,25 @@ The default value for `pre_filter_shard_size` is `128` but it's recommended to s
 significant overhead associated with this pre-filter phase.
 ================================
 
+== Monitoring frozen indices
+
+Frozen indices are ordinary indices that use search throttling and a memory efficient shard implementation. In order to monitor / filter
+frozen indices in APIs like the <<cat-indices>> they must be filtered by their `throttled` property since frozen indices are not a core
+concept.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/indices/twitter?v&h=i,sth
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\nPOST twitter\/_freeze\n/]
+
+The response looks like:
+
+[source,txt]
+--------------------------------------------------
+i         sth
+twitter   true
+--------------------------------------------------
+// TESTRESPONSE[_cat]
 

@@ -154,6 +154,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertEquals(shardsIter.size(), searchResponse.getSuccessfulShards());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37074")
     public void testLimitConcurrentShardRequests() throws InterruptedException {
         SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);

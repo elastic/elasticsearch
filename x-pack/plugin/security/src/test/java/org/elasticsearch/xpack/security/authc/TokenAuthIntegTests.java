@@ -58,7 +58,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // crank up the deletion interval and set timeout for delete requests
-                .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueSeconds(1L))
+                .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(200L))
                 .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
                 .put(TokenService.BWC_ENABLED.getKey(), tokenServiceBwc)

@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
@@ -48,7 +50,10 @@ public final class DataFrameInternalIndex {
             request = new PutIndexTemplateRequest(INDEX_TEMPLATE_NAME)
                     .patterns(Collections.singletonList(INDEX_TEMPLATE_NAME))
                     .version(Version.CURRENT.id)
-                    // todo: settings (shards, replicas, ...)
+                    .settings(Settings.builder()
+                            // the configurations are expected to be small
+                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                     // todo: remove type
                     .mapping(MapperService.SINGLE_MAPPING_NAME, mappings());
 

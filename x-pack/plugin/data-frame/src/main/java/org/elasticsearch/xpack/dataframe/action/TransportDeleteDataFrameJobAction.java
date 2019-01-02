@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.dataframe.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -77,9 +76,13 @@ public class TransportDeleteDataFrameJobAction extends TransportTasksAction<Data
             if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
                 super.doExecute(task, request, listener);
             } else {
-                // If we couldn't find the job in the persistent task CS, it means it was deleted prior to this call,
-                // no need to go looking for the allocated task
-                listener.onFailure(new ResourceNotFoundException("the task with id [" + request.getId() + "] doesn't exist"));
+                // we couldn't find the job in the persistent task CS, but maybe the job exists in the configuration index,
+                // if so delete the orphaned document and do not throw (for the normal case we want to stop the task first,
+                // than delete the configuration document if and only if the data frame job is in stopped state)
+                jobConfigManager.deleteJobConfiguration(request.getId(), ActionListener.wrap(r -> {
+                    listener.onResponse(new Response(true));
+                    return;
+                }, listener::onFailure));
             }
         } else {
             // Delegates DeleteJob to elected master node, so it becomes the coordinating node.

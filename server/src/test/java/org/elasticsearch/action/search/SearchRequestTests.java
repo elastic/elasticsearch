@@ -78,6 +78,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testReadFromPre7_0_0() throws IOException {
         String msg = "AAEBBWluZGV4AAAAAQACAAAA/////w8AAAAAAAAA/////w8AAAAAAAACAAAAAAABAAMCBAUBAAKABACAAQIAAA==";
         try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(msg))) {
+            in.setVersion(Version.V_6_6_0);
             SearchRequest searchRequest = new SearchRequest(in);
             assertArrayEquals(new String[]{"index"}, searchRequest.indices());
             assertNull(searchRequest.getLocalClusterAlias());

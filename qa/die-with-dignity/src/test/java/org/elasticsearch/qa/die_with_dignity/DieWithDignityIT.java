@@ -99,7 +99,6 @@ public class DieWithDignityIT extends ESRestTestCase {
 
             while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
                 final JsonLogLine line = it.next();
-                System.out.println("xxx "+ isFatalError(line) +" " + isFatalErrorInThreadExiting(line)+" "+line);
                 if (isFatalError(line)) {
                     fatalError = true;
                 } else if (isFatalErrorInThreadExiting(line)) {

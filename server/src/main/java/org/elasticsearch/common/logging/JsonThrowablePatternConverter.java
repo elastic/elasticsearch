@@ -93,9 +93,8 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
             String stacktraceAsArray = BytesReference.bytes(builder).utf8ToString();
             return "\"exception\": " + stacktraceAsArray;
         } catch (IOException e) {
-            e.printStackTrace();//TODO
+           throw new RuntimeException(e);
         }
-        return "error";
     }
 
     @Override

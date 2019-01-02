@@ -24,29 +24,17 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Iterator;
 
 public class JsonLogs implements Iterable<JsonLogLine> {
 
     private final XContentParser parser;
 
-    public JsonLogs(String file) throws IOException {
-        this.parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            new FileInputStream(file));
-    }
-
     public JsonLogs(InputStream inputStream) throws IOException {
         this.parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
             inputStream);
-    }
-
-    public static JsonLogs from(Path path) throws IOException {
-        return new JsonLogs(Files.newInputStream(path));
     }
 
     @Override

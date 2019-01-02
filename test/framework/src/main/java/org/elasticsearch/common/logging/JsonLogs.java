@@ -17,29 +17,43 @@
  * under the License.
  */
 
-package org.elasticsearch.qa.die_with_dignity;
+package org.elasticsearch.common.logging;
 
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
+import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Iterator;
 
-public class JsonLogs implements Iterable<JsonLogLine> {
+public class JsonLogs implements Iterable<JsonLogLine>, Closeable {
 
     private final XContentParser parser;
+    private final BufferedReader reader;
 
-    public JsonLogs(InputStream inputStream) throws IOException {
+    public JsonLogs(BufferedReader reader) throws IOException {
+        this.reader = reader;
         this.parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            inputStream);
+            reader);
+    }
+
+    public JsonLogs(Path path) throws IOException {
+        this(Files.newBufferedReader(path));
     }
 
     @Override
     public Iterator<JsonLogLine> iterator() {
         return new JsonIterator();
+    }
+
+    @Override
+    public void close() throws IOException {
+        reader.close();
     }
 
     private class JsonIterator implements Iterator<JsonLogLine> {

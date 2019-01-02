@@ -23,6 +23,8 @@ import org.apache.http.ConnectionClosedException;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.JsonLogLine;
+import org.elasticsearch.common.logging.JsonLogs;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -90,8 +92,7 @@ public class DieWithDignityIT extends ESRestTestCase {
 
         // parse the logs and ensure that Elasticsearch died with the expected cause
         Path path = PathUtils.get(System.getProperty("log"));
-        try(InputStream inputStream = Files.newInputStream(path)){
-            JsonLogs jsonLogs = new JsonLogs(inputStream);
+        try(JsonLogs jsonLogs = new JsonLogs(path)){
             final Iterator<JsonLogLine> it = jsonLogs.iterator();
 
             boolean fatalError = false;
@@ -111,12 +112,9 @@ public class DieWithDignityIT extends ESRestTestCase {
             assertTrue(fatalError);
             assertTrue(fatalErrorInThreadExiting);
         }
-
     }
 
     private boolean isFatalErrorInThreadExiting(JsonLogLine line) {
-//        return line.matches(".*\\[ERROR\\]\\[o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler\\] \\[node-0\\]"
-//                + " fatal error in thread \\[Thread-\\d+\\], exiting$");
         return line.level().trim().equals("ERROR") //TODO remove trim
             && line.clazz().equals("o.e.b.ElasticsearchUncaughtExceptionHandler")
             && line.nodeName().equals("node-0")
@@ -124,7 +122,6 @@ public class DieWithDignityIT extends ESRestTestCase {
     }
 
     private boolean isFatalError(JsonLogLine line) {
-//        return line.matches(".*\\[ERROR\\]\\[o\\.e\\.ExceptionsHelper\\s*\\] \\[node-0\\] fatal error");
         return line.level().trim().equals("ERROR") //TODO remove trim
             && line.clazz().equals("o.e.ExceptionsHelper")
             && line.nodeName().equals("node-0")

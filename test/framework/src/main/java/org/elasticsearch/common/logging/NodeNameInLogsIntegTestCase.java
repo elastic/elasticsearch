@@ -26,10 +26,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
+import java.util.Iterator;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests that extend this class verify that the node name appears in the first
@@ -59,32 +58,21 @@ public abstract class NodeNameInLogsIntegTestCase extends ESRestTestCase {
     protected abstract BufferedReader openReader(Path logFile);
 
     public void testNodeNameIsOnAllLinesOfLog() throws IOException {
-        BufferedReader logReader = openReader(getLogFile());
-        try {
-            String line = logReader.readLine();
-            assertNotNull("no logs at all?!", line);
-            Matcher m = Pattern.compile("\\] \\[([^\\]]+)\\] ").matcher(line);
-            if (false == m.find()) {
-                fail("Didn't see the node name in [" + line + "]");
-            }
-            String nodeName = m.group(1);
+        try (JsonLogs jsonLogs = new JsonLogs(openReader(getLogFile()))) {
+            Iterator<JsonLogLine> it = jsonLogs.iterator();
 
+            assertTrue("no logs at all?!", it.hasNext());
+            JsonLogLine firstLine = it.next();
+
+
+            String nodeName = firstLine.nodeName();
             assertThat(nodeName, nodeNameMatcher());
 
-            int lineNumber = 1;
-            while (true) {
-                if (lineNumber < LINES_TO_CHECK) {
-                    break;
-                }
-                line = logReader.readLine();
-                if (line == null) {
-                    break; // eof
-                }
-                lineNumber++;
-                assertThat(line, containsString("] [" + nodeName + "] "));
+
+            for (int lineNumber = 1; lineNumber < LINES_TO_CHECK && it.hasNext(); lineNumber++) {
+                JsonLogLine logLine = it.next();
+                assertThat(logLine.nodeName(), equalTo(nodeName));
             }
-        } finally {
-            logReader.close();
         }
     }
 
@@ -93,8 +81,8 @@ public abstract class NodeNameInLogsIntegTestCase extends ESRestTestCase {
         String logFileString = System.getProperty("tests.logfile");
         if (null == logFileString) {
             fail("tests.logfile must be set to run this test. It is automatically "
-                    + "set by gradle. If you must set it yourself then it should be the absolute path to the "
-                    + "log file.");
+                + "set by gradle. If you must set it yourself then it should be the absolute path to the "
+                + "log file.");
         }
         return Paths.get(logFileString);
     }

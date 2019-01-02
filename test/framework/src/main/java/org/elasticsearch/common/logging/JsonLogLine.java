@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.qa.die_with_dignity;
+package org.elasticsearch.common.logging;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;

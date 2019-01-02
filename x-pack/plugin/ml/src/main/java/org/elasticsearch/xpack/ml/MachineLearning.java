@@ -165,6 +165,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
@@ -375,7 +376,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         if (enabled == false || transportClientMode) {
-            return emptyList();
+            // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
+            return Collections.singletonList(new JobManagerHolder());
         }
 
         Auditor auditor = new Auditor(client, clusterService.getNodeName());
@@ -384,6 +386,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(env, settings, jobResultsProvider, clusterService, auditor, threadPool, client, notifier);
+
+        // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
+        JobManagerHolder jobManagerHolder = new JobManagerHolder(jobManager);
 
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
@@ -443,6 +448,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobConfigProvider,
                 datafeedConfigProvider,
                 jobManager,
+                jobManagerHolder,
                 autodetectProcessManager,
                 new MlInitializationService(settings, threadPool, clusterService, client),
                 jobDataCountsPersister,

@@ -241,7 +241,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
         tokenService.createUserToken(authentication, authentication, future, tokenMetaData, true);
         final UserToken userToken = future.actionGet().v1();
-        mockGetTokenFromId(userToken, client);
+        mockGetTokenFromId(userToken, false, client);
         final String tokenString = tokenService.getUserTokenString(userToken);
 
         final SamlLogoutRequest request = new SamlLogoutRequest();
@@ -256,17 +256,13 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         assertThat(indexRequest1, notNullValue());
         assertThat(indexRequest1.id(), startsWith("token"));
 
-        assertThat(bulkRequests.size(), equalTo(2));
-        final BulkRequest bulkRequest1 = bulkRequests.get(0);
-        assertThat(bulkRequest1.requests().size(), equalTo(1));
-        assertThat(bulkRequest1.requests().get(0), instanceOf(IndexRequest.class));
-        assertThat(bulkRequest1.requests().get(0).id(), startsWith("invalidated-token_"));
+        assertThat(bulkRequests.size(), equalTo(1));
 
-        final BulkRequest bulkRequest2 = bulkRequests.get(1);
-        assertThat(bulkRequest2.requests().size(), equalTo(1));
-        assertThat(bulkRequest2.requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequest2.requests().get(0).id(), startsWith("token_"));
-        assertThat(bulkRequest2.requests().get(0).toString(), containsString("\"access_token\":{\"invalidated\":true"));
+        final BulkRequest bulkRequest = bulkRequests.get(0);
+        assertThat(bulkRequest.requests().size(), equalTo(1));
+        assertThat(bulkRequest.requests().get(0), instanceOf(UpdateRequest.class));
+        assertThat(bulkRequest.requests().get(0).id(), startsWith("token_"));
+        assertThat(bulkRequest.requests().get(0).toString(), containsString("\"access_token\":{\"invalidated\":true"));
     }
 
 }

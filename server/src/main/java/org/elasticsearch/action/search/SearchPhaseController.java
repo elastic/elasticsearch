@@ -408,8 +408,8 @@ public final class SearchPhaseController {
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
      */
-    public ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
-        return reducedQueryPhase(queryResults, true, SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+    ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
+        return reducedQueryPhase(queryResults, true, SearchContext.TRACK_TOTAL_HITS_ACCURATE, true);
     }
 
     /**
@@ -417,8 +417,9 @@ public final class SearchPhaseController {
      * @param queryResults a list of non-null query shard results
      */
     public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
-                                               boolean isScrollRequest, int trackTotalHitsUpTo) {
-        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHitsUpTo), 0, isScrollRequest);
+                                               boolean isScrollRequest, int trackTotalHitsUpTo, boolean performFinalReduce) {
+        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHitsUpTo),
+            0, isScrollRequest, performFinalReduce);
     }
 
     /**
@@ -434,7 +435,8 @@ public final class SearchPhaseController {
      */
     private ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
                                                 List<InternalAggregations> bufferedAggs, List<TopDocs> bufferedTopDocs,
-                                                TopDocsStats topDocsStats, int numReducePhases, boolean isScrollRequest) {
+                                                TopDocsStats topDocsStats, int numReducePhases, boolean isScrollRequest,
+                                                boolean performFinalReduce) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
         boolean timedOut = false;
@@ -500,7 +502,7 @@ public final class SearchPhaseController {
             }
         }
         final Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-        ReduceContext reduceContext = reduceContextFunction.apply(true);
+        ReduceContext reduceContext = reduceContextFunction.apply(performFinalReduce);
         final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
             firstResult.pipelineAggregators(), reduceContext);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
@@ -508,7 +510,7 @@ public final class SearchPhaseController {
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
             timedOut, terminatedEarly, suggest, aggregations, shardResults, sortedTopDocs,
-            firstResult.sortValueFormats(), numReducePhases, size, from, firstResult == null);
+            firstResult.sortValueFormats(), numReducePhases, size, from, false);
     }
 
     /**
@@ -618,6 +620,7 @@ public final class SearchPhaseController {
         private final SearchPhaseController controller;
         private int numReducePhases = 0;
         private final TopDocsStats topDocsStats;
+        private final boolean performFinalReduce;
 
         /**
          * Creates a new {@link QueryPhaseResultConsumer}
@@ -627,7 +630,7 @@ public final class SearchPhaseController {
          *                   the buffer is used to incrementally reduce aggregation results before all shards responded.
          */
         private QueryPhaseResultConsumer(SearchPhaseController controller, int expectedResultSize, int bufferSize,
-                                         boolean hasTopDocs, boolean hasAggs, int trackTotalHitsUpTo) {
+                                         boolean hasTopDocs, boolean hasAggs, int trackTotalHitsUpTo, boolean performFinalReduce) {
             super(expectedResultSize);
             if (expectedResultSize != 1 && bufferSize < 2) {
                 throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
@@ -646,6 +649,7 @@ public final class SearchPhaseController {
             this.hasAggs = hasAggs;
             this.bufferSize = bufferSize;
             this.topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
+            this.performFinalReduce = performFinalReduce;
         }
 
         @Override
@@ -695,7 +699,7 @@ public final class SearchPhaseController {
         @Override
         public ReducedQueryPhase reduce() {
             return controller.reducedQueryPhase(results.asList(), getRemainingAggs(), getRemainingTopDocs(), topDocsStats,
-                numReducePhases, false);
+                numReducePhases, false, performFinalReduce);
         }
 
         /**
@@ -717,19 +721,20 @@ public final class SearchPhaseController {
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
         final int trackTotalHitsUpTo = source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
+        final boolean finalReduce = request.getLocalClusterAlias() == null;
 
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
             if (request.getBatchedReduceSize() < numShards) {
                 // only use this if there are aggs and if there are more shards than we should reduce at once
-                return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(),
-                    hasTopDocs, hasAggs, trackTotalHitsUpTo);
+                return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs,
+                    trackTotalHitsUpTo, finalReduce);
             }
         }
         return new InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
             @Override
             ReducedQueryPhase reduce() {
-                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsUpTo);
+                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsUpTo, finalReduce);
             }
         };
     }

@@ -51,7 +51,7 @@ abstract class SortedDocsProducer {
      * composite buckets.
      */
     protected boolean processBucket(CompositeValuesCollectorQueue queue, LeafReaderContext context, DocIdSetIterator iterator,
-                                    Comparable<?> leadSourceBucket, @Nullable DocIdSetBuilder builder) throws IOException {
+                                    Comparable leadSourceBucket, @Nullable DocIdSetBuilder builder) throws IOException {
         final int[] topCompositeCollected = new int[1];
         final boolean[] hasCollected = new boolean[1];
         final LeafBucketCollector queueCollector = new LeafBucketCollector() {

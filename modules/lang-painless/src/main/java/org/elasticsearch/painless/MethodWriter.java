@@ -154,6 +154,10 @@ public final class MethodWriter extends GeneratorAdapter {
                 invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
             } else if (cast.originalType == String.class && cast.targetType == char.class) {
                 invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
+            } else if (cast.unboxOriginalType != null && cast.boxTargetType != null) {
+                unbox(getType(cast.unboxOriginalType));
+                writeCast(cast.unboxOriginalType, cast.boxTargetType);
+                box(getType(cast.boxTargetType));
             } else if (cast.unboxOriginalType != null) {
                 unbox(getType(cast.unboxOriginalType));
                 writeCast(cast.originalType, cast.targetType);

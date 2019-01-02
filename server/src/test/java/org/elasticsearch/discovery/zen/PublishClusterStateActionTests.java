@@ -57,6 +57,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.After;
 import org.junit.Before;
 
@@ -182,8 +183,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
                                           ThreadPool threadPool, Logger logger, Map<String, MockNode> nodes) throws Exception {
         final Settings settings = Settings.builder()
                 .put("name", name)
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "").put(
-                     TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "").put(
+                     TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .put(basSettings)
                 .build();
 

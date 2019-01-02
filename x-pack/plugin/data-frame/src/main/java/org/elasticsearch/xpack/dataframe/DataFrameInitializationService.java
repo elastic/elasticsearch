@@ -53,7 +53,7 @@ public class DataFrameInitializationService implements ClusterStateListener {
     private void addTemplatesIfMissing(ClusterState state) {
         if (state.metaData().getTemplates().containsKey(DataFrameInternalIndex.INDEX_TEMPLATE_NAME) == false) {
             if (indexTemplateCreationInProgress.compareAndSet(false, true)) {
-                logger.info("add index template for data frame internal index");
+                logger.debug("add index template for data frame internal index");
                 final Executor executor = threadPool.generic();
                 executor.execute(() -> {
                     DataFrameInternalIndex.createIndexTemplate(client, ActionListener.wrap(r -> {

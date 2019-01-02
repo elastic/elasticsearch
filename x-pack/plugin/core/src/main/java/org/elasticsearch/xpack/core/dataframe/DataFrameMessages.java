@@ -21,6 +21,7 @@ public class DataFrameMessages {
     public static final String REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_TARGET_MAPPINGS = "Failed to deduce target mappings";
     public static final String REST_PUT_DATA_FRAME_FAILED_TO_CREATE_TARGET_INDEX = "Failed to create target index";
 
+    public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for job[{1}]";
     public static final String FAILED_TO_LOAD_JOB_CONFIGURATION = "Failed to load data frame job configuration for job [{0}]";
 
     private DataFrameMessages() {

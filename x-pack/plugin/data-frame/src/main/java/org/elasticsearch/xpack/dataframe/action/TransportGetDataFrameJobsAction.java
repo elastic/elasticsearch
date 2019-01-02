@@ -60,15 +60,12 @@ public class TransportGetDataFrameJobsAction extends
     @Override
     protected void taskOperation(Request request, DataFrameJobTask task, ActionListener<Response> listener) {
         assert task.getJobId().equals(request.getId()) || request.getId().equals(MetaData.ALL);
-logger.info("taskOp");
         // Little extra insurance, make sure we only return jobs that aren't
         // cancelled
         if (task.isCancelled() == false) {
             jobConfigManager.getJobConfiguration(task.getJobId(), ActionListener.wrap(config -> {
-                logger.info("got config");
                 listener.onResponse(new Response(Collections.singletonList(config)));
             }, e -> {
-                logger.info("failure " + e.getMessage());
                 listener.onFailure(new RuntimeException("failed to retrieve...", e));
             }));
         } else {
@@ -82,15 +79,9 @@ logger.info("taskOp");
         final DiscoveryNodes nodes = state.nodes();
 
         if (nodes.isLocalNodeElectedMaster()) {
-            logger.info("doExec1");
-
             if (DataFramePersistentTaskUtils.stateHasDataFrameJobs(request.getId(), state)) {
-                logger.info("doExec2");
-
                 super.doExecute(task, request, listener);
             } else {
-                logger.info("doExec3");
-
                 // If we couldn't find the job in the persistent task CS, it means it was deleted prior to this GET
                 // and we can just send an empty response, no need to go looking for the allocated task
                 listener.onResponse(new Response(Collections.emptyList()));

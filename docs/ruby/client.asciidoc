@@ -101,7 +101,7 @@ persistent ("keep-alive") HTTP connections.
 === Extensions
 
 The https://github.com/elastic/elasticsearch-ruby/tree/master/elasticsearch-extensions[`elasticsearch-extensions`]
-Rubygem provides a number of extensions to the core client, such as an API to programatically launch
+Rubygem provides a number of extensions to the core client, such as an API to programmatically launch
 Elasticsearch clusters (eg. for testing purposes), and more.
 
 Please see its

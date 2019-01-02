@@ -25,7 +25,7 @@ public class DataFrameJob extends AbstractDiffable<DataFrameJob> implements XPac
 
     public static final String NAME = DataFrameField.TASK_NAME;
 
-    private String jobId;
+    private final String jobId;
 
     public static final ConstructingObjectParser<DataFrameJob, Void> PARSER = new ConstructingObjectParser<>(NAME,
             a -> new DataFrameJob((String) a[0]));

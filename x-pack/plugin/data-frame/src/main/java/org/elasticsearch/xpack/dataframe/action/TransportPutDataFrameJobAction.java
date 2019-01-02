@@ -118,14 +118,14 @@ public class TransportPutDataFrameJobAction
                                                 startPersistentTaskException));
                             }));
                         }));
-                    }, pubJobIntoIndexException -> {
-                        if (pubJobIntoIndexException instanceof VersionConflictEngineException) {
+                    }, putJobIntoIndexException -> {
+                        if (putJobIntoIndexException instanceof VersionConflictEngineException) {
                             // the job already exists although we checked before, can happen if requests come in simultaneously
                             listener.onFailure(new ResourceAlreadyExistsException(DataFrameMessages
                                     .getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_JOB_EXISTS, jobId)));
                         } else {
                             listener.onFailure(new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_PERSIST_JOB_CONFIGURATION,
-                                    pubJobIntoIndexException));
+                                    putJobIntoIndexException));
                         }
                     }));
                 }, createDestinationIndexException -> {

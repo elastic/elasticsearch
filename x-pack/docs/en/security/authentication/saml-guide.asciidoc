@@ -625,8 +625,8 @@ through either the
 {ref}/security-api-put-role-mapping.html[add role mapping API], or with
 <<authorization_realms, authorization realms>>.
 
-NOTE: You cannot use <<mapping-roles-file, role mapping files>> to grant roles
-to users authenticating via SAML.
+NOTE: You cannot use {stack-ov}/defining-roles.html#roles-management-file[role mapping files]
+to grant roles to users authenticating via SAML.
 
 This is an example of a simple role mapping that grants the `kibana_user` role
 to any user who authenticates against the `saml1` realm:

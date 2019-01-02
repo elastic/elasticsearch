@@ -296,7 +296,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
             builder.array("index", getSearchRequest().indices());
             String[] types = getSearchRequest().types();
-            if (types != null && types.length > 0) {
+            if (types.length > 0) {
                 builder.array("type", types);
             }
             getSearchRequest().source().innerToXContent(builder, params);

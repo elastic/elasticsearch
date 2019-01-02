@@ -612,7 +612,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         .collect(toList()));
 
 
-                AttributeSet missing = resolvedRefs.substract(o.child().outputSet());
+                AttributeSet missing = resolvedRefs.subtract(o.child().outputSet());
 
                 if (!missing.isEmpty()) {
                     // Add missing attributes but project them away afterwards
@@ -648,7 +648,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         .filter(Expression::resolved)
                         .collect(toList()));
 
-                AttributeSet missing = resolvedRefs.substract(f.child().outputSet());
+                AttributeSet missing = resolvedRefs.subtract(f.child().outputSet());
 
                 if (!missing.isEmpty()) {
                     // Again, add missing attributes and project them away
@@ -695,7 +695,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
             if (plan instanceof Project) {
                 Project p = (Project) plan;
-                AttributeSet diff = missing.substract(p.child().outputSet());
+                AttributeSet diff = missing.subtract(p.child().outputSet());
                 return new Project(p.location(), propagateMissing(p.child(), diff, failed), combine(p.projections(), missing));
             }
 

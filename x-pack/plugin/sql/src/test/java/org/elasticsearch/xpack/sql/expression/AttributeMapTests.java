@@ -79,19 +79,19 @@ public class AttributeMapTests extends ESTestCase {
         assertThat(m.containsValue("on"), is(false));
     }
 
-    public void testSubstract() {
+    public void testSubtract() {
         AttributeMap<String> m = threeMap();
         AttributeMap<String> mo = new AttributeMap<>(m.keySet().iterator().next(), "one");
         AttributeMap<String> empty = new AttributeMap<>();
 
-        assertThat(m.substract(empty), is(m));
-        assertThat(m.substract(m), is(empty));
-        assertThat(mo.substract(m), is(empty));
+        assertThat(m.subtract(empty), is(m));
+        assertThat(m.subtract(m), is(empty));
+        assertThat(mo.subtract(m), is(empty));
 
-        AttributeMap<String> substract = m.substract(mo);
+        AttributeMap<String> subtract = m.subtract(mo);
 
-        assertThat(substract.size(), is(2));
-        assertThat(substract.attributeNames(), contains("two", "three"));
+        assertThat(subtract.size(), is(2));
+        assertThat(subtract.attributeNames(), contains("two", "three"));
     }
 
     public void testIntersect() {

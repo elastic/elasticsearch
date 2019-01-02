@@ -40,6 +40,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     protected IdsQueryBuilder doCreateTestQueryBuilder() {
+        // just a test
         final String type;
         if (randomBoolean()) {
             if (frequently()) {

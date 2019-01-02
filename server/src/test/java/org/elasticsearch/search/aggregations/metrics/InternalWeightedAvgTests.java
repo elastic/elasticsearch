@@ -31,7 +31,11 @@ import org.elasticsearch.test.InternalAggregationTestCase;
 public class InternalWeightedAvgTests extends InternalAggregationTestCase<InternalWeightedAvg> {
 
     @Override
-    protected InternalWeightedAvg createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalWeightedAvg createTestInstance(
+        String name,
+        List<PipelineAggregator> pipelineAggregators,
+        Map<String, Object> metaData
+    ) {
         DocValueFormat formatter = randomNumericDocValueFormat();
         return new InternalWeightedAvg(
             name,

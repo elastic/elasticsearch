@@ -39,8 +39,7 @@ of the node id. It can still be configured explicitly in `elasticsearch.yml`.
 [float]
 ==== Disabling memory-mapping
 
-* The deprecated `node.store.allow_mmapfs` setting has been removed in favour of
-  the `node.store.allow_mmap` setting.
+* The setting `node.store.allow_mmapfs` has been renamed to `node.store.allow_mmap`.
 
 [float]
 [[remove-http-enabled]]

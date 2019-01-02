@@ -38,11 +38,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class ClusterService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(ClusterService.class);
@@ -85,6 +87,22 @@ public class ClusterService extends AbstractLifecycleComponent {
         // Add a no-op update consumer so changes are logged
         this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_META_DATA, (first, second) -> {}, (first, second) -> {});
         this.clusterApplierService = new ClusterApplierService(nodeName, settings, clusterSettings, threadPool);
+    }
+
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
+        MasterService masterService, Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorFactory) {
+        super(settings);
+        this.settings = settings;
+        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
+        this.masterService = masterService;
+        this.operationRouting = new OperationRouting(settings, clusterSettings);
+        this.clusterSettings = clusterSettings;
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
+        this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+            this::setSlowTaskLoggingThreshold);
+        // Add a no-op update consumer so changes are logged
+        this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_META_DATA, (first, second) -> {}, (first, second) -> {});
+        this.clusterApplierService = new ClusterApplierService(settings, clusterSettings, threadPool, threadPoolExecutorFactory);
     }
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {

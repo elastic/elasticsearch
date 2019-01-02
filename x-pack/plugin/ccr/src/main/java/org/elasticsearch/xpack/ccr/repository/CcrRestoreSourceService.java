@@ -133,6 +133,17 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         IOUtils.closeWhileHandlingException(restore);
     }
 
+    // TODO: The Engine.IndexCommitRef might be closed by a different thread while it is in use. We need to
+    //  look into the implications of this.
+    public Engine.IndexCommitRef getSession(String sessionUUID) {
+        RestoreContext restore = onGoingRestores.get(sessionUUID);
+        if (restore == null) {
+            logger.info("could not get session [{}] because session not found", sessionUUID);
+            throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
+        }
+        return restore.commitRef;
+    }
+
     private class RestoreContext implements Closeable {
 
         private final String sessionUUID;

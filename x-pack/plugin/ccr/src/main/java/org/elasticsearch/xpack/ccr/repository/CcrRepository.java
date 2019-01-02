@@ -252,7 +252,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         String sessionUUID = UUIDs.randomBase64UUID();
         PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
-            new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId, recoveryMetadata)).actionGet();
+            new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)).actionGet();
         DiscoveryNode node = response.getNode();
         // TODO: Implement file restore
         closeSession(remoteClient, node, sessionUUID);

@@ -6,7 +6,7 @@ local node's encrypted keystore. Specifically, it will prompt the keystore
 decryption and reading across the cluster. The keystore's plain content is
 used to reinitialize all compatible plugins. A compatible plugin can be
 reinitialized without restarting the node. The operation is
-complete when all compatible plugins have finished reinitilizing. Subsequently,
+complete when all compatible plugins have finished reinitializing. Subsequently,
 the keystore is closed and any changes to it will not be reflected on the node.
 
 [source,js]

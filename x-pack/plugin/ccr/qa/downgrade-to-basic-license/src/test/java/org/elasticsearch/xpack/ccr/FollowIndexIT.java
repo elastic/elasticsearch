@@ -11,18 +11,22 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.JsonLogLine;
+import org.elasticsearch.common.logging.JsonLogs;
 import org.elasticsearch.common.settings.Settings;
+import org.hamcrest.FeatureMatcher;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ObjectPath.eval;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.core.Is.is;
 
 public class FollowIndexIT extends ESCCRRestTestCase {
@@ -80,25 +84,10 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             // (does not work on windows...)
             if (Constants.WINDOWS == false) {
                 assertBusy(() -> {
-                    final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));
-                    final Iterator<String> it = lines.iterator();
-                    boolean warn = false;
-                    while (it.hasNext()) {
-                        final String line = it.next();
-                        if (line.matches(".*\\[WARN\\s*\\]\\[o\\.e\\.x\\.c\\.a\\.AutoFollowCoordinator\\s*\\] \\[node-0\\] " +
-                            "failure occurred while fetching cluster state for auto follow pattern \\[test_pattern\\]")) {
-                            warn = true;
-                            break;
-                        }
+                    try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(System.getProperty("log")))) {
+                        assertThat(jsonLogs, hasItem(autoFollowCoordinatorWarn()));
                     }
-                    assertTrue(warn);
-                    assertTrue(it.hasNext());
-                    final String lineAfterWarn = it.next();
-                    assertThat(
-                        lineAfterWarn,
-                        equalTo("org.elasticsearch.ElasticsearchStatusException: " +
-                            "can not fetch remote cluster state as the remote cluster [leader_cluster] is not licensed for [ccr]; " +
-                            "the license mode [BASIC] on cluster [leader_cluster] does not enable [ccr]"));
+
                 });
             }
         });
@@ -106,6 +95,22 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         // Manually following index2 also does not work after the downgrade:
         Exception e = expectThrows(ResponseException.class, () -> followIndex("leader_cluster", index2));
         assertThat(e.getMessage(), containsString("the license mode [BASIC] on cluster [leader_cluster] does not enable [ccr]"));
+    }
+
+    private Matcher<JsonLogLine> autoFollowCoordinatorWarn() {
+        return new FeatureMatcher<JsonLogLine,Boolean>(Matchers.is(true),"autoFollowCoordinatorWarn","autoFollowCoordinatorWarn") {
+
+            @Override
+            protected Boolean featureValueOf(JsonLogLine actual) {
+                return actual.level().equals("WARN") &&
+                    actual.clazz().equals("o.e.x.c.a.AutoFollowCoordinator") &&
+                    actual.nodeName().equals("node-0")         &&
+                    actual.message().contains("failure occurred while fetching cluster state for auto follow pattern [test_pattern]") &&
+                    actual.exceptions().contains("org.elasticsearch.ElasticsearchStatusException: can not fetch remote cluster state " +
+                        "as the remote cluster [leader_cluster] is not licensed for [ccr]; the license mode [BASIC]" +
+                        " on cluster [leader_cluster] does not enable [ccr]");
+            }
+        };
     }
 
     private void createNewIndexAndIndexDocs(RestClient client, String index) throws IOException {

@@ -35,8 +35,8 @@ public class ESJsonLayout extends AbstractStringLayout {
 
     private static final String PATTERN = "{" +
         "\"type\": \"console\", " +
-        "\"timestamp\": \"%d{ISO8601}\", " +
-        "\"level\": \"%-5p\", " +
+        "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZ}\", " +
+        "\"level\": \"%p\", " +
         "\"class\": \"%c{1.}\", " +
         "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
         "\"node.name\": \"%node_name\", " +

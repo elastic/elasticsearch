@@ -21,11 +21,13 @@ package org.elasticsearch.repositories.hdfs;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
@@ -109,6 +111,30 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                     //  if true synchronous behavior is required"
                     stream.hsync();
                 }
+            } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
+                throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
+            }
+            return null;
+        });
+    }
+
+    @Override
+    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        final String tempBlob = FsBlobContainer.tempBlobName(blobName);
+        store.execute((Operation<Void>) fileContext -> {
+            final Path tempBlobPath = new Path(path, tempBlob);
+            try (FSDataOutputStream stream =
+                     fileContext.create(tempBlobPath, EnumSet.of(CreateFlag.CREATE),  CreateOpts.bufferSize(bufferSize))) {
+                int bytesRead;
+                byte[] buffer = new byte[bufferSize];
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    stream.write(buffer, 0, bytesRead);
+                }
+                stream.hsync();
+            }
+            final Path blob = new Path(path, blobName);
+            try {
+                fileContext.rename(tempBlobPath, blob, Options.Rename.NONE);
             } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
                 throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
             }

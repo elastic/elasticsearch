@@ -36,6 +36,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.ResultsIndexUpgradeAction;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.util.ArrayList;
@@ -340,6 +341,8 @@ public class ResultsIndexUpgradeService {
             reindexRequest.setSourceBatchSize(request.getReindexBatchSize());
             reindexRequest.setSourceIndices(oldIndex);
             reindexRequest.setDestIndex(newIndex);
+            reindexRequest.setSourceDocTypes(ElasticsearchMappings.DOC_TYPE);
+            reindexRequest.setDestDocType(ElasticsearchMappings.DOC_TYPE);
             // Don't worry if these indices already exist, we validated settings.index.created.version earlier
             reindexRequest.setAbortOnVersionConflict(false);
             // If the document exists already in the new index, don't want to update or overwrite as we are pulling from "old data"

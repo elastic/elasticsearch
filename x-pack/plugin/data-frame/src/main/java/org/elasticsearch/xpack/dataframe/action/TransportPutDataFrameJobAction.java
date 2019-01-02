@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -36,6 +38,8 @@ import org.elasticsearch.xpack.dataframe.support.JobValidator;
 
 public class TransportPutDataFrameJobAction
         extends TransportMasterNodeAction<PutDataFrameJobAction.Request, PutDataFrameJobAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutDataFrameJobAction.class);
 
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
@@ -74,40 +78,63 @@ public class TransportPutDataFrameJobAction
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
+        String jobId = request.getConfig().getId();
         // quick check whether a job has already been created under that name
-        if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, request.getConfig().getId()) != null) {
+        if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, jobId) != null) {
             listener.onFailure(new ResourceAlreadyExistsException(
-                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_JOB_EXISTS, request.getConfig().getId())));
+                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_JOB_EXISTS, jobId)));
             return;
         }
 
+        // create the job, note the non-state creating steps are done first, so we minimize the chance to end up with orphaned state
         // job validation
         JobValidator jobCreator = new JobValidator(request.getConfig(), client);
         jobCreator.validate(ActionListener.wrap(validationResult -> {
-            dataFrameJobConfigManager.putJobConfiguration(request.getConfig(), false, ActionListener.wrap(r -> {
-                jobCreator.deduceMappings(ActionListener.wrap(mappings -> {
-                    DataFrameJob job = createDataFrameJob(request.getConfig().getId(), threadPool);
-                    DataframeIndex.createDestinationIndex(client, request.getConfig(), mappings, ActionListener.wrap(createIndexResult -> {
-                        startPersistentTask(job, listener, persistentTasksService);
-                    }, persistentTaskException -> {
-                        // todo: cleanup job in index, or change order
-                        listener.onFailure(new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_CREATE_TARGET_INDEX,
-                                persistentTaskException));
+            // deduce target mappings
+            jobCreator.deduceMappings(ActionListener.wrap(mappings -> {
+                // create the destination index
+                DataframeIndex.createDestinationIndex(client, request.getConfig(), mappings, ActionListener.wrap(createIndexResult -> {
+                    DataFrameJob job = createDataFrameJob(jobId, threadPool);
+                    // create the job configuration and store it in the internal index
+                    dataFrameJobConfigManager.putJobConfiguration(request.getConfig(), false, ActionListener.wrap(r -> {
+                        // finally start the persistent task
+                        persistentTasksService.sendStartRequest(job.getId(), DataFrameJob.NAME, job, ActionListener.wrap(persistentTask -> {
+                            listener.onResponse(new PutDataFrameJobAction.Response(true));
+                        }, startPersistentTaskException -> {
+                            // delete the otherwise orphaned job configuration, for now we do not delete the destination index
+                            dataFrameJobConfigManager.deleteJobConfiguration(jobId, ActionListener.wrap(r2 -> {
+                                logger.debug("Deleted data frame job [{}] configuration from data frame configuration index", jobId);
+                                listener.onFailure(
+                                        new RuntimeException(
+                                                DataFrameMessages.getMessage(
+                                                        DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_START_PERSISTENT_TASK, r2),
+                                                startPersistentTaskException));
+                            }, deleteJobFromIndexException -> {
+                                logger.error("Failed to cleanup orphaned data frame job [{}] configuration", jobId);
+                                listener.onFailure(
+                                        new RuntimeException(
+                                                DataFrameMessages.getMessage(
+                                                        DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_START_PERSISTENT_TASK, false),
+                                                startPersistentTaskException));
+                            }));
+                        }));
+                    }, pubJobIntoIndexException -> {
+                        if (pubJobIntoIndexException instanceof VersionConflictEngineException) {
+                            // the job already exists although we checked before, can happen if requests come in simultaneously
+                            listener.onFailure(new ResourceAlreadyExistsException(DataFrameMessages
+                                    .getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_JOB_EXISTS, jobId)));
+                        } else {
+                            listener.onFailure(new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_PERSIST_JOB_CONFIGURATION,
+                                    pubJobIntoIndexException));
+                        }
                     }));
-                }, deduceTargetMappingsException -> {
-                    // todo: cleanup job in index or change order
-                    listener.onFailure(new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_TARGET_MAPPINGS,
-                            deduceTargetMappingsException));
+                }, createDestinationIndexException -> {
+                    listener.onFailure(new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_CREATE_TARGET_INDEX,
+                            createDestinationIndexException));
                 }));
-            }, pubJobIntoIndexException -> {
-                if (pubJobIntoIndexException instanceof VersionConflictEngineException) {
-                    // the job already exists although we checked before, can happen if requests come in simultaneously
-                    listener.onFailure(new ResourceAlreadyExistsException(
-                            DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_JOB_EXISTS, request.getConfig().getId())));
-                } else {
-                    listener.onFailure(new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_PERSIST_JOB_CONFIGURATION,
-                            pubJobIntoIndexException));
-                }
+            }, deduceTargetMappingsException -> {
+                listener.onFailure(new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_TARGET_MAPPINGS,
+                        deduceTargetMappingsException));
             }));
         }, validationException -> {
             listener.onFailure(new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
@@ -117,17 +144,6 @@ public class TransportPutDataFrameJobAction
 
     private static DataFrameJob createDataFrameJob(String jobId, ThreadPool threadPool) {
         return new DataFrameJob(jobId);
-    }
-
-    static void startPersistentTask(DataFrameJob job, ActionListener<PutDataFrameJobAction.Response> listener,
-            PersistentTasksService persistentTasksService) {
-
-        persistentTasksService.sendStartRequest(job.getId(), DataFrameJob.NAME, job,
-                ActionListener.wrap(persistentTask -> {
-                    listener.onResponse(new PutDataFrameJobAction.Response(true));
-                }, e -> {
-                    listener.onFailure(e);
-                }));
     }
 
     @Override

@@ -134,7 +134,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             }
             final Path blob = new Path(path, blobName);
             try {
-                fileContext.rename(tempBlobPath, blob, Options.Rename.NONE);
+                fileContext.rename(tempBlobPath, blob, failIfAlreadyExists ? Options.Rename.NONE : Options.Rename.OVERWRITE);
             } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
                 throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
             }

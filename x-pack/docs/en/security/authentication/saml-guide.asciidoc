@@ -531,7 +531,7 @@ The path to the PEM formatted certificate file. e.g. `saml/saml-sign.crt`
 The path to the PEM formatted key file. e.g. `saml/saml-sign.key`
 
 `signing.secure_key_passphrase`::
-The passphrase for the key, if the file is encypted. This is a
+The passphrase for the key, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
@@ -545,7 +545,7 @@ The path to the PKCS#12 or JKS keystore. e.g. `saml/saml-sign.p12`
 The alias of the key within the keystore. e.g. `signing-key`
 
 `signing.keystore.secure_password`::
-The passphrase for the keystore, if the file is encypted. This is a
+The passphrase for the keystore, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
@@ -582,7 +582,7 @@ The path to the PEM formatted certificate file. e.g. `saml/saml-crypt.crt`
 The path to the PEM formatted key file. e.g. `saml/saml-crypt.key`
 
 `encryption.secure_key_passphrase`::
-The passphrase for the key, if the file is encypted. This is a
+The passphrase for the key, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
@@ -596,7 +596,7 @@ The path to the PKCS#12 or JKS keystore. e.g. `saml/saml-crypt.p12`
 The alias of the key within the keystore. e.g. `encryption-key`
 
 `encryption.keystore.secure_password`::
-The passphrase for the keystore, if the file is encypted. This is a
+The passphrase for the keystore, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 

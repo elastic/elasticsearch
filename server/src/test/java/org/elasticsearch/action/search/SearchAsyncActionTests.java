@@ -154,14 +154,27 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertEquals(shardsIter.size(), searchResponse.getSuccessfulShards());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37074")
     public void testLimitConcurrentShardRequests() throws InterruptedException {
         SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);
         int numConcurrent = randomIntBetween(1, 5);
         request.setMaxConcurrentShardRequests(numConcurrent);
-        int numShards = 10;
-        CountDownLatch latch = new CountDownLatch(numShards);
+        boolean doReplicas = randomBoolean();
+        int numShards = randomIntBetween(5, 10);
+        int numShardAttempts = numShards;
+        Boolean[] shardFailures = new Boolean[numShards];
+        // at least one response otherwise the entire request fails
+        shardFailures[randomIntBetween(0, shardFailures.length - 1)] = false;
+        for (int i = 0; i < shardFailures.length; i++) {
+            if (shardFailures[i] == null) {
+                boolean failure = randomBoolean();
+                shardFailures[i] = failure;
+                if (failure && doReplicas) {
+                    numShardAttempts++;
+                }
+            }
+        }
+        CountDownLatch latch = new CountDownLatch(numShardAttempts);
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
         ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
             (e) -> { throw new AssertionError("unexpected", e);});
@@ -172,7 +185,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
             new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
-            numShards, randomBoolean(), primaryNode, replicaNode);
+            numShards, doReplicas, primaryNode, replicaNode);
         SearchTransportService transportService = new SearchTransportService(null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
@@ -181,7 +194,6 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         CountDownLatch awaitInitialRequests = new CountDownLatch(1);
         AtomicInteger numRequests = new AtomicInteger(0);
-        AtomicInteger numResponses = new AtomicInteger(0);
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
             new AbstractSearchAsyncAction<TestSearchPhaseResult>(
                 "test",
@@ -208,7 +220,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
                                                    SearchActionListener<TestSearchPhaseResult> listener) {
                     seenShard.computeIfAbsent(shard.shardId(), (i) -> {
-                        numRequests.incrementAndGet(); // only count this once per replica
+                        numRequests.incrementAndGet(); // only count this once per shard copy
                         return Boolean.TRUE;
                     });
 
@@ -221,13 +233,11 @@ public class SearchAsyncActionTests extends ESTestCase {
                         Transport.Connection connection = getConnection(null, shard.currentNodeId());
                         TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
                             connection.getNode());
-                        if (numResponses.getAndIncrement() > 0 && randomBoolean()) { // at least one response otherwise the entire
-                            // request fails
+                        if (shardFailures[shard.shardId().id()]) {
                             listener.onFailure(new RuntimeException());
                         } else {
                             listener.onResponse(testSearchPhaseResult);
                         }
-
                     }).start();
                 }
 
@@ -252,7 +262,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         awaitInitialRequests.countDown();
         latch.await();
         assertTrue(searchPhaseDidRun.get());
-        assertEquals(10, numRequests.get());
+        assertEquals(numShards, numRequests.get());
     }
 
     public void testFanOutAndCollect() throws InterruptedException {

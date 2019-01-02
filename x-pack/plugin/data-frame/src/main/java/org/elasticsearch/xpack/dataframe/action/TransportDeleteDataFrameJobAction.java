@@ -27,17 +27,21 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction.Request;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction.Response;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobTask;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameJobConfigManager;
 
 import java.util.List;
 
 public class TransportDeleteDataFrameJobAction extends TransportTasksAction<DataFrameJobTask, Request, Response, Response> {
 
+    private final DataFrameJobConfigManager jobConfigManager;
+
     @Inject
     public TransportDeleteDataFrameJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
-            ClusterService clusterService) {
+            ClusterService clusterService, DataFrameJobConfigManager jobConfigManager) {
         super(DeleteDataFrameJobAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new,
                 ThreadPool.Names.SAME);
+        this.jobConfigManager = jobConfigManager;
     }
 
     @Override
@@ -55,7 +59,9 @@ public class TransportDeleteDataFrameJobAction extends TransportTasksAction<Data
         IndexerState state = task.getState().getIndexerState();
         if (state.equals(IndexerState.STOPPED)) {
             task.onCancelled();
-            listener.onResponse(new Response(true));
+            jobConfigManager.deleteJobConfiguration(request.getId(), ActionListener.wrap(r -> {
+                listener.onResponse(new Response(true));
+            }, listener::onFailure));
         } else {
             listener.onFailure(new IllegalStateException("Could not delete job [" + request.getId() + "] because " + "indexer state is ["
                     + state + "].  Job must be [" + IndexerState.STOPPED + "] before deletion."));

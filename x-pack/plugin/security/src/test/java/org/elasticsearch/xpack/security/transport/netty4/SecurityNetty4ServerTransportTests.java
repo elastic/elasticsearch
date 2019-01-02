@@ -8,11 +8,12 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.ssl.SslHandler;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
 import javax.net.ssl.SSLEngine;
-
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Locale;
@@ -68,9 +68,10 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
                         .build();
         return new SecurityNetty4ServerTransport(
                 settings,
+                Version.CURRENT,
                 mock(ThreadPool.class),
                 new NetworkService(Collections.emptyList()),
-                mock(BigArrays.class),
+                mock(PageCacheRecycler.class),
                 mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class),
                 null,

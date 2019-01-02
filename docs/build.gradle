@@ -625,7 +625,7 @@ buildRestTests.setups['sensor_rollup_job'] = '''
   - do:
       raw:
         method: PUT
-        path: _xpack/rollup/job/sensor
+        path: _rollup/job/sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -696,7 +696,7 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
   - do:
       raw:
         method: PUT
-        path: _xpack/rollup/job/sensor
+        path: _rollup/job/sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -727,7 +727,7 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
   - do:
       raw:
         method: POST
-        path: _xpack/rollup/job/sensor/_start
+        path: _rollup/job/sensor/_start
 '''
 
 buildRestTests.setups['sensor_index'] = '''

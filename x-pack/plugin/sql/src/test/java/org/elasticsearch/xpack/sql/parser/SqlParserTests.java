@@ -15,10 +15,19 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryPrimaryDefaultContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryTermContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementDefaultContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.plan.logical.With;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +37,7 @@ import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SqlParserTests extends ESTestCase {
 
@@ -138,71 +148,104 @@ public class SqlParserTests extends ESTestCase {
         assertThat(mmqp.optionMap(), hasEntry("fuzzy_rewrite", "scoring_boolean"));
     }
 
+    public void testLimitToPreventStackOverflowFromLongListOfQuotedIdentifiers() {
+        // Create expression in the form of "t"."field","t"."field", ...
+
+        // 200 elements is ok
+        new SqlParser().createStatement("SELECT " +
+            Joiner.on(",").join(nCopies(200, "\"t\".\"field\"")) + " FROM t");
+
+        // 201 elements parser's "circuit breaker" is triggered
+        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement("SELECT " +
+            Joiner.on(",").join(nCopies(201, "\"t\".\"field\"")) + " FROM t"));
+        assertEquals("line 1:2409: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
+            e.getMessage());
+    }
+
+    public void testLimitToPreventStackOverflowFromLongListOfUnQuotedIdentifiers() {
+        // Create expression in the form of t.field,t.field, ...
+
+        // 250 elements is ok
+        new SqlParser().createStatement("SELECT " +
+            Joiner.on(",").join(nCopies(200, "t.field")) + " FROM t");
+
+        // 251 elements parser's "circuit breaker" is triggered
+        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement("SELECT " +
+            Joiner.on(",").join(nCopies(201, "t.field")) + " FROM t"));
+        assertEquals("line 1:1609: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
+            e.getMessage());
+    }
+
     public void testLimitToPreventStackOverflowFromLargeUnaryBooleanExpression() {
         // Create expression in the form of NOT(NOT(NOT ... (b) ...)
 
-        // 40 elements is ok
+        // 99 elements is ok
         new SqlParser().createExpression(
-            Joiner.on("").join(nCopies(40, "NOT(")).concat("b").concat(Joiner.on("").join(nCopies(40, ")"))));
+            Joiner.on("").join(nCopies(99, "NOT(")).concat("b").concat(Joiner.on("").join(nCopies(99, ")"))));
 
         // 100 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
             Joiner.on("").join(nCopies(100, "NOT(")).concat("b").concat(Joiner.on("").join(nCopies(100, ")")))));
-        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
+        assertEquals("line 1:402: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
+            e.getMessage());
     }
 
     public void testLimitToPreventStackOverflowFromLargeBinaryBooleanExpression() {
         // Create expression in the form of a = b OR a = b OR ... a = b
 
-        // 50 elements is ok
-        new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(50, "a = b")));
+        // 100 elements is ok
+        new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(100, "a = b")));
 
-        // 100 elements parser's "circuit breaker" is triggered
+        // 101 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(100, "a = b"))));
-        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
+            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(101, "a = b"))));
+        assertEquals("line 1:902: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
+            e.getMessage());
     }
 
     public void testLimitToPreventStackOverflowFromLargeUnaryArithmeticExpression() {
         // Create expression in the form of abs(abs(abs ... (i) ...)
 
-        // 50 elements is ok
+        // 199 elements is ok
         new SqlParser().createExpression(
-            Joiner.on("").join(nCopies(50, "abs(")).concat("i").concat(Joiner.on("").join(nCopies(50, ")"))));
+            Joiner.on("").join(nCopies(199, "abs(")).concat("i").concat(Joiner.on("").join(nCopies(199, ")"))));
 
-        // 101 elements parser's "circuit breaker" is triggered
+        // 200 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
-            Joiner.on("").join(nCopies(101, "abs(")).concat("i").concat(Joiner.on("").join(nCopies(101, ")")))));
-        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
+            Joiner.on("").join(nCopies(200, "abs(")).concat("i").concat(Joiner.on("").join(nCopies(200, ")")))));
+        assertEquals("line 1:802: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
+            e.getMessage());
     }
 
     public void testLimitToPreventStackOverflowFromLargeBinaryArithmeticExpression() {
         // Create expression in the form of a + a + a + ... + a
 
-        // 100 elements is ok
-        new SqlParser().createExpression(Joiner.on(" + ").join(nCopies(100, "a")));
+        // 200 elements is ok
+        new SqlParser().createExpression(Joiner.on(" + ").join(nCopies(200, "a")));
 
-        // 101 elements parser's "circuit breaker" is triggered
+        // 201 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(Joiner.on(" + ").join(nCopies(101, "a"))));
-        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
+            new SqlParser().createExpression(Joiner.on(" + ").join(nCopies(201, "a"))));
+        assertEquals("line 1:802: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
+            e.getMessage());
     }
 
     public void testLimitToPreventStackOverflowFromLargeSubselectTree() {
         // Test with queries in the form of `SELECT * FROM (SELECT * FROM (... t) ...)
 
-        // 100 elements is ok
+        // 200 elements is ok
         new SqlParser().createStatement(
-            Joiner.on(" (").join(nCopies(100, "SELECT * FROM"))
+            Joiner.on(" (").join(nCopies(200, "SELECT * FROM"))
                 .concat("t")
-                .concat(Joiner.on("").join(nCopies(99, ")"))));
+                .concat(Joiner.on("").join(nCopies(199, ")"))));
 
-        // 101 elements parser's "circuit breaker" is triggered
+        // 201 elements parser's "circuit breaker" is triggered
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement(
-            Joiner.on(" (").join(nCopies(101, "SELECT * FROM"))
+            Joiner.on(" (").join(nCopies(201, "SELECT * FROM"))
                 .concat("t")
-                .concat(Joiner.on("").join(nCopies(100, ")")))));
-        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
+                .concat(Joiner.on("").join(nCopies(200, ")")))));
+        assertEquals("line 1:3002: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
+            e.getMessage());
     }
 
     public void testLimitToPreventStackOverflowFromLargeComplexSubselectTree() {
@@ -210,14 +253,60 @@ public class SqlParserTests extends ESTestCase {
 
         new SqlParser().createStatement(
             Joiner.on(" (").join(nCopies(20, "SELECT ")).
-                concat(Joiner.on(" OR ").join(nCopies(50, "true"))).concat(" FROM")
+                concat(Joiner.on(" OR ").join(nCopies(180, "true"))).concat(" FROM")
                 .concat("t").concat(Joiner.on("").join(nCopies(19, ")"))));
 
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement(
             Joiner.on(" (").join(nCopies(20, "SELECT ")).
-                concat(Joiner.on(" OR ").join(nCopies(100, "true"))).concat(" FROM")
+                concat(Joiner.on(" OR ").join(nCopies(190, "true"))).concat(" FROM")
                 .concat("t").concat(Joiner.on("").join(nCopies(19, ")")))));
-        assertEquals("expression is too large to parse, (tree's depth exceeds 100)", e.getErrorMessage());
+        assertEquals("line 1:1628: SQL statement too large; halt parsing to prevent memory errors (stopped at depth 200)",
+            e.getMessage());
+    }
+
+    public void testLimitStackOverflowForInAndLiteralsIsNotApplied() {
+        int noChildren = 100_000;
+        LogicalPlan plan = parseStatement("SELECT * FROM t WHERE a IN(" +
+            Joiner.on(",").join(nCopies(noChildren, "a + b")) + ")");
+
+        assertEquals(With.class, plan.getClass());
+        assertEquals(Project.class, ((With) plan).child().getClass());
+        assertEquals(Filter.class, ((Project) ((With) plan).child()).child().getClass());
+        Filter filter = (Filter) ((Project) ((With) plan).child()).child();
+        assertEquals(In.class, filter.condition().getClass());
+        In in = (In) filter.condition();
+        assertEquals("?a", in.value().toString());
+        assertEquals(noChildren, in.list().size());
+        assertThat(in.list().get(0).toString(), startsWith("(a) + (b)#"));
+    }
+
+    public void testDecrementOfDepthCounter() {
+        SqlParser.CircuitBreakerListener cbl = new SqlParser.CircuitBreakerListener();
+        StatementContext sc = new StatementContext();
+        QueryTermContext qtc = new QueryTermContext();
+        ValueExpressionContext vec = new ValueExpressionContext();
+        BooleanExpressionContext bec = new BooleanExpressionContext();
+
+        cbl.enterEveryRule(sc);
+        cbl.enterEveryRule(sc);
+        cbl.enterEveryRule(qtc);
+        cbl.enterEveryRule(qtc);
+        cbl.enterEveryRule(qtc);
+        cbl.enterEveryRule(vec);
+        cbl.enterEveryRule(bec);
+        cbl.enterEveryRule(bec);
+
+        cbl.exitEveryRule(new StatementDefaultContext(sc));
+        cbl.exitEveryRule(new StatementDefaultContext(sc));
+        cbl.exitEveryRule(new QueryPrimaryDefaultContext(qtc));
+        cbl.exitEveryRule(new QueryPrimaryDefaultContext(qtc));
+        cbl.exitEveryRule(new ValueExpressionDefaultContext(vec));
+        cbl.exitEveryRule(new SqlBaseParser.BooleanDefaultContext(bec));
+
+        assertEquals(0, cbl.depthCounts().get(SqlBaseParser.StatementContext.class.getSimpleName()));
+        assertEquals(1, cbl.depthCounts().get(SqlBaseParser.QueryTermContext.class.getSimpleName()));
+        assertEquals(0, cbl.depthCounts().get(SqlBaseParser.ValueExpressionContext.class.getSimpleName()));
+        assertEquals(1, cbl.depthCounts().get(SqlBaseParser.BooleanExpressionContext.class.getSimpleName()));
     }
 
     private LogicalPlan parseStatement(String sql) {

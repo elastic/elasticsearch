@@ -179,7 +179,7 @@ public final class SamlRealm extends Realm implements Releasable {
                                    UserRoleMapper roleMapper) throws Exception {
         SamlUtils.initialize(logger);
 
-        if (TokenService.isTokenServiceEnabled(config.globalSettings()) == false) {
+        if (TokenService.isTokenServiceEnabled(config.settings()) == false) {
             throw new IllegalStateException("SAML requires that the token service be enabled ("
                     + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + ")");
         }
@@ -317,7 +317,7 @@ public final class SamlRealm extends Realm implements Releasable {
     private static List<X509Credential> buildCredential(RealmConfig config, String prefix, Setting.AffixSetting<String> aliasSetting,
                                                         boolean allowMultiple) {
         final X509KeyPairSettings keyPairSettings = X509KeyPairSettings.withPrefix(prefix, false);
-        final X509KeyManager keyManager = CertParsingUtils.getKeyManager(keyPairSettings, config.globalSettings(), null, config.env());
+        final X509KeyManager keyManager = CertParsingUtils.getKeyManager(keyPairSettings, config.settings(), null, config.env());
         if (keyManager == null) {
             return null;
         }

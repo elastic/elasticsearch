@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -73,7 +74,8 @@ public interface DiscoveryPlugin {
                                                                ClusterApplier clusterApplier,
                                                                ClusterSettings clusterSettings,
                                                                UnicastHostsProvider hostsProvider,
-                                                               AllocationService allocationService) {
+                                                               AllocationService allocationService,
+                                                               GatewayMetaState gatewayMetaState) {
         return Collections.emptyMap();
     }
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -32,7 +33,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
     // this emulates what the CCR persistent task will do for pulling
     public void testGetOperationsBasedOnGlobalSequenceId() throws Exception {
         client().admin().indices().prepareCreate("index")
-            .setSettings(Settings.builder().put("index.number_of_shards", 1))
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.soft_deletes.enabled", true))
             .get();
 
         client().prepareIndex("index", "doc", "1").setSource("{}", XContentType.JSON).get();
@@ -96,9 +97,10 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
                 .put("index.number_of_replicas", 0))
             .get();
 
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 32; i++) {
             client().prepareIndex("index", "_doc", "1").setSource("{}", XContentType.JSON).get();
             client().prepareDelete("index", "_doc", "1").get();
+            client().admin().indices().flush(new FlushRequest("index").force(true)).actionGet();
         }
         client().admin().indices().refresh(new RefreshRequest("index")).actionGet();
         ForceMergeRequest forceMergeRequest = new ForceMergeRequest("index");

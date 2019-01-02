@@ -24,14 +24,18 @@ public class NotQuery extends Query {
         this.child = child;
     }
 
+    public Query child() {
+        return child;
+    }
+
     @Override
     public boolean containsNestedField(String path, String field) {
         return child.containsNestedField(path, field);
     }
 
     @Override
-    public Query addNestedField(String path, String field, boolean hasDocValues) {
-        Query rewrittenChild = child.addNestedField(path, field, hasDocValues);
+    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
+        Query rewrittenChild = child.addNestedField(path, field, format, hasDocValues);
         if (child == rewrittenChild) {
             return this;
         }

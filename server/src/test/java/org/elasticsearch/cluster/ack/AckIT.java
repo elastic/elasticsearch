@@ -278,7 +278,7 @@ public class AckIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=keyword"));
 
         for (Client client : clients()) {
-            assertThat(getLocalClusterState(client).metaData().indices().get("test").mapping("test"), notNullValue());
+            assertThat(getLocalClusterState(client).metaData().indices().get("test").getMappings().get("test"), notNullValue());
         }
     }
 

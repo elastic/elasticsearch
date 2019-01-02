@@ -65,7 +65,7 @@ public class SmokeTestClientIT extends ESSmokeClientTestCase {
 
         // START SNIPPET: java-doc-search-simple
         final SearchResponse searchResponse = client.prepareSearch(index).get();
-        assertThat(searchResponse.getHits().getTotalHits(), is(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
         // END SNIPPET: java-doc-search-simple
     }
 

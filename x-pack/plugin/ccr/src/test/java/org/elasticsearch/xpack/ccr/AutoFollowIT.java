@@ -7,9 +7,11 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -18,6 +20,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
@@ -25,7 +28,9 @@ import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -76,6 +81,46 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
     }
 
+    public void testCleanFollowedLeaderIndexUUIDs() throws Exception {
+        Settings leaderIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+
+        putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
+        createLeaderIndex("logs-201901", leaderIndexSettings);
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+
+            IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-201901");
+            assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
+
+            MetaData metaData = getFollowerCluster().clusterService().state().metaData();
+            String leaderIndexUUID = metaData.index("copy-logs-201901")
+                .getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
+                .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+            AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
+            assertThat(autoFollowMetadata, notNullValue());
+            List<String> followedLeaderIndixUUIDs = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern");
+            assertThat(followedLeaderIndixUUIDs.size(), equalTo(1));
+            assertThat(followedLeaderIndixUUIDs.get(0), equalTo(leaderIndexUUID));
+        });
+
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("logs-201901");
+        assertAcked(leaderClient().admin().indices().delete(deleteIndexRequest).actionGet());
+
+        assertBusy(() -> {
+            AutoFollowMetadata autoFollowMetadata = getFollowerCluster().clusterService().state()
+                .metaData()
+                .custom(AutoFollowMetadata.TYPE);
+            assertThat(autoFollowMetadata, notNullValue());
+            List<String> followedLeaderIndixUUIDs = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern");
+            assertThat(followedLeaderIndixUUIDs.size(), equalTo(0));
+        });
+    }
+
     public void testAutoFollowManyIndices() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
@@ -104,11 +149,19 @@ public class AutoFollowIT extends CcrIntegTestCase {
             createLeaderIndex("logs-" + i, leaderIndexSettings);
         }
         int expectedVal2 = numIndices;
-        assertBusy(() -> {
-            MetaData metaData = followerClient().admin().cluster().prepareState().get().getState().metaData();
-            int count = (int) Arrays.stream(metaData.getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
-            assertThat(count, equalTo(expectedVal2));
-        });
+
+        MetaData[] metaData = new MetaData[1];
+        try {
+            assertBusy(() -> {
+                metaData[0] = followerClient().admin().cluster().prepareState().get().getState().metaData();
+                int count = (int) Arrays.stream(metaData[0].getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
+                assertThat(count, equalTo(expectedVal2));
+            });
+        } catch (AssertionError ae) {
+            logger.warn("metadata={}", Strings.toString(metaData[0]));
+            logger.warn("auto follow stats={}", Strings.toString(getAutoFollowStats()));
+            throw ae;
+        }
     }
 
     public void testAutoFollowParameterAreDelegated() throws Exception {
@@ -228,12 +281,12 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
 
             assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(2));
-            ElasticsearchException autoFollowError1 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern1:logs-201801");
+            ElasticsearchException autoFollowError1 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern1:logs-201801").v2();
             assertThat(autoFollowError1, notNullValue());
             assertThat(autoFollowError1.getRootCause().getMessage(), equalTo("index to follow [logs-201801] for pattern [my-pattern1] " +
                 "matches with other patterns [my-pattern2]"));
 
-            ElasticsearchException autoFollowError2 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern2:logs-201801");
+            ElasticsearchException autoFollowError2 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern2:logs-201801").v2();
             assertThat(autoFollowError2, notNullValue());
             assertThat(autoFollowError2.getRootCause().getMessage(), equalTo("index to follow [logs-201801] for pattern [my-pattern2] " +
                 "matches with other patterns [my-pattern1]"));
@@ -241,6 +294,43 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         request = new IndicesExistsRequest("copy-logs-201801");
         assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
+    }
+
+    public void testAutoFollowSoftDeletesDisabled() throws Exception {
+        putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"});
+
+        // Soft deletes are disabled:
+        Settings leaderIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+        createLeaderIndex("logs-20200101", leaderIndexSettings);
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
+            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(1));
+            ElasticsearchException failure  = autoFollowStats.getRecentAutoFollowErrors().firstEntry().getValue().v2();
+            assertThat(failure.getMessage(), equalTo("index [logs-20200101] cannot be followed, " +
+                "because soft deletes are not enabled"));
+            IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-20200101");
+            assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
+        });
+
+        // Soft deletes are enabled:
+        leaderIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+        createLeaderIndex("logs-20200102", leaderIndexSettings);
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-20200102");
+            assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
+        });
     }
 
     private void putAutoFollowPatterns(String name, String[] patterns) {

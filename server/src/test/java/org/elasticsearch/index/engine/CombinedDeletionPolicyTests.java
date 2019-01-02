@@ -89,8 +89,8 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         }
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(translogGenList.get(keptIndex)));
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
-        assertThat(softDeletesPolicy.getMinRetainedSeqNo(),
-            equalTo(Math.min(getLocalCheckpoint(commitList.get(keptIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps)));
+        assertThat(softDeletesPolicy.getMinRetainedSeqNo(), equalTo(
+            Math.max(0, Math.min(getLocalCheckpoint(commitList.get(keptIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
     }
 
     public void testAcquireIndexCommit() throws Exception {
@@ -125,8 +125,8 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             commitList.forEach(this::resetDeletion);
             indexPolicy.onCommit(commitList);
             IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get());
-            assertThat(softDeletesPolicy.getMinRetainedSeqNo(),
-                equalTo(Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps)));
+            assertThat(softDeletesPolicy.getMinRetainedSeqNo(), equalTo(
+                Math.max(0, Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
             // Captures and releases some commits
             int captures = between(0, 5);
             for (int n = 0; n < captures; n++) {
@@ -156,8 +156,8 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
                 equalTo(Long.parseLong(commitList.get(safeIndex).getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
             assertThat(translogPolicy.getTranslogGenerationOfLastCommit(),
                 equalTo(Long.parseLong(commitList.get(commitList.size() - 1).getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
-            assertThat(softDeletesPolicy.getMinRetainedSeqNo(),
-                equalTo(Math.min(getLocalCheckpoint(commitList.get(safeIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps)));
+            assertThat(softDeletesPolicy.getMinRetainedSeqNo(), equalTo(
+                Math.max(0, Math.min(getLocalCheckpoint(commitList.get(safeIndex)) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
         }
         snapshottingCommits.forEach(indexPolicy::releaseCommit);
         globalCheckpoint.set(randomLongBetween(lastMaxSeqNo, Long.MAX_VALUE));
@@ -170,8 +170,8 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(lastTranslogGen));
         assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
         IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get());
-        assertThat(softDeletesPolicy.getMinRetainedSeqNo(),
-            equalTo(Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps)));
+        assertThat(softDeletesPolicy.getMinRetainedSeqNo(), equalTo(
+            Math.max(0, Math.min(getLocalCheckpoint(safeCommit) + 1, globalCheckpoint.get() + 1 - extraRetainedOps))));
     }
 
     public void testLegacyIndex() throws Exception {

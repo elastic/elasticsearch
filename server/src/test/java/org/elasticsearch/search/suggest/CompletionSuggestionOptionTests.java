@@ -48,10 +48,10 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         Text text = new Text(randomAlphaOfLengthBetween(5, 15));
         int docId = randomInt();
         int numberOfContexts = randomIntBetween(0, 3);
-        Map<String, Set<CharSequence>> contexts = new HashMap<>();
+        Map<String, Set<String>> contexts = new HashMap<>();
         for (int i = 0; i < numberOfContexts; i++) {
             int numberOfValues = randomIntBetween(0, 3);
-            Set<CharSequence> values = new HashSet<>();
+            Set<String> values = new HashSet<>();
             for (int v = 0; v < numberOfValues; v++) {
                 values.add(randomAlphaOfLengthBetween(5, 15));
             }
@@ -60,7 +60,7 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         SearchHit hit = null;
         float score = randomFloat();
         if (randomBoolean()) {
-            hit = SearchHitTests.createTestItem(false);
+            hit = SearchHitTests.createTestItem(false, true);
             score = hit.getScore();
         }
         Option option = new CompletionSuggestion.Entry.Option(docId, text, score, contexts);
@@ -106,7 +106,7 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        Map<String, Set<CharSequence>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
+        Map<String, Set<String>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
         CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(1, new Text("someText"), 1.3f, contexts);
         BytesReference xContent = toXContent(option, XContentType.JSON, randomBoolean());
         assertEquals("{\"text\":\"someText\",\"score\":1.3,\"contexts\":{\"key\":[\"value\"]}}"

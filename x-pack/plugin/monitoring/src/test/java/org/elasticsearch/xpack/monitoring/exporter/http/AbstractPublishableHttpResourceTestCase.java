@@ -11,18 +11,18 @@ import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,11 +30,17 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockBooleanActionListener;
+import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_DOES_NOT_EXIST;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_EXISTS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
@@ -48,96 +54,102 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     protected final TimeValue masterTimeout = randomFrom(TimeValue.timeValueMinutes(5), TimeValue.MINUS_ONE, null);
 
     protected final RestClient client = mock(RestClient.class);
+    protected final ActionListener<Boolean> listener = mockBooleanActionListener();
 
     /**
-     * Perform {@link PublishableHttpResource#doCheck(RestClient) doCheck} against the {@code resource} and assert that it returns
-     * {@code EXISTS} given a {@link RestStatus} that is {@link RestStatus#OK}.
+     * Perform {@link PublishableHttpResource#doCheck(RestClient, ActionListener) doCheck} against the {@code resource} and assert that it
+     * returns {@code onResponse(false)} given a {@link RestStatus} that is not {@link RestStatus#OK}.
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
      * @param resourceName The resource name (e.g., the template or pipeline name).
      */
-    protected void assertCheckExists(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName)
-            throws IOException {
-        doCheckWithStatusCode(resource, resourceBasePath, resourceName, successfulCheckStatus(), CheckResponse.EXISTS);
+    protected void assertCheckDoesNotExist(final PublishableHttpResource resource,
+                                           final String resourceBasePath,
+                                           final String resourceName) {
+        doCheckWithStatusCode(resource, resourceBasePath, resourceName, notFoundCheckStatus(), false);
     }
 
     /**
-     * Perform {@link PublishableHttpResource#doCheck(RestClient) doCheck} against the {@code resource} and assert that it returns
-     * {@code DOES_NOT_EXIST} given a {@link RestStatus} that is not {@link RestStatus#OK}.
-     *
-     * @param resource The resource to execute.
-     * @param resourceBasePath The base endpoint (e.g., "/_template")
-     * @param resourceName The resource name (e.g., the template or pipeline name).
-     */
-    protected void assertCheckDoesNotExist(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName)
-            throws IOException {
-        doCheckWithStatusCode(resource, resourceBasePath, resourceName, notFoundCheckStatus(), CheckResponse.DOES_NOT_EXIST);
-    }
-
-    /**
-     * Perform {@link PublishableHttpResource#doCheck(RestClient) doCheck} against the {@code resource} that throws an exception and assert
-     * that it returns {@code ERROR}.
+     * Perform {@link PublishableHttpResource#doCheck(RestClient, ActionListener) doCheck} against the {@code resource} that throws an
+     * exception and assert that it returns {@code onFailure}.
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
      * @param resourceName The resource name (e.g., the template or pipeline name).
      */
     protected void assertCheckWithException(final PublishableHttpResource resource,
-                                            final String resourceBasePath, final String resourceName)
-            throws IOException {
+                                            final String resourceBasePath, final String resourceName) {
+        assertCheckWithException(resource, getParameters(resource.getParameters()), resourceBasePath, resourceName);
+    }
+
+    /**
+     * Perform {@link PublishableHttpResource#doCheck(RestClient, ActionListener) doCheck} against the {@code resource} that throws an
+     * exception and assert that it returns {@code onFailure}.
+     *
+     * @param resource The resource to execute.
+     * @param expectedParameters The test-supplied parameters for the {@code Request}.
+     * @param resourceBasePath The base endpoint (e.g., "/_template")
+     * @param resourceName The resource name (e.g., the template or pipeline name).
+     */
+    protected void assertCheckWithException(final PublishableHttpResource resource,
+                                            final Map<String, String> expectedParameters,
+                                            final String resourceBasePath, final String resourceName) {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final ResponseException responseException = responseException("GET", endpoint, failedCheckStatus());
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
 
-        Request request = new Request("GET", endpoint);
-        addParameters(request, getParameters(resource.getParameters()));
-        when(client.performRequest(request)).thenThrow(e);
+        final Request request = new Request("GET", endpoint);
+        addParameters(request, expectedParameters);
+        whenPerformRequestAsyncWith(client, request, e);
 
-        assertThat(resource.doCheck(client), is(CheckResponse.ERROR));
+        resource.doCheck(client, listener);
+
+        verifyListener(null);
     }
 
     /**
-     * Perform {@link PublishableHttpResource#doCheck(RestClient) doCheck} against the {@code resource}, expecting a {@code DELETE}, and
-     * assert that it returns {@code EXISTS} given a {@link RestStatus} that is {@link RestStatus#OK} or {@link RestStatus#NOT_FOUND}.
+     * Perform {@link PublishableHttpResource#doCheck(RestClient, ActionListener) doCheck} against the {@code resource}, expecting a
+     * {@code DELETE}, and assert that it returns {@code onResponse(true)} given a {@link RestStatus} that is {@link RestStatus#OK} or
+     * {@link RestStatus#NOT_FOUND}.
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
      * @param resourceName The resource name (e.g., the template or pipeline name).
      */
     protected void assertCheckAsDeleteExists(final PublishableHttpResource resource,
-                                             final String resourceBasePath, final String resourceName)
-            throws IOException {
+                                             final String resourceBasePath, final String resourceName) {
         final RestStatus status = randomFrom(successfulCheckStatus(), notFoundCheckStatus());
 
-        doCheckAsDeleteWithStatusCode(resource, resourceBasePath, resourceName, status, CheckResponse.EXISTS);
+        doCheckAsDeleteWithStatusCode(resource, resourceBasePath, resourceName, status, true);
     }
 
     /**
-     * Perform {@link PublishableHttpResource#doCheck(RestClient) doCheck} against the {@code resource} that throws an exception and assert
-     * that it returns {@code ERRPR} when performing a {@code DELETE} rather than the more common {@code GET}.
+     * Perform {@link PublishableHttpResource#doCheck(RestClient, ActionListener) doCheck} against the {@code resource} that throws an
+     * exception and assert that it returns {@code onFailure()} when performing a {@code DELETE} rather than the more common {@code GET}.
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
      * @param resourceName The resource name (e.g., the template or pipeline name).
      */
     protected void assertCheckAsDeleteWithException(final PublishableHttpResource resource,
-                                                    final String resourceBasePath, final String resourceName)
-            throws IOException {
+                                                    final String resourceBasePath, final String resourceName) {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final ResponseException responseException = responseException("DELETE", endpoint, failedCheckStatus());
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
 
-        Request request = new Request("DELETE", endpoint);
+        final Request request = new Request("DELETE", endpoint);
         addParameters(request, deleteParameters(resource.getParameters()));
-        when(client.performRequest(request)).thenThrow(e);
+        whenPerformRequestAsyncWith(client, request, e);
 
-        assertThat(resource.doCheck(client), is(CheckResponse.ERROR));
+        resource.doCheck(client, listener);
+
+        verifyListener(null);
     }
 
     /**
-     * Perform {@link PublishableHttpResource#doPublish(RestClient) doPublish} against the {@code resource} and assert that it returns
-     * {@code true} given a {@link RestStatus} that is {@link RestStatus#OK} or {@link RestStatus#CREATED}.
+     * Perform {@link PublishableHttpResource#doPublish(RestClient, ActionListener) doPublish} against the {@code resource} and assert that
+     * it returns {@code onResponse(true)} given a {@link RestStatus} that is {@link RestStatus#OK} or {@link RestStatus#CREATED}.
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
@@ -145,29 +157,13 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
      * @param bodyType The request body provider's type.
      */
     protected void assertPublishSucceeds(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
-                                         final Class<? extends HttpEntity> bodyType)
-            throws IOException {
+                                         final Class<? extends HttpEntity> bodyType) {
         doPublishWithStatusCode(resource, resourceBasePath, resourceName, bodyType, successfulPublishStatus(), true);
     }
 
     /**
-     * Perform {@link PublishableHttpResource#doPublish(RestClient) doPublish} against the {@code resource} and assert that it returns
-     * {@code false} given a {@link RestStatus} that is neither {@link RestStatus#OK} or {@link RestStatus#CREATED}.
-     *
-     * @param resource The resource to execute.
-     * @param resourceBasePath The base endpoint (e.g., "/_template")
-     * @param resourceName The resource name (e.g., the template or pipeline name).
-     * @param bodyType The request body provider's type.
-     */
-    protected void assertPublishFails(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
-                                      final Class<? extends HttpEntity> bodyType)
-            throws IOException {
-        doPublishWithStatusCode(resource, resourceBasePath, resourceName, bodyType, failedPublishStatus(), false);
-    }
-
-    /**
-     * Perform {@link PublishableHttpResource#doPublish(RestClient) doPublish} against the {@code resource} that throws an exception and
-     * assert that it returns {@code false}.
+     * Perform {@link PublishableHttpResource#doPublish(RestClient, ActionListener) doPublish} against the {@code resource} that throws an
+     * exception and assert that it returns {@code onResponse(false)}.
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
@@ -175,16 +171,18 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
      */
     protected void assertPublishWithException(final PublishableHttpResource resource,
                                               final String resourceBasePath, final String resourceName,
-                                              final Class<? extends HttpEntity> bodyType)
-            throws IOException {
+                                              final Class<? extends HttpEntity> bodyType) {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"));
 
-        when(client.performRequest(Mockito.any(Request.class))).thenThrow(e);
+        whenPerformRequestAsyncWith(client, e);
 
-        assertThat(resource.doPublish(client), is(false));
-        ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
-        verify(client).performRequest(request.capture());
+        resource.doPublish(client, listener);
+
+        verifyListener(null);
+
+        final ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
+        verify(client).performRequestAsync(request.capture(), any(ResponseListener.class));
         assertThat(request.getValue().getMethod(), is("PUT"));
         assertThat(request.getValue().getEndpoint(), is(endpoint));
         assertThat(request.getValue().getParameters(), is(resource.getParameters()));
@@ -219,63 +217,60 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
     protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
                                          final RestStatus status,
-                                         final CheckResponse expected)
-            throws IOException {
+                                         final Boolean expected) {
         doCheckWithStatusCode(resource, resourceBasePath, resourceName, status, expected, null);
     }
 
     protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
-                                         final RestStatus status, final CheckResponse expected, final HttpEntity entity)
-            throws IOException {
+                                         final RestStatus status, final Boolean expected, final HttpEntity entity) {
         doCheckWithStatusCode(resource, resourceBasePath, resourceName, status, GET_EXISTS, GET_DOES_NOT_EXIST, expected, entity);
     }
 
     protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
                                          final RestStatus status, final Set<Integer> exists, final Set<Integer> doesNotExist,
-                                         final CheckResponse expected)
-            throws IOException {
+                                         final Boolean expected) {
         doCheckWithStatusCode(resource, resourceBasePath, resourceName, status, exists, doesNotExist, expected, null);
     }
 
     protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
                                          final RestStatus status, final Set<Integer> exists, final Set<Integer> doesNotExist,
-                                         final CheckResponse expected, final HttpEntity entity)
-            throws IOException {
+                                         final Boolean expected, final HttpEntity entity) {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("GET", endpoint, status, entity);
 
         doCheckWithStatusCode(resource, getParameters(resource.getParameters(), exists, doesNotExist), endpoint, expected, response);
     }
 
-    protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String endpoint, final CheckResponse expected,
-                                         final Response response)
-            throws IOException {
-        doCheckWithStatusCode(resource, getParameters(resource.getParameters()), endpoint, expected, response);
-    }
-
     protected void doCheckWithStatusCode(final PublishableHttpResource resource, final Map<String, String> expectedParameters,
-                                         final String endpoint, final CheckResponse expected,
-                                         final Response response)
-            throws IOException {
-        Request request = new Request("GET", endpoint);
+                                         final String endpoint, final Boolean expected,
+                                         final Response response) {
+        final Request request = new Request("GET", endpoint);
         addParameters(request, expectedParameters);
-        when(client.performRequest(request)).thenReturn(response);
 
-        assertThat(resource.doCheck(client), is(expected));
+        whenPerformRequestAsyncWith(client, request, response);
+
+        resource.doCheck(client, listener);
+
+        verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
+        verifyListener(expected);
     }
 
     private void doPublishWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
                                          final Class<? extends HttpEntity> bodyType,
                                          final RestStatus status,
-                                         final boolean expected)
-            throws IOException {
+                                         final boolean errorFree) {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("GET", endpoint, status);
 
-        ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
-        when(client.performRequest(request.capture())).thenReturn(response);
+        whenPerformRequestAsyncWith(client, response);
 
-        assertThat(resource.doPublish(client), is(expected));
+        resource.doPublish(client, listener);
+
+        verifyListener(errorFree ? true : null);
+
+        final ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
+        verify(client).performRequestAsync(request.capture(), any(ResponseListener.class));
+
         assertThat(request.getValue().getMethod(), is("PUT"));
         assertThat(request.getValue().getEndpoint(), is(endpoint));
         assertThat(request.getValue().getParameters(), is(resource.getParameters()));
@@ -285,8 +280,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     protected void doCheckAsDeleteWithStatusCode(final PublishableHttpResource resource,
                                                  final String resourceBasePath, final String resourceName,
                                                  final RestStatus status,
-                                                 final CheckResponse expected)
-            throws IOException {
+                                                 final Boolean expected) {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("DELETE", endpoint, status);
 
@@ -294,14 +288,15 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     }
 
     protected void doCheckAsDeleteWithStatusCode(final PublishableHttpResource resource,
-                                                 final String endpoint, final CheckResponse expected,
-                                                 final Response response)
-            throws IOException {
-        Request request = new Request("DELETE", endpoint);
+                                                 final String endpoint, final Boolean expected,
+                                                 final Response response) {
+        final Request request = new Request("DELETE", endpoint);
         addParameters(request, deleteParameters(resource.getParameters()));
-        when(client.performRequest(request)).thenReturn(response);
+        whenPerformRequestAsyncWith(client, request, response);
 
-        assertThat(resource.doCheck(client), is(expected));
+        resource.doCheck(client, listener);
+
+        verifyListener(expected);
     }
 
     protected RestStatus successfulCheckStatus() {
@@ -381,77 +376,68 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         return parametersWithIgnore;
     }
 
-    protected HttpEntity entityForResource(final CheckResponse expected, final String resourceName, final int minimumVersion) {
-        HttpEntity entity = null;
-
-        switch (expected) {
+    protected HttpEntity entityForResource(final Boolean expected, final String resourceName, final int minimumVersion) {
+        if (expected == Boolean.FALSE) {
             // the version check is what is expected to cause it to be replaced
-            case DOES_NOT_EXIST:
-                final int olderVersion = minimumVersion - randomIntBetween(1, 10000);
+            final int olderVersion = minimumVersion - randomIntBetween(1, 10000);
 
-                entity = randomFrom(
-                    new StringEntity("{}", ContentType.APPLICATION_JSON),
-                    new StringEntity("{\"" + resourceName + "\":{}}", ContentType.APPLICATION_JSON),
-                    new StringEntity("{\"" + resourceName + "\":{\"version\":\"123\"}}", ContentType.APPLICATION_JSON),
-                    new StringEntity("{\"" + resourceName + "\":{\"version\":" + olderVersion + "}}", ContentType.APPLICATION_JSON)
-                );
-                break;
+            return randomFrom(
+                new StringEntity("{}", ContentType.APPLICATION_JSON),
+                new StringEntity("{\"" + resourceName + "\":{}}", ContentType.APPLICATION_JSON),
+                new StringEntity("{\"" + resourceName + "\":{\"version\":\"123\"}}", ContentType.APPLICATION_JSON),
+                new StringEntity("{\"" + resourceName + "\":{\"version\":" + olderVersion + "}}", ContentType.APPLICATION_JSON)
+            );
+        } else if (expected == Boolean.TRUE) {
             // the version is there and it's exactly what we specify
-            case EXISTS:
-                entity = new StringEntity("{\"" + resourceName + "\":{\"version\":" + minimumVersion + "}}", ContentType.APPLICATION_JSON);
-                break;
+            return new StringEntity("{\"" + resourceName + "\":{\"version\":" + minimumVersion + "}}", ContentType.APPLICATION_JSON);
+        } else { // expected = null, which is for malformed/failure
             // malformed
-            case ERROR:
-                entity = randomFrom(
-                    new StringEntity("{", ContentType.APPLICATION_JSON),
-                    new StringEntity("{\"" + resourceName + "\":\"not an object\"}", ContentType.APPLICATION_JSON)
-                );
-                break;
-            default:
-                fail("Unhandled/unknown CheckResponse");
+            return randomFrom(
+                new StringEntity("{", ContentType.APPLICATION_JSON),
+                new StringEntity("{\"" + resourceName + "\":\"not an object\"}", ContentType.APPLICATION_JSON)
+            );
         }
-
-        return entity;
     }
 
-    protected HttpEntity entityForClusterAlert(final CheckResponse expected, final int minimumVersion) {
-        HttpEntity entity = null;
-
-        switch (expected) {
+    protected HttpEntity entityForClusterAlert(final Boolean expected, final int minimumVersion) {
+        if (expected == Boolean.FALSE) {
             // the version check is what is expected to cause it to be replaced
-            case DOES_NOT_EXIST:
-                final int olderVersion = minimumVersion - randomIntBetween(1, 10000);
+            final int olderVersion = minimumVersion - randomIntBetween(1, 10000);
 
-                entity = randomFrom(
-                    new StringEntity("{}", ContentType.APPLICATION_JSON),
-                    new StringEntity("{\"metadata\":{}}", ContentType.APPLICATION_JSON),
-                    new StringEntity("{\"metadata\":{\"xpack\":{\"version_created\":\"123\"}}}", ContentType.APPLICATION_JSON),
-                    new StringEntity("{\"metadata\":{\"xpack\":{\"version_created\":" + olderVersion + "}}}}", ContentType.APPLICATION_JSON)
-                );
-                break;
+            return randomFrom(
+                new StringEntity("{}", ContentType.APPLICATION_JSON),
+                new StringEntity("{\"metadata\":{}}", ContentType.APPLICATION_JSON),
+                new StringEntity("{\"metadata\":{\"xpack\":{\"version_created\":\"123\"}}}", ContentType.APPLICATION_JSON),
+                new StringEntity("{\"metadata\":{\"xpack\":{\"version_created\":" + olderVersion + "}}}}", ContentType.APPLICATION_JSON)
+            );
+        } else if (expected == Boolean.TRUE) {
             // the version is there and it's exactly what we specify
-            case EXISTS:
-                entity = new StringEntity("{\"metadata\":{\"xpack\":{\"version_created\":" +
-                                          minimumVersion + "}}}", ContentType.APPLICATION_JSON);
-                break;
+            return new StringEntity("{\"metadata\":{\"xpack\":{\"version_created\":" +
+                                    minimumVersion + "}}}", ContentType.APPLICATION_JSON);
+        } else { // expected == null, which is for malformed/failure
             // malformed
-            case ERROR:
-                entity = randomFrom(
-                    new StringEntity("{", ContentType.APPLICATION_JSON),
-                    new StringEntity("{\"\"metadata\":\"not an object\"}", ContentType.APPLICATION_JSON),
-                    new StringEntity("{\"\"metadata\":{\"xpack\":\"not an object\"}}", ContentType.APPLICATION_JSON)
-                );
-                break;
-            default:
-                fail("Unhandled/unknown CheckResponse");
+            return randomFrom(
+                new StringEntity("{", ContentType.APPLICATION_JSON),
+                new StringEntity("{\"\"metadata\":\"not an object\"}", ContentType.APPLICATION_JSON),
+                new StringEntity("{\"\"metadata\":{\"xpack\":\"not an object\"}}", ContentType.APPLICATION_JSON)
+            );
         }
-
-        return entity;
     }
 
-    protected void addParameters(Request request, Map<String, String> parameters) {
+    protected void addParameters(final Request request, final Map<String, String> parameters) {
         for (Map.Entry<String, String> param : parameters.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }
     }
+
+    protected void verifyListener(final Boolean expected) {
+        if (expected == null) {
+            verify(listener, never()).onResponse(anyBoolean());
+            verify(listener).onFailure(any(Exception.class));
+        } else {
+            verify(listener).onResponse(expected);
+            verify(listener, never()).onFailure(any(Exception.class));
+        }
+    }
+
 }

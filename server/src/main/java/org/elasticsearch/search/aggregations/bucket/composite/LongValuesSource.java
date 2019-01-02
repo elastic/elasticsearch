@@ -24,6 +24,10 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -121,7 +125,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    void setAfter(Comparable<?> value) {
+    void setAfter(Comparable value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value instanceof Number) {
@@ -165,7 +169,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable<?> value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != Long.class) {
             throw new IllegalArgumentException("Expected Long, got " + value.getClass());
         }
@@ -178,13 +182,42 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         };
     }
 
+    private static Query extractQuery(Query query) {
+        if (query instanceof BoostQuery) {
+            return extractQuery(((BoostQuery) query).getQuery());
+        } else if (query instanceof IndexOrDocValuesQuery) {
+            return extractQuery(((IndexOrDocValuesQuery) query).getIndexQuery());
+        } else if (query instanceof ConstantScoreQuery){
+            return extractQuery(((ConstantScoreQuery) query).getQuery());
+        } else {
+            return query;
+        }
+    }
+
+    /**
+     * Returns true if we can use <code>query</code> with a {@link SortedDocsProducer} on <code>fieldName</code>.
+     */
+    private static boolean checkMatchAllOrRangeQuery(Query query, String fieldName) {
+        if (query == null) {
+            return true;
+        } else if (query.getClass() == MatchAllDocsQuery.class) {
+            return true;
+        } else if (query instanceof PointRangeQuery) {
+            PointRangeQuery pointQuery = (PointRangeQuery) query;
+            return fieldName.equals(pointQuery.getField());
+        } else if (query instanceof DocValuesFieldExistsQuery) {
+            DocValuesFieldExistsQuery existsQuery = (DocValuesFieldExistsQuery) query;
+            return fieldName.equals(existsQuery.getField());
+        } else {
+            return false;
+        }
+    }
+
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
+        query = extractQuery(query);
         if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                (query != null &&
-                    query.getClass() != MatchAllDocsQuery.class &&
-                    // if the query is a range query over the same field
-                    (query instanceof PointRangeQuery && fieldType.name().equals((((PointRangeQuery) query).getField()))) == false)) {
+                checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
             return null;
         }
         final byte[] lowerPoint;

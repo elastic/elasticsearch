@@ -46,7 +46,7 @@ public class DelegatedAuthorizationSupport {
      * {@link #DelegatedAuthorizationSupport(Iterable, List, Settings, ThreadContext, XPackLicenseState)}
      */
     public DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, RealmConfig config, XPackLicenseState licenseState) {
-        this(allRealms, config.getSetting(AUTHZ_REALMS), config.globalSettings(), config.threadContext(),
+        this(allRealms, config.getSetting(AUTHZ_REALMS), config.settings(), config.threadContext(),
             licenseState);
     }
 

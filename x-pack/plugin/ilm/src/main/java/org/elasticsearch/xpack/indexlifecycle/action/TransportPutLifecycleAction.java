@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
@@ -65,6 +66,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
             .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
                 new AckedClusterStateUpdateTask<Response>(request, listener) {
                     @Override

@@ -248,7 +248,7 @@ public class IndicesOptions implements ToXContentFragment {
 
     /**
      *
-     * @return whether indices that are marked as throttled should be ignored when resolving a wildcard or alias
+     * @return whether indices that are marked as throttled should be ignored
      */
     public boolean ignoreThrottled() {
         return options.contains(Option.IGNORE_THROTTLED);

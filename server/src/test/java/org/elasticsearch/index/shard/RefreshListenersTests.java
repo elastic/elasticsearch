@@ -26,10 +26,12 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -114,7 +116,7 @@ public class RefreshListenersTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        store.createEmpty();
+        store.createEmpty(Version.CURRENT.luceneVersion);
         final long primaryTerm = randomNonNegativeLong();
         final String translogUUID =
             Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
@@ -339,6 +341,40 @@ public class RefreshListenersTests extends ESTestCase {
             indexer.join();
         }
         refresher.cancel();
+    }
+
+    public void testDisallowAddListeners() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+        DummyRefreshListener listener = new DummyRefreshListener();
+        assertFalse(listeners.addOrNotify(index("1").getTranslogLocation(), listener));
+        engine.refresh("I said so");
+        assertFalse(listener.forcedRefresh.get());
+        listener.assertNoError();
+
+        try (Releasable releaseable1 = listeners.forceRefreshes()) {
+            listener = new DummyRefreshListener();
+            assertTrue(listeners.addOrNotify(index("1").getTranslogLocation(), listener));
+            assertTrue(listener.forcedRefresh.get());
+            listener.assertNoError();
+            assertEquals(0, listeners.pendingCount());
+
+            try (Releasable releaseable2 = listeners.forceRefreshes()) {
+                listener = new DummyRefreshListener();
+                assertTrue(listeners.addOrNotify(index("1").getTranslogLocation(), listener));
+                assertTrue(listener.forcedRefresh.get());
+                listener.assertNoError();
+                assertEquals(0, listeners.pendingCount());
+            }
+
+            listener = new DummyRefreshListener();
+            assertTrue(listeners.addOrNotify(index("1").getTranslogLocation(), listener));
+            assertTrue(listener.forcedRefresh.get());
+            listener.assertNoError();
+            assertEquals(0, listeners.pendingCount());
+        }
+
+        assertFalse(listeners.addOrNotify(index("1").getTranslogLocation(), new DummyRefreshListener()));
+        assertEquals(1, listeners.pendingCount());
     }
 
     private Engine.IndexResult index(String id) throws IOException {

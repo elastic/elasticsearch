@@ -91,7 +91,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         Path xpackConf = home.resolve("config");
         Files.createDirectories(xpackConf);
 
-        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
+        Transport transport = internalCluster().getMasterNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
         String unicastHost = NetworkAddress.format(transportAddress.address());
 
@@ -108,6 +108,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put("path.home", home)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
+                .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
                 //.put("xpack.ml.autodetect_process", false);
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
@@ -132,7 +133,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         writeFile(xpackConf, "users_roles", configUsersRoles());
         writeFile(xpackConf, "roles.yml", configRoles());
 
-        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
+        Transport transport = internalCluster().getMasterNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.profileBoundAddresses().get("client").publishAddress();
         String unicastHost = NetworkAddress.format(transportAddress.address());
 
@@ -151,6 +152,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("discovery.initial_state_timeout", "0s")
                 .put("path.home", home)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
+                .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
                 //.put("xpack.ml.autodetect_process", false);
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
@@ -165,7 +167,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             node.start();
             TransportService instance = node.injector().getInstance(TransportService.class);
             try (Transport.Connection connection = instance.openConnection(new DiscoveryNode("theNode", transportAddress, Version.CURRENT),
-                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null))) {
+                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG))) {
                 // handshake should be ok
                 final DiscoveryNode handshake = instance.handshake(connection, 10000);
                 assertEquals(transport.boundAddress().publishAddress(), handshake.getAddress());

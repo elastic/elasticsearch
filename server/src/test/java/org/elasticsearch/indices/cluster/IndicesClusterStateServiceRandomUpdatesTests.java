@@ -461,7 +461,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             Collections.emptySet());
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(settings, clusterService,
-            transportService, null, threadPool);
+            transportService, Collections.emptyMap(), Collections.emptyMap(), threadPool);
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(threadPool,
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);

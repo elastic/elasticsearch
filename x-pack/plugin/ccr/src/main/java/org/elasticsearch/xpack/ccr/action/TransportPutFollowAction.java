@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -105,20 +106,12 @@ public final class TransportPutFollowAction
         client.getRemoteClusterClient(remoteCluster);
 
         String leaderIndex = request.getLeaderIndex();
-        createFollowerIndexAndFollowRemoteIndex(request, remoteCluster, leaderIndex, listener);
-    }
-
-    private void createFollowerIndexAndFollowRemoteIndex(
-            final PutFollowAction.Request request,
-            final String remoteCluster,
-            final String leaderIndex,
-            final ActionListener<PutFollowAction.Response> listener) {
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
-                client,
-                remoteCluster,
-                leaderIndex,
-                listener::onFailure,
-                (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
+            client,
+            remoteCluster,
+            leaderIndex,
+            listener::onFailure,
+            (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
     }
 
     private void createFollowerIndex(
@@ -130,7 +123,9 @@ public final class TransportPutFollowAction
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
-        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+        // soft deletes are enabled by default on indices created on 7.0.0 or later
+        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
+            IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexMetaData.getSettings()).onOrAfter(Version.V_7_0_0)) == false) {
             listener.onFailure(
                 new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled"));
             return;

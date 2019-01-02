@@ -34,6 +34,7 @@ public class DataLoader {
     public static void main(String[] args) throws Exception {
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
             loadEmpDatasetIntoEs(client);
+            loadDocsDatasetIntoEs(client);
             LogManager.getLogger(DataLoader.class).info("Data loaded");
         }
     }

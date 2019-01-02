@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +42,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 
 public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
+    private static final Logger logger = LogManager.getLogger(SecurityNioHttpServerTransport.class);
 
     private final SecurityHttpExceptionHandler securityExceptionHandler;
     private final IPFilter ipFilter;

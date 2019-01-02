@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractors;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
+import org.elasticsearch.xpack.sql.expression.literal.Intervals;
 import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
 
 import java.io.ByteArrayOutputStream;
@@ -52,6 +53,9 @@ public final class Cursors {
         entries.addAll(Processors.getNamedWriteables());
         entries.addAll(HitExtractors.getNamedWriteables());
         entries.addAll(BucketExtractors.getNamedWriteables());
+
+        // and custom types
+        entries.addAll(Intervals.getNamedWriteables());
 
         return entries;
     }

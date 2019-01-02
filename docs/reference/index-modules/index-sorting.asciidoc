@@ -188,8 +188,7 @@ as soon as N documents have been collected per segment.
 --------------------------------------------------
 {
   "_shards": ...
-   "hits" : {
-      "total" : -1,     <1>
+   "hits" : {  <1>
       "max_score" : null,
       "hits" : []
   },

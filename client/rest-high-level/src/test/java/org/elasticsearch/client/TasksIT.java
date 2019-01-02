@@ -24,10 +24,21 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRespo
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.client.tasks.GetTaskRequest;
+import org.elasticsearch.client.tasks.GetTaskResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,6 +70,56 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
             }
         }
         assertTrue("List tasks were not found", listTasksFound);
+    }
+    
+    public void testGetValidTask() throws IOException {
+
+        // Run a Reindex to create a task
+
+        final String sourceIndex = "source1";
+        final String destinationIndex = "dest";
+        Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
+        createIndex(sourceIndex, settings);
+        createIndex(destinationIndex, settings);
+        BulkRequest bulkRequest = new BulkRequest()
+                .add(new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+                .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        assertEquals(RestStatus.OK, highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT).status());
+        
+        // (need to use low level client because currently high level client
+        // doesn't support async return of task id - needs
+        // https://github.com/elastic/elasticsearch/pull/35202 )
+        RestClient lowClient = highLevelClient().getLowLevelClient();
+        Request request = new Request("POST", "_reindex");
+        request.addParameter("wait_for_completion", "false");
+        request.setJsonEntity("{" + "  \"source\": {\n" + "    \"index\": \"source1\"\n" + "  },\n" + "  \"dest\": {\n"
+                + "    \"index\": \"dest\"\n" + "  }" + "}");
+        Response response = lowClient.performRequest(request);
+        Map<String, Object> map = entityAsMap(response);
+        Object taskId = map.get("task");
+        assertNotNull(taskId);
+
+        TaskId childTaskId = new TaskId(taskId.toString());
+        GetTaskRequest gtr = new GetTaskRequest(childTaskId.getNodeId(), childTaskId.getId());
+        gtr.setWaitForCompletion(randomBoolean());
+        Optional<GetTaskResponse> getTaskResponse = execute(gtr, highLevelClient().tasks()::get, highLevelClient().tasks()::getAsync);
+        assertTrue(getTaskResponse.isPresent());
+        GetTaskResponse taskResponse = getTaskResponse.get();        
+        if (gtr.getWaitForCompletion()) {
+            assertTrue(taskResponse.isCompleted());
+        }
+        TaskInfo info = taskResponse.getTaskInfo();
+        assertTrue(info.isCancellable());
+        assertEquals("reindex from [source1] to [dest][_doc]", info.getDescription());
+        assertEquals("indices:data/write/reindex", info.getAction());                
+    }    
+    
+    public void testGetInvalidTask() throws IOException {
+        // Check 404s are returned as empty Optionals
+        GetTaskRequest gtr = new GetTaskRequest("doesNotExistNodeName", 123);                
+        Optional<GetTaskResponse> getTaskResponse = execute(gtr, highLevelClient().tasks()::get, highLevelClient().tasks()::getAsync);
+        assertFalse(getTaskResponse.isPresent());               
     }
 
     public void testCancelTasks() throws IOException {

@@ -124,6 +124,11 @@ grant {
   // read max virtual memory areas
   permission java.io.FilePermission "/proc/sys/vm/max_map_count", "read";
 
+  // OS release on Linux
+  permission java.io.FilePermission "/etc/os-release", "read";
+  permission java.io.FilePermission "/usr/lib/os-release", "read";
+  permission java.io.FilePermission "/etc/system-release", "read";
+
   // io stats on Linux
   permission java.io.FilePermission "/proc/self/mountinfo", "read";
   permission java.io.FilePermission "/proc/diskstats", "read";

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 /**
  * Addition function ({@code a + b}).
  */
-public class Add extends ArithmeticOperation {
+public class Add extends DateTimeArithmeticOperation {
     public Add(Location location, Expression left, Expression right) {
         super(location, left, right, BinaryArithmeticOperation.ADD);
     }

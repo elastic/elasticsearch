@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-apis]]
-== Machine Learning APIs
+== Machine learning APIs
 
 You can use the following APIs to perform {ml} activities.
 See <<ml-api-definitions, Definitions>> for the resource definitions used by the
@@ -76,6 +76,18 @@ machine learning APIs and in advanced job configuration options in Kibana.
 
 * <<ml-find-file-structure,Find file structure>>
 
+[float]
+[[ml-api-ml-info-endpoint]]
+=== Info
+
+* <<get-ml-info,Machine learning info>>
+
+[float]
+[[ml-api-delete-expired-data-endpoint]]
+=== Delete Expired Data
+
+* <<ml-delete-expired-data,Delete expired data>>
+
 //ADD
 include::post-calendar-event.asciidoc[]
 include::put-calendar-job.asciidoc[]
@@ -95,6 +107,7 @@ include::delete-forecast.asciidoc[]
 include::delete-job.asciidoc[]
 include::delete-calendar-job.asciidoc[]
 include::delete-snapshot.asciidoc[]
+include::delete-expired-data.asciidoc[]
 //FIND
 include::find-file-structure.asciidoc[]
 //FLUSH
@@ -111,6 +124,7 @@ include::get-datafeed-stats.asciidoc[]
 include::get-influencer.asciidoc[]
 include::get-job.asciidoc[]
 include::get-job-stats.asciidoc[]
+include::get-ml-info.asciidoc[]
 include::get-snapshot.asciidoc[]
 include::get-calendar-event.asciidoc[]
 include::get-filter.asciidoc[]

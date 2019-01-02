@@ -74,6 +74,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -189,7 +190,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         authzService = new AuthorizationService(settings, rolesStore, clusterService,
-                mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class),
+                mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(Collections.emptyMap()), mock(ThreadPool.class),
                 new AnonymousUser(settings));
         defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService);
     }

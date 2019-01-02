@@ -3,6 +3,8 @@
 [[sql-getting-started]]
 == Getting Started with SQL
 
+beta[]
+
 To start using {es-sql}, create
 an index with some data to experiment with:
 
@@ -22,7 +24,7 @@ And now you can execute SQL using the <<sql-rest>> right away:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql?format=txt
+POST /_sql?format=txt
 {
     "query": "SELECT * FROM library WHERE release_date < '2000-01-01'"
 }

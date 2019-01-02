@@ -9,13 +9,14 @@ import org.apache.http.HttpEntity;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContent;
@@ -33,32 +34,10 @@ import java.util.stream.Collectors;
  * {@code PublishableHttpResource} represents an {@link HttpResource} that is a single file or object that can be checked <em>and</em>
  * published in the event that the check does not pass.
  *
- * @see #doCheck(RestClient)
- * @see #doPublish(RestClient)
+ * @see #doCheck(RestClient, ActionListener)
+ * @see #doPublish(RestClient, ActionListener)
  */
 public abstract class PublishableHttpResource extends HttpResource {
-
-    /**
-     * {@code CheckResponse} provides a ternary state for {@link #doCheck(RestClient)}.
-     */
-    public enum CheckResponse {
-
-        /**
-         * The check found the resource, so nothing needs to be published.
-         * <p>
-         * This can also be used to skip the publishing portion if desired.
-         */
-        EXISTS,
-        /**
-         * The check did not find the resource, so we need to attempt to publish it.
-         */
-        DOES_NOT_EXIST,
-        /**
-         * The check hit an unexpected exception that should block publishing attempts until it can check again.
-         */
-        ERROR
-
-    }
 
     /**
      * A value that will never match anything in the JSON response body, thus limiting it to "{}".
@@ -142,56 +121,27 @@ public abstract class PublishableHttpResource extends HttpResource {
      * Perform whatever is necessary to check and publish this {@link PublishableHttpResource}.
      *
      * @param client The REST client to make the request(s).
-     * @return {@code true} if the resource is available for use. {@code false} to stop.
+     * @param listener Returns {@code true} if the resource is available for use. {@code false} to stop.
      */
     @Override
-    protected final boolean doCheckAndPublish(final RestClient client) {
-        final CheckResponse check = doCheck(client);
-
-        // errors cause a dead-stop
-        return check != CheckResponse.ERROR && (check == CheckResponse.EXISTS || doPublish(client));
+    protected final void doCheckAndPublish(final RestClient client, final ActionListener<Boolean> listener) {
+        doCheck(client, ActionListener.wrap(exists -> {
+            if (exists) {
+                // it already exists, so we can skip publishing it
+                listener.onResponse(true);
+            } else {
+                doPublish(client, listener);
+            }
+        }, listener::onFailure));
     }
 
     /**
      * Determine if the current resource exists.
-     * <ul>
-     * <li>
-     *     {@link CheckResponse#EXISTS EXISTS} will <em>not</em> run {@link #doPublish(RestClient)} and mark this as <em>not</em> dirty.
-     * </li>
-     * <li>
-     *     {@link CheckResponse#DOES_NOT_EXIST DOES_NOT_EXIST} will run {@link #doPublish(RestClient)}, which determines the dirtiness.
-     * </li>
-     * <li>{@link CheckResponse#ERROR ERROR} will <em>not</em> run {@link #doPublish(RestClient)} and mark this as dirty.</li>
-     * </ul>
      *
      * @param client The REST client to make the request(s).
-     * @return Never {@code null}.
+     * @param listener Returns {@code true} if the resource already available to use. {@code false} otherwise.
      */
-    protected abstract CheckResponse doCheck(RestClient client);
-
-    /**
-     * Determine if the current {@code resourceName} exists at the {@code resourceBasePath} endpoint.
-     * <p>
-     * This provides the base-level check for any resource that does not need to care about its response beyond existence (and likely does
-     * not need to inspect its contents).
-     *
-     * @param client The REST client to make the request(s).
-     * @param logger The logger to use for status messages.
-     * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
-     * @param resourceName The name of the resource (e.g., "template123").
-     * @param resourceType The type of resource (e.g., "monitoring template").
-     * @param resourceOwnerName The user-recognizeable resource owner.
-     * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
-     * @return Never {@code null}.
-     */
-    protected CheckResponse simpleCheckForResource(final RestClient client, final Logger logger,
-                                                   final String resourceBasePath,
-                                                   final String resourceName, final String resourceType,
-                                                   final String resourceOwnerName, final String resourceOwnerType) {
-        return checkForResource(client, logger, resourceBasePath, resourceName, resourceType, resourceOwnerName, resourceOwnerType,
-                                GET_EXISTS, GET_DOES_NOT_EXIST)
-                    .v1();
-    }
+    protected abstract void doCheck(RestClient client, ActionListener<Boolean> listener);
 
     /**
      * Determine if the current {@code resourceName} exists at the {@code resourceBasePath} endpoint with a version greater than or equal
@@ -210,6 +160,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * </code></pre>
      *
      * @param client The REST client to make the request(s).
+     * @param listener Returns {@code true} if the resource was successfully published. {@code false} otherwise.
      * @param logger The logger to use for status messages.
      * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
      * @param resourceName The name of the resource (e.g., "template123").
@@ -218,73 +169,23 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
      * @param xContent The XContent used to parse the response.
      * @param minimumVersion The minimum version allowed without being replaced (expected to be the last updated version).
-     * @return Never {@code null}.
      */
-    protected CheckResponse versionCheckForResource(final RestClient client, final Logger logger,
-                                                    final String resourceBasePath,
-                                                    final String resourceName, final String resourceType,
-                                                    final String resourceOwnerName, final String resourceOwnerType,
-                                                    final XContent xContent, final int minimumVersion) {
+    protected void versionCheckForResource(final RestClient client,
+                                           final ActionListener<Boolean> listener,
+                                           final Logger logger,
+                                           final String resourceBasePath,
+                                           final String resourceName,
+                                           final String resourceType,
+                                           final String resourceOwnerName,
+                                           final String resourceOwnerType,
+                                           final XContent xContent,
+                                           final int minimumVersion) {
         final CheckedFunction<Response, Boolean, IOException> responseChecker =
-                (response) -> shouldReplaceResource(response, xContent, resourceName, minimumVersion);
+            (response) -> shouldReplaceResource(response, xContent, resourceName, minimumVersion);
 
-        return versionCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, resourceOwnerName, resourceOwnerType,
-                                       responseChecker);
-    }
-
-    /**
-     * Determine if the current {@code resourceName} exists at the {@code resourceBasePath} endpoint with a version greater than or equal
-     * to the expected version.
-     * <p>
-     * This provides the base-level check for any resource that does not need to care about its response beyond existence (and likely does
-     * not need to inspect its contents).
-     * <p>
-     * This expects responses in the form of:
-     * <pre><code>
-     * {
-     *   "resourceName": {
-     *     "version": 6000002
-     *   }
-     * }
-     * </code></pre>
-     *
-     * @param client The REST client to make the request(s).
-     * @param logger The logger to use for status messages.
-     * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
-     * @param resourceName The name of the resource (e.g., "template123").
-     * @param resourceType The type of resource (e.g., "monitoring template").
-     * @param resourceOwnerName The user-recognizeable resource owner.
-     * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
-     * @param responseChecker Determine if the resource should be replaced given the response.
-     * @return Never {@code null}.
-     */
-    protected CheckResponse versionCheckForResource(final RestClient client, final Logger logger,
-                                                    final String resourceBasePath,
-                                                    final String resourceName, final String resourceType,
-                                                    final String resourceOwnerName, final String resourceOwnerType,
-                                                    final CheckedFunction<Response, Boolean, IOException> responseChecker) {
-        final Tuple<CheckResponse, Response> response =
-                checkForResource(client, logger, resourceBasePath, resourceName, resourceType, resourceOwnerName, resourceOwnerType,
-                                 GET_EXISTS, GET_DOES_NOT_EXIST);
-
-        final CheckResponse checkResponse = response.v1();
-
-        // if the template exists, then we also need to check its version
-        if (checkResponse == CheckResponse.EXISTS) {
-            try {
-                // replace the resource because the version is below what was required
-                if (responseChecker.apply(response.v2())) {
-                    return CheckResponse.DOES_NOT_EXIST;
-                }
-            } catch (IOException | RuntimeException e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to parse [{}/{}] on the [{}]",
-                                                                          resourceBasePath, resourceName, resourceOwnerName), e);
-
-                return CheckResponse.ERROR;
-            }
-        }
-
-        return checkResponse;
+        checkForResource(client, listener, logger,
+                         resourceBasePath, resourceName, resourceType, resourceOwnerName, resourceOwnerType,
+                         GET_EXISTS, GET_DOES_NOT_EXIST, responseChecker, this::alwaysReplaceResource);
     }
 
     /**
@@ -293,6 +194,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * This provides the base-level check for any resource that cares about existence and also its contents.
      *
      * @param client The REST client to make the request(s).
+     * @param listener Returns {@code true} if the resource was successfully published. {@code false} otherwise.
      * @param logger The logger to use for status messages.
      * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template"), if any.
      * @param resourceName The name of the resource (e.g., "template123").
@@ -301,17 +203,22 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
      * @param exists Response codes that represent {@code EXISTS}.
      * @param doesNotExist Response codes that represent {@code DOES_NOT_EXIST}.
-     * @return Never {@code null} pair containing the checked response and the returned response.
-     *         The response will only ever be {@code null} if none was returned.
-     * @see #simpleCheckForResource(RestClient, Logger, String, String, String, String, String)
+     * @param responseChecker Returns {@code true} if the resource should be replaced.
+     * @param doesNotExistResponseChecker Returns {@code true} if the resource should be replaced.
      */
-    protected Tuple<CheckResponse, Response> checkForResource(final RestClient client, final Logger logger,
-                                                              final String resourceBasePath,
-                                                              final String resourceName, final String resourceType,
-                                                              final String resourceOwnerName, final String resourceOwnerType,
-                                                              final Set<Integer> exists, final Set<Integer> doesNotExist) {
+    protected void checkForResource(final RestClient client,
+                                    final ActionListener<Boolean> listener,
+                                    final Logger logger,
+                                    final String resourceBasePath,
+                                    final String resourceName,
+                                    final String resourceType,
+                                    final String resourceOwnerName,
+                                    final String resourceOwnerType,
+                                    final Set<Integer> exists,
+                                    final Set<Integer> doesNotExist,
+                                    final CheckedFunction<Response, Boolean, IOException> responseChecker,
+                                    final CheckedFunction<Response, Boolean, IOException> doesNotExistResponseChecker) {
         logger.trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
-
 
         final Request request = new Request("GET", resourceBasePath + "/" + resourceName);
         addParameters(request);
@@ -319,58 +226,76 @@ public abstract class PublishableHttpResource extends HttpResource {
         final Set<Integer> expectedResponseCodes = Sets.union(exists, doesNotExist);
         request.addParameter("ignore", expectedResponseCodes.stream().map(i -> i.toString()).collect(Collectors.joining(",")));
 
-        try {
-            final Response response = client.performRequest(request);
-            final int statusCode = response.getStatusLine().getStatusCode();
+        client.performRequestAsync(request, new ResponseListener() {
 
-            // checking the content is the job of whoever called this function by checking the tuple's response
-            if (exists.contains(statusCode)) {
-                logger.debug("{} [{}] found on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
+            @Override
+            public void onSuccess(final Response response) {
+                try {
+                    final int statusCode = response.getStatusLine().getStatusCode();
 
-                return new Tuple<>(CheckResponse.EXISTS, response);
-            } else if (doesNotExist.contains(statusCode)) {
-                logger.debug("{} [{}] does not exist on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
+                    // checking the content is the job of whoever called this function by checking the tuple's response
+                    if (exists.contains(statusCode)) {
+                        logger.debug("{} [{}] found on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
-                return new Tuple<>(CheckResponse.DOES_NOT_EXIST, response);
-            } else {
-                throw new ResponseException(response);
+                        // if we should replace it -- true -- then the resource "does not exist" as far as the caller is concerned
+                        listener.onResponse(false == responseChecker.apply(response));
+
+                    } else if (doesNotExist.contains(statusCode)) {
+                        logger.debug("{} [{}] does not exist on the [{}] {}",
+                                     resourceType, resourceName, resourceOwnerName, resourceOwnerType);
+
+                        // if we should replace it -- true -- then the resource "does not exist" as far as the caller is concerned
+                        listener.onResponse(false == doesNotExistResponseChecker.apply(response));
+                    } else {
+                        onFailure(new ResponseException(response));
+                    }
+                } catch (Exception e) {
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to parse [{}/{}] on the [{}]",
+                                                                              resourceBasePath, resourceName, resourceOwnerName),
+                                 e);
+
+                    onFailure(e);
+                }
             }
-        } catch (final ResponseException e) {
-            final Response response = e.getResponse();
-            final int statusCode = response.getStatusLine().getStatusCode();
 
-            logger.error((Supplier<?>) () ->
-                    new ParameterizedMessage("failed to verify {} [{}] on the [{}] {} with status code [{}]",
-                                             resourceType, resourceName, resourceOwnerName, resourceOwnerType, statusCode),
-                    e);
+            @Override
+            public void onFailure(final Exception exception) {
+                if (exception instanceof ResponseException) {
+                    final Response response = ((ResponseException)exception).getResponse();
+                    final int statusCode = response.getStatusLine().getStatusCode();
 
-            // weirder failure than below; block responses just like other unexpected failures
-            return new Tuple<>(CheckResponse.ERROR, response);
-        } catch (IOException | RuntimeException e) {
-            logger.error((Supplier<?>) () ->
-                    new ParameterizedMessage("failed to verify {} [{}] on the [{}] {}",
-                                             resourceType, resourceName, resourceOwnerName, resourceOwnerType),
-                    e);
+                    logger.error((Supplier<?>) () ->
+                                 new ParameterizedMessage("failed to verify {} [{}] on the [{}] {} with status code [{}]",
+                                                          resourceType, resourceName, resourceOwnerName, resourceOwnerType, statusCode),
+                                 exception);
+                } else {
+                    logger.error((Supplier<?>) () ->
+                                 new ParameterizedMessage("failed to verify {} [{}] on the [{}] {}",
+                                                          resourceType, resourceName, resourceOwnerName, resourceOwnerType),
+                                 exception);
+                }
 
-            // do not attempt to publish the resource because we're in a broken state
-            return new Tuple<>(CheckResponse.ERROR, null);
-        }
+                listener.onFailure(exception);
+            }
+
+        });
     }
 
     /**
      * Publish the current resource.
      * <p>
-     * This is only invoked if {@linkplain #doCheck(RestClient) the check} fails.
+     * This is only invoked if {@linkplain #doCheck(RestClient, ActionListener) the check} fails.
      *
      * @param client The REST client to make the request(s).
-     * @return {@code true} if it exists.
+     * @param listener Returns {@code true} if the resource is available to use. Otherwise {@code false}.
      */
-    protected abstract boolean doPublish(RestClient client);
+    protected abstract void doPublish(RestClient client, ActionListener<Boolean> listener);
 
     /**
      * Upload the {@code resourceName} to the {@code resourceBasePath} endpoint.
      *
      * @param client The REST client to make the request(s).
+     * @param listener Returns {@code true} if the resource was successfully published. {@code false} otherwise.
      * @param logger The logger to use for status messages.
      * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
      * @param resourceName The name of the resource (e.g., "template123").
@@ -379,39 +304,49 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param resourceOwnerName The user-recognizeable resource owner.
      * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
      */
-    protected boolean putResource(final RestClient client, final Logger logger,
-                                  final String resourceBasePath,
-                                  final String resourceName, final java.util.function.Supplier<HttpEntity> body,
-                                  final String resourceType,
-                                  final String resourceOwnerName, final String resourceOwnerType) {
+    protected void putResource(final RestClient client,
+                               final ActionListener<Boolean> listener,
+                               final Logger logger,
+                               final String resourceBasePath,
+                               final String resourceName,
+                               final java.util.function.Supplier<HttpEntity> body,
+                               final String resourceType,
+                               final String resourceOwnerName,
+                               final String resourceOwnerType) {
         logger.trace("uploading {} [{}] to the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
-        boolean success = false;
 
         final Request request = new Request("PUT", resourceBasePath + "/" + resourceName);
         addParameters(request);
         request.setEntity(body.get());
 
-        try {
-            final Response response = client.performRequest(request);
-            final int statusCode = response.getStatusLine().getStatusCode();
+        client.performRequestAsync(request, new ResponseListener() {
 
-            // 200 or 201
-            if (statusCode == RestStatus.OK.getStatus() || statusCode == RestStatus.CREATED.getStatus()) {
-                logger.debug("{} [{}] uploaded to the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
+            @Override
+            public void onSuccess(final Response response) {
+                final int statusCode = response.getStatusLine().getStatusCode();
 
-                success = true;
-            } else {
-                throw new RuntimeException("[" + resourceBasePath + "/" + resourceName + "] responded with [" + statusCode + "]");
+                // 200 or 201
+                if (statusCode == RestStatus.OK.getStatus() || statusCode == RestStatus.CREATED.getStatus()) {
+                    logger.debug("{} [{}] uploaded to the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
+
+                    listener.onResponse(true);
+                } else {
+                    onFailure(new RuntimeException("[" + resourceBasePath + "/" + resourceName + "] responded with [" + statusCode + "]"));
+                }
             }
-        } catch (IOException | RuntimeException e) {
-            logger.error((Supplier<?>) () ->
-                    new ParameterizedMessage("failed to upload {} [{}] on the [{}] {}",
-                                             resourceType, resourceName, resourceOwnerName, resourceOwnerType),
-                    e);
-        }
 
-        return success;
+            @Override
+            public void onFailure(final Exception exception) {
+                logger.error((Supplier<?>) () ->
+                             new ParameterizedMessage("failed to upload {} [{}] on the [{}] {}",
+                                                      resourceType, resourceName, resourceOwnerName, resourceOwnerType),
+                             exception);
+
+                listener.onFailure(exception);
+            }
+
+        });
     }
 
     /**
@@ -422,48 +357,59 @@ public abstract class PublishableHttpResource extends HttpResource {
      * responses will result in {@code false} and logged failure.
      *
      * @param client The REST client to make the request(s).
+     * @param listener Returns {@code true} if it successfully deleted the item; <em>never</em> {@code false}.
      * @param logger The logger to use for status messages.
      * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
      * @param resourceName The name of the resource (e.g., "template123").
      * @param resourceType The type of resource (e.g., "monitoring template").
      * @param resourceOwnerName The user-recognizeable resource owner.
      * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
-     * @return {@code true} if it successfully deleted the item; otherwise {@code false}.
      */
-    protected boolean deleteResource(final RestClient client, final Logger logger,
-                                     final String resourceBasePath, final String resourceName,
-                                     final String resourceType,
-                                     final String resourceOwnerName, final String resourceOwnerType) {
+    protected void deleteResource(final RestClient client,
+                                  final ActionListener<Boolean> listener,
+                                  final Logger logger,
+                                  final String resourceBasePath,
+                                  final String resourceName,
+                                  final String resourceType,
+                                  final String resourceOwnerName,
+                                  final String resourceOwnerType) {
         logger.trace("deleting {} [{}] from the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
-        boolean success = false;
-
-        Request request = new Request("DELETE", resourceBasePath + "/" + resourceName);
+        final Request request = new Request("DELETE", resourceBasePath + "/" + resourceName);
         addParameters(request);
+
         if (false == parameters.containsKey("ignore")) {
             // avoid 404 being an exception by default
             request.addParameter("ignore", Integer.toString(RestStatus.NOT_FOUND.getStatus()));
         }
 
-        try {
-            final Response response = client.performRequest(request);
-            final int statusCode = response.getStatusLine().getStatusCode();
+        client.performRequestAsync(request, new ResponseListener() {
 
-            // 200 or 404 (not found is just as good as deleting it!)
-            if (statusCode == RestStatus.OK.getStatus() || statusCode == RestStatus.NOT_FOUND.getStatus()) {
-                logger.debug("{} [{}] deleted from the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
+            @Override
+            public void onSuccess(Response response) {
+                final int statusCode = response.getStatusLine().getStatusCode();
 
-                success = true;
-            } else {
-                throw new RuntimeException("[" + resourceBasePath + "/" + resourceName + "] responded with [" + statusCode + "]");
+                // 200 or 404 (not found is just as good as deleting it!)
+                if (statusCode == RestStatus.OK.getStatus() || statusCode == RestStatus.NOT_FOUND.getStatus()) {
+                    logger.debug("{} [{}] deleted from the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
+
+                    listener.onResponse(true);
+                } else {
+                    onFailure(new RuntimeException("[" + resourceBasePath + "/" + resourceName + "] responded with [" + statusCode + "]"));
+                }
             }
-        } catch (IOException | RuntimeException e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to delete {} [{}] on the [{}] {}",
-                                                                      resourceType, resourceName, resourceOwnerName, resourceOwnerType),
-                         e);
-        }
 
-        return success;
+            @Override
+            public void onFailure(Exception exception) {
+                logger.error((Supplier<?>) () ->
+                             new ParameterizedMessage("failed to delete {} [{}] on the [{}] {}",
+                                                      resourceType, resourceName, resourceOwnerName, resourceOwnerType),
+                             exception);
+
+                listener.onFailure(exception);
+            }
+
+        });
     }
 
     /**
@@ -498,18 +444,27 @@ public abstract class PublishableHttpResource extends HttpResource {
             final Map<String, Object> resource = (Map<String, Object>) resources.get(resourceName);
             final Object version = resource != null ? resource.get("version") : null;
 
-            // if we don't have it (perhaps more fields were returned), then we need to replace it
+            // the version in the template is expected to include the alpha/beta/rc codes as well
             if (version instanceof Number) {
-                // the version in the template is expected to include the alpha/beta/rc codes as well
-                return ((Number)version).intValue() < minimumVersion;
+                return ((Number) version).intValue() < minimumVersion;
             }
         }
 
         return true;
     }
 
-    private void addParameters(Request request) {
-        for (Map.Entry<String, String> param : parameters.entrySet()) {
+    /**
+     * A useful placeholder for {@link CheckedFunction}s that want to always return {@code true}.
+     *
+     * @param response Unused.
+     * @return Always {@code true}.
+     */
+    protected boolean alwaysReplaceResource(final Response response) {
+        return true;
+    }
+
+    private void addParameters(final Request request) {
+        for (final Map.Entry<String, String> param : parameters.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }
     }

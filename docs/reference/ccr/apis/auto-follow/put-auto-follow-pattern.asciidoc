@@ -1,19 +1,22 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-put-auto-follow-pattern]]
-=== Create Auto-Follow Pattern API
+=== Create auto-follow pattern API
 ++++
-<titleabbrev>Create Auto-Follow Pattern</titleabbrev>
+<titleabbrev>Create auto-follow pattern</titleabbrev>
 ++++
+
+beta[]
 
 Creates an auto-follow pattern.
 
 ==== Description
 
-This API creates a new named collection of auto-follow patterns against the
-remote cluster specified in the request body. Newly created indices on the
-remote cluster matching any of the specified patterns will be automatically
-configured as follower indices.
+This API creates a new named collection of
+{stack-ov}/ccr-auto-follow.html[auto-follow patterns] against the remote cluster
+specified in the request body. Newly created indices on the remote cluster
+matching any of the specified patterns will be automatically configured as follower
+indices.
 
 ==== Request
 
@@ -66,6 +69,14 @@ DELETE /_ccr/auto_follow/auto_follow_pattern_name
   index
 
 include::../follow-request-body.asciidoc[]
+
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have `read` and `monitor`
+index privileges for the leader index patterns. You must also have `manage_ccr`
+cluster privileges on the cluster that contains the follower index. For more
+information, see
+{stack-ov}/security-privileges.html[Security privileges].
 
 ==== Example
 

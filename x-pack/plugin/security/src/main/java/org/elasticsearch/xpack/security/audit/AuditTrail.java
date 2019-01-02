@@ -16,45 +16,54 @@ import java.net.InetAddress;
 
 public interface AuditTrail {
 
+    String X_FORWARDED_FOR_HEADER = "X-Forwarded-For";
+
     String name();
 
-    void authenticationSuccess(String realm, User user, RestRequest request);
+    void authenticationSuccess(String requestId, String realm, User user, RestRequest request);
 
-    void authenticationSuccess(String realm, User user, String action, TransportMessage message);
+    void authenticationSuccess(String requestId, String realm, User user, String action, TransportMessage message);
 
-    void anonymousAccessDenied(String action, TransportMessage message);
+    void anonymousAccessDenied(String requestId, String action, TransportMessage message);
 
-    void anonymousAccessDenied(RestRequest request);
+    void anonymousAccessDenied(String requestId, RestRequest request);
 
-    void authenticationFailed(RestRequest request);
+    void authenticationFailed(String requestId, RestRequest request);
 
-    void authenticationFailed(String action, TransportMessage message);
+    void authenticationFailed(String requestId, String action, TransportMessage message);
 
-    void authenticationFailed(AuthenticationToken token, String action, TransportMessage message);
+    void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportMessage message);
 
-    void authenticationFailed(AuthenticationToken token, RestRequest request);
+    void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request);
 
-    void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage message);
+    void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportMessage message);
 
-    void authenticationFailed(String realm, AuthenticationToken token, RestRequest request);
+    void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request);
 
-    void accessGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames);
+    void accessGranted(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames);
 
-    void accessDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames);
+    void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames);
 
-    void tamperedRequest(RestRequest request);
+    void tamperedRequest(String requestId, RestRequest request);
 
-    void tamperedRequest(String action, TransportMessage message);
+    void tamperedRequest(String requestId, String action, TransportMessage message);
 
-    void tamperedRequest(User user, String action, TransportMessage request);
+    void tamperedRequest(String requestId, User user, String action, TransportMessage request);
 
+    /**
+     * The {@link #connectionGranted(InetAddress, String, SecurityIpFilterRule)} and
+     * {@link #connectionDenied(InetAddress, String, SecurityIpFilterRule)} methods do not have a requestId because they related to a
+     * potentially long-lived TCP connection, not a single request. For both Transport and Rest connections, a single connection
+     * granted/denied event is generated even if that connection is used for multiple Elasticsearch actions (potentially as different users)
+     */
     void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule);
 
     void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule);
 
-    void runAsGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames);
+    void runAsGranted(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames);
 
-    void runAsDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames);
+    void runAsDenied(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames);
 
-    void runAsDenied(Authentication authentication, RestRequest request, String[] roleNames);
+    void runAsDenied(String requestId, Authentication authentication, RestRequest request, String[] roleNames);
+
 }

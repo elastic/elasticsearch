@@ -2,7 +2,7 @@ package org.elasticsearch.gradle.test
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
-import org.gradle.api.internal.tasks.options.Option
+import org.gradle.api.tasks.options.Option
 import org.gradle.util.ConfigureUtil
 
 public class RunTask extends DefaultTask {

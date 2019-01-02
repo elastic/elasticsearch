@@ -42,7 +42,7 @@ public class Literal extends NamedExpression {
     }
 
     @Override
-    protected NodeInfo<Literal> info() {
+    protected NodeInfo<? extends Literal> info() {
         return NodeInfo.create(this, Literal::new, value, dataType);
     }
 

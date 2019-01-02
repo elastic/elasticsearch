@@ -102,7 +102,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.slop(randomIntBetween(0, 5));
         }
-        if (fieldName.equals(STRING_FIELD_NAME) && randomBoolean() && (query.type() == Type.BEST_FIELDS || query.type() == Type.MOST_FIELDS)) {
+        if (fieldName.equals(STRING_FIELD_NAME) && randomBoolean() &&
+                (query.type() == Type.BEST_FIELDS || query.type() == Type.MOST_FIELDS)) {
             query.fuzziness(randomFuzziness(fieldName));
         }
         if (randomBoolean()) {
@@ -116,9 +117,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         }
         if (randomBoolean()) {
             query.fuzzyRewrite(getRandomRewriteMethod());
-        }
-        if (randomBoolean()) {
-            query.useDisMax(randomBoolean());
         }
         if (randomBoolean()) {
             query.tieBreaker(randomFloat());
@@ -188,7 +186,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryMultipleTermsBooleanQuery() throws Exception {
-        Query query = multiMatchQuery("test1 test2").field(STRING_FIELD_NAME).useDisMax(false).toQuery(createShardContext());
+        Query query = multiMatchQuery("test1 test2").field(STRING_FIELD_NAME).toQuery(createShardContext());
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) query;
         assertThat(bQuery.clauses().size(), equalTo(2));
@@ -197,7 +195,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryMultipleFieldsDisableDismax() throws Exception {
-        Query query = multiMatchQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2).useDisMax(false).toQuery(createShardContext());
+        Query query = multiMatchQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2).tieBreaker(1.0f)
+                .toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
         assertThat(dQuery.getTieBreakerMultiplier(), equalTo(1.0f));
@@ -207,7 +206,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryMultipleFieldsDisMaxQuery() throws Exception {
-        Query query = multiMatchQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2).useDisMax(true).toQuery(createShardContext());
+        Query query = multiMatchQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2).toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
         assertThat(disMaxQuery.getTieBreakerMultiplier(), equalTo(0.0f));
@@ -219,7 +218,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryFieldsWildcard() throws Exception {
-        Query query = multiMatchQuery("test").field("mapped_str*").useDisMax(false).toQuery(createShardContext());
+        Query query = multiMatchQuery("test").field("mapped_str*").tieBreaker(1.0f).toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
         assertThat(dQuery.getTieBreakerMultiplier(), equalTo(1.0f));
@@ -230,8 +229,10 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryFieldMissing() throws Exception {
-        assertThat(multiMatchQuery("test").field(MISSING_WILDCARD_FIELD_NAME).toQuery(createShardContext()), instanceOf(MatchNoDocsQuery.class));
-        assertThat(multiMatchQuery("test").field(MISSING_FIELD_NAME).toQuery(createShardContext()), instanceOf(MatchNoDocsQuery.class));
+        assertThat(multiMatchQuery("test").field(MISSING_WILDCARD_FIELD_NAME).toQuery(createShardContext()),
+            instanceOf(MatchNoDocsQuery.class));
+        assertThat(multiMatchQuery("test").field(MISSING_FIELD_NAME).toQuery(createShardContext()),
+            instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testFromJson() throws IOException {
@@ -333,7 +334,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         qb.fuzzyTranspositions(false);
 
         Query query = qb.toQuery(createShardContext());
-        FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
+        FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2,
+            5, false);
 
         assertEquals(expected, query);
     }
@@ -346,8 +348,9 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
 
         context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
-                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
+            newIndexMeta("index", context.getIndexSettings().getSettings(),
+                Settings.builder().putList("index.query.default_field", STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5")
+                    .build())
         );
 
         MultiMatchQueryBuilder qb = new MultiMatchQueryBuilder("hello");
@@ -361,7 +364,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(expected, query);
 
         context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
+            newIndexMeta("index", context.getIndexSettings().getSettings(),
+                Settings.builder().putList("index.query.default_field",
                 STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5", INT_FIELD_NAME).build())
         );
         // should fail because lenient defaults to false
@@ -440,7 +444,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             )
             .toQuery(createShardContext());
         expected = new BooleanQuery.Builder()
-            .add(new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f), BooleanClause.Occur.SHOULD)
+            .add(new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()),
+                0f), BooleanClause.Occur.SHOULD)
             .build();
         assertEquals(expected, query);
     }

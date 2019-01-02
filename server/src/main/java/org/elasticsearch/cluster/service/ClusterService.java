@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.service;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -43,6 +45,7 @@ import java.util.Collections;
 import java.util.Map;
 
 public class ClusterService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(ClusterService.class);
 
     private final MasterService masterService;
 
@@ -68,11 +71,12 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final String nodeName;
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
+        MasterService masterService) {
         super(settings);
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
-        this.masterService = new MasterService(nodeName, settings, threadPool);
+        this.masterService = masterService;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -81,6 +85,10 @@ public class ClusterService extends AbstractLifecycleComponent {
         // Add a no-op update consumer so changes are logged
         this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_META_DATA, (first, second) -> {}, (first, second) -> {});
         this.clusterApplierService = new ClusterApplierService(nodeName, settings, clusterSettings, threadPool);
+    }
+
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(settings, clusterSettings, threadPool, new MasterService(Node.NODE_NAME_SETTING.get(settings), settings, threadPool));
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {

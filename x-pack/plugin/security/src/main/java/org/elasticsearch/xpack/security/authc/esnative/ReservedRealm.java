@@ -87,7 +87,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
         if (realmEnabled == false) {
             listener.onResponse(AuthenticationResult.notHandled());
-        } else if (ClientReservedRealm.isReserved(token.principal(), config.globalSettings()) == false) {
+        } else if (ClientReservedRealm.isReserved(token.principal(), config.settings()) == false) {
             listener.onResponse(AuthenticationResult.notHandled());
         } else {
             getUserInfo(token.principal(), ActionListener.wrap((userInfo) -> {
@@ -120,13 +120,13 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     @Override
     protected void doLookupUser(String username, ActionListener<User> listener) {
         if (realmEnabled == false) {
-            if (anonymousEnabled && AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {
+            if (anonymousEnabled && AnonymousUser.isAnonymousUsername(username, config.settings())) {
                 listener.onResponse(anonymousUser);
             }
             listener.onResponse(null);
-        } else if (ClientReservedRealm.isReserved(username, config.globalSettings()) == false) {
+        } else if (ClientReservedRealm.isReserved(username, config.settings()) == false) {
             listener.onResponse(null);
-        } else if (AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {
+        } else if (AnonymousUser.isAnonymousUsername(username, config.settings())) {
             listener.onResponse(anonymousEnabled ? anonymousUser : null);
         } else {
             getUserInfo(username, ActionListener.wrap((userInfo) -> {

@@ -467,18 +467,22 @@ public class RecoveryState implements ToXContentFragment, Streamable {
 
         public synchronized void incrementRecoveredOperations() {
             recovered++;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total +
+                "], recovered [" + recovered + "]";
         }
 
         public synchronized void incrementRecoveredOperations(int ops) {
             recovered += ops;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total +
+                "], recovered [" + recovered + "]";
         }
 
         public synchronized void decrementRecoveredOperations(int ops) {
             recovered -= ops;
-            assert recovered >= 0 : "recovered operations must be non-negative. Because [" + recovered + "] after decrementing [" + ops + "]";
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+            assert recovered >= 0 : "recovered operations must be non-negative. Because [" + recovered +
+                "] after decrementing [" + ops + "]";
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" +
+                total + "], recovered [" + recovered + "]";
         }
 
 
@@ -501,7 +505,8 @@ public class RecoveryState implements ToXContentFragment, Streamable {
 
         public synchronized void totalOperations(int total) {
             this.total = total;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total +
+                "], recovered [" + recovered + "]";
         }
 
         /**

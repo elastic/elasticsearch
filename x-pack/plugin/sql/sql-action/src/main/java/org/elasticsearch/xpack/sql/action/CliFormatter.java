@@ -9,11 +9,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Formats {@link SqlQueryResponse} for the CLI. {@linkplain Writeable} so
@@ -45,7 +45,7 @@ public class CliFormatter implements Writeable {
             for (int i = 0; i < width.length; i++) {
                 // TODO are we sure toString is correct here? What about dates that come back as longs.
                 // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
-                width[i] = Math.max(width[i], Objects.toString(row.get(i)).length());
+                width[i] = Math.max(width[i], StringUtils.toString(row.get(i)).length());
             }
         }
     }
@@ -116,10 +116,9 @@ public class CliFormatter implements Writeable {
                 if (i > 0) {
                     sb.append('|');
                 }
-
                 // TODO are we sure toString is correct here? What about dates that come back as longs.
                 // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
-                String string = Objects.toString(row.get(i));
+                String string = StringUtils.toString(row.get(i));
                 if (string.length() <= width[i]) {
                     // Pad
                     sb.append(string);
@@ -154,8 +153,12 @@ public class CliFormatter implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CliFormatter that = (CliFormatter) o;
         return Arrays.equals(width, that.width);
     }

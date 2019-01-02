@@ -1,12 +1,14 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-start]]
-=== Start ILM API
+=== Start {ilm} API
 ++++
-<titleabbrev>Start ILM</titleabbrev>
+<titleabbrev>Start {ilm}</titleabbrev>
 ++++
 
-Start the ILM plugin
+beta[]
+
+Start the {ilm} ({ilm-init}) plugin.
 
 ==== Request
 
@@ -14,23 +16,18 @@ Start the ILM plugin
 
 ==== Description
 
-This API will start the ILM plugin if it is currently stopped. ILM is started
-by default when the cluster is formed so this API is only needed if ILM has
-been stopped using the <<ilm-stop, Stop ILM API>>.
+Starts the {ilm-init} plugin if it is currently stopped. {ilm-init} is started
+automatically when the cluster is formed. Restarting {ilm-init} is only
+necessary if it has been stopped using the <<ilm-stop, Stop {ilm-init} API>>.
 
 ==== Request Parameters
 
-`timeout`::
-  (time units) Specifies the period of time to wait for the completion of the 
-  start operation. When this period of time elapses, the API fails and returns
-  an error. The default value is `30s`. For more information about time units, 
-  see <<time-units>>.
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
-`master_timeout`::
-  (time units) Specifies the period of time to wait for the connection with master.
-  When this period of time elapses, the API fails and returns an error.
-  The default value is `30s`. For more information about time units, see <<time-units>>.
+==== Authorization
 
+You must have the `manage_ilm` cluster privilege to use this API.
+For more information, see {stack-ov}/security-privileges.html[Security privileges].
 
 ==== Examples
 
@@ -78,7 +75,7 @@ POST _ilm/start
 // CONSOLE
 // TEST[continued]
 
-If the request does not encounter errors, you receive the following result:
+If the request succeeds, you receive the following result:
 
 [source,js]
 --------------------------------------------------

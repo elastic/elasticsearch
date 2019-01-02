@@ -128,7 +128,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
-        List<String> phaseNames = randomSubsetOf(TimeseriesLifecycleType.VALID_PHASES);
+        List<String> phaseNames = randomSubsetOf(
+            between(0, TimeseriesLifecycleType.VALID_PHASES.size() - 1), TimeseriesLifecycleType.VALID_PHASES);
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
         Function<String, Set<String>> validActions = (phase) ->  {
             switch (phase) {
@@ -315,5 +316,21 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 exception.getMessage());
 
         assertTrue(policy.isActionSafe(new StepKey("new", randomAlphaOfLength(10), randomAlphaOfLength(10))));
+    }
+
+    public void testValidatePolicyName() {
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) +
+            "," + randomAlphaOfLengthBetween(0,10)));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) +
+            " " + randomAlphaOfLengthBetween(0,10)));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName("_" + randomAlphaOfLengthBetween(1, 20)));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(256, 1000)));
+
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1,10) + "_" + randomAlphaOfLengthBetween(0,10));
+
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) + "-" + randomAlphaOfLengthBetween(0,10));
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) + "+" + randomAlphaOfLengthBetween(0,10));
+        
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1,255));
     }
 }

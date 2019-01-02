@@ -130,7 +130,7 @@ The following describes the structure of an application privileges entry:
 <2> The list of the names of the application privileges to grant to this role.
 <3> The resources to which those privileges apply. These are handled in the same
     way as index name pattern in `indices` permissions. These resources do not
-    have any special meaning to {security}.
+    have any special meaning to the {es} {security-features}.
 
 For details about the validation rules for these fields, see the
 {ref}/security-api-put-privileges.html[add application privileges API].
@@ -146,7 +146,7 @@ no effect, and will not grant any actions in the
 The following snippet shows an example definition of a `clicks_admin` role:
 [source,js]
 -----------
-POST /_xpack/security/role/clicks_admin
+POST /_security/role/clicks_admin
 {
   "run_as": [ "clicks_watcher_1" ],
   "cluster": [ "monitor" ],
@@ -176,7 +176,7 @@ Based on the above definition, users owning the `clicks_admin` role can:
 TIP:  For a complete list of available <<security-privileges, cluster and indices privileges>>
 
 There are two available mechanisms to define roles: using the _Role Management APIs_
-or in local files on the {es} nodes.  {security} also supports implementing
+or in local files on the {es} nodes. You can also implement
 custom roles providers.  If you need to integrate with another system to retrieve
 user roles, you can build a custom roles provider plugin. For more information,
 see <<custom-roles-provider, Custom Roles Provider Extension>>.
@@ -185,7 +185,7 @@ see <<custom-roles-provider, Custom Roles Provider Extension>>.
 [[roles-management-ui]]
 === Role management UI
 
-{security} enables you to easily manage users and roles from within {kib}. To
+You can manage users and roles easily in {kib}. To
 manage roles, log in to {kib} and go to *Management / Elasticsearch / Roles*. 
 
 [float]
@@ -242,5 +242,5 @@ click_admins:
       query: '{"match": {"category": "click"}}'
 -----------------------------------
 
-{security} continuously monitors the `roles.yml` file and automatically picks
+{es} continuously monitors the `roles.yml` file and automatically picks
 up and applies any changes to it.

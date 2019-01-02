@@ -13,8 +13,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.jdbcx.JdbcDataSource;
+import org.elasticsearch.xpack.sql.jdbc.EsDataSource;
 import org.junit.After;
 
 import java.io.IOException;
@@ -31,6 +30,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertNoSearchContexts;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
+    
     @After
     public void checkSearchContent() throws Exception {
         // Some context might linger due to fire and forget nature of scroll cleanup
@@ -61,21 +61,21 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         Connection connection =
             DriverManager.getConnection(address, connectionProperties);
         // end::connect-dm
-        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JdbcConfiguration.TIME_ZONE));
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty("timezone"));
         return connection;
     }
 
     protected Connection useDataSource() throws SQLException {
         String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
         // tag::connect-ds
-        JdbcDataSource dataSource = new JdbcDataSource();
+        EsDataSource dataSource = new EsDataSource();
         String address = "jdbc:es://" + elasticsearchAddress;     // <1>
         dataSource.setUrl(address);
         Properties connectionProperties = connectionProperties(); // <2>
         dataSource.setProperties(connectionProperties);
         Connection connection = dataSource.getConnection();
         // end::connect-ds
-        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JdbcConfiguration.TIME_ZONE));
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty("timezone"));
         return connection;
     }
 
@@ -84,7 +84,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     }
 
     public static void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
-        Request request = new Request("PUT", "/" + index + "/doc/" + documentId);
+        Request request = new Request("PUT", "/" + index + "/_doc/" + documentId);
         request.addParameter("refresh", "true");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
@@ -107,7 +107,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
      */
     protected Properties connectionProperties() {
         Properties connectionProperties = new Properties();
-        connectionProperties.put(JdbcConfiguration.TIME_ZONE, randomKnownTimeZone());
+        connectionProperties.put("timezone", randomKnownTimeZone());
         return connectionProperties;
     }
 

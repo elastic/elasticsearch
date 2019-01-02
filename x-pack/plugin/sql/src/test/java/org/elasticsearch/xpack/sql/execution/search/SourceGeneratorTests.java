@@ -16,7 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupByColumnKey;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByValue;
 import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
@@ -62,7 +62,7 @@ public class SourceGeneratorTests extends ESTestCase {
     }
 
     public void testLimit() {
-        QueryContainer container = new QueryContainer().withLimit(10).addGroups(singletonList(new GroupByColumnKey("1", "field")));
+        QueryContainer container = new QueryContainer().withLimit(10).addGroups(singletonList(new GroupByValue("1", "field")));
         int size = randomIntBetween(1, 10);
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, size);
         Builder aggBuilder = sourceBuilder.aggregations();
@@ -114,7 +114,7 @@ public class SourceGeneratorTests extends ESTestCase {
 
     public void testNoSortIfAgg() {
         QueryContainer container = new QueryContainer()
-                .addGroups(singletonList(new GroupByColumnKey("group_id", "group_column")))
+                .addGroups(singletonList(new GroupByValue("group_id", "group_column")))
                 .addAgg("group_id", new AvgAgg("agg_id", "avg_column"));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertNull(sourceBuilder.sorts());

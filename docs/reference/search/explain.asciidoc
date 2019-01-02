@@ -14,7 +14,7 @@ Full query example:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_doc/0/_explain
+GET /twitter/_explain/0
 {
       "query" : {
         "match" : { "message" : "elasticsearch" }
@@ -43,7 +43,7 @@ This will yield the following result:
             "details":[
                {
                   "value":2.2,
-                  "description":"scaling factor, k1 + 1",
+                  "description":"boost",
                   "details":[]
                },
                {
@@ -108,7 +108,7 @@ explain api:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_doc/0/_explain?q=message:search
+GET /twitter/_explain/0?q=message:search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

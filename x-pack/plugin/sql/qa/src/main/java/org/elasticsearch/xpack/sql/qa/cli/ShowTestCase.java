@@ -13,11 +13,14 @@ import java.util.regex.Pattern;
 import static org.hamcrest.Matchers.containsString;
 
 public abstract class ShowTestCase extends CliIntegrationTestCase {
+
+    private static final String HEADER_SEPARATOR = "----------";
+
     public void testShowTables() throws IOException {
         index("test1", body -> body.field("test_field", "test_value"));
         index("test2", body -> body.field("test_field", "test_value"));
         assertThat(command("SHOW TABLES"), RegexMatcher.matches("\\s*name\\s*"));
-        assertThat(readLine(), containsString("----------"));
+        assertThat(readLine(), containsString(HEADER_SEPARATOR));
         assertThat(readLine(), RegexMatcher.matches("\\s*test[12]\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*test[12]\\s*"));
         assertEquals("", readLine());
@@ -25,7 +28,7 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
 
     public void testShowFunctions() throws IOException {
         assertThat(command("SHOW FUNCTIONS"), RegexMatcher.matches("\\s*name\\s*\\|\\s*type\\s*"));
-        assertThat(readLine(), containsString("----------"));
+        assertThat(readLine(), containsString(HEADER_SEPARATOR));
         assertThat(readLine(), RegexMatcher.matches("\\s*AVG\\s*\\|\\s*AGGREGATE\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*COUNT\\s*\\|\\s*AGGREGATE\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*MAX\\s*\\|\\s*AGGREGATE\\s*"));
@@ -33,6 +36,10 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         String line = readLine();
         Pattern aggregateFunction = Pattern.compile("\\s*[A-Z0-9_~]+\\s*\\|\\s*AGGREGATE\\s*");
         while (aggregateFunction.matcher(line).matches()) {
+            line = readLine();
+        }
+        Pattern groupingFunction = Pattern.compile("\\s*[A-Z0-9_~]+\\s*\\|\\s*GROUPING\\s*");
+        while (groupingFunction.matcher(line).matches()) {
             line = readLine();
         }
         Pattern conditionalFunction = Pattern.compile("\\s*[A-Z0-9_~]+\\s*\\|\\s*CONDITIONAL\\s*");
@@ -50,7 +57,8 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
 
     public void testShowFunctionsLikePrefix() throws IOException {
         assertThat(command("SHOW FUNCTIONS LIKE 'L%'"), RegexMatcher.matches("\\s*name\\s*\\|\\s*type\\s*"));
-        assertThat(readLine(), containsString("----------"));
+        assertThat(readLine(), containsString(HEADER_SEPARATOR));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LEAST\\s*\\|\\s*CONDITIONAL\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LOG\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LOG10\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LCASE\\s*\\|\\s*SCALAR\\s*"));
@@ -63,7 +71,7 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
 
     public void testShowFunctionsLikeInfix() throws IOException {
         assertThat(command("SHOW FUNCTIONS LIKE '%DAY%'"), RegexMatcher.matches("\\s*name\\s*\\|\\s*type\\s*"));
-        assertThat(readLine(), containsString("----------"));
+        assertThat(readLine(), containsString(HEADER_SEPARATOR));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAYNAME\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAYOFMONTH\\s*\\|\\s*SCALAR\\s*"));
@@ -74,6 +82,8 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY_OF_WEEK\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY_OF_YEAR\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*HOUR_OF_DAY\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*ISODAYOFWEEK\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*ISO_DAY_OF_WEEK\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*MINUTE_OF_DAY\\s*\\|\\s*SCALAR\\s*"));
         assertEquals("", readLine());
     }

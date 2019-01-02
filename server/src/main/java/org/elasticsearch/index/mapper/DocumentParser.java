@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -106,7 +106,8 @@ final class DocumentParser {
             throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
         }
 
-        if (Objects.equals(source.type(), docMapper.type()) == false) {
+        if (Objects.equals(source.type(), docMapper.type()) == false &&
+                MapperService.SINGLE_MAPPING_NAME.equals(source.type()) == false) { // used by typeless APIs
             throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type ["
                 + docMapper.type() + "]");
         }
@@ -445,13 +446,7 @@ final class DocumentParser {
         if (idField != null) {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
-            if (idField.stringValue() != null) {
-                // backward compat with 5.x
-                // TODO: Remove on 7.0
-                nestedDoc.add(new Field(IdFieldMapper.NAME, idField.stringValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            } else {
-                nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            }
+            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
@@ -674,7 +669,7 @@ final class DocumentParser {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
     }
 
-    private static Mapper.Builder<?, ?> newDateBuilder(String name, FormatDateTimeFormatter dateTimeFormatter, Version indexCreated) {
+    private static Mapper.Builder<?, ?> newDateBuilder(String name, DateFormatter dateTimeFormatter, Version indexCreated) {
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
         if (dateTimeFormatter != null) {
             builder.dateTimeFormatter(dateTimeFormatter);
@@ -720,9 +715,9 @@ final class DocumentParser {
                 // We refuse to match pure numbers, which are too likely to be
                 // false positives with date formats that include eg.
                 // `epoch_millis` or `YYYY`
-                for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
+                for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                     try {
-                        dateTimeFormatter.parser().parseMillis(text);
+                        dateTimeFormatter.parseMillis(text);
                     } catch (IllegalArgumentException e) {
                         // failure to parse this, continue
                         continue;

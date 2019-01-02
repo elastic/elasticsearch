@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResult
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ControlMsgToProcessWriter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AutodetectControlMsgWriter;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
 
@@ -94,7 +94,7 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
 
     @Override
     public String flushJob(FlushJobParams params) throws IOException {
-        ControlMsgToProcessWriter writer = newMessageWriter();
+        AutodetectControlMsgWriter writer = newMessageWriter();
         writer.writeFlushControlMessage(params);
         return writer.writeFlushMessage();
     }
@@ -114,7 +114,20 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
         return resultsParser.parseResults(processOutStream());
     }
 
-    private ControlMsgToProcessWriter newMessageWriter() {
-        return new ControlMsgToProcessWriter(recordWriter(), numberOfFields());
+    private AutodetectControlMsgWriter newMessageWriter() {
+        return new AutodetectControlMsgWriter(recordWriter(), numberOfFields());
+    }
+
+    @Override
+    public void consumeAndCloseOutputStream() {
+        try {
+            byte[] buff = new byte[512];
+            while (processOutStream().read(buff) >= 0) {
+                // Do nothing
+            }
+            processOutStream().close();
+        } catch (IOException e) {
+            throw new RuntimeException("Error closing result parser input stream", e);
+        }
     }
 }

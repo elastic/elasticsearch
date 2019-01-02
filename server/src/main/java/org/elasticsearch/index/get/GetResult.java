@@ -20,6 +20,7 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -46,6 +47,8 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class GetResult implements Streamable, Iterable<DocumentField>, ToXContentObject {
 
@@ -53,6 +56,8 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     public static final String _TYPE = "_type";
     public static final String _ID = "_id";
     private static final String _VERSION = "_version";
+    private static final String _SEQ_NO = "_seq_no";
+    private static final String _PRIMARY_TERM = "_primary_term";
     private static final String FOUND = "found";
     private static final String FIELDS = "fields";
 
@@ -60,6 +65,8 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     private String type;
     private String id;
     private long version;
+    private long seqNo;
+    private long primaryTerm;
     private boolean exists;
     private Map<String, DocumentField> fields;
     private Map<String, Object> sourceAsMap;
@@ -69,11 +76,17 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     GetResult() {
     }
 
-    public GetResult(String index, String type, String id, long version, boolean exists, BytesReference source,
-                     Map<String, DocumentField> fields) {
+    public GetResult(String index, String type, String id, long seqNo, long primaryTerm, long version, boolean exists,
+                     BytesReference source, Map<String, DocumentField> fields) {
         this.index = index;
         this.type = type;
         this.id = id;
+        this.seqNo = seqNo;
+        this.primaryTerm = primaryTerm;
+        assert (seqNo == UNASSIGNED_SEQ_NO && primaryTerm == UNASSIGNED_PRIMARY_TERM) || (seqNo >= 0 && primaryTerm >= 1) :
+            "seqNo: " + seqNo + " primaryTerm: " + primaryTerm;
+        assert exists || (seqNo == UNASSIGNED_SEQ_NO && primaryTerm == UNASSIGNED_PRIMARY_TERM) :
+            "doc not found but seqNo/primaryTerm are set";
         this.version = version;
         this.exists = exists;
         this.source = source;
@@ -116,6 +129,20 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
      */
     public long getVersion() {
         return version;
+    }
+
+    /**
+     * The sequence number assigned to the last operation that has changed this document, if found.
+     */
+    public long getSeqNo() {
+        return seqNo;
+    }
+
+    /**
+     * The primary term of the last primary that has changed this document, if found.
+     */
+    public long getPrimaryTerm() {
+        return primaryTerm;
     }
 
     /**
@@ -213,6 +240,11 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
+        if (seqNo != UNASSIGNED_SEQ_NO) { // seqNo may not be assigned if read from an old node
+            builder.field(_SEQ_NO, seqNo);
+            builder.field(_PRIMARY_TERM, primaryTerm);
+        }
+
         List<DocumentField> metaFields = new ArrayList<>();
         List<DocumentField> otherFields = new ArrayList<>();
         if (fields != null && !fields.isEmpty()) {
@@ -256,9 +288,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX, index);
-        if (params.paramAsBoolean("include_type_name", true)) {
-            builder.field(_TYPE, type);
-        }
+        builder.field(_TYPE, type);
         builder.field(_ID, id);
         if (isExists()) {
             if (version != -1) {
@@ -284,6 +314,8 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
 
         String currentFieldName = parser.currentName();
         long version = -1;
+        long seqNo = UNASSIGNED_SEQ_NO;
+        long primaryTerm = UNASSIGNED_PRIMARY_TERM;
         Boolean found = null;
         BytesReference source = null;
         Map<String, DocumentField> fields = new HashMap<>();
@@ -299,6 +331,10 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                     id = parser.text();
                 }  else if (_VERSION.equals(currentFieldName)) {
                     version = parser.longValue();
+                }  else if (_SEQ_NO.equals(currentFieldName)) {
+                    seqNo = parser.longValue();
+                }  else if (_PRIMARY_TERM.equals(currentFieldName)) {
+                    primaryTerm = parser.longValue();
                 } else if (FOUND.equals(currentFieldName)) {
                     found = parser.booleanValue();
                 } else {
@@ -328,7 +364,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 }
             }
         }
-        return new GetResult(index, type, id, version, found, source, fields);
+        return new GetResult(index, type, id, seqNo, primaryTerm, version, found, source, fields);
     }
 
     public static GetResult fromXContent(XContentParser parser) throws IOException {
@@ -349,6 +385,13 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         index = in.readString();
         type = in.readOptionalString();
         id = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            seqNo = in.readZLong();
+            primaryTerm = in.readVLong();
+        } else {
+            seqNo = UNASSIGNED_SEQ_NO;
+            primaryTerm = UNASSIGNED_PRIMARY_TERM;
+        }
         version = in.readLong();
         exists = in.readBoolean();
         if (exists) {
@@ -374,6 +417,10 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         out.writeString(index);
         out.writeOptionalString(type);
         out.writeString(id);
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+            out.writeZLong(seqNo);
+            out.writeVLong(primaryTerm);
+        }
         out.writeLong(version);
         out.writeBoolean(exists);
         if (exists) {
@@ -399,6 +446,8 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         }
         GetResult getResult = (GetResult) o;
         return version == getResult.version &&
+                seqNo == getResult.seqNo &&
+                primaryTerm == getResult.primaryTerm &&
                 exists == getResult.exists &&
                 Objects.equals(index, getResult.index) &&
                 Objects.equals(type, getResult.type) &&
@@ -409,7 +458,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
 
     @Override
     public int hashCode() {
-        return Objects.hash(version, exists, index, type, id, fields, sourceAsMap());
+        return Objects.hash(version, seqNo, primaryTerm, exists, index, type, id, fields, sourceAsMap());
     }
 
     @Override

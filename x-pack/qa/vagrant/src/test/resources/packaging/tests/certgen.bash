@@ -249,6 +249,7 @@ node.name: "node-master"
 node.master: true
 node.data: false
 discovery.zen.ping.unicast.hosts: ["127.0.0.1:9301"]
+cluster.initial_master_nodes: ["node-master"]
 
 xpack.ssl.key: $ESCONFIG/certs/node-master/node-master.key
 xpack.ssl.certificate: $ESCONFIG/certs/node-master/node-master.crt
@@ -361,7 +362,7 @@ DATA_SETTINGS
 	    echo "$output"
 	    false
     }
-    echo "$output" | grep "missing authentication token"
+    echo "$output" | grep "missing authentication credentials"
 }
 
 @test "[$GROUP] test node to node communication" {

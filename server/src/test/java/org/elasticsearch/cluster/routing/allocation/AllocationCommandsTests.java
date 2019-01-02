@@ -23,14 +23,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.AbstractAllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
@@ -58,14 +62,18 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -257,6 +265,56 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             fail("expected IllegalArgumentException when allocating shard while no unassigned shard available");
         } catch (IllegalArgumentException e) {
         }
+    }
+
+    public void testAllocateStalePrimaryCommand() {
+        AllocationService allocation = createAllocationService(Settings.builder()
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+            .build());
+        final String index = "test";
+
+        logger.info("--> building initial routing table");
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1)
+                .putInSyncAllocationIds(0, Collections.singleton("asdf")).putInSyncAllocationIds(1, Collections.singleton("qwertz")))
+            .build();
+        // shard routing is added as "from recovery" instead of "new index creation" so that we can test below that allocating an empty
+        // primary with accept_data_loss flag set to false fails
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsRecovery(metaData.index(index))
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData).routingTable(routingTable).build();
+
+        final String node1 = "node1";
+        final String node2 = "node2";
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+            .add(newNode(node1))
+            .add(newNode(node2))
+        ).build();
+        clusterState = allocation.reroute(clusterState, "reroute");
+
+        // mark all shards as stale
+        final List<ShardRouting> shardRoutings = clusterState.getRoutingNodes().shardsWithState(UNASSIGNED);
+        assertThat(shardRoutings, hasSize(2));
+
+        logger.info("--> allocating empty primary with acceptDataLoss flag set to true");
+        clusterState = allocation.reroute(clusterState,
+            new AllocationCommands(new AllocateStalePrimaryAllocationCommand(index, 0, node1, true)), false, false).getClusterState();
+        RoutingNode routingNode1 = clusterState.getRoutingNodes().node(node1);
+        assertThat(routingNode1.size(), equalTo(1));
+        assertThat(routingNode1.shardsWithState(INITIALIZING).size(), equalTo(1));
+        Set<String> inSyncAllocationIds = clusterState.metaData().index(index).inSyncAllocationIds(0);
+        assertThat(inSyncAllocationIds, equalTo(Collections.singleton(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID)));
+
+        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        routingNode1 = clusterState.getRoutingNodes().node(node1);
+        assertThat(routingNode1.size(), equalTo(1));
+        assertThat(routingNode1.shardsWithState(STARTED).size(), equalTo(1));
+        inSyncAllocationIds = clusterState.metaData().index(index).inSyncAllocationIds(0);
+        assertThat(inSyncAllocationIds, hasSize(1));
+        assertThat(inSyncAllocationIds, not(Collections.singleton(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID)));
     }
 
     public void testCancelCommand() {

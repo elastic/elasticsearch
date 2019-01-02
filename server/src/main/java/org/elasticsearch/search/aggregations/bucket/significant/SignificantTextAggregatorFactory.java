@@ -175,8 +175,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
             // we want to find have only one occurrence on each shard and as
             // such are impossible to differentiate from non-significant terms
             // at that early stage.
-            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards() == 1));
+            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
 //        TODO - need to check with mapping that this is indeed a text field....

@@ -362,7 +362,7 @@ DATA_SETTINGS
 	    echo "$output"
 	    false
     }
-    echo "$output" | grep "missing authentication token"
+    echo "$output" | grep "missing authentication credentials"
 }
 
 @test "[$GROUP] test node to node communication" {

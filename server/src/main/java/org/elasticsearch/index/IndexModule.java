@@ -302,6 +302,7 @@ public final class IndexModule {
 
 
     public enum Type {
+        HYBRIDFS("hybridfs"),
         NIOFS("niofs"),
         MMAPFS("mmapfs"),
         SIMPLEFS("simplefs"),
@@ -330,7 +331,7 @@ public final class IndexModule {
         public static Type fromSettingsKey(final String key) {
             final Type type = TYPES.get(key);
             if (type == null) {
-                throw new IllegalArgumentException("no matching type for [" + key + "]");
+                throw new IllegalArgumentException("no matching store type for [" + key + "]");
             }
             return type;
         }
@@ -356,7 +357,7 @@ public final class IndexModule {
 
     public static Type defaultStoreType(final boolean allowMmapfs) {
         if (allowMmapfs && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-            return Type.MMAPFS;
+            return Type.HYBRIDFS;
         } else if (Constants.WINDOWS) {
             return Type.SIMPLEFS;
         } else {

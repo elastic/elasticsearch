@@ -170,7 +170,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         MappingMetaData metadata = mappings.get("_doc");
         assertNotNull(metadata);
-        assertFalse(metadata.sourceAsMap().isEmpty());
+        assertTrue(metadata.sourceAsMap().isEmpty());
     }
 
     public void testFlatMappingFormat() throws Exception {

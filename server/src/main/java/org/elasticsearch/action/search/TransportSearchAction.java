@@ -353,16 +353,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                               BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection) {
         return (clusterAlias, nodeId) -> {
             final DiscoveryNode discoveryNode;
+            final boolean remoteCluster;
             if (clusterAlias == null || requestClusterAlias != null) {
                 assert requestClusterAlias == null || requestClusterAlias.equals(clusterAlias);
                 discoveryNode = localNodes.apply(nodeId);
+                remoteCluster = false;
             } else {
                 discoveryNode = remoteNodes.apply(clusterAlias, nodeId);
+                remoteCluster = true;
             }
             if (discoveryNode == null) {
                 throw new IllegalStateException("no node found for id: " + nodeId);
             }
-            return nodeToConnection.apply(clusterAlias, discoveryNode);
+            return nodeToConnection.apply(remoteCluster ? clusterAlias : null, discoveryNode);
         };
     }
 

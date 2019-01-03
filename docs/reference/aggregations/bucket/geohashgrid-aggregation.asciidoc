@@ -182,7 +182,7 @@ POST /museums/_search?size=0
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
-For "zooming in" in the system that don't support geohashes, the bucket keys should be translated into bounding boxes using
+For "zooming in" on the system that don't support geohashes, the bucket keys should be translated into bounding boxes using
 one of available geohash libraries. For example, for javascript the https://github.com/sunng87/node-geohash[node-geohash] library
 can be used:
 

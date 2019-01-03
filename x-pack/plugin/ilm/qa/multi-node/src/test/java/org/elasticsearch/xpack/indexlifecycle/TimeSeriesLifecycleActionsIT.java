@@ -438,7 +438,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
             assertThat(settings.get(FrozenEngine.INDEX_FROZEN.getKey()), equalTo("true"));
         });
-
     }
 
     @SuppressWarnings("unchecked")
@@ -492,7 +491,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertEquals("policy [does_not_exist] does not exist", stepInfo.get("reason"));
             assertEquals("illegal_argument_exception", stepInfo.get("type"));
         });
-
     }
 
     public void testInvalidPolicyNames() throws UnsupportedEncodingException {

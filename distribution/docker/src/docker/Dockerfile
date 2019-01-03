@@ -16,7 +16,7 @@ FROM centos:7 AS builder
 ENV PATH /usr/share/elasticsearch/bin:$PATH
 ENV JAVA_HOME /opt/jdk-${jdkVersion}
 
-RUN curl -s ${jdkUrl} | tar -C /opt -zxf -
+RUN curl --retry 8 -s ${jdkUrl} | tar -C /opt -zxf -
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 # vendor. The latter is superior in several ways.

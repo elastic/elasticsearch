@@ -169,7 +169,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private void doRecovery(final long recoveryId) {
         final StartRecoveryRequest request;
         final RecoveryState.Timer timer;
-
+        CancellableThreads cancellableThreads;
         try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
             if (recoveryRef == null) {
                 logger.trace("not running recovery with id [{}] - can not find it (probably finished)", recoveryId);
@@ -177,6 +177,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
             final RecoveryTarget recoveryTarget = recoveryRef.target();
             timer = recoveryTarget.state().getTimer();
+            cancellableThreads = recoveryTarget.cancellableThreads();
             try {
                 assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                 request = getStartRecoveryRequest(recoveryTarget);
@@ -252,56 +253,60 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         try {
             logger.trace("{} starting recovery from {}", request.shardId(), request.sourceNode());
-            transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
-                new TransportResponseHandler<RecoveryResponse>() {
-                    @Override
-                    public void handleResponse(RecoveryResponse recoveryResponse) {
-                        final TimeValue recoveryTime = new TimeValue(timer.time());
-                        // do this through ongoing recoveries to remove it from the collection
-                        onGoingRecoveries.markRecoveryAsDone(recoveryId);
-                        if (logger.isTraceEnabled()) {
-                            StringBuilder sb = new StringBuilder();
-                            sb.append('[').append(request.shardId().getIndex().getName()).append(']')
-                                .append('[').append(request.shardId().id()).append("] ");
-                            sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(recoveryTime)
-                                .append("]\n");
-                            sb.append("   phase1: recovered_files [").append(recoveryResponse.phase1FileNames.size()).append("]")
-                                .append(" with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1TotalSize)).append("]")
-                                .append(", took [").append(timeValueMillis(recoveryResponse.phase1Time)).append("], throttling_wait [")
-                                .append(timeValueMillis(recoveryResponse.phase1ThrottlingWaitTime)).append(']').append("\n");
-                            sb.append("         : reusing_files   [").append(recoveryResponse.phase1ExistingFileNames.size())
-                                .append("] with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1ExistingTotalSize))
-                                .append("]\n");
-                            sb.append("   phase2: start took [").append(timeValueMillis(recoveryResponse.startTime)).append("]\n");
-                            sb.append("         : recovered [").append(recoveryResponse.phase2Operations).append("]")
-                                .append(" transaction log operations")
-                                .append(", took [").append(timeValueMillis(recoveryResponse.phase2Time)).append("]")
-                                .append("\n");
-                            logger.trace("{}", sb);
-                        } else {
-                            logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), request.sourceNode(),
-                                recoveryTime);
+            cancellableThreads.executeIO(() -> {
+                transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
+                    new TransportResponseHandler<RecoveryResponse>() {
+                        @Override
+                        public void handleResponse(RecoveryResponse recoveryResponse) {
+                            final TimeValue recoveryTime = new TimeValue(timer.time());
+                            // do this through ongoing recoveries to remove it from the collection
+                            onGoingRecoveries.markRecoveryAsDone(recoveryId);
+                            if (logger.isTraceEnabled()) {
+                                StringBuilder sb = new StringBuilder();
+                                sb.append('[').append(request.shardId().getIndex().getName()).append(']')
+                                    .append('[').append(request.shardId().id()).append("] ");
+                                sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(recoveryTime)
+                                    .append("]\n");
+                                sb.append("   phase1: recovered_files [").append(recoveryResponse.phase1FileNames.size()).append("]")
+                                    .append(" with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1TotalSize)).append("]")
+                                    .append(", took [").append(timeValueMillis(recoveryResponse.phase1Time)).append("], throttling_wait [")
+                                    .append(timeValueMillis(recoveryResponse.phase1ThrottlingWaitTime)).append(']').append("\n");
+                                sb.append("         : reusing_files   [").append(recoveryResponse.phase1ExistingFileNames.size())
+                                    .append("] with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1ExistingTotalSize))
+                                    .append("]\n");
+                                sb.append("   phase2: start took [").append(timeValueMillis(recoveryResponse.startTime)).append("]\n");
+                                sb.append("         : recovered [").append(recoveryResponse.phase2Operations).append("]")
+                                    .append(" transaction log operations")
+                                    .append(", took [").append(timeValueMillis(recoveryResponse.phase2Time)).append("]")
+                                    .append("\n");
+                                logger.trace("{}", sb);
+                            } else {
+                                logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), request.sourceNode(),
+                                    recoveryTime);
+                            }
                         }
-                    }
 
-                    @Override
-                    public void handleException(TransportException e) {
-                        handleException.accept(e);
-                    }
+                        @Override
+                        public void handleException(TransportException e) {
+                            handleException.accept(e);
+                        }
 
-                    @Override
-                    public String executor() {
-                        // we do some heavy work like refreshes in the response so fork off to the generic threadpool
-                        return ThreadPool.Names.GENERIC;
-                    }
+                        @Override
+                        public String executor() {
+                            // we do some heavy work like refreshes in the response so fork off to the generic threadpool
+                            return ThreadPool.Names.GENERIC;
+                        }
 
-                    @Override
-                    public RecoveryResponse read(StreamInput in) throws IOException {
-                        RecoveryResponse recoveryResponse = new RecoveryResponse();
-                        recoveryResponse.readFrom(in);
-                        return recoveryResponse;
-                    }
-                });
+                        @Override
+                        public RecoveryResponse read(StreamInput in) throws IOException {
+                            RecoveryResponse recoveryResponse = new RecoveryResponse();
+                            recoveryResponse.readFrom(in);
+                            return recoveryResponse;
+                        }
+                    });
+            });
+        } catch (CancellableThreads.ExecutionCancelledException e) {
+            logger.trace("recovery cancelled", e);
         } catch (Exception e) {
             handleException.accept(e);
         }

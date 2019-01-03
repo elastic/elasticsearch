@@ -46,11 +46,14 @@
 
   - do:
       indices.exists:
-        index: .ml-anomalies-custom-old-cluster-job-to-upgrade-custom
+        index:
 
   - is_false: ''
 
   # Verify that results can still be retrieved
+
+  - do:
+      indices.refresh: {}
 
   - do:
       ml.get_buckets:

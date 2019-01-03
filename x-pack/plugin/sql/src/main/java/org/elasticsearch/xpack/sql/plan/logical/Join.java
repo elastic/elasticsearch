@@ -10,7 +10,7 @@ import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -31,8 +31,8 @@ public class Join extends BinaryPlan {
         IMPLICIT,
     }
 
-    public Join(Location location, LogicalPlan left, LogicalPlan right, JoinType type, Expression condition) {
-        super(location, left, right);
+    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinType type, Expression condition) {
+        super(source, left, right);
         this.type = type;
         this.condition = condition;
     }
@@ -47,7 +47,7 @@ public class Join extends BinaryPlan {
         if (newChildren.size() != 2) {
             throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
         }
-        return new Join(location(), newChildren.get(0), newChildren.get(1), type, condition);
+        return new Join(source(), newChildren.get(0), newChildren.get(1), type, condition);
     }
 
     public JoinType type() {

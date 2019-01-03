@@ -11,24 +11,24 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * Extract the day of the year from a datetime.
  */
 public class DayOfYear extends DateTimeFunction {
-    public DayOfYear(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone, DateTimeExtractor.DAY_OF_YEAR);
+    public DayOfYear(Location location, Expression field, ZoneId zoneId) {
+        super(location, field, zoneId, DateTimeExtractor.DAY_OF_YEAR);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return DayOfYear::new;
     }
 
     @Override
     protected UnaryScalarFunction replaceChild(Expression newChild) {
-        return new DayOfYear(location(), newChild, timeZone());
+        return new DayOfYear(location(), newChild, zoneId());
     }
 
     @Override

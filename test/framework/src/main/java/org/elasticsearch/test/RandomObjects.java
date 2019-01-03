@@ -135,13 +135,16 @@ public final class RandomObjects {
             }
         }
         if (value instanceof Float) {
+            if (xContentType == XContentType.CBOR) {
+                //with CBOR we get back a float
+                return value;
+            }
             if (xContentType == XContentType.SMILE) {
                 //with SMILE we get back a double (this will change in Jackson 2.9 where it will return a Float)
                 return ((Float)value).doubleValue();
-            } else {
-                //with JSON AND YAML we get back a double, but with float precision.
-                return Double.parseDouble(value.toString());
             }
+            //with JSON AND YAML we get back a double, but with float precision.
+            return Double.parseDouble(value.toString());
         }
         if (value instanceof Byte) {
             return ((Byte)value).intValue();

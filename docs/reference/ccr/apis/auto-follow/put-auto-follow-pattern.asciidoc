@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-put-auto-follow-pattern]]
-=== Create Auto-Follow Pattern API
+=== Create auto-follow pattern API
 ++++
-<titleabbrev>Create Auto-Follow Pattern</titleabbrev>
+<titleabbrev>Create auto-follow pattern</titleabbrev>
 ++++
 
 beta[]

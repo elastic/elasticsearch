@@ -7,12 +7,14 @@
 package org.elasticsearch.xpack.sql.stats;
 
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 
 import java.util.Locale;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.ODBC_CLIENT_IDS;
 
 public enum QueryMetric {
-    CANVAS, CLI, JDBC, ODBC, REST;
-    
+    CANVAS, CLI, JDBC, ODBC, ODBC32, ODBC64, REST;
+
     public static QueryMetric fromString(String metric) {
         try {
             return QueryMetric.valueOf(metric.toUpperCase(Locale.ROOT));
@@ -27,6 +29,14 @@ public enum QueryMetric {
     }
 
     public static QueryMetric from(Mode mode, String clientId) {
+        if (mode == Mode.ODBC) {
+            // default to "odbc_32" if the client_id is not provided or it has a wrong value
+            if (clientId == null || false == ODBC_CLIENT_IDS.contains(clientId)) {
+                return fromString(RequestInfo.ODBC_32);
+            } else {
+                return fromString(clientId);
+            }
+        }
         return fromString(mode == Mode.PLAIN ? clientId : mode.toString());
     }
 }

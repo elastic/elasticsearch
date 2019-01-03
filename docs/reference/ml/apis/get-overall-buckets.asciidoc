@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-overall-buckets]]
-=== Get Overall Buckets API
+=== Get overall buckets API
 ++++
-<titleabbrev>Get Overall Buckets</titleabbrev>
+<titleabbrev>Get overall buckets</titleabbrev>
 ++++
 
 Retrieves overall bucket results that summarize the

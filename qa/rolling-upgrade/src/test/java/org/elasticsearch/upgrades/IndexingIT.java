@@ -20,6 +20,7 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 
@@ -125,6 +126,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
+        bulk.setOptions(expectVersionSpecificWarnings(consumer -> consumer.compatible(BulkRequest.TYPES_DEPRECATION_MESSAGE)));
         bulk.setJsonEntity(b.toString());
         client().performRequest(bulk);
     }

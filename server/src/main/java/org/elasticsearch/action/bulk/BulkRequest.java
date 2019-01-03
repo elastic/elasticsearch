@@ -70,7 +70,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest> {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(LogManager.getLogger(BulkRequest.class));
-
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+            " Specifying types in bulk requests is deprecated.";
     private static final int REQUEST_OVERHEAD = 50;
 
     private static final ParseField INDEX = new ParseField("_index");

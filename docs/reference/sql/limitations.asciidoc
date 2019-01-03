@@ -89,4 +89,4 @@ include-tagged::{sql-specs}/docs.csv-spec[limitationSubSelectRewritten]
 --------------------------------------------------
 
 But, if the sub-select would include a `GROUP BY` or `HAVING` or the enclosing `SELECT` would be more complex than `SELECT X
-FROM (SELECT ...) WHERE [simple_condition]`, this would be **un-supported**.
+FROM (SELECT ...) WHERE [simple_condition]`, this is currently **un-supported**.

@@ -10,15 +10,9 @@ Adds or removes master-eligible nodes from the
 [float]
 === Request
 
-[source,js]
---------------------------------------------------
-# Add a node to the voting configuration exclusions list 
-POST /_cluster/voting_config_exclusions/<node_name>
+`POST _cluster/voting_config_exclusions/<node_name>` +
 
-# Remove all exclusions from the list
-DELETE /_cluster/voting_config_exclusions
---------------------------------------------------
-// CONSOLE
+`DELETE _cluster/voting_config_exclusions`
 
 [float]
 === Path parameters
@@ -62,3 +56,21 @@ which is set to true by default. If it is set to false, you must use this API to
 maintain the voting configuration.
 
 For more information, see <<modules-discovery-removing-nodes>>.
+
+[float]
+=== Examples
+
+Add `nodeId1` to the voting configuration exclusions list:
+[source,js]
+-------------------------------------------------- 
+POST /_cluster/voting_config_exclusions/nodeId1
+--------------------------------------------------
+// CONSOLE
+// TEST[catch:bad_request]
+
+Remove all exclusions from the list:
+[source,js]
+--------------------------------------------------
+DELETE /_cluster/voting_config_exclusions
+--------------------------------------------------
+// CONSOLE

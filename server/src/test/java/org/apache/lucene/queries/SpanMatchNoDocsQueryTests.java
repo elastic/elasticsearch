@@ -60,7 +60,7 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
         IndexReader ir = DirectoryReader.open(iw);
         IndexSearcher searcher = new IndexSearcher(ir);
 
-        Query query = new SpanMatchNoDocsQuery("unkwown", "field not found");
+        Query query = new SpanMatchNoDocsQuery("unknown", "field not found");
         assertEquals(searcher.count(query), 0);
 
         ScoreDoc[] hits;

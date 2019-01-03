@@ -5,45 +5,34 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-
 public enum Nullability {
-    TRUE((byte) 1),    // Whether the expression can become null
-    FALSE((byte) 3),   // The expression can never become null
-    UNKNOWN((byte) 0); // Cannot determine if the expression supports possible null folding
+    TRUE,    // Whether the expression can become null
+    FALSE,   // The expression can never become null
+    UNKNOWN; // Cannot determine if the expression supports possible null folding
 
-    private final byte bitmask;
-
-    Nullability(byte bitmask) {
-        this.bitmask = bitmask;
-    }
-
+    /**
+     * Return the logical AND of a list of {@code Nullability}
+     * <pre>
+     *  UNKNOWN AND TRUE/FALSE/UNKNOWN = UNKNOWN
+     *  FALSE AND FALSE = FALSE
+     *  TRUE AND FALSE/TRUE = TRUE
+     * </pre>
+     */
     public static Nullability and(Nullability... nullabilities) {
-        if (nullabilities.length == 0) {
-            return UNKNOWN;
+        Nullability value = null;
+        for (Nullability n: nullabilities) {
+            switch (n) {
+                case UNKNOWN:
+                    return UNKNOWN;
+                case TRUE:
+                    value = TRUE;
+                    break;
+                case FALSE:
+                    if (value == null || value == FALSE) {
+                        value = FALSE;
+                    }
+            }
         }
-
-        // UKNOWN AND <anything> => UKNOWN
-        // FALSE AND FALSE => FALSE
-        // POSSIBLE AND FALSE/POSSIBLE => POSSIBLE
-        byte bitmask = nullabilities[0].bitmask;
-        for (int i = 1; i < nullabilities.length; i++) {
-            bitmask &= nullabilities[i].bitmask;
-        }
-        return fromBitmask(bitmask);
-    }
-
-    private static Nullability fromBitmask(byte bitmask) {
-        switch (bitmask) {
-            case 0:
-                return UNKNOWN;
-            case 1:
-                return TRUE;
-            case 3:
-                return FALSE;
-            default:
-                throw new SqlIllegalArgumentException(
-                    "[{}] is not a valud bitmask value for Nullability, this is likely a bug", bitmask);
-        }
+        return value != null ? value : UNKNOWN;
     }
 }

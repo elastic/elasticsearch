@@ -251,6 +251,8 @@ public class Zen1IT extends ESIntegTestCase {
             = StreamSupport.stream(internalCluster().getDataOrMasterNodeInstances(NodeEnvironment.class).spliterator(), false)
             .collect(Collectors.toList());
 
+        final boolean randomiseVersions = rarely();
+
         internalCluster().fullRestart(new RestartCallback() {
             int nodesStopped;
 
@@ -277,7 +279,7 @@ public class Zen1IT extends ESIntegTestCase {
                         final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry());
                         final Manifest manifest = metaStateService.loadManifestOrEmpty();
                         assertThat(manifest.getCurrentTerm(), is(ZEN1_BWC_TERM));
-                        final long newVersion = randomNonNegativeLong();
+                        final long newVersion = randomiseVersions ? randomNonNegativeLong() : 0L;
                         metaStateService.writeManifestAndCleanup("altering version to " + newVersion,
                             new Manifest(manifest.getCurrentTerm(), newVersion, manifest.getGlobalGeneration(),
                                 manifest.getIndexGenerations()));

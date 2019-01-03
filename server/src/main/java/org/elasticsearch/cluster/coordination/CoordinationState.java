@@ -86,10 +86,8 @@ public class CoordinationState {
         return getLastAcceptedState().version();
     }
 
-    long getLastAcceptedVersionOrMetaDataVersion() {
-        // When following a Zen1 master, the cluster state version is not guaranteed to increase, so instead it is preferable to use the
-        // metadata version to determine the freshest node.
-        return getLastAcceptedTerm() == ZEN1_BWC_TERM ? getLastAcceptedState().metaData().version() : getLastAcceptedState().version();
+    private long getLastAcceptedVersionOrMetaDataVersion() {
+        return getLastAcceptedState().getVersionOrMetaDataVersion();
     }
 
     public VotingConfiguration getLastCommittedConfiguration() {

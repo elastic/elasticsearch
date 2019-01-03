@@ -496,7 +496,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private PreVoteResponse getPreVoteResponse() {
         return new PreVoteResponse(getCurrentTerm(), coordinationState.get().getLastAcceptedTerm(),
-            coordinationState.get().getLastAcceptedVersionOrMetaDataVersion());
+            coordinationState.get().getLastAcceptedState().getVersionOrMetaDataVersion());
     }
 
     // package-visible for testing

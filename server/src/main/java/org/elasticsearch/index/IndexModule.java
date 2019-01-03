@@ -84,7 +84,11 @@ import java.util.function.Function;
  */
 public final class IndexModule {
 
-    public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP = Setting.boolSetting("node.store.allow_mmap", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_STORE_ALLOW_MMAPFS =
+        Setting.boolSetting("node.store.allow_mmapfs", true, Property.NodeScope, Property.Deprecated);
+
+    public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP =
+        Setting.boolSetting("node.store.allow_mmap", NODE_STORE_ALLOW_MMAPFS, Property.NodeScope);
 
     public static final Setting<String> INDEX_STORE_TYPE_SETTING =
             new Setting<>("index.store.type", "", Function.identity(), Property.IndexScope, Property.NodeScope);

@@ -237,7 +237,7 @@ public class RecoverySourceHandler {
         return targetHistoryUUID != null && targetHistoryUUID.equals(shard.getHistoryUUID());
     }
 
-    static void runUnderPrimaryPermit(CancellableThreads.Interruptable runnable, String reason,
+    static void runUnderPrimaryPermit(CancellableThreads.Interruptible runnable, String reason,
                                       IndexShard primary, CancellableThreads cancellableThreads, Logger logger) {
         cancellableThreads.execute(() -> {
             CompletableFuture<Releasable> permit = new CompletableFuture<>();
@@ -563,7 +563,7 @@ public class RecoverySourceHandler {
             logger.trace("no translog operations to send");
         }
 
-        final CancellableThreads.IOInterruptable sendBatch = () -> {
+        final CancellableThreads.IOInterruptible sendBatch = () -> {
             final long targetCheckpoint = recoveryTarget.indexTranslogOperations(
                 operations, expectedTotalOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
             targetLocalCheckpoint.set(targetCheckpoint);

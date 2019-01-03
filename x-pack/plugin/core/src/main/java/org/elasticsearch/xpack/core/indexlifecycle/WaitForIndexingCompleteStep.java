@@ -52,7 +52,8 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
         private final Settings indexSettings;
 
         Info(Settings indexSettings) {
-            this.message = "the [" + LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE + "] setting has not been set to true";
+            this.message = "the [" + LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE +
+                "] setting has not been set to true on the leader index";
             this.indexSettings = indexSettings;
         }
 

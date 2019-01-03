@@ -168,7 +168,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
     private void doRecovery(final long recoveryId) {
         final StartRecoveryRequest request;
-        final CancellableThreads cancellableThreads;
         final RecoveryState.Timer timer;
 
         try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
@@ -177,7 +176,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 return;
             }
             final RecoveryTarget recoveryTarget = recoveryRef.target();
-            cancellableThreads = recoveryTarget.cancellableThreads();
             timer = recoveryTarget.state().getTimer();
             try {
                 assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
@@ -192,7 +190,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 return;
             }
         }
-        Consumer<Throwable> handleException = e -> {
+        Consumer<Exception> handleException = e -> {
             if (logger.isTraceEnabled()) {
                 logger.trace(() -> new ParameterizedMessage(
                     "[{}][{}] Got exception on recovery", request.shardId().getIndex().getName(),
@@ -293,7 +291,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
                     @Override
                     public String executor() {
-                        return ThreadPool.Names.SAME;
+                        // we do some heavy work like refreshes in the response so fork off to the generic threadpool
+                        return ThreadPool.Names.GENERIC;
                     }
 
                     @Override

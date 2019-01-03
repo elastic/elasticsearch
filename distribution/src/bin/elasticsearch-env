@@ -67,8 +67,6 @@ fi
 
 export HOSTNAME=$HOSTNAME
 
-${source.path.env}
-
 if [ -z "$ES_PATH_CONF" ]; then
   echo "ES_PATH_CONF must be set to the configuration path"
   exit 1

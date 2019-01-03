@@ -65,7 +65,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     public void testDefaults() throws Exception {
         int[] indexedDims = {65535, 50, 2};
         float[] indexedValues = {0.5f, 1800f, -34567.11f};
-        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("my-sparse-vector")
@@ -103,7 +103,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     public void testErrors() {
         // 1. test for an error on negative dimension
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
+            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("my-sparse-vector")
@@ -118,7 +118,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
         // 2. test for an error on a dimension greater than MAX_DIMS_NUMBER
         e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
+            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("my-sparse-vector")
@@ -133,7 +133,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
         // 3. test for an error on a wrong formatted dimension
         e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
+            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("my-sparse-vector")
@@ -148,7 +148,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
          // 4. test for an error on a wrong format for the map of dims to values
         e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
+            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("my-sparse-vector")

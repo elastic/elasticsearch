@@ -51,8 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -73,18 +72,17 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
  */
 public abstract class TaskManagerTestCase extends ESTestCase {
 
-    protected static ThreadPool threadPool;
-    public static final Settings CLUSTER_SETTINGS = Settings.builder().put("cluster.name", "test-cluster").build();
+    protected ThreadPool threadPool;
     protected TestNode[] testNodes;
     protected int nodesCount;
 
-    @BeforeClass
-    public static void beforeClass() {
+    @Before
+    public void setupThreadPool() {
         threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName());
     }
 
-    @AfterClass
-    public static void afterClass() {
+    @After
+    public void tearDownThreadPool() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
     }

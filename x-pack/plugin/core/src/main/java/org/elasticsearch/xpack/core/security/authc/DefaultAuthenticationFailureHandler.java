@@ -99,12 +99,12 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
 
     @Override
     public ElasticsearchSecurityException missingToken(RestRequest request, ThreadContext context) {
-        return createAuthenticationError("missing authentication token for REST request [{}]", null, request.uri());
+        return createAuthenticationError("missing authentication credentials for REST request [{}]", null, request.uri());
     }
 
     @Override
     public ElasticsearchSecurityException missingToken(TransportMessage message, String action, ThreadContext context) {
-        return createAuthenticationError("missing authentication token for action [{}]", null, action);
+        return createAuthenticationError("missing authentication credentials for action [{}]", null, action);
     }
 
     @Override

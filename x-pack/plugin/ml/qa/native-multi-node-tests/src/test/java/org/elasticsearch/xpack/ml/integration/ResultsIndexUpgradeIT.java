@@ -149,6 +149,7 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         // Our backing index size should be four as we have a shared and custom index and upgrading doubles the number of indices
         Assert.assertThat(indices.length, equalTo(4));
 
+        refresh(indices);
         assertThat(getJobResultsCount(job1.getId()), equalTo(job1Total));
         assertThat(getJobResultsCount(job2.getId()), equalTo(job2Total));
         assertThat(getJobResultsCount(job3.getId()), equalTo(job3Total));
@@ -156,21 +157,26 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
 
         // WE should still be able to write, and the aliases should allow to read from the appropriate indices
         postDataToJob(jobId1);
-        long newJob1Total = getJobResultsCount(job1.getId());
-        assertThat(newJob1Total, greaterThan(job1Total));
-
         postDataToJob(jobId2);
-        long newJob2Total = getJobResultsCount(job2.getId());
-        assertThat(newJob2Total, greaterThan(job2Total));
-
         postDataToJob(jobId3);
-        long newJob3Total = getJobResultsCount(job3.getId());
-        assertThat(newJob3Total, greaterThan(job3Total));
-
-        // We should also be able to create new jobs and old jobs should be unaffected.
+       // We should also be able to create new jobs and old jobs should be unaffected.
         String jobId4 = "migration-test4";
         Job job4 = createAndOpenJobAndStartDataFeedWithData(jobId4, dataIndex, false);
         waitUntilJobIsClosed(jobId4);
+
+        indices = indexNameExpressionResolver.concreteIndexNames(state,
+            IndicesOptions.strictExpandOpenAndForbidClosed(),
+            AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*");
+        refresh(indices);
+
+        long newJob1Total = getJobResultsCount(job1.getId());
+        assertThat(newJob1Total, greaterThan(job1Total));
+
+        long newJob2Total = getJobResultsCount(job2.getId());
+        assertThat(newJob2Total, greaterThan(job2Total));
+
+        long newJob3Total = getJobResultsCount(job3.getId());
+        assertThat(newJob3Total, greaterThan(job3Total));
 
         assertThat(getJobResultsCount(jobId4), greaterThan(0L));
         assertThat(getJobResultsCount(jobId1), equalTo(newJob1Total));

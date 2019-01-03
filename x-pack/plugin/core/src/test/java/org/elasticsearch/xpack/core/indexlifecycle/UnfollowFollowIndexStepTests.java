@@ -69,45 +69,10 @@ public class UnfollowFollowIndexStepTests extends AbstractStepTestCase<UnfollowF
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        // Mock pause follow api call:
-        Mockito.doAnswer(invocation -> {
-            PauseFollowAction.Request request = (PauseFollowAction.Request) invocation.getArguments()[1];
-            assertThat(request.getFollowIndex(), equalTo("follower-index"));
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            listener.onResponse(new AcknowledgedResponse(true));
-            return null;
-        }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
-
-        // Mock close index api call:
-        Mockito.doAnswer(invocation -> {
-            CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
-            assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            listener.onResponse(new AcknowledgedResponse(true));
-            return null;
-        }).when(indicesClient).close(Mockito.any(), Mockito.any());
-
-        // Mock unfollow api call:
-        Mockito.doAnswer(invocation -> {
-            UnfollowAction.Request request = (UnfollowAction.Request) invocation.getArguments()[1];
-            assertThat(request.getFollowerIndex(), equalTo("follower-index"));
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            listener.onResponse(new AcknowledgedResponse(true));
-            return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
-
-        // Mock open index api call:
-        Mockito.doAnswer(invocation -> {
-            OpenIndexRequest closeIndexRequest = (OpenIndexRequest) invocation.getArguments()[0];
-            assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
-            @SuppressWarnings("unchecked")
-            ActionListener<OpenIndexResponse> listener = (ActionListener<OpenIndexResponse>) invocation.getArguments()[1];
-            listener.onResponse(new OpenIndexResponse(true, true));
-            return null;
-        }).when(indicesClient).open(Mockito.any(), Mockito.any());
+        mockPauseApiCall(client);
+        mockCloseIndexApiCall(indicesClient);
+        mockUnfollowApiCall(client);
+        mockOpenIndexApiCall(indicesClient);
 
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
@@ -141,35 +106,9 @@ public class UnfollowFollowIndexStepTests extends AbstractStepTestCase<UnfollowF
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        // Mock pause follow api call:
-        Mockito.doAnswer(invocation -> {
-            PauseFollowAction.Request request = (PauseFollowAction.Request) invocation.getArguments()[1];
-            assertThat(request.getFollowIndex(), equalTo("follower-index"));
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            listener.onResponse(new AcknowledgedResponse(true));
-            return null;
-        }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
-
-        // Mock close index api call:
-        Mockito.doAnswer(invocation -> {
-            CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
-            assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            listener.onResponse(new AcknowledgedResponse(true));
-            return null;
-        }).when(indicesClient).close(Mockito.any(), Mockito.any());
-
-        // Mock unfollow api call:
-        Mockito.doAnswer(invocation -> {
-            UnfollowAction.Request request = (UnfollowAction.Request) invocation.getArguments()[1];
-            assertThat(request.getFollowerIndex(), equalTo("follower-index"));
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            listener.onResponse(new AcknowledgedResponse(true));
-            return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        mockPauseApiCall(client);
+        mockCloseIndexApiCall(indicesClient);
+        mockUnfollowApiCall(client);
 
         // Fail open index api call:
         Exception error = new RuntimeException();
@@ -213,25 +152,9 @@ public class UnfollowFollowIndexStepTests extends AbstractStepTestCase<UnfollowF
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        // Mock pause follow api call:
-        Mockito.doAnswer(invocation -> {
-            PauseFollowAction.Request request = (PauseFollowAction.Request) invocation.getArguments()[1];
-            assertThat(request.getFollowIndex(), equalTo("follower-index"));
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            listener.onResponse(new AcknowledgedResponse(true));
-            return null;
-        }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        mockPauseApiCall(client);
 
-        // Mock close index api call:
-        Mockito.doAnswer(invocation -> {
-            CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
-            assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            listener.onResponse(new AcknowledgedResponse(true));
-            return null;
-        }).when(indicesClient).close(Mockito.any(), Mockito.any());
+        mockCloseIndexApiCall(indicesClient);
 
         // Mock unfollow api call:
         Exception error = new RuntimeException();
@@ -275,15 +198,7 @@ public class UnfollowFollowIndexStepTests extends AbstractStepTestCase<UnfollowF
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        // Mock pause follow api call:
-        Mockito.doAnswer(invocation -> {
-            PauseFollowAction.Request request = (PauseFollowAction.Request) invocation.getArguments()[1];
-            assertThat(request.getFollowIndex(), equalTo("follower-index"));
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            listener.onResponse(new AcknowledgedResponse(true));
-            return null;
-        }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        mockPauseApiCall(client);
 
         // Mock close index api call:
         Exception error = new RuntimeException();
@@ -378,5 +293,49 @@ public class UnfollowFollowIndexStepTests extends AbstractStepTestCase<UnfollowF
         assertThat(completed[0], is(true));
         assertThat(failure[0], nullValue());
         Mockito.verifyZeroInteractions(client);
+    }
+
+    private void mockOpenIndexApiCall(IndicesAdminClient indicesClient) {
+        Mockito.doAnswer(invocation -> {
+            OpenIndexRequest closeIndexRequest = (OpenIndexRequest) invocation.getArguments()[0];
+            assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
+            @SuppressWarnings("unchecked")
+            ActionListener<OpenIndexResponse> listener = (ActionListener<OpenIndexResponse>) invocation.getArguments()[1];
+            listener.onResponse(new OpenIndexResponse(true, true));
+            return null;
+        }).when(indicesClient).open(Mockito.any(), Mockito.any());
+    }
+
+    private void mockUnfollowApiCall(Client client) {
+        Mockito.doAnswer(invocation -> {
+            UnfollowAction.Request request = (UnfollowAction.Request) invocation.getArguments()[1];
+            assertThat(request.getFollowerIndex(), equalTo("follower-index"));
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
+            listener.onResponse(new AcknowledgedResponse(true));
+            return null;
+        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+    }
+
+    private void mockCloseIndexApiCall(IndicesAdminClient indicesClient) {
+        Mockito.doAnswer(invocation -> {
+            CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
+            assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            listener.onResponse(new AcknowledgedResponse(true));
+            return null;
+        }).when(indicesClient).close(Mockito.any(), Mockito.any());
+    }
+
+    private void mockPauseApiCall(Client client) {
+        Mockito.doAnswer(invocation -> {
+            PauseFollowAction.Request request = (PauseFollowAction.Request) invocation.getArguments()[1];
+            assertThat(request.getFollowIndex(), equalTo("follower-index"));
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
+            listener.onResponse(new AcknowledgedResponse(true));
+            return null;
+        }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
     }
 }

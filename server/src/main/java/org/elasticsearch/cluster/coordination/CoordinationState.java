@@ -86,6 +86,12 @@ public class CoordinationState {
         return getLastAcceptedState().version();
     }
 
+    long getLastAcceptedVersionOrMetaDataVersion() {
+        // When following a Zen1 master, the cluster state version is not guaranteed to increase, so instead it is preferable to use the
+        // metadata version to determine the freshest node.
+        return getLastAcceptedTerm() == ZEN1_BWC_TERM ? getLastAcceptedState().metaData().version() : getLastAcceptedState().version();
+    }
+
     public VotingConfiguration getLastCommittedConfiguration() {
         return getLastAcceptedState().getLastCommittedConfiguration();
     }
@@ -192,7 +198,8 @@ public class CoordinationState {
         joinVotes = new VoteCollection();
         publishVotes = new VoteCollection();
 
-        return new Join(localNode, startJoinRequest.getSourceNode(), getCurrentTerm(), getLastAcceptedTerm(), getLastAcceptedVersion());
+        return new Join(localNode, startJoinRequest.getSourceNode(), getCurrentTerm(), getLastAcceptedTerm(),
+            getLastAcceptedVersionOrMetaDataVersion());
     }
 
     /**
@@ -204,11 +211,6 @@ public class CoordinationState {
      */
     public boolean handleJoin(Join join) {
         assert join.getTargetNode().equals(localNode) : "handling join " + join + " for the wrong node " + localNode;
-
-        if (getLastAcceptedConfiguration().isEmpty()) {
-            logger.debug("handleJoin: rejecting join since this node has not received its initial configuration yet");
-            throw new CoordinationStateRejectedException("rejecting join since this node has not received its initial configuration yet");
-        }
 
         if (join.getTerm() != getCurrentTerm()) {
             logger.debug("handleJoin: ignored join due to term mismatch (expected: [{}], actual: [{}])",
@@ -230,20 +232,22 @@ public class CoordinationState {
                 " of join higher than current last accepted term " + lastAcceptedTerm);
         }
 
-        if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersion()) {
-            logger.debug("handleJoin: ignored join as joiner has a better last accepted version (expected: <=[{}], actual: [{}])",
-                getLastAcceptedVersion(), join.getLastAcceptedVersion());
+        if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersionOrMetaDataVersion()) {
+            logger.debug(
+                "handleJoin: ignored join as joiner has a better last accepted version (expected: <=[{}], actual: [{}]) in term {}",
+                getLastAcceptedVersionOrMetaDataVersion(), join.getLastAcceptedVersion(), lastAcceptedTerm);
             throw new CoordinationStateRejectedException("incoming last accepted version " + join.getLastAcceptedVersion() +
-                " of join higher than current last accepted version " + getLastAcceptedVersion());
+                " of join higher than current last accepted version " + getLastAcceptedVersionOrMetaDataVersion()
+                + " in term " + lastAcceptedTerm);
         }
 
-        if (getLastAcceptedVersion() == 0) {
+        if (getLastAcceptedConfiguration().isEmpty()) {
             // We do not check for an election won on setting the initial configuration, so it would be possible to end up in a state where
             // we have enough join votes to have won the election immediately on setting the initial configuration. It'd be quite
             // complicated to restore all the appropriate invariants when setting the initial configuration (it's not just electionWon)
             // so instead we just reject join votes received prior to receiving the initial configuration.
-            logger.debug("handleJoin: ignored join because initial configuration not set");
-            throw new CoordinationStateRejectedException("initial configuration not set");
+            logger.debug("handleJoin: rejecting join since this node has not received its initial configuration yet");
+            throw new CoordinationStateRejectedException("rejecting join since this node has not received its initial configuration yet");
         }
 
         boolean added = joinVotes.addVote(join.getSourceNode());

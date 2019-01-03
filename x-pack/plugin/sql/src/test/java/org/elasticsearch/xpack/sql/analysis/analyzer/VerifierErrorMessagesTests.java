@@ -511,7 +511,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
         SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
             "SELECT PERCENTILE(int, ABS(int)) FROM test"), true));
-        assertEquals("2nd argument: [ABS(int)] of PERCENTILE cannot be based on a field but only constant number",
+        assertEquals("2nd argument of PERCENTILE must be constant, received [ABS(int)]",
             e.getMessage());
     }
 
@@ -519,7 +519,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
         SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
             "SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"), true));
-        assertEquals("2nd argument: [ABS(int)] of PERCENTILE_RANK cannot be based on a field but only constant number",
+        assertEquals("2nd argument of PERCENTILE_RANK must be constant, received [ABS(int)]",
             e.getMessage());
     }
 }

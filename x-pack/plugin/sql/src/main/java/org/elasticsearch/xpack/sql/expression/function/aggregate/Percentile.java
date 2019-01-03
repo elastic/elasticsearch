@@ -43,8 +43,8 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
     @Override
     protected TypeResolution resolveType() {
         if (!percent.foldable()) {
-            throw new SqlIllegalArgumentException("2nd argument: [{}] of PERCENTILE cannot be based on " +
-                "a field but only constant number", Expressions.name(percent));
+            throw new SqlIllegalArgumentException("2nd argument of PERCENTILE must be constant, received [{}]",
+                Expressions.name(percent));
         }
 
         TypeResolution resolution = super.resolveType();

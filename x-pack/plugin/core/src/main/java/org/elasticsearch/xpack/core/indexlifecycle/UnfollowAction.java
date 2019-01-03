@@ -21,6 +21,7 @@ import java.util.List;
 public final class UnfollowAction implements LifecycleAction {
 
     public static final String NAME = "unfollow";
+    public static final String CCR_METADATA_KEY = "ccr";
 
     public UnfollowAction() {}
 

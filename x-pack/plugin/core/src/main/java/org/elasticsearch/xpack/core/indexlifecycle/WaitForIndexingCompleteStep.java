@@ -17,6 +17,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction.CCR_METADATA_KEY;
+
 final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
 
     static final String NAME = "wait-for-indexing-complete";
@@ -28,7 +30,7 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetaData followerIndex = clusterState.metaData().getIndexSafe(index);
-        Map<String, String> customIndexMetadata = followerIndex.getCustomData("ccr");
+        Map<String, String> customIndexMetadata = followerIndex.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
             return new Result(true, null);
         }

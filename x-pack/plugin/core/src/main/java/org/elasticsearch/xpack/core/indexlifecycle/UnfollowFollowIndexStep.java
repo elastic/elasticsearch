@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction.CCR_METADATA_KEY;
+
 final class UnfollowFollowIndexStep extends AsyncActionStep {
 
     static final String NAME = "unfollow-index";
@@ -27,7 +29,7 @@ final class UnfollowFollowIndexStep extends AsyncActionStep {
     @Override
     public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
         String followerIndex = indexMetaData.getIndex().getName();
-        Map<String, String> customIndexMetadata = indexMetaData.getCustomData("ccr");
+        Map<String, String> customIndexMetadata = indexMetaData.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
             listener.onResponse(true);
             return;

@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction.CCR_METADATA_KEY;
+
 final class WaitForFollowShardTasksStep extends AsyncWaitStep {
 
     static final String NAME = "wait-for-follow-shard-tasks";
@@ -31,7 +33,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
-        Map<String, String> customIndexMetadata = indexMetaData.getCustomData("ccr");
+        Map<String, String> customIndexMetadata = indexMetaData.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
             listener.onResponse(true, null);
             return;

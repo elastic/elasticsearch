@@ -21,6 +21,7 @@ import org.mockito.Mockito;
 
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -57,7 +58,7 @@ public class UnfollowFollowIndexStepTests extends AbstractStepTestCase<UnfollowF
     public void testUnFollow() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom("ccr", Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -129,7 +130,7 @@ public class UnfollowFollowIndexStepTests extends AbstractStepTestCase<UnfollowF
     public void testUnFollowOpenIndexFailed() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom("ccr", Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -201,7 +202,7 @@ public class UnfollowFollowIndexStepTests extends AbstractStepTestCase<UnfollowF
     public void testUnFollowUnfollowFailed() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom("ccr", Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -263,7 +264,7 @@ public class UnfollowFollowIndexStepTests extends AbstractStepTestCase<UnfollowF
     public void testUnFollowCloseIndexFailed() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom("ccr", Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -315,7 +316,7 @@ public class UnfollowFollowIndexStepTests extends AbstractStepTestCase<UnfollowF
     public void testUnFollowPauseIndexFollowingFailed() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom("ccr", Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

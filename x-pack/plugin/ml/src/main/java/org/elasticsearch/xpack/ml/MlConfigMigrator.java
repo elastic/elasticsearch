@@ -37,6 +37,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -403,11 +404,23 @@ public class MlConfigMigrator {
         Map<String, Object> custom = job.getCustomSettings() == null ? new HashMap<>() : new HashMap<>(job.getCustomSettings());
         custom.put(MIGRATED_FROM_VERSION, job.getJobVersion());
         builder.setCustomSettings(custom);
+        // Increase the model memory limit for 6.1 - 6.3 jobs
+        Version jobVersion = job.getJobVersion();
+        if (jobVersion != null && jobVersion.onOrAfter(Version.V_6_1_0) && jobVersion.before(Version.V_6_3_0)) {
+            // Increase model memory limit if < 512MB
+            if (job.getAnalysisLimits() != null && job.getAnalysisLimits().getModelMemoryLimit() != null &&
+                    job.getAnalysisLimits().getModelMemoryLimit() < 512L) {
+                long updatedModelMemoryLimit = (long) (job.getAnalysisLimits().getModelMemoryLimit() * 1.3);
+                AnalysisLimits limits = new AnalysisLimits(updatedModelMemoryLimit,
+                        job.getAnalysisLimits().getCategorizationExamplesLimit());
+                builder.setAnalysisLimits(limits);
+            }
+        }
         // Pre v5.5 (ml beta) jobs do not have a version.
         // These jobs cannot be opened, we rely on the missing version
         // to indicate this.
         // See TransportOpenJobAction.validate()
-        if (job.getJobVersion() != null) {
+        if (jobVersion != null) {
             builder.setJobVersion(Version.CURRENT);
         }
         return builder.build();

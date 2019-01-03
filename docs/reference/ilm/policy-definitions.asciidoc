@@ -393,7 +393,7 @@ PUT _ilm/policy/my_policy
 ===== Example: Rollover when index has too many documents
 
 This example rolls the index over when it contains at least
-1000000 documents.
+100000000 documents.
 
 [source,js]
 --------------------------------------------------
@@ -404,7 +404,7 @@ PUT _ilm/policy/my_policy
       "hot": {
         "actions": {
           "rollover" : {
-            "max_docs": 1000000
+            "max_docs": 100000000
           }
         }
       }
@@ -553,7 +553,7 @@ beta[]
 
 With all of these actions, we can support complex management strategies for our
 indices. This policy will define an index that will start in the hot phase,
-rolling over every 20g or 7 days. After 30 days it enters the warm phase
+rolling over every 50 GB or 7 days. After 30 days it enters the warm phase
 and increases the replicas to 2, force merges and shrinks. After 60 days
 it enters the cold phase and allocates to "cold" nodes, and after 90 days the
 index is deleted.
@@ -568,7 +568,7 @@ PUT _ilm/policy/full_policy
         "actions": {
           "rollover": {
             "max_age": "7d",
-            "max_size": "20G"
+            "max_size": "50G"
           }
         }
       },

@@ -104,7 +104,7 @@ public class DieWithDignityIT extends ESRestTestCase {
                     fatalError = true;
                 } else if (isFatalErrorInThreadExiting(line)) {
                     fatalErrorInThreadExiting = true;
-                    assertThat(line.exceptions(),
+                    assertThat(line.stacktrace(),
                         hasItem(Matchers.containsString("java.lang.OutOfMemoryError: die with dignity")));
                 }
             }

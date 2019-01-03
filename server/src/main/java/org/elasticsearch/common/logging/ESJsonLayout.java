@@ -42,7 +42,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         "\"node.name\": \"%node_name\", " +
         "%node_and_cluster_id " +
         "\"message\": \"%enc{%.-10000m}{JSON}\" " +
-        "%replace{%cEx}{\",}{\",\n} " +
+        "%exceptionAsJson " +
         "}%n";
 
     private final PatternLayout patternLayout;

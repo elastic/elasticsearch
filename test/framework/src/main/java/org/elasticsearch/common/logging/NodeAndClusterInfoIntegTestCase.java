@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Tests that extend this class verify that the node name appears in the first
+ * Tests that extend this class verify that the node name, cluster name, nodeId, clusterId appear in the first
  * few log lines on startup. Note that this won't pass for clusters that don't
  * the node name defined in elasticsearch.yml <strong>and</strong> start with
  * DEBUG or TRACE level logging. Those nodes log a few lines before they

@@ -16,6 +16,7 @@
  */
 package org.elasticsearch.common.logging;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
@@ -24,11 +25,8 @@ import org.apache.logging.log4j.core.pattern.ExtendedThrowablePatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.logging.log4j.core.pattern.ThrowablePatternConverter;
 import org.apache.logging.log4j.util.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 
-import java.io.IOException;
+import java.util.StringJoiner;
 
 /**
  * This is a modification of a @link org.apache.logging.log4j.core.pattern.ExtendedThrowablePatternConverter
@@ -37,9 +35,10 @@ import java.io.IOException;
  * "exception": [ stacktrace... ]
  */
 @Plugin(name = "JsonThrowablePatternConverter", category = PatternConverter.CATEGORY)
-@ConverterKeys({"cEx"})
+@ConverterKeys({"exceptionAsJson"})
 public final class JsonThrowablePatternConverter extends ThrowablePatternConverter {
 
+    private static final JsonStringEncoder JSON_STRING_ENCODER = JsonStringEncoder.getInstance();
     private final ExtendedThrowablePatternConverter throwablePatternConverter;
 
     /**
@@ -87,15 +86,19 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
 
     private String formatJson(String extStackTrace) {
         String[] split = extStackTrace.split(options.getSeparator() + "\t|" + options.getSeparator());
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.value(split);
-            String stacktraceAsArray = BytesReference.bytes(builder).utf8ToString();
-            return "\"exception\": " + stacktraceAsArray;
-        } catch (IOException e) {
-           throw new RuntimeException(e);
+
+        StringJoiner stringJoiner = new StringJoiner(",\n", "\n\"stacktrace\": [", "]");
+        for (String line : split) {
+            stringJoiner.add(wrapAsJson(line));
         }
+        return stringJoiner.toString();
     }
+
+    private String wrapAsJson(String line) {
+        char[] chars = JSON_STRING_ENCODER.quoteAsString(line);
+        return "\"" + new String(chars) + "\"";
+    }
+
 
     @Override
     public boolean handlesThrowable() {

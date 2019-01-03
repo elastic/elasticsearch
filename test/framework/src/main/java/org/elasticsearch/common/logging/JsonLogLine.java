@@ -35,12 +35,12 @@ public class JsonLogLine {
     private String clusterUuid;
     private String nodeId;
     private String message;
-    private List<String> exceptions;
+    private List<String> stacktrace;
 
     private JsonLogLine(String type, String timestamp, String level, String clazz, String clusterName,
                         String nodeName, String clusterUuid, String nodeId,
                         String message,
-                        List<String> exceptions) {
+                        List<String> stacktrace) {
         this.type = type;
         this.timestamp = timestamp;
         this.level = level;
@@ -50,7 +50,7 @@ public class JsonLogLine {
         this.clusterUuid = clusterUuid;
         this.nodeId = nodeId;
         this.message = message;
-        this.exceptions = exceptions;
+        this.stacktrace = stacktrace;
     }
 
     @Override
@@ -65,7 +65,7 @@ public class JsonLogLine {
         sb.append(", clusterUuid='").append(clusterUuid).append('\'');
         sb.append(", nodeId='").append(nodeId).append('\'');
         sb.append(", message='").append(message).append('\'');
-        sb.append(", exceptions=").append(exceptions);
+        sb.append(", stacktrace=").append(stacktrace);
         sb.append('}');
         return sb.toString();
     }
@@ -106,8 +106,8 @@ public class JsonLogLine {
         return message;
     }
 
-    public List<String> exceptions() {
-        return exceptions;
+    public List<String> stacktrace() {
+        return stacktrace;
     }
 
     @SuppressWarnings("unchecked")
@@ -123,7 +123,7 @@ public class JsonLogLine {
                 .withClusterUuid((String) a[6])
                 .withNodeId((String) a[7])
                 .withMessage((String) a[8])
-                .withExceptions((List<String>) a[9])
+                .withStacktrace((List<String>) a[9])
                 .build()
         );
 
@@ -136,7 +136,7 @@ public class JsonLogLine {
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("cluster.uuid"));
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("node.id"));
         parser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("message"));
-        parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("exception"));
+        parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("stacktrace"));
 
 
         return parser;
@@ -156,7 +156,7 @@ public class JsonLogLine {
         String clusterUuid;
         String nodeId;
         String message;
-        List<String> exception;
+        List<String> stacktrace;
 
         public Builder withType(String type) {
             this.type = type;
@@ -203,14 +203,14 @@ public class JsonLogLine {
             return this;
         }
 
-        public Builder withExceptions(List<String> exception) {
-            this.exception = exception;
+        public Builder withStacktrace(List<String> stacktrace) {
+            this.stacktrace = stacktrace;
             return this;
         }
 
         public JsonLogLine build() {
             return new JsonLogLine(type, timestamp, level, clazz, clusterName,
-                nodeName, clusterUuid, nodeId, message, exception);
+                nodeName, clusterUuid, nodeId, message, stacktrace);
         }
     }
 }

@@ -41,7 +41,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return lazyOutputSet;
     }
 
-    public AttributeSet intputSet() {
+    public AttributeSet inputSet() {
         if (lazyInputSet == null) {
             List<Attribute> attrs = new ArrayList<>();
             for (PlanType child : children()) {

@@ -41,11 +41,11 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         assertThat(steps, notNullValue());
         assertThat(steps.size(), equalTo(3));
 
-        StepKey expectedFirstStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexingComplete.NAME);
+        StepKey expectedFirstStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexingCompleteStep.NAME);
         StepKey expectedSecondStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForFollowShardTasksStep.NAME);
         StepKey expectedThirdStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowIndexStep.NAME);
 
-        WaitForIndexingComplete firstStep = (WaitForIndexingComplete) steps.get(0);
+        WaitForIndexingCompleteStep firstStep = (WaitForIndexingCompleteStep) steps.get(0);
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
         assertThat(firstStep.getNextStepKey(), equalTo(expectedSecondStepKey));
 

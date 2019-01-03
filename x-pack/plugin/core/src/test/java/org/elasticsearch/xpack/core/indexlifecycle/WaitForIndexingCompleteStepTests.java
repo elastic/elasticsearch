@@ -20,17 +20,17 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class WaitForIndexingCompleteTests extends AbstractStepTestCase<WaitForIndexingComplete> {
+public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitForIndexingCompleteStep> {
 
     @Override
-    protected WaitForIndexingComplete createRandomInstance() {
+    protected WaitForIndexingCompleteStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        return new WaitForIndexingComplete(stepKey, nextStepKey);
+        return new WaitForIndexingCompleteStep(stepKey, nextStepKey);
     }
 
     @Override
-    protected WaitForIndexingComplete mutateInstance(WaitForIndexingComplete instance) {
+    protected WaitForIndexingCompleteStep mutateInstance(WaitForIndexingCompleteStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
 
@@ -40,12 +40,12 @@ public class WaitForIndexingCompleteTests extends AbstractStepTestCase<WaitForIn
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
         }
 
-        return new WaitForIndexingComplete(key, nextKey);
+        return new WaitForIndexingCompleteStep(key, nextKey);
     }
 
     @Override
-    protected WaitForIndexingComplete copyInstance(WaitForIndexingComplete instance) {
-        return new WaitForIndexingComplete(instance.getKey(), instance.getNextStepKey());
+    protected WaitForIndexingCompleteStep copyInstance(WaitForIndexingCompleteStep instance) {
+        return new WaitForIndexingCompleteStep(instance.getKey(), instance.getNextStepKey());
     }
 
     public void testConditionMet() {
@@ -60,7 +60,7 @@ public class WaitForIndexingCompleteTests extends AbstractStepTestCase<WaitForIn
             .metaData(MetaData.builder().put(indexMetadata, true).build())
             .build();
 
-        WaitForIndexingComplete step = createRandomInstance();
+        WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(true));
         assertThat(result.getInfomationContext(), nullValue());
@@ -77,7 +77,7 @@ public class WaitForIndexingCompleteTests extends AbstractStepTestCase<WaitForIn
             .metaData(MetaData.builder().put(indexMetadata, true).build())
             .build();
 
-        WaitForIndexingComplete step = createRandomInstance();
+        WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(true));
         assertThat(result.getInfomationContext(), nullValue());
@@ -99,11 +99,11 @@ public class WaitForIndexingCompleteTests extends AbstractStepTestCase<WaitForIn
             .metaData(MetaData.builder().put(indexMetadata, true).build())
             .build();
 
-        WaitForIndexingComplete step = createRandomInstance();
+        WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
         assertThat(result.getInfomationContext(), notNullValue());
-        WaitForIndexingComplete.Info info = (WaitForIndexingComplete.Info) result.getInfomationContext();
+        WaitForIndexingCompleteStep.Info info = (WaitForIndexingCompleteStep.Info) result.getInfomationContext();
         assertThat(info.getIndexSettings(), equalTo(indexMetadata.getSettings()));
         assertThat(info.getMessage(), equalTo("the [index.lifecycle.indexing_complete] setting has not been set to true"));
     }

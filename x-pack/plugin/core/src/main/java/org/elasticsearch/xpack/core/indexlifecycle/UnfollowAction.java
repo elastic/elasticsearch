@@ -26,11 +26,11 @@ public final class UnfollowAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
-        StepKey indexingComplete = new StepKey(phase, NAME, WaitForIndexingComplete.NAME);
+        StepKey indexingComplete = new StepKey(phase, NAME, WaitForIndexingCompleteStep.NAME);
         StepKey waitForFollowShardTasks = new StepKey(phase, NAME, WaitForFollowShardTasksStep.NAME);
         StepKey unfollowIndex = new StepKey(phase, NAME, UnfollowFollowIndexStep.NAME);
 
-        WaitForIndexingComplete step1 = new WaitForIndexingComplete(indexingComplete, waitForFollowShardTasks);
+        WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitForFollowShardTasks);
         WaitForFollowShardTasksStep step2 = new WaitForFollowShardTasksStep(waitForFollowShardTasks, unfollowIndex, client);
         UnfollowFollowIndexStep  step3 = new UnfollowFollowIndexStep(unfollowIndex, nextStepKey, client);
         return Arrays.asList(step1, step2, step3);
@@ -38,7 +38,7 @@ public final class UnfollowAction implements LifecycleAction {
 
     @Override
     public List<StepKey> toStepKeys(String phase) {
-        StepKey indexingCompleteStep = new StepKey(phase, NAME, WaitForIndexingComplete.NAME);
+        StepKey indexingCompleteStep = new StepKey(phase, NAME, WaitForIndexingCompleteStep.NAME);
         StepKey waitForFollowShardTasksStep = new StepKey(phase, NAME, WaitForFollowShardTasksStep.NAME);
         StepKey unfollowIndexStep = new StepKey(phase, NAME, UnfollowFollowIndexStep.NAME);
         return Arrays.asList(indexingCompleteStep, waitForFollowShardTasksStep, unfollowIndexStep);

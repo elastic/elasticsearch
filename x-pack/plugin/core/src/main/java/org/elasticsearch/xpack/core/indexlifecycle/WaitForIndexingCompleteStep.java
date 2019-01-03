@@ -17,11 +17,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-final class WaitForIndexingComplete extends ClusterStateWaitStep {
+final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
 
     static final String NAME = "wait-for-indexing-complete";
 
-    WaitForIndexingComplete(StepKey key, StepKey nextStepKey) {
+    WaitForIndexingCompleteStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
 

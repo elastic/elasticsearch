@@ -11,13 +11,13 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xpack.core.indexlifecycle.WaitForIndexingComplete.Info;
+import org.elasticsearch.xpack.core.indexlifecycle.WaitForIndexingCompleteStep.Info;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 
-public class WaitForIndexingCompleteInfoTests extends AbstractXContentTestCase<Info> {
+public class WaitForIndexingCompleteStepInfoTests extends AbstractXContentTestCase<Info> {
 
     private static final ConstructingObjectParser<Info, Void> PARSER =
         new ConstructingObjectParser<>("wait_for_indexing_complete_info",

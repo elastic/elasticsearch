@@ -29,7 +29,7 @@ import java.util.Set;
 
 /**
  * A utility class for multi threaded operation that needs to be cancellable via interrupts. Every cancellable operation should be
- * executed via {@link #execute(Interruptable)}, which will capture the executing thread and make sure it is interrupted in the case
+ * executed via {@link #execute(Interruptible)}, which will capture the executing thread and make sure it is interrupted in the case
  * of cancellation.
  *
  * Cancellation policy: This class does not support external interruption via <code>Thread#interrupt()</code>. Always use #cancel() instead.
@@ -77,33 +77,33 @@ public class CancellableThreads {
     }
 
     /**
-     * run the Interruptable, capturing the executing thread. Concurrent calls to {@link #cancel(String)} will interrupt this thread
+     * run the Interruptible, capturing the executing thread. Concurrent calls to {@link #cancel(String)} will interrupt this thread
      * causing the call to prematurely return.
      *
-     * @param interruptable code to run
+     * @param interruptible code to run
      */
-    public void execute(Interruptable interruptable) {
+    public void execute(Interruptible interruptible) {
         try {
-            executeIO(interruptable);
+            executeIO(interruptible);
         } catch (IOException e) {
-            assert false : "the passed interruptable can not result in an IOException";
+            assert false : "the passed interruptible can not result in an IOException";
             throw new RuntimeException("unexpected IO exception", e);
         }
     }
     /**
-     * run the Interruptable, capturing the executing thread. Concurrent calls to {@link #cancel(String)} will interrupt this thread
+     * run the Interruptible, capturing the executing thread. Concurrent calls to {@link #cancel(String)} will interrupt this thread
      * causing the call to prematurely return.
      *
-     * @param interruptable code to run
+     * @param interruptible code to run
      */
-    public void executeIO(IOInterruptable interruptable) throws IOException {
+    public void executeIO(IOInterruptible interruptible) throws IOException {
         boolean wasInterrupted = add();
         boolean cancelledByExternalInterrupt = false;
         RuntimeException runtimeException = null;
         IOException ioException = null;
 
         try {
-            interruptable.run();
+            interruptible.run();
         } catch (InterruptedException | ThreadInterruptedException e) {
             // ignore, this interrupt has been triggered by us in #cancel()...
             assert cancelled : "Interruption via Thread#interrupt() is unsupported. Use CancellableThreads#cancel() instead";
@@ -167,11 +167,11 @@ public class CancellableThreads {
     }
 
 
-    public interface Interruptable extends IOInterruptable {
+    public interface Interruptible extends IOInterruptible {
         void run() throws InterruptedException;
     }
 
-    public interface IOInterruptable {
+    public interface IOInterruptible {
         void run() throws IOException, InterruptedException;
     }
 

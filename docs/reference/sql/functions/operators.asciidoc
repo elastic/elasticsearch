@@ -52,6 +52,8 @@ include-tagged::{sql-specs}/filter.sql-spec[whereWithInAndMultipleValues]
 [[sql-operators-logical]]
 === Logical Operators
 
+experimental[]
+
 Boolean operator for evaluating one or two expressions.
 
 * `AND`
@@ -77,6 +79,8 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldEqualityNot]
 
 [[sql-operators-math]]
 === Math Operators
+
+experimental[]
 
 Perform mathematical operations affecting one or two values.
 The result is a value of numeric type.

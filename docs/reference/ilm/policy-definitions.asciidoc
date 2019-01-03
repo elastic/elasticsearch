@@ -284,6 +284,39 @@ PUT _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 
+[[ilm-freeze-action]]
+==== Freeze
+
+Phases allowed: cold.
+
+This action will <<frozen-indices, freeze>> the index
+by calling the <<freeze-index-api, Freeze Index API>>.
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "cold": {
+        "actions": {
+          "freeze" : { }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+[IMPORTANT]
+================================
+ Freezing an index will close the index and reopen it within the same API call.
+ This causes primaries to not be allocated for a short amount of time and
+ causes the cluster to go red until the primaries are allocated again.
+ This limitation might be removed in the future.
+================================
+
 [[ilm-readonly-action]]
 ==== Read-Only
 

@@ -253,7 +253,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         try {
             logger.trace("{} starting recovery from {}", request.shardId(), request.sourceNode());
-            cancellableThreads.executeIO(() -> {
+            cancellableThreads.executeIO(() ->
+                // we still execute under cancelableThreads here to ensure we interrupt any blocking call to the network if any
+                // on the underlying transport. It's unclear if we need this here at all after moving to async execution but
+                // the issues that a missing call to this could cause are sneaky and hard to debug. If we don't need it on this
+                // call we can potentially remove it altogether which we should do it in a major release only with enough
+                // time to test. This shoudl be done for 7.0 if possible
                 transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
                     new TransportResponseHandler<RecoveryResponse>() {
                         @Override
@@ -303,8 +308,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                             recoveryResponse.readFrom(in);
                             return recoveryResponse;
                         }
-                    });
-            });
+                    })
+            );
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
         } catch (Exception e) {

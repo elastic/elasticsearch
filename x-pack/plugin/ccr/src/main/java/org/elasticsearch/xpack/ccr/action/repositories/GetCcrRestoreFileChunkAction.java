@@ -18,10 +18,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
@@ -56,6 +58,7 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
         public TransportGetCcrRestoreFileChunkAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                                                      CcrRestoreSourceService restoreSourceService) {
             super(NAME, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new);
+            TransportActionProxy.registerProxyAction(transportService, NAME, GetCcrRestoreFileChunkResponse::new);
             this.restoreSourceService = restoreSourceService;
         }
 
@@ -79,6 +82,7 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
 
         GetCcrRestoreFileChunkResponse(StreamInput streamInput) throws IOException {
             super(streamInput);
+            chunk = streamInput.readBytesReference();
         }
 
         GetCcrRestoreFileChunkResponse(BytesReference chunk) {
@@ -87,6 +91,12 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
 
         public BytesReference getChunk() {
             return chunk;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBytesReference(chunk);
         }
     }
 }

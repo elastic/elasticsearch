@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.Index;
@@ -65,7 +68,6 @@ import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionReque
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -265,7 +267,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         try (RestoreSession restoreSession = RestoreSession.openSession(remoteClient, leaderShardId, indexShard, shardId, recoveryState)) {
-            // TODO: Implement file restore
+            restoreSession.restoreFiles();
             restoreSession.closeRemoteSession();
         }
 
@@ -377,12 +379,28 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     deleteFile(name);
                 }
 
-                logger.trace("[{}] restoring file [{}]", shardId, fileToRecover.name());
+                logger.trace("[{}] restoring file [{}]", shardId, name);
                 try {
                     restoreFile(fileToRecover, store);
-                } catch (IOException e) {
-                    // TODO: Handle
+                } catch (Exception e) {
+                    logger.info(() -> new ParameterizedMessage("shard [{}] failed to restore file [{}]", shardId, name), e);
+                    throw new IndexShardRecoveryException(shardId, "failed to restore file", e);
                 }
+            }
+
+            final SegmentInfos segmentCommitInfos;
+            try {
+                segmentCommitInfos = Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
+            } catch (IOException e) {
+                throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
+            }
+            recoveryState.getIndex().updateVersion(segmentCommitInfos.getVersion());
+
+            // TODO: Do we need to update mappings prior to doing this?
+            try {
+                store.cleanupAndVerify("restore complete from remote", sourceMetaData);
+            } catch (IOException e) {
+                throw new IndexShardRecoveryException(shardId, "failed to cleanup and verify the store", e);
             }
         }
 

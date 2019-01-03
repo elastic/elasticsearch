@@ -201,7 +201,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         assertEquals(0, restoreInfo.failedShards());
     }
 
-    public void testDocsAreRecovered() throws IOException {
+    public void testDocsAreRecovered() throws Exception {
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         String leaderIndex = "index1";
         String followerIndex = "index2";
@@ -239,7 +239,9 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
         assertEquals(0, restoreInfo.failedShards());
-//        assertExpectedDocument(followerIndex, firstBatchNumDocs);
+        for (int i = 0; i < firstBatchNumDocs; ++i) {
+            assertExpectedDocument(followerIndex, i);
+        }
     }
 
     public void testFollowerMappingIsUpdated() throws IOException {

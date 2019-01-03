@@ -141,7 +141,8 @@ public class CoordinationState {
         final VotingConfiguration lastAcceptedConfiguration = getLastAcceptedConfiguration();
         if (lastAcceptedConfiguration.isEmpty() == false) {
             logger.debug("setInitialState: rejecting since last-accepted configuration is nonempty: {}", lastAcceptedConfiguration);
-            throw new CoordinationStateRejectedException("initial state already set: last-accepted configuration now " + lastAcceptedConfiguration);
+            throw new CoordinationStateRejectedException(
+                "initial state already set: last-accepted configuration now " + lastAcceptedConfiguration);
         }
 
         assert getLastAcceptedTerm() == 0 : getLastAcceptedTerm();

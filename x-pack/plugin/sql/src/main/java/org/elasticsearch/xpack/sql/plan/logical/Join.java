@@ -10,6 +10,7 @@ import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -78,7 +79,7 @@ public class Join extends BinaryPlan {
 
     private static List<Attribute> makeNullable(List<Attribute> output) {
         return output.stream()
-                .map(a -> a.withNullability(Expression.Nullable.POSSIBLY))
+                .map(a -> a.withNullability(Nullability.TRUE))
                 .collect(toList());
     }
 

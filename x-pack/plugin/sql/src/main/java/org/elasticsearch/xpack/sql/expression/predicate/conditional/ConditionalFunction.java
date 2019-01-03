@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -36,7 +37,7 @@ public abstract class ConditionalFunction extends ScalarFunction {
     }
 
     @Override
-    public Nullable nullable() {
-        return Nullable.UNKNOWN;
+    public Nullability nullable() {
+        return Nullability.UNKNOWN;
     }
 }

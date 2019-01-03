@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -42,8 +43,8 @@ public abstract class ConfigurationFunction extends ScalarFunction {
     }
 
     @Override
-    public Nullable nullable() {
-        return Nullable.NEVER;
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 
     @Override

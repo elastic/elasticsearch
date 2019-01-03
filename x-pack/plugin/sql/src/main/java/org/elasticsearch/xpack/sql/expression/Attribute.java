@@ -42,20 +42,20 @@ public abstract class Attribute extends NamedExpression {
     private final String qualifier;
 
     // can the attr be null - typically used in JOINs
-    private final Nullable nullable;
+    private final Nullability nullability;
 
     public Attribute(Location location, String name, String qualifier, ExpressionId id) {
-        this(location, name, qualifier, Nullable.POSSIBLY, id);
+        this(location, name, qualifier, Nullability.TRUE, id);
     }
 
-    public Attribute(Location location, String name, String qualifier, Nullable nullable, ExpressionId id) {
-        this(location, name, qualifier, nullable, id, false);
+    public Attribute(Location location, String name, String qualifier, Nullability nullability, ExpressionId id) {
+        this(location, name, qualifier, nullability, id, false);
     }
 
-    public Attribute(Location location, String name, String qualifier, Nullable nullable, ExpressionId id, boolean synthetic) {
+    public Attribute(Location location, String name, String qualifier, Nullability nullability, ExpressionId id, boolean synthetic) {
         super(location, name, emptyList(), id, synthetic);
         this.qualifier = qualifier;
-        this.nullable = nullable;
+        this.nullability = nullability;
     }
 
     @Override
@@ -77,8 +77,8 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
-    public Nullable nullable() {
-        return nullable;
+    public Nullability nullable() {
+        return nullability;
     }
 
     @Override
@@ -94,11 +94,11 @@ public abstract class Attribute extends NamedExpression {
         return Objects.equals(qualifier(), qualifier) ? this : clone(location(), name(), qualifier, nullable(), id(), synthetic());
     }
 
-    public Attribute withNullability(Nullable nullable) {
-        return Objects.equals(nullable(), nullable) ? this : clone(location(), name(), qualifier(), nullable, id(), synthetic());
+    public Attribute withNullability(Nullability nullability) {
+        return Objects.equals(nullable(), nullability) ? this : clone(location(), name(), qualifier(), nullability, id(), synthetic());
     }
 
-    protected abstract Attribute clone(Location location, String name, String qualifier, Nullable nullable, ExpressionId id,
+    protected abstract Attribute clone(Location location, String name, String qualifier, Nullability nullability, ExpressionId id,
                                        boolean synthetic);
 
     @Override
@@ -123,7 +123,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), qualifier, nullable);
+        return Objects.hash(super.hashCode(), qualifier, nullability);
     }
 
     @Override
@@ -131,7 +131,7 @@ public abstract class Attribute extends NamedExpression {
         if (super.equals(obj)) {
             Attribute other = (Attribute) obj;
             return Objects.equals(qualifier, other.qualifier)
-                    && Objects.equals(nullable, other.nullable);
+                    && Objects.equals(nullability, other.nullability);
         }
 
         return false;

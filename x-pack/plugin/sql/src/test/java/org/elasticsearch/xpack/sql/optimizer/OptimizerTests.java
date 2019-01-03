@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -134,8 +135,8 @@ public class OptimizerTests extends ESTestCase {
         }
 
         @Override
-        public Nullable nullable() {
-            return Nullable.NEVER;
+        public Nullability nullable() {
+            return Nullability.FALSE;
         }
 
         @Override

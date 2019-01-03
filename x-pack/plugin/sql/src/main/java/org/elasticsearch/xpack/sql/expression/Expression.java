@@ -29,32 +29,6 @@ import static java.lang.String.format;
  */
 public abstract class Expression extends Node<Expression> implements Resolvable {
 
-    public enum Nullable {
-        POSSIBLY,  // Whether the expression becomes null if at least one param/input is null
-        NEVER,     // The expression can never become null
-        UNKNOWN;   // Cannot determine if the expression supports possible null folding
-
-        public static Nullable and(Nullable... args) {
-            if (args.length == 0) {
-                return UNKNOWN;
-            }
-
-            Nullable returnValue = args[0];
-
-            // UKNOWN AND <anything> => UKNOWN
-            // NEVER AND NEVER => NEVER
-            // POSSIBLE AND NEVER/POSSIBLE => POSSIBLE
-            for (int i = 1; i < args.length; i++) {
-                if (returnValue == UNKNOWN || args[i] == UNKNOWN) {
-                    returnValue = UNKNOWN;
-                } else if (returnValue == POSSIBLY || args[i] == POSSIBLY) {
-                    returnValue = POSSIBLY;
-                }
-            }
-            return returnValue;
-        }
-    }
-
     public static class TypeResolution {
         private final boolean failed;
         private final String message;
@@ -104,7 +78,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         throw new SqlIllegalArgumentException("Should not fold expression");
     }
 
-    public abstract Nullable nullable();
+    public abstract Nullability nullable();
 
     // the references/inputs/leaves of the expression tree
     public AttributeSet references() {

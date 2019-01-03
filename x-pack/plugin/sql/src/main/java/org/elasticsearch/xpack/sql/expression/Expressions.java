@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Expression.Nullable;
 import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -80,13 +79,13 @@ public final class Expressions {
         return false;
     }
 
-    public static Nullable nullable(List<? extends Expression> exps) {
+    public static Nullability nullable(List<? extends Expression> exps) {
         for (Expression exp : exps) {
-            if (exp.nullable() == Nullable.POSSIBLY) {
-                return Nullable.POSSIBLY;
+            if (exp.nullable() == Nullability.TRUE) {
+                return Nullability.TRUE;
             }
         }
-        return Nullable.UNKNOWN;
+        return Nullability.UNKNOWN;
     }
 
     public static boolean foldable(List<? extends Expression> exps) {

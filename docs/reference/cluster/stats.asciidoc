@@ -186,20 +186,6 @@ Will return, for example:
           "classname": "org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin",
           "has_native_controller": false
         },
-        {
-          "name": "ingest-geoip",
-          "version": "{version}",
-          "description": "Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database",
-          "classname": "org.elasticsearch.ingest.geoip.IngestGeoIpPlugin",
-          "has_native_controller": false
-        },
-        {
-          "name": "ingest-user-agent",
-          "version": "{version}",
-          "description": "Ingest processor that extracts information from a user agent",
-          "classname": "org.elasticsearch.ingest.useragent.IngestUserAgentPlugin",
-          "has_native_controller": false
-        },
         ...
       ],
       "network_types": {
@@ -225,11 +211,11 @@ Will return, for example:
 //    the response are ignored. So we're really only asserting things about the
 //    the shape of this response, not the values in it.
 
-This API can be restricted to a subset of the nodes using the `?nodeId`
-parameter, which accepts <<cluster-nodes,node filters>>:
+This API can be restricted to a subset of the nodes using <<cluster-nodes,node
+filters>>:
 
 [source,js]
 --------------------------------------------------
-GET /_cluster/stats?nodeId=node1,node*,master:false
+GET /_cluster/stats/nodes/node1,node*,master:false
 --------------------------------------------------
 // CONSOLE

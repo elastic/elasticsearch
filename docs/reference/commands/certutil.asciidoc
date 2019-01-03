@@ -93,7 +93,8 @@ the command produces a zip file containing the generated certificates and keys.
 
 The `csr` mode generates certificate signing requests (CSRs) that you can send
 to a trusted certificate authority to obtain signed certificates. The signed
-certificates must be in PEM or PKCS#12 format to work with {security}.
+certificates must be in PEM or PKCS#12 format to work with {es}
+{security-features}.
 
 By default, the command produces a single CSR for a single instance.
 

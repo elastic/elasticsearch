@@ -123,14 +123,13 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         final String tempBlob = FsBlobContainer.tempBlobName(blobName);
         store.execute((Operation<Void>) fileContext -> {
             final Path tempBlobPath = new Path(path, tempBlob);
-            try (FSDataOutputStream stream =
-                     fileContext.create(tempBlobPath, EnumSet.of(CreateFlag.CREATE),  CreateOpts.bufferSize(bufferSize))) {
+            try (FSDataOutputStream stream = fileContext.create(
+                tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK),  CreateOpts.bufferSize(bufferSize))) {
                 int bytesRead;
                 byte[] buffer = new byte[bufferSize];
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
                     stream.write(buffer, 0, bytesRead);
                 }
-                stream.hsync();
             }
             final Path blob = new Path(path, blobName);
             try {

@@ -28,7 +28,7 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
         return null;
     }
 
-    GetCcrRestoreFileChunkRequest(DiscoveryNode node, String sessionUUID, String fileName, long offset, int size) {
+    public GetCcrRestoreFileChunkRequest(DiscoveryNode node, String sessionUUID, String fileName, long offset, int size) {
         this.sessionUUID = sessionUUID;
         this.fileName = fileName;
         this.offset = offset;

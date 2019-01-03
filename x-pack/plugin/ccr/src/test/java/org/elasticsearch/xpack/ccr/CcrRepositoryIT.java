@@ -239,7 +239,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
         assertEquals(0, restoreInfo.failedShards());
-        assertExpectedDocument(followerIndex, firstBatchNumDocs);
+//        assertExpectedDocument(followerIndex, firstBatchNumDocs);
     }
 
     public void testFollowerMappingIsUpdated() throws IOException {

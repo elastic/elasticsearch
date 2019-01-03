@@ -9,7 +9,9 @@ import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.LocationTests;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.tree.SourceTests;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,9 +21,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.hasEntry;
-import static java.util.Collections.singletonMap;
 
 public class NestedQueryTests extends ESTestCase {
     static Query randomQuery(int depth) {
@@ -35,7 +37,7 @@ public class NestedQueryTests extends ESTestCase {
     }
 
     static NestedQuery randomNestedQuery(int depth) {
-        return new NestedQuery(LocationTests.randomLocation(), randomAlphaOfLength(5), randomFields(), randomQuery(depth));
+        return new NestedQuery(SourceTests.randomSource(), randomAlphaOfLength(5), randomFields(), randomQuery(depth));
     }
 
     private static Map<String, Boolean> randomFields() {
@@ -52,15 +54,15 @@ public class NestedQueryTests extends ESTestCase {
     }
 
     private static NestedQuery copy(NestedQuery query) {
-        return new NestedQuery(query.location(), query.path(), query.fields(), query.child());
+        return new NestedQuery(query.source(), query.path(), query.fields(), query.child());
     }
 
     private static NestedQuery mutate(NestedQuery query) {
         List<Function<NestedQuery, NestedQuery>> options = Arrays.asList(
-            q -> new NestedQuery(LocationTests.mutate(q.location()), q.path(), q.fields(), q.child()),
-            q -> new NestedQuery(q.location(), randomValueOtherThan(q.path(), () -> randomAlphaOfLength(5)), q.fields(), q.child()),
-            q -> new NestedQuery(q.location(), q.path(), randomValueOtherThan(q.fields(), NestedQueryTests::randomFields), q.child()),
-            q -> new NestedQuery(q.location(), q.path(), q.fields(), randomValueOtherThan(q.child(), () -> randomQuery(5))));
+            q -> new NestedQuery(SourceTests.mutate(q.source()), q.path(), q.fields(), q.child()),
+            q -> new NestedQuery(q.source(), randomValueOtherThan(q.path(), () -> randomAlphaOfLength(5)), q.fields(), q.child()),
+            q -> new NestedQuery(q.source(), q.path(), randomValueOtherThan(q.fields(), NestedQueryTests::randomFields), q.child()),
+            q -> new NestedQuery(q.source(), q.path(), q.fields(), randomValueOtherThan(q.child(), () -> randomQuery(5))));
         return randomFrom(options).apply(query);
     }
 
@@ -121,7 +123,7 @@ public class NestedQueryTests extends ESTestCase {
             q.enrichNestedSort(sort);
 
             // But enriching using another query is not
-            NestedQuery other = new NestedQuery(LocationTests.randomLocation(), q.path(), q.fields(),
+            NestedQuery other = new NestedQuery(SourceTests.randomSource(), q.path(), q.fields(),
                 randomValueOtherThan(q.child(), () -> randomQuery(0)));
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> other.enrichNestedSort(sort));
             assertEquals("nested query should have been grouped in one place", e.getMessage());
@@ -129,7 +131,8 @@ public class NestedQueryTests extends ESTestCase {
     }
 
     public void testToString() {
-        NestedQuery q = new NestedQuery(new Location(1, 1), "a.b", singletonMap("f", true), new MatchAll(new Location(1, 1)));
+        NestedQuery q = new NestedQuery(new Source(new Location(1, 1), StringUtils.EMPTY), "a.b", singletonMap("f", true),
+                new MatchAll(new Source(new Location(1, 1), StringUtils.EMPTY)));
         assertEquals("NestedQuery@1:2[a.b.{f=true}[MatchAll@1:2[]]]", q.toString());
     }
 }

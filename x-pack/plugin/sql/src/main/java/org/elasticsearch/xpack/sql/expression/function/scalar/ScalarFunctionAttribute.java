@@ -12,13 +12,11 @@ import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.sql.expression.Nullability.TRUE;
 
 public class ScalarFunctionAttribute extends FunctionAttribute {
 
@@ -26,15 +24,15 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
     private final Expression orderBy;
     private final Pipe pipe;
 
-    ScalarFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id,
+    ScalarFunctionAttribute(Source source, String name, DataType dataType, ExpressionId id,
             String functionId, ScriptTemplate script, Expression orderBy, Pipe processorDef) {
-        this(location, name, dataType, null, TRUE, id, false, functionId, script, orderBy, processorDef);
+        this(source, name, dataType, null, Nullability.TRUE, id, false, functionId, script, orderBy, processorDef);
     }
 
-    public ScalarFunctionAttribute(Location location, String name, DataType dataType, String qualifier,
-            Nullability nullability, ExpressionId id, boolean synthetic, String functionId, ScriptTemplate script,
+    public ScalarFunctionAttribute(Source source, String name, DataType dataType, String qualifier,
+            Nullability nullable, ExpressionId id, boolean synthetic, String functionId, ScriptTemplate script,
             Expression orderBy, Pipe pipe) {
-        super(location, name, dataType, qualifier, nullability, id, synthetic, functionId);
+        super(source, name, dataType, qualifier, nullable, id, synthetic, functionId);
 
         this.script = script;
         this.orderBy = orderBy;
@@ -63,14 +61,13 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
 
     @Override
     protected Expression canonicalize() {
-        return new ScalarFunctionAttribute(location(), "<none>", dataType(), null, TRUE, id(), false,
+        return new ScalarFunctionAttribute(source(), "<none>", dataType(), null, Nullability.TRUE, id(), false,
                 functionId(), script, orderBy, pipe);
     }
 
     @Override
-    protected Attribute clone(Location location, String name, String qualifier, Nullability nullability,
-                              ExpressionId id, boolean synthetic) {
-        return new ScalarFunctionAttribute(location, name, dataType(), qualifier, nullability, id, synthetic,
+    protected Attribute clone(Source source, String name, String qualifier, Nullability nullable, ExpressionId id, boolean synthetic) {
+        return new ScalarFunctionAttribute(source, name, dataType(), qualifier, nullable, id, synthetic,
                 functionId(), script, orderBy, pipe);
     }
 

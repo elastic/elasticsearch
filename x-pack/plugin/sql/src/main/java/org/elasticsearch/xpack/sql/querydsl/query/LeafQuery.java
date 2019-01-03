@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class LeafQuery extends Query {
-    LeafQuery(Location location) {
-        super(location);
+    LeafQuery(Source source) {
+        super(source);
     }
 
     @Override

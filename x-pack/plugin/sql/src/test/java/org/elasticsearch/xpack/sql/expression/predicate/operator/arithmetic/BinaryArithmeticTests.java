@@ -139,7 +139,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
         Literal r = interval(t, INTERVAL_HOUR);
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> sub(r, l));
-        assertEquals("Cannot substract a date from an interval; do you mean the reverse?", ex.getMessage());
+        assertEquals("Cannot subtract a date from an interval; do you mean the reverse?", ex.getMessage());
     }
 
     public void testSubNumberFromIntervalIllegal() {

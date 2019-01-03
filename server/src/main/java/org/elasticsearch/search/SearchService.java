@@ -691,7 +691,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // during rewrite and normalized / evaluate templates etc.
             QueryShardContext context = new QueryShardContext(searchContext.getQueryShardContext());
             Rewriteable.rewrite(request.getRewriteable(), context, assertAsyncActions);
-            assert searchContext.getQueryShardContext().isCachable();
+            assert searchContext.getQueryShardContext().isCacheable();
             success = true;
         } finally {
             if (success == false) {

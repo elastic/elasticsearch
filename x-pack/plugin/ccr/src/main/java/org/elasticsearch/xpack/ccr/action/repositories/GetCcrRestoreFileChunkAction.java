@@ -53,26 +53,30 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
         extends HandledTransportAction<GetCcrRestoreFileChunkRequest, GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> {
 
         private final CcrRestoreSourceService restoreSourceService;
+        private final ThreadPool threadPool;
 
         @Inject
         public TransportGetCcrRestoreFileChunkAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                                                      CcrRestoreSourceService restoreSourceService) {
             super(NAME, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new);
             TransportActionProxy.registerProxyAction(transportService, NAME, GetCcrRestoreFileChunkResponse::new);
+            this.threadPool = threadPool;
             this.restoreSourceService = restoreSourceService;
         }
 
         @Override
         protected void doExecute(Task task, GetCcrRestoreFileChunkRequest request, ActionListener<GetCcrRestoreFileChunkResponse> listener) {
-            Engine.IndexCommitRef snapshot = restoreSourceService.getSession(request.getSessionUUID());
-            try (IndexInput in = snapshot.getIndexCommit().getDirectory().openInput(request.getFileName(), IOContext.READONCE)) {
-                byte[] chunk = new byte[request.getSize()];
-                in.seek(request.getOffset());
-                in.readBytes(chunk, 0, request.getSize());
-                listener.onResponse(new GetCcrRestoreFileChunkResponse(new BytesArray(chunk)));
-            } catch (IOException e) {
-                throw new ElasticsearchException(e);
-            }
+            threadPool.generic().execute(() -> {
+                Engine.IndexCommitRef snapshot = restoreSourceService.getSession(request.getSessionUUID());
+                try (IndexInput in = snapshot.getIndexCommit().getDirectory().openInput(request.getFileName(), IOContext.READONCE)) {
+                    byte[] chunk = new byte[request.getSize()];
+                    in.seek(request.getOffset());
+                    in.readBytes(chunk, 0, request.getSize());
+                    listener.onResponse(new GetCcrRestoreFileChunkResponse(new BytesArray(chunk)));
+                } catch (IOException e) {
+                    throw new ElasticsearchException(e);
+                }
+            });
         }
     }
 

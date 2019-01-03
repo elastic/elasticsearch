@@ -67,7 +67,6 @@ import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionReque
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -266,6 +265,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
 
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
+        // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
+        //  response, we should be able to retry by creating a new session.
         try (RestoreSession restoreSession = RestoreSession.openSession(remoteClient, leaderShardId, indexShard, shardId, recoveryState)) {
             restoreSession.restoreFiles();
             restoreSession.closeRemoteSession();
@@ -396,7 +397,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             }
             recoveryState.getIndex().updateVersion(segmentCommitInfos.getVersion());
 
-            // TODO: Do we need to update mappings prior to doing this?
             try {
                 store.cleanupAndVerify("restore complete from remote", sourceMetaData);
             } catch (IOException e) {
@@ -422,30 +422,41 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         private void restoreFile(StoreFileMetaData fileToRecover, Store store) throws IOException {
             boolean success = false;
+            long pos = 0;
 
-            try (InputStream stream = new RestoreFileInputStream(remoteClient, sessionUUID, node, fileToRecover)) {
-                try (IndexOutput indexOutput = store.createVerifyingOutput(fileToRecover.name(), fileToRecover, IOContext.DEFAULT)) {
-                    final byte[] buffer = new byte[BUFFER_SIZE];
-                    int length;
-                    while ((length = stream.read(buffer)) > 0) {
-                        indexOutput.writeBytes(buffer, 0, length);
-                        recoveryState.getIndex().addRecoveredBytesToFile(fileToRecover.name(), length);
-                    }
-                    Store.verify(indexOutput);
-                    indexOutput.close();
-                    store.directory().sync(Collections.singleton(fileToRecover.name()));
-                    success = true;
-                } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-                    try {
-                        store.markStoreCorrupted(ex);
-                    } catch (IOException e) {
-                        logger.warn("store cannot be marked as corrupted", e);
-                    }
-                    throw ex;
-                } finally {
-                    if (success == false) {
-                        store.deleteQuiet(fileToRecover.name());
-                    }
+            try (IndexOutput indexOutput = store.createVerifyingOutput(fileToRecover.name(), fileToRecover, IOContext.DEFAULT)) {
+
+                GetCcrRestoreFileChunkRequest request = new GetCcrRestoreFileChunkRequest(node, sessionUUID,
+                    fileToRecover.name(), pos, (int) Math.min(fileToRecover.length() - pos, BUFFER_SIZE));
+                BytesReference fileChunk = remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request).actionGet().getChunk();
+
+                BytesRefIterator iterator = fileChunk.iterator();
+                BytesRef ref;
+                int bytesWritten = 0;
+                while ((ref = iterator.next()) != null) {
+                    byte[] refBytes = ref.bytes;
+                    indexOutput.writeBytes(refBytes, 0, ref.length);
+                    recoveryState.getIndex().addRecoveredBytesToFile(fileToRecover.name(), ref.length);
+                    bytesWritten += ref.length;
+                }
+
+                assert bytesWritten == fileChunk.length() : "Did not write [" + bytesWritten + "] the expected [" + fileChunk.length()
+                    + "] number of bytes";
+
+                Store.verify(indexOutput);
+                indexOutput.close();
+                store.directory().sync(Collections.singleton(fileToRecover.name()));
+                success = true;
+            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+                try {
+                    store.markStoreCorrupted(ex);
+                } catch (IOException e) {
+                    logger.warn("store cannot be marked as corrupted", e);
+                }
+                throw ex;
+            } finally {
+                if (success == false) {
+                    store.deleteQuiet(fileToRecover.name());
                 }
             }
         }
@@ -453,56 +464,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         @Override
         public void close() {
             this.store.decRef();
-        }
-    }
-
-    private static class RestoreFileInputStream extends InputStream {
-
-        private final DiscoveryNode node;
-        private final Client remoteClient;
-        private final String sessionUUID;
-        private final StoreFileMetaData fileInfo;
-
-        private long pos = 0;
-
-        private RestoreFileInputStream(Client remoteClient, String sessionUUID, DiscoveryNode node, StoreFileMetaData fileInfo) {
-            this.remoteClient = remoteClient;
-            this.sessionUUID = sessionUUID;
-            this.node = node;
-            this.fileInfo = fileInfo;
-        }
-
-
-        @Override
-        public int read() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int read(byte[] bytes, int off, int len) throws IOException {
-            if (pos >= fileInfo.length()) {
-                return 0;
-            }
-
-            GetCcrRestoreFileChunkRequest request = new GetCcrRestoreFileChunkRequest(node, sessionUUID,
-                fileInfo.name(), pos, (int) Math.min(fileInfo.length() - pos, len));
-            BytesReference fileChunk = remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request).actionGet().getChunk();
-
-
-            BytesRefIterator iterator = fileChunk.iterator();
-            BytesRef ref;
-            int bytesCopied = 0;
-            while((ref = iterator.next()) != null) {
-                byte[] refBytes = ref.bytes;
-                System.arraycopy(refBytes, 0, bytes, off + bytesCopied, ref.length);
-                bytesCopied += ref.length;
-            }
-
-            int chunkLength = fileChunk.length();
-            assert bytesCopied == chunkLength : "Did not copy [" + bytesCopied  + "] the expected [" + chunkLength + "] number of bytes";
-
-            pos += chunkLength;
-            return chunkLength;
         }
     }
 }

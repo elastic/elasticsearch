@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 
@@ -48,11 +47,11 @@ public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestor
         shardId.writeTo(out);
     }
 
-    public String getSessionUUID() {
+    String getSessionUUID() {
         return sessionUUID;
     }
 
-    public ShardId getShardId() {
+    ShardId getShardId() {
         return shardId;
     }
 }

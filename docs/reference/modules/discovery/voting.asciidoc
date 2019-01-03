@@ -37,8 +37,8 @@ NOTE: The current voting configuration is not necessarily the same as the set of
 all available master-eligible nodes in the cluster. Altering the voting
 configuration involves taking a vote, so it takes some time to adjust the
 configuration as nodes join or leave the cluster. Also, there are situations
-where the most resilient configuration includes unavailable nodes, or does not
-include some available nodes, and in these situations the voting configuration
+where the most resilient configuration includes unavailable nodes or does not
+include some available nodes. In these situations, the voting configuration
 differs from the set of available master-eligible nodes in the cluster.
 
 Larger voting configurations are usually more resilient, so Elasticsearch
@@ -56,8 +56,8 @@ will be used. You can control whether the voting configuration automatically
 shrinks by using the
 <<modules-discovery-settings,`cluster.auto_shrink_voting_configuration` setting>>.
 
-NOTE: If `cluster.auto_shrink_voting_configuration` is set to `true`, the
-recommended and default setting, and there are at least three master-eligible
+NOTE: If `cluster.auto_shrink_voting_configuration` is set to `true` (which is
+the default and recommended value) and there are at least three master-eligible
 nodes in the cluster, Elasticsearch remains capable of processing cluster state
 updates as long as all but one of its master-eligible nodes are healthy.
 
@@ -71,7 +71,7 @@ of resilience.
 No matter how it is configured, Elasticsearch will not suffer from a 
 "split-brain" inconsistency. The `cluster.auto_shrink_voting_configuration`
 setting affects only its availability in the event of the failure of some of its
-nodes, and the administrative tasks that must be performed as nodes join and
+nodes and the administrative tasks that must be performed as nodes join and
 leave the cluster.
 
 [float]

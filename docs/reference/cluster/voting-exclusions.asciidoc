@@ -32,7 +32,7 @@ DELETE /_cluster/voting_config_exclusions
 By default, if there are more than three master-eligible nodes in the cluster
 and you remove fewer than half of the master-eligible nodes in the cluster at
 once, the <<modules-discovery-voting,voting configuration>> automatically
-shrinks when you remove master-eligible nodes from the cluster.
+shrinks.
 
 If you want to shrink the voting configuration to contain fewer than three nodes
 or to remove half or more of the master-eligible nodes in the cluster at once,

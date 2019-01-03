@@ -42,13 +42,17 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = super.resolveType();
-
-        if (TypeResolution.TYPE_RESOLVED.equals(resolution)) {
-            resolution = Expressions.typeMustBeNumeric(percent(), functionName(), ParamOrdinal.DEFAULT);
+        if (!percent.foldable()) {
+            throw new SqlIllegalArgumentException("2nd argument: [{}] of PERCENTILE cannot be based on " +
+                "a field but only constant number", Expressions.name(percent));
         }
 
-        return resolution;
+        TypeResolution resolution = super.resolveType();
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        return Expressions.typeMustBeNumeric(percent, functionName(), ParamOrdinal.DEFAULT);
     }
 
     public Expression percent() {
@@ -62,10 +66,6 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
 
     @Override
     public String innerName() {
-        if (!percent.foldable()) {
-            throw new SqlIllegalArgumentException("2nd argument: [{}] of PERCENTILE cannot be based on " +
-                "a field but only constant number", Expressions.name(percent));
-        }
         return Double.toString(Foldables.doubleValueOf(percent));
     }
 }

@@ -42,6 +42,11 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
+        if (!value.foldable()) {
+            throw new SqlIllegalArgumentException("2nd argument: [{}] of PERCENTILE_RANK cannot be based on " +
+                "a field but only constant number", Expressions.name(value));
+        }
+
         TypeResolution resolution = super.resolveType();
         if (resolution.unresolved()) {
             return resolution;
@@ -61,10 +66,6 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
 
     @Override
     public String innerName() {
-        if (!value.foldable()) {
-            throw new SqlIllegalArgumentException("2nd argument: [{}] of PERCENTILE_RANK cannot be based on " +
-                "a field but only constant number", Expressions.name(value));
-        }
         return Double.toString(Foldables.doubleValueOf(value));
     }
 }

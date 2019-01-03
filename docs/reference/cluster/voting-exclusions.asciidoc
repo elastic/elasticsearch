@@ -29,19 +29,17 @@ DELETE /_cluster/voting_config_exclusions
 [float]
 === Description
   
-If the <<modules-discovery-settings,`cluster.auto_shrink_voting_configuration`
-setting>> is `true`, and there are more than three master-eligible nodes in the
-cluster, and you remove fewer than half of the master-eligible nodes in the
-cluster at once, then the <<modules-discovery-voting,voting configuration>>
-automatically shrinks when you remove master-eligible nodes from the cluster.
+By default, if there are more than three master-eligible nodes in the cluster
+and you remove fewer than half of the master-eligible nodes in the cluster at
+once, the <<modules-discovery-voting,voting configuration>> automatically
+shrinks when you remove master-eligible nodes from the cluster.
 
-If the `cluster.auto_shrink_voting_configuration` setting is `false`, or you
-wish to shrink the voting configuration to contain fewer than three nodes, or
-you wish to remove half or more of the master-eligible nodes in the cluster at
-once, you must use this API to remove departed nodes from the voting
-configuration manually. It adds an entry for that node in the voting
-configuration exclusions list. The cluster then tries to reconfigure the voting
-configuration to remove that node and to prevent it from returning.
+If you want to shrink the voting configuration to contain fewer than three nodes
+or to remove half or more of the master-eligible nodes in the cluster at once,
+you must use this API to remove departed nodes from the voting configuration
+manually. It adds an entry for that node in the voting configuration exclusions
+list. The cluster then tries to reconfigure the voting configuration to remove
+that node and to prevent it from returning.
 
 If the API fails, you can safely retry it.  Only a successful response
 guarantees that the node has been removed from the voting configuration and will
@@ -58,5 +56,9 @@ default value is `10`. Since voting configuration exclusions are persistent and
 limited in number, you must clear the voting config exclusions list once the
 exclusions are no longer required.
 
-For more information, see <<modules-discovery-removing-nodes>>.
+There is also a
+<<modules-discovery-settings,`cluster.auto_shrink_voting_configuration` setting>>,
+which is set to true by default. If it is set to false, you must use this API to
+maintain the voting configuration.
 
+For more information, see <<modules-discovery-removing-nodes>>.

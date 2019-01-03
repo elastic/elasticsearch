@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -27,8 +27,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public class NullIf extends ConditionalFunction {
 
-    public NullIf(Location location, Expression left, Expression right) {
-        super(location, Arrays.asList(left, right));
+    public NullIf(Source source, Expression left, Expression right) {
+        super(source, Arrays.asList(left, right));
     }
 
     @Override
@@ -38,7 +38,7 @@ public class NullIf extends ConditionalFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new NullIf(location(), newChildren.get(0), newChildren.get(1));
+        return new NullIf(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
@@ -81,7 +81,7 @@ public class NullIf extends ConditionalFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new NullIfPipe(location(), this,
+        return new NullIfPipe(source(), this,
             Expressions.pipe(children().get(0)), Expressions.pipe(children().get(1)));
     }
 }

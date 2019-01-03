@@ -269,7 +269,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * ("field1", "type=string,store=true").
      */
     public CreateIndexRequest mapping(String type, Object... source) {
-        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
+        mapping(type, PutMappingRequest.buildFromSimplifiedDef(source));
         return this;
     }
 

@@ -167,6 +167,7 @@ public final class ReservedFieldNames {
             ModelSnapshot.LATEST_RECORD_TIME.getPreferredName(),
             ModelSnapshot.LATEST_RESULT_TIME.getPreferredName(),
             ModelSnapshot.RETAIN.getPreferredName(),
+            ModelSnapshot.MIN_VERSION.getPreferredName(),
 
             Result.RESULT_TYPE.getPreferredName(),
             Result.TIMESTAMP.getPreferredName(),

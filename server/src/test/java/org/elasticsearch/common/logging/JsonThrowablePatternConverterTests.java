@@ -9,6 +9,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.isEmptyString;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -30,7 +33,18 @@ import java.io.StringReader;
 
 public class JsonThrowablePatternConverterTests extends ESTestCase {
 
-    //TODO To be extended and cleaned up
+    JsonThrowablePatternConverter converter = JsonThrowablePatternConverter.newInstance(null, null);
+
+    public void testNoStacktrace() {
+        LogEvent event = Log4jLogEvent.newBuilder()
+            .build();
+
+        String result = format(event);
+
+        assertThat(result, isEmptyString());
+    }
+
+
     public void testStacktraceWithJson() throws IOException {
         LogManager.getLogger().info("asdf");
 
@@ -49,20 +63,26 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
             .setThrown(new Exception(json))
             .build();
 
+        String result = format(event);
 
-        JsonThrowablePatternConverter converter = JsonThrowablePatternConverter.newInstance(null, null);
+        String sampleLine = "{\"type\": \"console\", \"timestamp\": \"2019-01-03T16:30:53,058+0100\", \"level\": \"DEBUG\", \"class\": " +
+            "\"o.e.a.s.TransportSearchAction\", \"cluster.name\": \"clustername\", \"node.name\": \"node-0\", \"cluster.uuid\": " +
+            "\"OG5MkvOrR9azuClJhWvy6Q\", \"node.id\": \"VTShUqmcQG6SzeKY5nn7qA\",  \"message\": \"msg msg\" " + result + "}";
 
+        //confirms exception is correctly parsed
+        JsonLogs jsonLogs = new JsonLogs(new BufferedReader(new StringReader(sampleLine)));
+
+        JsonLogLine jsonLogLine = jsonLogs.stream().findFirst()
+            .orElseThrow(() -> new AssertionError("no logs parsed"));
+
+        assertThat("stacktrace should formatted in multiple lines", jsonLogLine.stacktrace().size(), greaterThan(0));
+    }
+
+
+    private String format(LogEvent event) {
         StringBuilder builder = new StringBuilder();
         converter.format(event, builder);
-
-        String x = "{\"type\": \"console\", \"timestamp\": \"2019-01-03T16:30:53,058+0100\", \"level\": \"DEBUG\", \"class\": \"o.e.a.s" +
-            ".TransportSearchAction\", \"cluster.name\": \"clustername\", \"node.name\": \"node-0\", \"cluster.uuid\": " +
-            "\"OG5MkvOrR9azuClJhWvy6Q\", \"node.id\": \"VTShUqmcQG6SzeKY5nn7qA\",  \"message\": \"msg msg\" " + builder.toString() + "}";
-        JsonLogs jsonLogs = new JsonLogs(new BufferedReader(new StringReader(x)));
-
-//        for (JsonLogLine jsonLogLine : jsonLogs) {
-//            assertThat
-//        }
+        return builder.toString();
     }
 
 }

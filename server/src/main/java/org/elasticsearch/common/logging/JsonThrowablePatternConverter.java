@@ -95,10 +95,9 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
     }
 
     private String wrapAsJson(String line) {
-        char[] chars = JSON_STRING_ENCODER.quoteAsString(line);
-        return "\"" + new String(chars) + "\"";
+        byte[] bytes = JSON_STRING_ENCODER.quoteAsUTF8(line);
+        return "\"" + new String(bytes) + "\"";
     }
-
 
     @Override
     public boolean handlesThrowable() {

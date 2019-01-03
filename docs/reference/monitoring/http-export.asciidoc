@@ -39,7 +39,7 @@ xpack.monitoring.exporters:
     headers: <7>
       My-Proxy-Header: abc123
       My-Other-Thing: [ def456, ... ]
-    index.name.time_format: YYYY-MM <8>
+    index.name.time_format: yyyy-MM <8>
 
 ----------------------------------
 <1> A `local` exporter defined explicitly whose arbitrary name is `my_local`.

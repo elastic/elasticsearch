@@ -1371,7 +1371,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch(indexDateUnmapped)
                 .addAggregation(
-                        dateHistogram("histo").field("dateField").dateHistogramInterval(DateHistogramInterval.MONTH).format("YYYY-MM")
+                        dateHistogram("histo").field("dateField").dateHistogramInterval(DateHistogramInterval.MONTH).format("yyyy-MM")
                                 .minDocCount(0).extendedBounds(new ExtendedBounds("2018-01", "2018-01")))
                 .get();
         assertSearchResponse(response);

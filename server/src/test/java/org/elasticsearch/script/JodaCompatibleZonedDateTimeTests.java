@@ -228,8 +228,8 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
     }
 
     public void testToString1() {
-        assertMethodDeprecation(() -> assertThat(javaTime.toString("YYYY/MM/dd HH:mm:ss.SSS"),
-            equalTo(jodaTime.toString("YYYY/MM/dd HH:mm:ss.SSS"))), "toString(String)", "a DateTimeFormatter");
+        assertMethodDeprecation(() -> assertThat(javaTime.toString("yyyy/MM/dd HH:mm:ss.SSS"),
+            equalTo(jodaTime.toString("yyyy/MM/dd HH:mm:ss.SSS"))), "toString(String)", "a DateTimeFormatter");
     }
 
     public void testToString2() {

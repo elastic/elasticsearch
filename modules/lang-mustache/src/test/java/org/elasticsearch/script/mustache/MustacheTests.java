@@ -355,8 +355,8 @@ public class MustacheTests extends ESTestCase {
     }
 
     public void testUrlEncoderWithParam() throws Exception {
-        assertScript("{{#url}}{{index}}{{/url}}", singletonMap("index", "<logstash-{now/d{YYYY.MM.dd|+12:00}}>"),
-                equalTo("%3Clogstash-%7Bnow%2Fd%7BYYYY.MM.dd%7C%2B12%3A00%7D%7D%3E"));
+        assertScript("{{#url}}{{index}}{{/url}}", singletonMap("index", "<logstash-{now/d{yyyy.MM.dd|+12:00}}>"),
+                equalTo("%3Clogstash-%7Bnow%2Fd%7Byyyy.MM.dd%7C%2B12%3A00%7D%7D%3E"));
 
         final String random = randomAlphaOfLength(10);
         assertScript("{{#url}}prefix_{{s}}{{/url}}", singletonMap("s", random),

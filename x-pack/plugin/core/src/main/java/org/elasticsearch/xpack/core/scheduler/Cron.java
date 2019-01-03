@@ -200,7 +200,7 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
  */
 public class Cron implements ToXContentFragment {
     protected static final TimeZone UTC = DateTimeZone.UTC.toTimeZone();
-    protected static final DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss");
+    protected static final DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private static final int SECOND = 0;
     private static final int MINUTE = 1;

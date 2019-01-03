@@ -1169,7 +1169,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     public void testUrlEncode() throws IOException {
         String indexPattern = "<logstash-{now/M}>";
         String expectedIndex = "logstash-" +
-                DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
+                DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
         {
             IndexRequest indexRequest = new IndexRequest(indexPattern).id("id#1");
             indexRequest.source("field", "value");

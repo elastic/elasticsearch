@@ -18,10 +18,10 @@ integTestCluster {
   // exporter settings are configured dynamically in our tests
   // configure a local exporter, the HTTP exporter is configured via dynamic settings change
   //setting 'xpack.monitoring.exporters.my_local.type', 'local'
-  //setting 'xpack.monitoring.exporters.my_local.index.name.time_format', 'YYYY'
+  //setting 'xpack.monitoring.exporters.my_local.index.name.time_format', 'yyyy'
   //setting 'xpack.monitoring.exporters.my_http.type', 'http'
   //setting 'xpack.monitoring.exporters.my_http.host', 'http'
-  //setting 'xpack.monitoring.exporters.my_http.index.name.time_format', 'YYYY-MM'
+  //setting 'xpack.monitoring.exporters.my_http.index.name.time_format', 'yyyy-MM'
   // one of the exporters should configure cluster alerts
   // setting 'xpack.monitoring.exporters.my_http.cluster_alerts.management.enabled', 'true'
 }

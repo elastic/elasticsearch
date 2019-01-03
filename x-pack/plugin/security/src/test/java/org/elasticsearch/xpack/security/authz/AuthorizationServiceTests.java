@@ -1121,12 +1121,12 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testAuthorizationOfIndividualBulkItemsWithDateMath() {
         final String action = BulkAction.NAME + "[s]";
         final BulkItemRequest[] items = {
-            new BulkItemRequest(1, new IndexRequest("<datemath-{now/M{YYYY}}>", "doc", "dy1")),
+            new BulkItemRequest(1, new IndexRequest("<datemath-{now/M{yyyy}}>", "doc", "dy1")),
             new BulkItemRequest(2,
-                new DeleteRequest("<datemath-{now/d{YYYY}}>", "doc", "dy2")), // resolves to same as above
-            new BulkItemRequest(3, new IndexRequest("<datemath-{now/M{YYYY.MM}}>", "doc", "dm1")),
+                new DeleteRequest("<datemath-{now/d{yyyy}}>", "doc", "dy2")), // resolves to same as above
+            new BulkItemRequest(3, new IndexRequest("<datemath-{now/M{yyyy.MM}}>", "doc", "dm1")),
             new BulkItemRequest(4,
-                new DeleteRequest("<datemath-{now/d{YYYY.MM}}>", "doc", "dm2")), // resolves to same as above
+                new DeleteRequest("<datemath-{now/d{yyyy.MM}}>", "doc", "dm2")), // resolves to same as above
         };
         final ShardId shardId = new ShardId("concrete-index", UUID.randomUUID().toString(), 1);
         final TransportRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);

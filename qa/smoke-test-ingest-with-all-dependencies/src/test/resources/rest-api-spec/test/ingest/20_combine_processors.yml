@@ -28,7 +28,7 @@
                 "date" : {
                   "field" : "timestamp",
                   "target_field" : "timestamp",
-                  "formats" : ["dd/MMM/YYYY:HH:mm:ss Z"]
+                  "formats" : ["dd/MMM/yyyy:HH:mm:ss Z"]
                 }
               },
               {

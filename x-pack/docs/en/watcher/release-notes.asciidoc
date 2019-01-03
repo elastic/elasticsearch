@@ -201,7 +201,7 @@ October 28, 2015
   they did before the upgrade. For example if `watcher.dynamic_indices.time_zone`
   setting was set to `+01:00` and a watch has the following index name
   `<logstash-{now/d}>` then after the upgrade you need to update this watch to
-  use the following index name `<logstash-{now/d{YYYY.MM.dd|+01:00}}>`.
+  use the following index name `<logstash-{now/d{yyyy.MM.dd|+01:00}}>`.
 
 .New Features
 * Added new <<actions-hipchat, HipChat Action>>

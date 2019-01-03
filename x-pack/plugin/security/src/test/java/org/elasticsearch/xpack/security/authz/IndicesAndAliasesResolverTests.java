@@ -1277,7 +1277,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testUnauthorizedDateMathExpressionStrict() {
-        String expectedIndex = "datetime-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(
+        String expectedIndex = "datetime-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(
             new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
@@ -1319,7 +1319,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testMissingDateMathExpressionStrict() {
-        String expectedIndex = "foobar-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(
+        String expectedIndex = "foobar-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(
             new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
         SearchRequest request = new SearchRequest("<foobar-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));

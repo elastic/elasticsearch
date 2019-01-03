@@ -662,7 +662,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
         // Formatter used to print and parse the sample date.
         // Printing the date works but parsing it back fails
         // with Joda 2.9.4
-        DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss " + randomFrom("ZZZ", "[ZZZ]", "'['ZZZ']'"));
+        DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss " + randomFrom("ZZZ", "[ZZZ]", "'['ZZZ']'"));
 
         String dateTimeAsString = formatter.print(expected);
         assertThat(dateTimeAsString, startsWith("2016-11-10T05:37:59 "));

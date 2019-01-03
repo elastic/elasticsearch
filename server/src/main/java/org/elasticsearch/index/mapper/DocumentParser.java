@@ -714,7 +714,7 @@ final class DocumentParser {
             } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
                 // We refuse to match pure numbers, which are too likely to be
                 // false positives with date formats that include eg.
-                // `epoch_millis` or `YYYY`
+                // `epoch_millis` or `yyyy`
                 for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                     try {
                         dateTimeFormatter.parseMillis(text);

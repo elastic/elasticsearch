@@ -47,7 +47,7 @@ To run this example, first follow the steps in
 
 The seat data contains:
 
-* A date in the format `YYYY-MM-DD` where the second digit of both month and day
+* A date in the format `yyyy-MM-DD` where the second digit of both month and day
   is optional.
 * A time in the format HH:MM* where the second digit of both hours and minutes
   is optional. The star (*) represents either the `String` `AM` or `PM`.

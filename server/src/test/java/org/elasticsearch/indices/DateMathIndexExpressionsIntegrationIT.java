@@ -44,9 +44,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
 
     public void testIndexNameDateMathExpressions() {
         DateTime now = new DateTime(DateTimeZone.UTC);
-        String index1 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now);
-        String index2 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.minusDays(1));
-        String index3 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.minusDays(2));
+        String index1 = ".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now);
+        String index2 = ".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now.minusDays(1));
+        String index3 = ".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now.minusDays(2));
         createIndex(index1, index2, index3);
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(index1, index2, index3).get();
@@ -110,9 +110,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
 
     public void testAutoCreateIndexWithDateMathExpression() throws Exception {
         DateTime now = new DateTime(DateTimeZone.UTC);
-        String index1 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now);
-        String index2 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.minusDays(1));
-        String index3 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.minusDays(2));
+        String index1 = ".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now);
+        String index2 = ".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now.minusDays(1));
+        String index3 = ".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now.minusDays(2));
 
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
@@ -134,9 +134,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
 
     public void testCreateIndexWithDateMathExpression() throws Exception {
         DateTime now = new DateTime(DateTimeZone.UTC);
-        String index1 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now);
-        String index2 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.minusDays(1));
-        String index3 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.minusDays(2));
+        String index1 = ".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now);
+        String index2 = ".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now.minusDays(1));
+        String index3 = ".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now.minusDays(2));
 
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";

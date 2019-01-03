@@ -82,7 +82,7 @@ Where:
 [horizontal]
 `static_name`:: is the static text part of the name
 `date_math_expr`:: is a dynamic date math expression that computes the date dynamically
-`date_format`:: is the optional format in which the computed date should be rendered. Defaults to `YYYY.MM.dd`.
+`date_format`:: is the optional format in which the computed date should be rendered. Defaults to `yyyy.MM.dd`.
 `time_zone`:: is the optional time zone . Defaults to `utc`.
 
 You must enclose date math index name expressions within angle brackets, and
@@ -129,9 +129,9 @@ they resolve to given the current time is 22rd March 2024 noon utc.
 | Expression                                |Resolves to
 | `<logstash-{now/d}>`                      | `logstash-2024.03.22`
 | `<logstash-{now/M}>`                      | `logstash-2024.03.01`
-| `<logstash-{now/M{YYYY.MM}}>`             | `logstash-2024.03`
-| `<logstash-{now/M-1M{YYYY.MM}}>`          | `logstash-2024.02`
-| `<logstash-{now/d{YYYY.MM.dd\|+12:00}}>`  | `logstash-2024.03.23`
+| `<logstash-{now/M{yyyy.MM}}>`             | `logstash-2024.03`
+| `<logstash-{now/M-1M{yyyy.MM}}>`          | `logstash-2024.02`
+| `<logstash-{now/d{yyyy.MM.dd\|+12:00}}>`  | `logstash-2024.03.23`
 |======
 
 To use the characters `{` and `}` in the static part of an index name template, escape them
@@ -141,7 +141,7 @@ with a backslash `\`, for example:
 
 The following example shows a search request that searches the Logstash indices for the past
 three days, assuming the indices use the default Logstash index name format,
-`logstash-YYYY.MM.dd`.
+`logstash-yyyy.MM.dd`.
 
 [source,js]
 ----------------------------------------------------------------------

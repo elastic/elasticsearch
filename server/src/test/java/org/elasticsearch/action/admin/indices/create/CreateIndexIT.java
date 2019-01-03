@@ -143,7 +143,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertFalse(metadata.sourceAsMap().isEmpty());
     }
 
-    public void testEmptyMappings() throws Exception {
+    public void testNonNestedEmptyMappings() throws Exception {
         assertAcked(prepareCreate("test")
             .addMapping("_doc", XContentFactory.jsonBuilder().startObject().endObject()));
 
@@ -155,6 +155,22 @@ public class CreateIndexIT extends ESIntegTestCase {
         MappingMetaData metadata = mappings.get("_doc");
         assertNotNull(metadata);
         assertTrue(metadata.sourceAsMap().isEmpty());
+    }
+
+    public void testEmptyMappings() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc").endObject()
+            .endObject()));
+
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
+
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        assertNotNull(mappings);
+
+        MappingMetaData metadata = mappings.get("_doc");
+        assertNotNull(metadata);
+        assertFalse(metadata.sourceAsMap().isEmpty());
     }
 
     public void testFlatMappingFormat() throws Exception {

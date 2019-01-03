@@ -146,9 +146,8 @@ public class CoordinationState {
         assert joinVotes.isEmpty() : joinVotes;
         assert publishVotes.isEmpty() : publishVotes;
 
-        assert initialState.term() == 0 : initialState;
-        assert initialState.version() > 0 : initialState;
-        assert initialState.version() == getLastAcceptedVersion() + 1 : initialState + " vs " + getLastAcceptedVersion();
+        assert initialState.term() == 0 : initialState + " should have term 0";
+        assert initialState.version() == getLastAcceptedVersion() : initialState + " should have version " + getLastAcceptedVersion();
         assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
         assert initialState.getLastCommittedConfiguration().isEmpty() == false;
 

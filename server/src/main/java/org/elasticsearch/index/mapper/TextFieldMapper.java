@@ -33,6 +33,8 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -156,7 +158,7 @@ public class TextFieldMapper extends FieldMapper {
             if (maxChars >= 20) {
                 throw new IllegalArgumentException("max_chars [" + maxChars + "] must be less than 20");
             }
-            this.prefixFieldType = new PrefixFieldType(name() + "._index_prefix", minChars, maxChars);
+            this.prefixFieldType = new PrefixFieldType(name(), name() + "._index_prefix", minChars, maxChars);
             fieldType().setPrefixFieldType(this.prefixFieldType);
             return this;
         }
@@ -347,14 +349,16 @@ public class TextFieldMapper extends FieldMapper {
 
         final int minChars;
         final int maxChars;
+        final String parentField;
 
-        PrefixFieldType(String name, int minChars, int maxChars) {
+        PrefixFieldType(String parentField, String name, int minChars, int maxChars) {
             setTokenized(true);
             setOmitNorms(true);
             setIndexOptions(IndexOptions.DOCS);
             setName(name);
             this.minChars = minChars;
             this.maxChars = maxChars;
+            this.parentField = parentField;
         }
 
         PrefixFieldType setAnalyzer(NamedAnalyzer delegate) {
@@ -387,12 +391,15 @@ public class TextFieldMapper extends FieldMapper {
             Automaton automaton = Operations.concatenate(automata);
             AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
             query.setRewriteMethod(method);
-            return query;
+            return new BooleanQuery.Builder()
+                .add(query, BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term(parentField, value)), BooleanClause.Occur.SHOULD)
+                .build();
         }
 
         @Override
         public PrefixFieldType clone() {
-            return new PrefixFieldType(name(), minChars, maxChars);
+            return new PrefixFieldType(parentField, name(), minChars, maxChars);
         }
 
         @Override

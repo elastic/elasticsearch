@@ -3,7 +3,7 @@
 //
 
 singlePercentileWithoutComma
-SELECT gender, PERCENTILE(emp_no, 97) p1 FROM test_emp GROUP BY gender;
+SELECT gender, PERCENTILE(emp_no, 90 + 7) p1 FROM test_emp GROUP BY gender;
 
 gender:s             | p1:d
 null                 |10019.0           
@@ -48,7 +48,7 @@ M                    |10084.349             |10093.502
 ;
 
 percentileRank
-SELECT gender, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp GROUP BY gender;
+SELECT gender, PERCENTILE_RANK(emp_no, 10000 + 25) rank FROM test_emp GROUP BY gender;
 
 gender:s             | rank:d
 null                 |100.0             

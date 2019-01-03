@@ -180,24 +180,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertWarnings("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
     }
 
-    public void testMergeWithMap() throws Throwable {
-        IndexService indexService1 = createIndex("index1");
-        MapperService mapperService = indexService1.mapperService();
-        Map<String, Map<String, Object>> mappings = new HashMap<>();
-
-        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping(xContentRegistry(), "{}"));
-        MapperException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
-        assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
-
-        mappings.clear();
-        mappings.put("type1", MapperService.parseMapping(xContentRegistry(), "{}"));
-
-        e = expectThrows( MapperParsingException.class,
-            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
-        assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
-    }
-
     public void testMergeParentTypesSame() {
         // Verifies that a merge (absent a DocumentMapper change)
         // doesn't change the parentTypes reference.
@@ -231,7 +213,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                         "you can use [copy_to] on mapping fields to create your own catch all field.");
     }
 
-     public void testPartitionedConstraints() {
+    public void testPartitionedConstraints() {
         // partitioned index must have routing
          IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate("test-index")

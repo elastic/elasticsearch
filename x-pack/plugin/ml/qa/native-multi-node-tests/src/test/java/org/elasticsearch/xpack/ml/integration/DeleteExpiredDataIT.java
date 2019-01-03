@@ -245,7 +245,10 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
                 .setFetchSource(false)
                 .setSize(10000)
                 .get();
-        assertThat(stateDocsResponse.getHits().getTotalHits(), lessThan(10000L));
+
+        // Assert at least one state doc for each job
+        assertThat(stateDocsResponse.getHits().getTotalHits(), greaterThanOrEqualTo(5L));
+
         for (SearchHit hit : stateDocsResponse.getHits().getHits()) {
             assertThat(hit.getId().startsWith("non_existing_job"), is(false));
         }

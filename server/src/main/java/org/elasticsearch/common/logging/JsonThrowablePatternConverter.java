@@ -26,6 +26,7 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.logging.log4j.core.pattern.ThrowablePatternConverter;
 import org.apache.logging.log4j.util.Strings;
 
+import java.nio.charset.Charset;
 import java.util.StringJoiner;
 
 /**
@@ -96,7 +97,7 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
 
     private String wrapAsJson(String line) {
         byte[] bytes = JSON_STRING_ENCODER.quoteAsUTF8(line);
-        return "\"" + new String(bytes) + "\"";
+        return "\"" + new String(bytes, Charset.defaultCharset()) + "\"";
     }
 
     @Override

@@ -10,7 +10,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isEmptyString;
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -58,9 +58,10 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
             "    \"boost\" : 1.0\n" +
             "  }\n" +
             "}";
+        Exception thrown = new Exception(json);
         LogEvent event = Log4jLogEvent.newBuilder()
             .setMessage(new SimpleMessage("message"))
-            .setThrown(new Exception(json))
+            .setThrown(thrown)
             .build();
 
         String result = format(event);
@@ -75,14 +76,15 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
         JsonLogLine jsonLogLine = jsonLogs.stream().findFirst()
             .orElseThrow(() -> new AssertionError("no logs parsed"));
 
-        assertThat("stacktrace should formatted in multiple lines", jsonLogLine.stacktrace().size(), greaterThan(0));
+        int jsonLength = json.split("\n").length;
+        int stacktraceLength = thrown.getStackTrace().length;
+        assertThat("stacktrace should formatted in multiple lines",
+            jsonLogLine.stacktrace().size(), equalTo(jsonLength + stacktraceLength));
     }
-
 
     private String format(LogEvent event) {
         StringBuilder builder = new StringBuilder();
         converter.format(event, builder);
         return builder.toString();
     }
-
 }

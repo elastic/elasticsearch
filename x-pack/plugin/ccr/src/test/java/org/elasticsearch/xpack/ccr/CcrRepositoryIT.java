@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -200,6 +201,47 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         assertEquals(0, restoreInfo.failedShards());
     }
 
+    public void testDocsAreRecovered() throws IOException {
+        String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
+        String leaderIndex = "index1";
+        String followerIndex = "index2";
+
+        final int numberOfPrimaryShards = randomIntBetween(1, 3);
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderGreen(leaderIndex);
+
+        final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
+        final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
+
+        final int firstBatchNumDocs = randomIntBetween(64, 128);
+        logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
+        for (int i = 0; i < firstBatchNumDocs; i++) {
+            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+        }
+
+        leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
+
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followerIndex)
+            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(leaderClusterRepoName,
+            CcrRepository.LATEST, new String[]{leaderIndex}, indicesOptions,
+            "^(.*)$", followerIndex, Settings.EMPTY, new TimeValue(1, TimeUnit.HOURS), false,
+            false, true, settingsBuilder.build(), new String[0],
+            "restore_snapshot[" + leaderClusterRepoName + ":" + leaderIndex + "]");
+
+        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
+        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+        RestoreInfo restoreInfo = future.actionGet();
+
+        assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
+        assertEquals(0, restoreInfo.failedShards());
+        assertExpectedDocument(followerIndex, firstBatchNumDocs);
+    }
+
     public void testFollowerMappingIsUpdated() throws IOException {
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         String leaderIndex = "index1";
@@ -252,6 +294,13 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
             .get("index2").get("doc");
         assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));
+    }
+
+    private void assertExpectedDocument(String followerIndex, final int value) {
+        final GetResponse getResponse = followerClient().prepareGet(followerIndex, "doc", Integer.toString(value)).get();
+        assertTrue("Doc with id [" + value + "] is missing", getResponse.isExists());
+        assertTrue((getResponse.getSource().containsKey("f")));
+        assertThat(getResponse.getSource().get("f"), equalTo(value));
     }
 
     private ActionListener<RestoreService.RestoreCompletionResponse> waitForRestore(ClusterService clusterService,

@@ -66,9 +66,8 @@ significant overhead associated with this pre-filter phase.
 
 == Monitoring frozen indices
 
-Frozen indices are ordinary indices that use search throttling and a memory efficient shard implementation. In order to monitor / filter
-frozen indices in APIs like the <<cat-indices>> they must be filtered by their `throttled` property since frozen indices are not a core
-concept.
+Frozen indices are ordinary indices that use search throttling and a memory efficient shard implementation. For API's like the
+`<<cat-indices>>` frozen indicies may identified by an index's `search.throttled` property (`sth`).
 
 [source,js]
 --------------------------------------------------

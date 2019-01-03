@@ -83,12 +83,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName());
     }
 
-    @After
-    public void tearDownThreadPool() {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        threadPool = null;
-    }
-
     public void setupTestNodes(Settings settings) {
         nodesCount = randomIntBetween(2, 10);
         testNodes = new TestNode[nodesCount];
@@ -102,6 +96,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         for (TestNode testNode : testNodes) {
             testNode.close();
         }
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
     }
 
 

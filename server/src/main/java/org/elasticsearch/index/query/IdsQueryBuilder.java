@@ -53,7 +53,9 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  */
 public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     public static final String NAME = "ids";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IdsQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(IdsQueryBuilder.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [ids] queries.";
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField VALUES_FIELD = new ParseField("values");
@@ -87,16 +89,10 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     /**
      * Add types to query
      */
-    // TODO: Remove in 8.0
     @Deprecated
     public IdsQueryBuilder types(String... types) {
         if (types == null) {
             throw new IllegalArgumentException("[" + NAME + "] types cannot be null");
-        }
-        // Even if types are null, IdsQueryBuilder uses an empty array for decoding types.
-        // For this reason, issue deprecation warning if types contain something.
-        if (types.length > 0) {
-            deprecationLogger.deprecatedAndMaybeLog("ids_query_with_types", QueryShardContext.TYPES_DEPRECATION_MESSAGE);
         }
         this.types = types;
         return this;
@@ -131,7 +127,9 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.array(TYPE_FIELD.getPreferredName(), types);
+        if (types.length > 0) {
+            builder.array(TYPE_FIELD.getPreferredName(), types);
+        }
         builder.startArray(VALUES_FIELD.getPreferredName());
         for (String value : ids) {
             builder.value(value);
@@ -152,7 +150,11 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     public static IdsQueryBuilder fromXContent(XContentParser parser) {
         try {
-            return PARSER.apply(parser, null);
+            IdsQueryBuilder builder = PARSER.apply(parser, null);
+            if (builder.types().length > 0) {
+                deprecationLogger.deprecatedAndMaybeLog("ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
+            }
+            return builder;
         } catch (IllegalArgumentException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }

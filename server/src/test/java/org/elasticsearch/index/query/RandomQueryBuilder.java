@@ -26,6 +26,7 @@ import java.util.Random;
 
 import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
 import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_FIELD_NAME;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 /**
@@ -47,7 +48,7 @@ public class RandomQueryBuilder {
             case 1:
                 return new TermQueryBuilderTests().createTestQueryBuilder();
             case 2:
-                return new IdsQueryBuilderTests().createTestQueryBuilder();
+                return new ExistsQueryBuilder(randomAlphaOfLength(5));
             case 3:
                 return createMultiTermQuery(r);
             default:

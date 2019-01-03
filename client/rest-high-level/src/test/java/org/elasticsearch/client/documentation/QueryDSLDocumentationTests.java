@@ -235,7 +235,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testIds() {
         // tag::ids
-        idsQuery()
+        idsQuery()                                                   // <1>
                 .addIds("1", "4", "100");
         // end::ids
     }

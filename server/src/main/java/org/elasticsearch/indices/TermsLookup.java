@@ -19,17 +19,15 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 
 import java.io.IOException;
@@ -39,37 +37,20 @@ import java.util.Objects;
  * Encapsulates the parameters needed to fetch terms.
  */
 public class TermsLookup implements Writeable, ToXContentFragment {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TermsLookup.class));
-
     private final String index;
-    private String type;
+    private @Nullable String type;
     private final String id;
     private final String path;
     private String routing;
 
     public TermsLookup(String index, String id, String path) {
-        if (id == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the id.");
-        }
-        if (path == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the path.");
-        }
-        if (index == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the index.");
-        }
-        this.index = index;
-        this.id = id;
-        this.path = path;
+        this(index, null, id, path);
     }
 
     @Deprecated
     public TermsLookup(String index, String type, String id, String path) {
         if (id == null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the id.");
-        }
-        if (type == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the type.");
         }
         if (path == null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the path.");
@@ -166,7 +147,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
                     break;
                 case "type":
                     type = parser.text();
-                    deprecationLogger.deprecatedAndMaybeLog("terms_lookup_with_types", QueryShardContext.TYPES_DEPRECATION_MESSAGE);
                     break;
                 case "id":
                     id = parser.text();

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.Line;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.geo.Rectangle;
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -69,7 +69,10 @@ import java.util.function.Supplier;
  */
 public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuilder> {
     public static final String NAME = "geo_shape";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(GeoShapeQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(GeoShapeQueryBuilder.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [geo_shape] queries. " +
+        "The type should no longer be specified in the [indexed_shape] section.";
 
     public static final String DEFAULT_SHAPE_INDEX_NAME = "shapes";
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";
@@ -664,8 +667,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                                     if (SHAPE_ID_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         id = parser.text();
                                     } else if (SHAPE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                        deprecationLogger.deprecatedAndMaybeLog(
-                                            "geo_share_query_with_types", QueryShardContext.TYPES_DEPRECATION_MESSAGE);
                                         type = parser.text();
                                     } else if (SHAPE_INDEX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         index = parser.text();
@@ -699,6 +700,11 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             }
         }
         GeoShapeQueryBuilder builder;
+        if (type != null) {
+            deprecationLogger.deprecatedAndMaybeLog(
+                "geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
+
         if (shape != null) {
             builder = new GeoShapeQueryBuilder(fieldName, shape);
         } else {

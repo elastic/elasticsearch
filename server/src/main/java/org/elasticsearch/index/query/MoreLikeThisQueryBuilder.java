@@ -68,6 +68,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -78,7 +79,10 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MoreLikeThisQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(MoreLikeThisQueryBuilder.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [more_like_this] " +
+        "queries. The type should no longer be specified in the [like] and [unlike] sections.";
 
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
@@ -181,7 +185,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             this.version = copy.version;
             this.versionType = copy.versionType;
         }
-
 
         /**
          * Constructor for a given item / document request
@@ -398,8 +401,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.index = parser.text();
                     } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        deprecationLogger.deprecatedAndMaybeLog(
-                            "more_like_this_query_with_types", QueryShardContext.TYPES_DEPRECATION_MESSAGE);
                         item.type = parser.text();
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.id = parser.text();
@@ -950,7 +951,16 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         if (stopWords != null) {
             moreLikeThisQueryBuilder.stopWords(stopWords);
         }
+
+        if (!moreLikeThisQueryBuilder.isTypeless()) {
+            deprecationLogger.deprecatedAndMaybeLog("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
         return moreLikeThisQueryBuilder;
+    }
+
+    public boolean isTypeless() {
+        return Stream.concat(Arrays.stream(likeItems), Arrays.stream(unlikeItems))
+            .allMatch(item -> item.type == null);
     }
 
     private static void parseLikeField(XContentParser parser, List<String> texts, List<Item> items) throws IOException {

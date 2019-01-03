@@ -36,7 +36,7 @@ public abstract class ConditionalFunction extends ScalarFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullable nullable() {
+        return Nullable.UNKNOWN;
     }
 }

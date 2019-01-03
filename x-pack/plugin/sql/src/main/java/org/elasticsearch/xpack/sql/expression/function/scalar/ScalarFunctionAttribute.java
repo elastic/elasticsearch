@@ -25,11 +25,11 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
 
     ScalarFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id,
             String functionId, ScriptTemplate script, Expression orderBy, Pipe processorDef) {
-        this(location, name, dataType, null, true, id, false, functionId, script, orderBy, processorDef);
+        this(location, name, dataType, null, Nullable.POSSIBLY, id, false, functionId, script, orderBy, processorDef);
     }
 
     public ScalarFunctionAttribute(Location location, String name, DataType dataType, String qualifier,
-            boolean nullable, ExpressionId id, boolean synthetic, String functionId, ScriptTemplate script,
+            Nullable nullable, ExpressionId id, boolean synthetic, String functionId, ScriptTemplate script,
             Expression orderBy, Pipe pipe) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
 
@@ -60,12 +60,12 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
 
     @Override
     protected Expression canonicalize() {
-        return new ScalarFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false,
+        return new ScalarFunctionAttribute(location(), "<none>", dataType(), null, Nullable.POSSIBLY, id(), false,
                 functionId(), script, orderBy, pipe);
     }
 
     @Override
-    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Location location, String name, String qualifier, Nullable nullable, ExpressionId id, boolean synthetic) {
         return new ScalarFunctionAttribute(location, name, dataType(), qualifier, nullable, id, synthetic,
                 functionId(), script, orderBy, pipe);
     }

@@ -46,7 +46,7 @@ public class UnresolvedAlias extends UnresolvedNamedExpression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullable nullable() {
         throw new UnresolvedException("nullable", this);
     }
 

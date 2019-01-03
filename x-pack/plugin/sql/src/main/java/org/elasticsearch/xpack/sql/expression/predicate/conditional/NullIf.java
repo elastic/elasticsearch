@@ -57,8 +57,8 @@ public class NullIf extends ConditionalFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return true;
+    public Nullable nullable() {
+        return Nullable.UNKNOWN;
     }
 
     @Override

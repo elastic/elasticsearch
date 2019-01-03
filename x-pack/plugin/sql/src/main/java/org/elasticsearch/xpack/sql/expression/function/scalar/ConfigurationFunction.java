@@ -42,8 +42,8 @@ public abstract class ConfigurationFunction extends ScalarFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullable nullable() {
+        return Nullable.NEVER;
     }
 
     @Override

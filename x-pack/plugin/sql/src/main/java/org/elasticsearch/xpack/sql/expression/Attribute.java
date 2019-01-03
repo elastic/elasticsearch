@@ -42,17 +42,17 @@ public abstract class Attribute extends NamedExpression {
     private final String qualifier;
 
     // can the attr be null - typically used in JOINs
-    private final boolean nullable;
+    private final Nullable nullable;
 
     public Attribute(Location location, String name, String qualifier, ExpressionId id) {
-        this(location, name, qualifier, true, id);
+        this(location, name, qualifier, Nullable.POSSIBLY, id);
     }
 
-    public Attribute(Location location, String name, String qualifier, boolean nullable, ExpressionId id) {
+    public Attribute(Location location, String name, String qualifier, Nullable nullable, ExpressionId id) {
         this(location, name, qualifier, nullable, id, false);
     }
 
-    public Attribute(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    public Attribute(Location location, String name, String qualifier, Nullable nullable, ExpressionId id, boolean synthetic) {
         super(location, name, emptyList(), id, synthetic);
         this.qualifier = qualifier;
         this.nullable = nullable;
@@ -77,7 +77,7 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullable nullable() {
         return nullable;
     }
 
@@ -94,11 +94,11 @@ public abstract class Attribute extends NamedExpression {
         return Objects.equals(qualifier(), qualifier) ? this : clone(location(), name(), qualifier, nullable(), id(), synthetic());
     }
 
-    public Attribute withNullability(boolean nullable) {
+    public Attribute withNullability(Nullable nullable) {
         return Objects.equals(nullable(), nullable) ? this : clone(location(), name(), qualifier(), nullable, id(), synthetic());
     }
 
-    protected abstract Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id,
+    protected abstract Attribute clone(Location location, String name, String qualifier, Nullable nullable, ExpressionId id,
                                        boolean synthetic);
 
     @Override

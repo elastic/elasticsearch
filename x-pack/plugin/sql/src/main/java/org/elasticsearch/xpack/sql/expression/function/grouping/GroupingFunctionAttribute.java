@@ -16,11 +16,11 @@ import org.elasticsearch.xpack.sql.type.DataType;
 public class GroupingFunctionAttribute extends FunctionAttribute {
 
     GroupingFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id, String functionId) {
-        this(location, name, dataType, null, false, id, false, functionId);
+        this(location, name, dataType, null, Nullable.NEVER, id, false, functionId);
     }
 
     public GroupingFunctionAttribute(Location location, String name, DataType dataType, String qualifier,
-            boolean nullable, ExpressionId id, boolean synthetic, String functionId) {
+                                     Nullable nullable, ExpressionId id, boolean synthetic, String functionId) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
     }
 
@@ -32,11 +32,11 @@ public class GroupingFunctionAttribute extends FunctionAttribute {
 
     @Override
     protected Expression canonicalize() {
-        return new GroupingFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false, "<none>");
+        return new GroupingFunctionAttribute(location(), "<none>", dataType(), null, Nullable.POSSIBLY, id(), false, "<none>");
     }
 
     @Override
-    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Location location, String name, String qualifier, Nullable nullable, ExpressionId id, boolean synthetic) {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
         // that is the functionId is actually derived from the expression id to easily track it across contexts
         return new GroupingFunctionAttribute(location, name, dataType(), qualifier, nullable, id, synthetic, functionId());

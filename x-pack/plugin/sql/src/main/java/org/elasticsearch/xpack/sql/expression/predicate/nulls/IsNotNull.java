@@ -48,8 +48,8 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullable nullable() {
+        return Nullable.NEVER;
     }
 
     @Override

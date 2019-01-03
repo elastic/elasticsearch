@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import static org.elasticsearch.xpack.sql.expression.Expression.Nullable.NEVER;
+
 /**
  * {@link Attribute} that represents Elasticsearch's {@code _score}.
  */
@@ -21,13 +23,13 @@ public class ScoreAttribute extends FunctionAttribute {
      * Constructor for normal use.
      */
     public ScoreAttribute(Location location) {
-        this(location, "SCORE()", DataType.FLOAT, null, false, null, false);
+        this(location, "SCORE()", DataType.FLOAT, null, NEVER, null, false);
     }
 
     /**
      * Constructor for {@link #clone()}
      */
-    private ScoreAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id,
+    private ScoreAttribute(Location location, String name, DataType dataType, String qualifier, Nullable nullable, ExpressionId id,
                            boolean synthetic) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, "SCORE");
     }
@@ -38,7 +40,7 @@ public class ScoreAttribute extends FunctionAttribute {
     }
 
     @Override
-    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Location location, String name, String qualifier, Nullable nullable, ExpressionId id, boolean synthetic) {
         return new ScoreAttribute(location, name, dataType(), qualifier, nullable, id, synthetic);
     }
 

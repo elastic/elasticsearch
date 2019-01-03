@@ -21,11 +21,11 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
 
     AggregateFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id,
             String functionId, String propertyPath) {
-        this(location, name, dataType, null, false, id, false, functionId, propertyPath);
+        this(location, name, dataType, null, Nullable.NEVER, id, false, functionId, propertyPath);
     }
 
     public AggregateFunctionAttribute(Location location, String name, DataType dataType, String qualifier,
-            boolean nullable, ExpressionId id, boolean synthetic, String functionId, String propertyPath) {
+                                      Nullable nullable, ExpressionId id, boolean synthetic, String functionId, String propertyPath) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
         this.propertyPath = propertyPath;
     }
@@ -42,11 +42,11 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
 
     @Override
     protected Expression canonicalize() {
-        return new AggregateFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false, "<none>", null);
+        return new AggregateFunctionAttribute(location(), "<none>", dataType(), null, Nullable.POSSIBLY, id(), false, "<none>", null);
     }
 
     @Override
-    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Location location, String name, String qualifier, Nullable nullable, ExpressionId id, boolean synthetic) {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
         // that is the functionId is actually derived from the expression id to easily track it across contexts
         return new AggregateFunctionAttribute(location, name, dataType(), qualifier, nullable, id, synthetic, functionId(), propertyPath);

@@ -28,8 +28,11 @@ public abstract class RegexMatch extends UnaryScalarFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return field().nullable() && pattern != null;
+    public Nullable nullable() {
+        if (pattern == null) {
+            return Nullable.POSSIBLY;
+        }
+        return field().nullable();
     }
 
     @Override

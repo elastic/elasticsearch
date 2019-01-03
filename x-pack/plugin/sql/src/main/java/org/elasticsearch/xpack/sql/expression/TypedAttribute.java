@@ -14,11 +14,7 @@ public abstract class TypedAttribute extends Attribute {
 
     private final DataType dataType;
 
-    protected TypedAttribute(Location location, String name, DataType dataType) {
-        this(location, name, dataType, null, true, null, false);
-    }
-
-    protected TypedAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable,
+    protected TypedAttribute(Location location, String name, DataType dataType, String qualifier, Nullable nullable,
             ExpressionId id, boolean synthetic) {
         super(location, name, qualifier, nullable, id, synthetic);
         this.dataType = dataType;

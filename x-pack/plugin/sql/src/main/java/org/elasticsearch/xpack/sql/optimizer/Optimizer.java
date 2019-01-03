@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeMap;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expression.Nullable;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.ExpressionSet;
 import org.elasticsearch.xpack.sql.expression.Expressions;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
@@ -1097,12 +1097,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected Expression rule(Expression e) {
             if (e instanceof IsNotNull) {
-                if (((IsNotNull) e).field().nullable() == false) {
+                if (((IsNotNull) e).field().nullable() == Nullable.NEVER) {
                     return new Literal(e.location(), Expressions.name(e), Boolean.TRUE, DataType.BOOLEAN);
                 }
 
             } else if (e instanceof IsNull) {
-                if (((IsNull) e).field().nullable() == false) {
+                if (((IsNull) e).field().nullable() == Nullable.NEVER) {
                     return new Literal(e.location(), Expressions.name(e), Boolean.FALSE, DataType.BOOLEAN);
                 }
 
@@ -1112,10 +1112,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
-            } else if (e instanceof NullIf) {
-                return e;
-
-            } else if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+            } else if (e.nullable() == Nullable.POSSIBLY && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
 
@@ -1314,7 +1311,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // true for equality
             if (bc instanceof Equals || bc instanceof GreaterThanOrEqual || bc instanceof LessThanOrEqual) {
-                if (!l.nullable() && !r.nullable() && l.semanticEquals(r)) {
+                if (l.nullable() == Nullable.NEVER && r.nullable() == Nullable.NEVER && l.semanticEquals(r)) {
                     return TRUE;
                 }
             }
@@ -1329,7 +1326,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // false for equality
             if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
-                if (!l.nullable() && !r.nullable() && l.semanticEquals(r)) {
+                if (l.nullable() == Nullable.NEVER && r.nullable() == Nullable.NEVER && l.semanticEquals(r)) {
                     return FALSE;
                 }
             }

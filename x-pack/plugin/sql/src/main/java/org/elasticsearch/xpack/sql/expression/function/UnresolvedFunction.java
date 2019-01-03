@@ -135,7 +135,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullable nullable() {
         throw new UnresolvedException("nullable", this);
     }
 

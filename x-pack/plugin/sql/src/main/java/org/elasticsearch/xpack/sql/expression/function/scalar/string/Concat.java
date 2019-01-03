@@ -50,8 +50,8 @@ public class Concat extends BinaryScalarFunction {
     }
     
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullable nullable() {
+        return Nullable.NEVER;
     }
 
     @Override

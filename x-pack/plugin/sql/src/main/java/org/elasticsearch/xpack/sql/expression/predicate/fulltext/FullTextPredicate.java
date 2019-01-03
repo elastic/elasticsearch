@@ -56,8 +56,8 @@ public abstract class FullTextPredicate extends Expression {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullable nullable() {
+        return Nullable.NEVER;
     }
 
     @Override

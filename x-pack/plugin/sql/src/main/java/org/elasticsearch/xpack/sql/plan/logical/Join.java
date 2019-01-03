@@ -78,7 +78,7 @@ public class Join extends BinaryPlan {
 
     private static List<Attribute> makeNullable(List<Attribute> output) {
         return output.stream()
-                .map(a -> a.withNullability(true))
+                .map(a -> a.withNullability(Expression.Nullable.POSSIBLY))
                 .collect(toList());
     }
 

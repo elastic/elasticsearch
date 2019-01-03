@@ -56,8 +56,8 @@ public class Literal extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
-        return value == null;
+    public Nullable nullable() {
+        return value == null ? Nullable.POSSIBLY : Nullable.NEVER;
     }
 
     @Override
@@ -77,7 +77,7 @@ public class Literal extends NamedExpression {
 
     @Override
     public Attribute toAttribute() {
-        return new LiteralAttribute(location(), name(), null, false, id(), false, dataType, this);
+        return new LiteralAttribute(location(), name(), null, Nullable.NEVER, id(), false, dataType, this);
     }
 
     @Override

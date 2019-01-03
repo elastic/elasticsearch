@@ -119,8 +119,8 @@ public class Range extends ScalarFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return value.nullable() && lower.nullable() && upper.nullable();
+    public Nullable nullable() {
+        return Nullable.and(value.nullable(), lower.nullable(), upper.nullable());
     }
 
     @Override

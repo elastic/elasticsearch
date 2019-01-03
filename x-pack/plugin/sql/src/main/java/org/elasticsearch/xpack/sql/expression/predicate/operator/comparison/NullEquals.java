@@ -35,7 +35,7 @@ public class NullEquals extends BinaryComparison {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullable nullable() {
+        return Nullable.NEVER;
     }
 }

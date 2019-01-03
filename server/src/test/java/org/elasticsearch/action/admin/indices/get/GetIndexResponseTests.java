@@ -31,7 +31,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.junit.Assert;
@@ -72,6 +76,10 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
 
     @Override
     protected GetIndexResponse createTestInstance() {
+        return createTestInstance(false);
+    }
+
+    private GetIndexResponse createTestInstance(boolean randomTypeName) {
         String[] indices = generateRandomStringArray(5, 5, false, false);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
@@ -80,7 +88,9 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index: indices) {
-            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex());
+            // rarely have no types
+            int typeCount = rarely() ? 0 : 1;
+            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, randomTypeName));
 
             List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
@@ -189,6 +199,25 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         String base64OfResponse = Base64.getEncoder().encodeToString(BytesReference.toBytes(bso.bytes()));
 
         Assert.assertEquals(TEST_6_3_0_RESPONSE_BYTES, base64OfResponse);
+    }
+
+    /**
+     * test that the old response format with types can still be parsed with the special parser method
+     * when output is rendered with types
+     */
+    public void testFromXContentWithTypes() throws IOException {
+        GetIndexResponse testInstance = this.createTestInstance(true);
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            // this renders the response in the "old" format with types
+            testInstance.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_type_name", "true")));
+            BytesReference bytes = BytesReference.bytes(builder);
+            XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
+            // this parses the output expecting the "old" format with types
+            GetIndexResponse parsedInstance = GetIndexResponse.fromXContent(parser, true);
+            assertNotSame(parsedInstance, testInstance);
+            assertEquals(testInstance, parsedInstance);
+            assertEquals(testInstance.hashCode(), parsedInstance.hashCode());
+        }
     }
 
 }

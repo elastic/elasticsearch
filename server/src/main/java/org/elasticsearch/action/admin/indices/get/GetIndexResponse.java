@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -249,15 +252,29 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     }
                     builder.endObject();
 
-                    builder.startObject("mappings");
                     ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.get(index);
-                    if (indexMappings != null) {
-                        for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
-                            builder.field(typeEntry.key);
-                            builder.map(typeEntry.value.sourceAsMap());
+                    boolean includeTypeName = params.paramAsBoolean("include_type_name", false);
+                    if (includeTypeName) {
+                        builder.startObject("mappings");
+                        if (indexMappings != null) {
+                            for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
+                                builder.field(typeEntry.key);
+                                builder.map(typeEntry.value.sourceAsMap());
+                            }
+                        }
+                        builder.endObject();
+                    } else {
+                        if (indexMappings != null && indexMappings.size() > 0) {
+                            builder.field("mappings");
+                            for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
+                                builder.map(typeEntry.value.sourceAsMap());
+                            }
+                        } else {
+                            // we always want to output a mappings object, even if empty
+                            builder.startObject("mappings");
+                            builder.endObject();
                         }
                     }
-                    builder.endObject();
 
                     builder.startObject("settings");
                     Settings indexSettings = settings.get(index);
@@ -293,6 +310,16 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     private static ImmutableOpenMap<String, MappingMetaData> parseMappings(XContentParser parser) throws IOException {
         ImmutableOpenMap.Builder<String, MappingMetaData> indexMappings = ImmutableOpenMap.builder();
         // We start at START_OBJECT since parseIndexEntry ensures that
+        Map<String, Object> map = parser.map();
+        if (map.isEmpty() == false) {
+            indexMappings.put(MapperService.SINGLE_MAPPING_NAME, new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, map));
+        }
+        return indexMappings.build();
+    }
+
+    private static ImmutableOpenMap<String, MappingMetaData> parseMappingsWithTypes(XContentParser parser) throws IOException {
+        ImmutableOpenMap.Builder<String, MappingMetaData> indexMappings = ImmutableOpenMap.builder();
+        // We start at START_OBJECT since parseIndexEntry ensures that
         while (parser.nextToken() != Token.END_OBJECT) {
             ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
             parser.nextToken();
@@ -306,7 +333,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         return indexMappings.build();
     }
 
-    private static IndexEntry parseIndexEntry(XContentParser parser) throws IOException {
+    private static IndexEntry parseIndexEntry(XContentParser parser, boolean legacyWithTypes) throws IOException {
         List<AliasMetaData> indexAliases = null;
         ImmutableOpenMap<String, MappingMetaData> indexMappings = null;
         Settings indexSettings = null;
@@ -321,7 +348,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                         indexAliases = parseAliases(parser);
                         break;
                     case "mappings":
-                        indexMappings = parseMappings(parser);
+                        if (legacyWithTypes) {
+                            indexMappings = parseMappingsWithTypes(parser);
+                        } else {
+                            indexMappings = parseMappings(parser);
+                        }
                         break;
                     case "settings":
                         indexSettings = Settings.fromXContent(parser);
@@ -355,6 +386,10 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     }
 
     public static GetIndexResponse fromXContent(XContentParser parser) throws IOException {
+        return fromXContent(parser, false);
+    }
+
+    public static GetIndexResponse fromXContent(XContentParser parser, boolean legacyWithTypes) throws IOException {
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
@@ -372,7 +407,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 // we assume this is an index entry
                 String indexName = parser.currentName();
                 indices.add(indexName);
-                IndexEntry indexEntry = parseIndexEntry(parser);
+                IndexEntry indexEntry = parseIndexEntry(parser, legacyWithTypes);
                 // make the order deterministic
                 CollectionUtil.timSort(indexEntry.indexAliases, Comparator.comparing(AliasMetaData::alias));
                 aliases.put(indexName, Collections.unmodifiableList(indexEntry.indexAliases));

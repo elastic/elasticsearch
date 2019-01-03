@@ -82,6 +82,9 @@ final class CompositeAggregator extends BucketsAggregator {
         this.sources = new SingleDimensionValuesSource[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
         int bucketLimit = context.aggregations().multiBucketConsumer().getLimit();
+        if (bucketLimit == MultiBucketConsumerService.DEFAULT_LIMIT_MAX_BUCKETS) {
+            bucketLimit = MultiBucketConsumerService.SOFT_LIMIT_MAX_BUCKETS;
+        }
         if (size > bucketLimit) {
             throw new MultiBucketConsumerService.TooManyBucketsException("Trying to create too many buckets. Must be less than or equal" +
                 " to: [" + bucketLimit + "] but was [" + size + "]. This limit can be set by changing the [" + MAX_BUCKET_SETTING.getKey() +

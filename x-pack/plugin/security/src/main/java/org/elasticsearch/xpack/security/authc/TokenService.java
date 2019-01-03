@@ -219,6 +219,14 @@ public final class TokenService {
         return XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
     }
 
+    private SecurityIndexManager indexManager() {
+        if (securityIndex.isIndexUpgraded()) {
+            return securityTokensIndex;
+        } else {
+            return securityIndex;
+        }
+    }
+
     /**
      * Create a token based on the provided authentication and metadata.
      * The created token will be stored in the security index.
@@ -265,13 +273,13 @@ public final class TokenService {
                         .endObject();
                 builder.endObject();
                 final String documentId = getTokenDocumentId(userToken);
-                IndexRequest request =
-                        client.prepareIndex(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE, documentId)
+                final SecurityIndexManager indexManager = indexManager();
+                IndexRequest request = client.prepareIndex(indexManager.indexName(), TYPE, documentId)
                                 .setOpType(OpType.CREATE)
                                 .setSource(builder)
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                                 .request();
-                securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", documentId, ex)),
+                indexManager.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", documentId, ex)),
                     () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, request,
                         ActionListener.wrap(indexResponse -> listener.onResponse(new Tuple<>(userToken, refreshToken)),
                             listener::onFailure))
@@ -355,14 +363,16 @@ public final class TokenService {
                         final byte[] iv = in.readByteArray();
                         final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
                         decryptTokenId(in, cipher, version, ActionListener.wrap(tokenId -> {
-                            if (securityIndex.isAvailable() == false) {
-                                logger.warn("failed to get token [{}] since index is not available", tokenId);
+                            final SecurityIndexManager indexManager = indexManager();
+                            if (indexManager.isAvailable() == false) {
+                                logger.warn("failed to get token [{}] since index [{}] is not available", tokenId,
+                                        indexManager.indexName());
                                 listener.onResponse(null);
                             } else {
-                                securityIndex.checkIndexVersionThenExecute(
-                                    ex -> listener.onFailure(traceLog("prepare security index", tokenId, ex)),
+                                indexManager.checkIndexVersionThenExecute(
+                                    ex -> listener.onFailure(traceLog("prepare index [" + indexManager.indexName() + "]", tokenId, ex)),
                                     () -> {
-                                        final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE,
+                                        final GetRequest getRequest = client.prepareGet(indexManager.indexName(), TYPE,
                                             getTokenDocumentId(tokenId)).request();
                                         Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", tokenId, ex));
                                         executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
@@ -580,20 +590,21 @@ public final class TokenService {
             logger.warn("No [{}] tokens provided for invalidation", srcPrefix);
             listener.onFailure(invalidGrantException("No tokens provided for invalidation"));
         } else if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
-            logger.warn("Failed to invalidate [{}] tokens after [{}] attempts", tokenIds.size(),
-                attemptCount.get());
+            logger.warn("Failed to invalidate [{}] tokens after [{}] attempts", tokenIds.size(), attemptCount.get());
             listener.onFailure(invalidGrantException("failed to invalidate tokens"));
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            SecurityIndexManager indexManager = indexManager();
             for (String tokenId : tokenIds) {
-                UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE, getTokenDocumentId(tokenId))
+                UpdateRequest request = client.prepareUpdate(indexManager.indexName(), TYPE, getTokenDocumentId(tokenId))
                     .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
                     .setFetchSource(srcPrefix, null)
                     .request();
                 bulkRequestBuilder.add(request);
             }
             bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-            securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", ex)),
+            indexManager.prepareIndexIfNeededThenExecute(
+                ex -> listener.onFailure(traceLog("prepare index [" + indexManager.indexName() + "]", ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequestBuilder.request(),
                     ActionListener.<BulkResponse>wrap(bulkResponse -> {
                         ArrayList<String> retryTokenDocIds = new ArrayList<>();
@@ -669,24 +680,27 @@ public final class TokenService {
             logger.warn("Failed to find token for refresh token [{}] after [{}] attempts", refreshToken, attemptCount.get());
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
         } else {
-            SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_ALIAS_NAME)
+            final SecurityIndexManager indexManager = indexManager();
+            SearchRequest request = client.prepareSearch(indexManager.indexName())
                 .setQuery(QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
                     .filter(QueryBuilders.termQuery("refresh_token.token", refreshToken)))
                 .setVersion(true)
                 .request();
 
-            final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+            final SecurityIndexManager frozenSecurityIndex = indexManager.freeze();
             if (frozenSecurityIndex.indexExists() == false) {
-                logger.warn("security index does not exist therefore refresh token [{}] cannot be validated", refreshToken);
+                logger.warn("index [{}] does not exist therefore the refresh token [{}] cannot be validated", indexManager.indexName(),
+                        refreshToken);
                 listener.onFailure(invalidGrantException("could not refresh the requested token"));
             } else if (frozenSecurityIndex.isAvailable() == false) {
-                logger.debug("security index is not available to find token from refresh token, retrying");
+                logger.debug("index [{}] is not available to find token from refresh token [{}], retrying", indexManager.indexName(),
+                        refreshToken);
                 attemptCount.incrementAndGet();
                 findTokenFromRefreshToken(refreshToken, listener, attemptCount);
             } else {
                 Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("find by refresh token", refreshToken, ex));
-                securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
+                indexManager.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                         ActionListener.<SearchResponse>wrap(searchResponse -> {
                             if (searchResponse.isTimedOut()) {
@@ -726,7 +740,8 @@ public final class TokenService {
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
         } else {
             Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
-            GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE, tokenDocId).request();
+            final SecurityIndexManager indexManager = indexManager();
+            GetRequest getRequest = client.prepareGet(indexManager.indexName(), TYPE, tokenDocId).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                 ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
@@ -747,7 +762,7 @@ public final class TokenService {
                                 in.setVersion(authVersion);
                                 Authentication authentication = new Authentication(in);
                                 UpdateRequest updateRequest =
-                                    client.prepareUpdate(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE, tokenDocId)
+                                    client.prepareUpdate(indexManager.indexName(), TYPE, tokenDocId)
                                         .setVersion(response.getVersion())
                                         .setDoc("refresh_token", Collections.singletonMap("refreshed", true))
                                         .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
@@ -757,10 +772,8 @@ public final class TokenService {
                                         updateResponse -> createUserToken(authentication, userAuth, listener, metadata, true),
                                         e -> {
                                             Throwable cause = ExceptionsHelper.unwrapCause(e);
-                                            if (cause instanceof VersionConflictEngineException ||
-                                                isShardNotAvailableException(e)) {
-                                                innerRefresh(tokenDocId, userAuth,
-                                                    listener, attemptCount);
+                                            if (cause instanceof VersionConflictEngineException || isShardNotAvailableException(e)) {
+                                                innerRefresh(tokenDocId, userAuth, listener, attemptCount);
                                             } else {
                                                 onFailure.accept(e);
                                             }
@@ -849,7 +862,8 @@ public final class TokenService {
     public void findActiveTokensForRealm(String realmName, ActionListener<Collection<Tuple<UserToken, String>>> listener,
                                          @Nullable Predicate<Map<String, Object>> filter) {
         ensureEnabled();
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        final SecurityIndexManager indexManager = indexManager();
+        final SecurityIndexManager frozenSecurityIndex = indexManager.freeze();
         if (Strings.isNullOrEmpty(realmName)) {
             listener.onFailure(new IllegalArgumentException("Realm name is required"));
         } else if (frozenSecurityIndex.indexExists() == false) {
@@ -872,7 +886,7 @@ public final class TokenService {
                     )
                 );
 
-            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_ALIAS_NAME)
+            final SearchRequest request = client.prepareSearch(indexManager.indexName())
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
@@ -893,8 +907,8 @@ public final class TokenService {
      */
     public void findActiveTokensForUser(String username, ActionListener<Collection<Tuple<UserToken, String>>> listener) {
         ensureEnabled();
-
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        final SecurityIndexManager indexManager = indexManager();
+        final SecurityIndexManager frozenSecurityIndex = indexManager.freeze();
         if (Strings.isNullOrEmpty(username)) {
             listener.onFailure(new IllegalArgumentException("username is required"));
         } else if (frozenSecurityIndex.indexExists() == false) {
@@ -916,7 +930,7 @@ public final class TokenService {
                     )
                 );
 
-            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_ALIAS_NAME)
+            final SearchRequest request = client.prepareSearch(indexManager.indexName())
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
@@ -924,8 +938,7 @@ public final class TokenService {
                 .setFetchSource(true)
                 .request();
             securityIndex.checkIndexVersionThenExecute(listener::onFailure,
-                () -> ScrollHelper.fetchAllByEntity(client, request, listener,
-                    (SearchHit hit) -> filterAndParseHit(hit, isOfUser(username))));
+                () -> ScrollHelper.fetchAllByEntity(client, request, listener, (SearchHit hit) -> filterAndParseHit(hit, isOfUser(username))));
         }
     }
 
@@ -1020,14 +1033,14 @@ public final class TokenService {
         if (currentTime.isAfter(userToken.getExpirationTime())) {
             listener.onFailure(traceLog("validate token", userToken.getId(), expiredTokenException()));
         }
-        if (securityIndex.indexExists() == false) {
+        final SecurityIndexManager indexManager = indexManager();
+        if (indexManager.indexExists() == false) {
             // index doesn't exist so the token is considered invalid as we cannot verify its validity
-            logger.warn("failed to validate token [{}] since the security index doesn't exist", userToken.getId());
+            logger.warn("failed to validate token [{}] since the index [{}] doesn't exist", userToken.getId(), indexManager.indexName());
             listener.onResponse(null);
         } else {
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_ALIAS_NAME, TYPE,
-                    getTokenDocumentId(userToken)).request();
+            indexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                final GetRequest getRequest = client.prepareGet(indexManager.indexName(), TYPE, getTokenDocumentId(userToken)).request();
                 Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                     ActionListener.<GetResponse>wrap(response -> {

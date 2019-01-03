@@ -104,7 +104,7 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     public SecurityIndexManager(Client client, String indexName, int internalIndexFormat, String aliasName, String templateName,
             ClusterService clusterService) {
-        this(client, indexName, internalIndexFormat, aliasName, templateName, new State(false, false, false, false, null, null));
+        this(client, indexName, internalIndexFormat, aliasName, templateName, new State(false, false, false, false, false, null, null));
         clusterService.addListener(this);
     }
 
@@ -132,6 +132,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         return currentIndexState.mappingVersion == null || requiredVersion.test(currentIndexState.mappingVersion);
     }
 
+    public String indexName() {
+        return indexName;
+    }
+
     public boolean indexExists() {
         return this.indexState.indexExists;
     }
@@ -142,6 +146,10 @@ public class SecurityIndexManager implements ClusterStateListener {
      */
     public boolean isIndexUpToDate() {
         return this.indexState.isIndexUpToDate;
+    }
+
+    public boolean isIndexUpgraded() {
+        return this.indexState.isIndexUpgraded;
     }
 
     public boolean isAvailable() {
@@ -185,14 +193,17 @@ public class SecurityIndexManager implements ClusterStateListener {
         final State previousState = indexState;
         final IndexMetaData indexMetaData = resolveConcreteIndex(indexName, event.state().metaData());
         final boolean indexExists = indexMetaData != null;
-        final boolean isIndexUpToDate = indexExists == false ||
-            INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()).intValue() == internalIndexFormat;
+        final boolean isIndexUpToDate = indexExists == false
+                || INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()).intValue() >= internalIndexFormat;
+        final boolean isIndexUpgraded = indexExists == true
+                && INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()).intValue() == internalIndexFormat + 1;
         final boolean indexAvailable = checkIndexAvailable(event.state());
         final boolean mappingIsUpToDate = indexExists == false || checkIndexMappingUpToDate(event.state());
         final Version mappingVersion = oldestIndexMappingVersion(event.state());
         final ClusterHealthStatus indexStatus = indexMetaData == null ? null :
             new ClusterIndexHealth(indexMetaData, event.state().getRoutingTable().index(indexMetaData.getIndex())).getStatus();
-        final State newState = new State(indexExists, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion, indexStatus);
+        final State newState = new State(indexExists, isIndexUpToDate, isIndexUpgraded, indexAvailable, mappingIsUpToDate, mappingVersion,
+                indexStatus);
         this.indexState = newState;
 
         if (newState.equals(previousState) == false) {
@@ -391,15 +402,17 @@ public class SecurityIndexManager implements ClusterStateListener {
     public static class State {
         public final boolean indexExists;
         public final boolean isIndexUpToDate;
+        public final boolean isIndexUpgraded;
         public final boolean indexAvailable;
         public final boolean mappingUpToDate;
         public final Version mappingVersion;
         public final ClusterHealthStatus indexStatus;
 
-        public State(boolean indexExists, boolean isIndexUpToDate, boolean indexAvailable,
+        public State(boolean indexExists, boolean isIndexUpToDate, boolean isIndexUpgraded, boolean indexAvailable,
                       boolean mappingUpToDate, Version mappingVersion, ClusterHealthStatus indexStatus) {
             this.indexExists = indexExists;
             this.isIndexUpToDate = isIndexUpToDate;
+            this.isIndexUpgraded = isIndexUpgraded;
             this.indexAvailable = indexAvailable;
             this.mappingUpToDate = mappingUpToDate;
             this.mappingVersion = mappingVersion;
@@ -413,6 +426,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             State state = (State) o;
             return indexExists == state.indexExists &&
                 isIndexUpToDate == state.isIndexUpToDate &&
+                isIndexUpgraded == state.isIndexUpgraded &&
                 indexAvailable == state.indexAvailable &&
                 mappingUpToDate == state.mappingUpToDate &&
                 Objects.equals(mappingVersion, state.mappingVersion) &&
@@ -421,7 +435,8 @@ public class SecurityIndexManager implements ClusterStateListener {
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexExists, isIndexUpToDate, indexAvailable, mappingUpToDate, mappingVersion, indexStatus);
+            return Objects.hash(indexExists, isIndexUpToDate, isIndexUpgraded, indexAvailable, mappingUpToDate, mappingVersion,
+                    indexStatus);
         }
     }
 }

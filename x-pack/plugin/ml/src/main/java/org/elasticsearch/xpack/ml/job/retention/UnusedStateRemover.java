@@ -85,7 +85,11 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private Set<String> getJobIds() {
         Set<String> jobIds = new HashSet<>();
+
+        // TODO Once at 8.0, we can stop searching for jobs in cluster state
+        // and remove cluster service as a member all together.
         jobIds.addAll(MlMetadata.getMlMetadata(clusterService.state()).getJobs().keySet());
+
         BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, AnomalyDetectorsIndex.configIndexName());
         while (jobsIterator.hasNext()) {
             Deque<Job.Builder> jobs = jobsIterator.next();

@@ -58,7 +58,7 @@ public class DieWithDignityIT extends ESRestTestCase {
         final int pid = Integer.parseInt(pidFileLines.get(0));
         Files.delete(pidFile);
         IOException e = expectThrows(IOException.class,
-                () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
+            () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
         Matcher<IOException> failureMatcher = instanceOf(ConnectionClosedException.class);
         if (Constants.WINDOWS) {
             /*
@@ -69,9 +69,9 @@ public class DieWithDignityIT extends ESRestTestCase {
              * https://issues.apache.org/jira/browse/HTTPASYNC-134
              *
              * So we catch it here and consider it "ok".
-            */
+             */
             failureMatcher = either(failureMatcher)
-                    .or(hasToString(containsString("An existing connection was forcibly closed by the remote host")));
+                .or(hasToString(containsString("An existing connection was forcibly closed by the remote host")));
         }
         assertThat(e, failureMatcher);
 
@@ -90,43 +90,47 @@ public class DieWithDignityIT extends ESRestTestCase {
             }
         });
 
-try {
-    // parse the logs and ensure that Elasticsearch died with the expected cause
-    Path path = PathUtils.get(System.getProperty("log"));
-    try (JsonLogs jsonLogs = new JsonLogs(path)) {
-        final Iterator<JsonLogLine> it = jsonLogs.iterator();
+        try {
+            // parse the logs and ensure that Elasticsearch died with the expected cause
+            Path path = PathUtils.get(System.getProperty("log"));
+            try (JsonLogs jsonLogs = new JsonLogs(path)) {
+                final Iterator<JsonLogLine> it = jsonLogs.iterator();
 
-        boolean fatalError = false;
-        boolean fatalErrorInThreadExiting = false;
+                boolean fatalError = false;
+                boolean fatalErrorInThreadExiting = false;
 
-        while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
-            final JsonLogLine line = it.next();
-            if (isFatalError(line)) {
-                fatalError = true;
-            } else if (isFatalErrorInThreadExiting(line)) {
-                fatalErrorInThreadExiting = true;
-                assertThat(line.stacktrace(),
-                    hasItem(Matchers.containsString("java.lang.OutOfMemoryError: die with dignity")));
+                while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
+                    final JsonLogLine line = it.next();
+                    if (isFatalError(line)) {
+                        fatalError = true;
+                    } else if (isFatalErrorInThreadExiting(line) || isWarnExceptionReceived(line)) {
+                        fatalErrorInThreadExiting = true;
+                        assertThat(line.stacktrace(),
+                            hasItem(Matchers.containsString("java.lang.OutOfMemoryError: die with dignity")));
+                    }
+                }
+
+                assertTrue(fatalError);
+                assertTrue(fatalErrorInThreadExiting);
             }
+        } catch (AssertionError ae) {
+            Path path = PathUtils.get(System.getProperty("log"));
+            debugLogs(path);
+            throw ae;
         }
-        //temporarily adding logging
-//            if(!fatalError || !fatalErrorInThreadExiting){
-
-//            }
-        assertTrue(fatalError);
-        assertTrue(fatalErrorInThreadExiting);
     }
-}catch(AssertionError ae){
-    Path path = PathUtils.get(System.getProperty("log"));
-    debugLogs(path);
-    throw ae;
-}
+
+    private boolean isWarnExceptionReceived(JsonLogLine line) {
+        return line.level().equals("ERROR")
+            && line.component().equals("o.e.h.AbstractHttpServerTransport")
+            && line.nodeName().equals("node-0")
+            && line.message().contains("caught exception while handling client http traffic");
     }
 
     private void debugLogs(Path path) throws IOException {
-        try(BufferedReader reader = Files.newBufferedReader(path)){
+        try (BufferedReader reader = Files.newBufferedReader(path)) {
             Terminal terminal = Terminal.DEFAULT;
-            reader.lines().forEach(line ->terminal.println(line));
+            reader.lines().forEach(line -> terminal.println(line));
         }
     }
 

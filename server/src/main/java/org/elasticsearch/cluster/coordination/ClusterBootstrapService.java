@@ -138,7 +138,7 @@ public class ClusterBootstrapService {
 
             }
         } else if (initialMasterNodes.isEmpty() == false) {
-            logger.debug("waiting for discovery of master-eligible nodes matching [{}]", initialMasterNodes);
+            logger.debug("waiting for discovery of master-eligible nodes matching {}", initialMasterNodes);
 
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

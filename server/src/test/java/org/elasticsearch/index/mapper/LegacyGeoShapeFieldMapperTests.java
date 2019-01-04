@@ -23,17 +23,21 @@ import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -48,6 +52,11 @@ import static org.hamcrest.Matchers.not;
 public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
     }
@@ -60,7 +69,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -91,7 +102,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -110,7 +123,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -134,7 +147,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -151,7 +166,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -174,7 +189,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -191,7 +208,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
             .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -213,7 +230,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -230,7 +249,7 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
             .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -251,7 +270,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -276,7 +297,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -301,7 +324,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testLevelPrecisionConfiguration() throws IOException {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
 
         {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
@@ -435,7 +460,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -449,7 +476,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testLevelDefaults() throws IOException {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
         {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
@@ -504,7 +533,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .field("precision", "1m").field("tree_levels", 8).field("distance_error_pct", 0.01)
                 .field("orientation", "ccw")
                 .endObject().endObject().endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(stage1Mapping),
             MapperService.MergeReason.MAPPING_UPDATE);
         String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -569,7 +600,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .field("tree", "quadtree")
             .endObject().endObject()
             .endObject().endObject());
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> parser.parse("type1", new CompressedXContent(mapping))
@@ -579,7 +612,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testSerializeDefaults() throws Exception {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
         {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -657,7 +692,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", indexSettings).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -686,7 +723,9 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.V_6_7_0);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
 
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
             () -> parser.parse("type1", new CompressedXContent(mapping))

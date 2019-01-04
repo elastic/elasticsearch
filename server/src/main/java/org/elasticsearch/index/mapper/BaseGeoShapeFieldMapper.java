@@ -171,7 +171,7 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
-                if (DeprecatedParameters.parse(name, fieldName, fieldNode, deprecatedParameters)) {
+                if (DeprecatedParameters.parse(parserContext, name, fieldName, fieldNode, deprecatedParameters)) {
                     parsedDeprecatedParams = true;
                     iterator.remove();
                 } else if (Names.ORIENTATION.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {

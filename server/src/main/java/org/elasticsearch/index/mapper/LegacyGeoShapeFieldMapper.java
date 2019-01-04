@@ -46,6 +46,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
@@ -144,24 +145,25 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             this.distanceErrorPct = distanceErrorPct;
         }
 
-        public static boolean parse(String name, String fieldName, Object fieldNode, DeprecatedParameters deprecatedParameters) {
+        public static boolean parse(ParserContext parserContext, String name, String fieldName, Object fieldNode,
+                                    DeprecatedParameters deprecatedParameters) {
             if (Names.STRATEGY.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
+                checkPrefixTreeSupport(parserContext, fieldName);
                 deprecatedParameters.setSpatialStrategy(SpatialStrategy.fromString(fieldNode.toString()));
             } else if (Names.TREE.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
+                checkPrefixTreeSupport(parserContext, fieldName);
                 deprecatedParameters.setTree(fieldNode.toString());
             } else if (Names.TREE_LEVELS.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
+                checkPrefixTreeSupport(parserContext, fieldName);
                 deprecatedParameters.setTreeLevels(Integer.parseInt(fieldNode.toString()));
             } else if (Names.PRECISION.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
+                checkPrefixTreeSupport(parserContext, fieldName);
                 deprecatedParameters.setPrecision(fieldNode.toString());
             } else if (Names.DISTANCE_ERROR_PCT.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
+                checkPrefixTreeSupport(parserContext, fieldName);
                 deprecatedParameters.setDistanceErrorPct(Double.parseDouble(fieldNode.toString()));
             } else if (Names.POINTS_ONLY.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
+                checkPrefixTreeSupport(parserContext, fieldName);
                 deprecatedParameters.setPointsOnly(
                     XContentMapValues.nodeBooleanValue(fieldNode, name + "." + DeprecatedParameters.Names.POINTS_ONLY));
             } else {
@@ -170,8 +172,9 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             return true;
         }
 
-        private static void checkPrefixTreeSupport(String fieldName) {
-            if (ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
+        private static void checkPrefixTreeSupport(ParserContext parserContext, String fieldName) {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_7_0_0)
+                || ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
                 throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type",
                     fieldName, CONTENT_TYPE);
             }
@@ -552,7 +555,7 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
                 DistanceUnit.METERS.toString(50));
         }
 
-        if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
+        if (indexCreatedVersion.onOrAfter(Version.V_6_6_0)) {
             builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
         }
 

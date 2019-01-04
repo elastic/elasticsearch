@@ -413,6 +413,7 @@ of the node containing each copy of the shard. This can improve query throughput
 and reduce latency for search-heavy applications.
 
 === Tune your queries with the Profile API
+
 :ref:  https://www.elastic.co/guide/en/elasticsearch/reference/current/search-profile.html
 :ref-searchprofiler:  https://www.elastic.co/guide/en/kibana/current/xpack-profiler.html
 
@@ -425,4 +426,4 @@ Some caveats to the Profile API are that:
  - the Profile API as a debugging tool adds significant overhead to search execution and can also have a very verbose output
  - given the added overhead, the resulting took times are not reliable indicators of actual took time, but can be used comparatively between clauses for relative timing differences
  - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause 
->>>>>>> 13f5c884260... Add Profile API to search speed tuning howto (#29489)
+

@@ -158,8 +158,9 @@ public final class SimilarityService extends AbstractIndexComponent {
             providers.put(entry.getKey(), entry.getValue().apply(indexSettings.getIndexVersionCreated()));
         }
         this.similarities = providers;
-        defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
-                                                              : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
+        Supplier<Similarity> defaultSimilarity = providers.get("default");
+        this.defaultSimilarity = (defaultSimilarity != null) ?
+            defaultSimilarity.get() : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
             deprecationLogger.deprecated("The [base] similarity is ignored since query normalization and coords have been removed");
         }
@@ -170,7 +171,6 @@ public final class SimilarityService extends AbstractIndexComponent {
         return (mapperService != null) ? new PerFieldSimilarity(defaultSimilarity, mapperService) :
                 defaultSimilarity;
     }
-
 
     public SimilarityProvider getSimilarity(String name) {
         Supplier<Similarity> sim = similarities.get(name);
@@ -280,5 +280,4 @@ public final class SimilarityService extends AbstractIndexComponent {
             deprecationLogger.deprecated(message);
         }
     }
-
 }

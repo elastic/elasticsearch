@@ -949,7 +949,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         response = e.getResponse();
         assertThat(response.getStatusLine().getStatusCode(), equalTo(409));
         assertThat(EntityUtils.toString(response.getEntity()),
-                containsString("Cannot delete job [" + jobId + "] because datafeed [" + datafeedId + "] refers to it"));
+                containsString("Cannot delete job [" + jobId + "] because the job is opened"));
 
         response = client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -1177,7 +1177,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Response build() throws IOException {
             Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
             request.setJsonEntity("{"
-                    + "\"job_id\": \"" + jobId + "\",\"indexes\":[\"" + index + "\"],\"types\":[\"" + type + "\"]"
+                    + "\"job_id\": \"" + jobId + "\",\"indexes\":[\"" + index + "\"]"
                     + (source ? ",\"_source\":true" : "")
                     + (scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields)
                     + (aggregations == null ? "" : ",\"aggs\":" + aggregations)

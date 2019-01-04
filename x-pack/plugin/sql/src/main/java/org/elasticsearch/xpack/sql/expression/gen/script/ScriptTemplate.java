@@ -44,10 +44,6 @@ public class ScriptTemplate {
         return params;
     }
 
-    public List<String> aggRefs() {
-        return params.asAggRefs();
-    }
-
     public Map<String, String> aggPaths() {
         return params.asAggPaths();
     }

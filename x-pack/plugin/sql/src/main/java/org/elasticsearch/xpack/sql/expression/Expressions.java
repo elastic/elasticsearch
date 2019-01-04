@@ -35,7 +35,7 @@ public final class Expressions {
     private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.location(), exp.nodeName(), exp);
+        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.nodeName(), exp);
     }
 
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
@@ -64,6 +64,15 @@ public final class Expressions {
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
         for (Expression exp : exps) {
             if (exp.anyMatch(predicate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean match(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
+        for (Expression exp : exps) {
+            if (predicate.test(exp)) {
                 return true;
             }
         }

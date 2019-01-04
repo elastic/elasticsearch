@@ -11,15 +11,15 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 public class IsNotNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction> {
 
-    public IsNotNull(Location location, Expression field) {
-        super(location, field);
+    public IsNotNull(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -29,7 +29,7 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
 
     @Override
     protected IsNotNull replaceChild(Expression newChild) {
-        return new IsNotNull(location(), newChild);
+        return new IsNotNull(source(), newChild);
     }
 
     @Override
@@ -59,6 +59,6 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
 
     @Override
     public UnaryScalarFunction negate() {
-        return new IsNull(location(), field());
+        return new IsNull(source(), field());
     }
 }

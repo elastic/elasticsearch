@@ -49,17 +49,66 @@ public class InvalidateTokenRequestTests extends ESTestCase {
         ));
     }
 
+    public void testInvalidateRealmTokens() {
+        String realmName = "native";
+        final InvalidateTokenRequest request = InvalidateTokenRequest.realmTokens(realmName);
+        assertThat(request.getAccessToken(), nullValue());
+        assertThat(request.getRefreshToken(), nullValue());
+        assertThat(request.getRealmName(), equalTo(realmName));
+        assertThat(request.getUsername(), nullValue());
+        assertThat(Strings.toString(request), equalTo("{" +
+            "\"realm_name\":\"native\"" +
+            "}"
+        ));
+    }
+
+    public void testInvalidateUserTokens() {
+        String username = "user";
+        final InvalidateTokenRequest request = InvalidateTokenRequest.userTokens(username);
+        assertThat(request.getAccessToken(), nullValue());
+        assertThat(request.getRefreshToken(), nullValue());
+        assertThat(request.getRealmName(), nullValue());
+        assertThat(request.getUsername(), equalTo(username));
+        assertThat(Strings.toString(request), equalTo("{" +
+            "\"username\":\"user\"" +
+            "}"
+        ));
+    }
+
+    public void testInvalidateUserTokensInRealm() {
+        String username = "user";
+        String realmName = "native";
+        final InvalidateTokenRequest request = new InvalidateTokenRequest(null, null, realmName, username);
+        assertThat(request.getAccessToken(), nullValue());
+        assertThat(request.getRefreshToken(), nullValue());
+        assertThat(request.getRealmName(), equalTo(realmName));
+        assertThat(request.getUsername(), equalTo(username));
+        assertThat(Strings.toString(request), equalTo("{" +
+            "\"realm_name\":\"native\"," +
+            "\"username\":\"user\"" +
+
+            "}"
+        ));
+    }
+
     public void testEqualsAndHashCode() {
         final String token = randomAlphaOfLength(8);
         final boolean accessToken = randomBoolean();
         final InvalidateTokenRequest request = accessToken ? InvalidateTokenRequest.accessToken(token)
             : InvalidateTokenRequest.refreshToken(token);
         final EqualsHashCodeTestUtils.MutateFunction<InvalidateTokenRequest> mutate = r -> {
-            if (randomBoolean()) {
-                return accessToken ? InvalidateTokenRequest.refreshToken(token) : InvalidateTokenRequest.accessToken(token);
-            } else {
-                return accessToken ? InvalidateTokenRequest.accessToken(randomAlphaOfLength(10))
-                    : InvalidateTokenRequest.refreshToken(randomAlphaOfLength(10));
+            int randomCase = randomIntBetween(1, 4);
+            switch (randomCase) {
+                case 1:
+                    return InvalidateTokenRequest.refreshToken(randomAlphaOfLength(5));
+                case 2:
+                    return InvalidateTokenRequest.accessToken(randomAlphaOfLength(5));
+                case 3:
+                    return InvalidateTokenRequest.realmTokens(randomAlphaOfLength(5));
+                case 4:
+                    return InvalidateTokenRequest.userTokens(randomAlphaOfLength(5));
+                default:
+                    return new InvalidateTokenRequest(null, null, randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
         };
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,

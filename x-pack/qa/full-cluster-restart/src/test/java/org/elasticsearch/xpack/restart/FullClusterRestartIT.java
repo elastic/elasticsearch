@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -365,6 +366,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             final Request indexRequest = new Request("POST", "/id-test-rollup/doc/2");
             indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-02T00:00:01\",\"value\":345}");
+            indexRequest.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             client().performRequest(indexRequest);
 
             assertRollUpJob("rollup-id-test");

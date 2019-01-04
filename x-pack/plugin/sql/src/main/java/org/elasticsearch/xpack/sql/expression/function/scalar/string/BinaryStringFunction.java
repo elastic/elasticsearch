@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -25,8 +25,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
 
-    protected BinaryStringFunction(Location location, Expression left, Expression right) {
-        super(location, left, right);
+    protected BinaryStringFunction(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     /*

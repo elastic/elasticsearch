@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_NAME;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_USERINFO_ENDPOINT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_ALLOWED_SCOPES;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_ID;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REDIRECT_URI;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_RESPONSE_TYPE;
@@ -86,8 +87,10 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         String responseType = require(config, RP_RESPONSE_TYPE);
         List<String> requestedScopes = config.hasSetting(RP_REQUESTED_SCOPES) ?
             config.getSetting(RP_REQUESTED_SCOPES) : Collections.emptyList();
+        List<String> allowedScopes = config.hasSetting(RP_ALLOWED_SCOPES) ?
+            config.getSetting(RP_ALLOWED_SCOPES) : Collections.emptyList();
 
-        return new RPConfiguration(clientId, redirectUri, responseType, requestedScopes);
+        return new RPConfiguration(clientId, redirectUri, responseType, requestedScopes, allowedScopes);
     }
 
     private OPConfiguration buildOPConfiguration(RealmConfig config) {

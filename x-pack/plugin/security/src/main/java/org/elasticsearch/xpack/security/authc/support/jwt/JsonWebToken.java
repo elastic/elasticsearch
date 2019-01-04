@@ -18,7 +18,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
- * A class that represents a JWT according to https://tools.ietf.org/html/rfc7519
+ * A class that represents an OpenID Connect ID token according to https://tools.ietf.org/html/rfc7519.
  */
 public class JsonWebToken {
     private Map<String, Object> header;
@@ -30,17 +30,26 @@ public class JsonWebToken {
         this.payload = payload;
     }
 
+    public Map<String, Object> getHeader() {
+        return header;
+    }
+
+    public Map<String, Object> getPayload() {
+        return payload;
+    }
+
     /**
      * Encodes the JWT as defined by https://tools.ietf.org/html/rfc7515#section-7
      *
-     * @return
+     * @return The serialized JWT
      */
     public String encode() {
         try {
-            String headerString = Base64.getEncoder().encodeToString(mapToJsonBytes(header));
-            String payloadString = Base64.getEncoder().encodeToString(mapToJsonBytes(payload));
+            // Base64 url encoding is defined in https://tools.ietf.org/html/rfc7515#appendix-C
+            String headerString = Base64.getUrlEncoder().withoutPadding().encodeToString(mapToJsonBytes(header));
+            String payloadString = Base64.getUrlEncoder().withoutPadding().encodeToString(mapToJsonBytes(payload));
             String signatureString = Strings.hasText(signature) ?
-                Base64.getEncoder().encodeToString(signature.getBytes(StandardCharsets.UTF_8.name())) :
+                Base64.getUrlEncoder().withoutPadding().encodeToString(signature.getBytes(StandardCharsets.UTF_8.name())) :
                 "";
             return headerString + "." + payloadString + "." + signatureString;
         } catch (IOException e) {

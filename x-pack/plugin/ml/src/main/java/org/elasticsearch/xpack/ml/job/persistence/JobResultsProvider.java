@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -486,20 +487,6 @@ public class JobResultsProvider {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
             errorHandler.accept(new ElasticsearchParseException("failed to parse " + hit.getType(), e));
-            return null;
-        }
-    }
-
-    private <T, U> T parseGetHit(GetResponse getResponse, BiFunction<XContentParser, U, T> objectParser,
-                                 Consumer<Exception> errorHandler) {
-        BytesReference source = getResponse.getSourceAsBytesRef();
-
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return objectParser.apply(parser, null);
-        } catch (IOException e) {
-            errorHandler.accept(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
             return null;
         }
     }
@@ -957,19 +944,6 @@ public class JobResultsProvider {
                 ), client::search);
     }
 
-    private <U, T> void getResult(String jobId, String resultDescription, GetRequest get, BiFunction<XContentParser, U, T> objectParser,
-            Consumer<Result<T>> handler, Consumer<Exception> errorHandler, Supplier<T> notFoundSupplier) {
-
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, get, ActionListener.<GetResponse>wrap(getDocResponse -> {
-            if (getDocResponse.isExists()) {
-                handler.accept(new Result<>(getDocResponse.getIndex(), parseGetHit(getDocResponse, objectParser, errorHandler)));
-            } else {
-                LOGGER.trace("No {} for job with id {}", resultDescription, jobId);
-                handler.accept(new Result<>(null, notFoundSupplier.get()));
-            }
-        }, errorHandler), client::get);
-    }
-
     private SearchRequestBuilder createLatestModelSizeStatsSearch(String indexName) {
         return client.prepareSearch(indexName)
                 .setSize(1)
@@ -1115,11 +1089,17 @@ public class JobResultsProvider {
     public void getForecastRequestStats(String jobId, String forecastId, Consumer<ForecastRequestStats> handler,
             Consumer<Exception> errorHandler) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        GetRequest getRequest = new GetRequest(indexName, ElasticsearchMappings.DOC_TYPE,
-                ForecastRequestStats.documentId(jobId, forecastId));
+        SearchRequestBuilder forecastSearch = client.prepareSearch(indexName)
+            .setTypes(ElasticsearchMappings.DOC_TYPE)
+            .setQuery(new BoolQueryBuilder()
+                    .filter(new TermQueryBuilder("_id",
+                        ForecastRequestStats.documentId(jobId, forecastId))));
 
-        getResult(jobId, ForecastRequestStats.RESULTS_FIELD.getPreferredName(), getRequest, ForecastRequestStats.LENIENT_PARSER,
-                result -> handler.accept(result.result), errorHandler, () -> null);
+        searchSingleResult(jobId,
+            ForecastRequestStats.RESULTS_FIELD.getPreferredName(),
+            forecastSearch,
+            ForecastRequestStats.LENIENT_PARSER,result -> handler.accept(result.result),
+            errorHandler, () -> null);
     }
 
     public void getForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {

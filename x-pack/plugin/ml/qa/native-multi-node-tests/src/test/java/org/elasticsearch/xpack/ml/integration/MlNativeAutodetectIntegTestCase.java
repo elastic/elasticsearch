@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -26,7 +25,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
@@ -348,17 +349,20 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
     }
 
     protected ForecastRequestStats getForecastStats(String jobId, String forecastId) {
-        GetResponse getResponse = client().prepareGet()
-                .setIndex(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-                .setId(ForecastRequestStats.documentId(jobId, forecastId))
-                .execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+            .setQuery(new BoolQueryBuilder()
+                .filter(new TermQueryBuilder("_id", ForecastRequestStats.documentId(jobId, forecastId))))
+            .get();
 
-        if (getResponse.isExists() == false) {
+        if (searchResponse.getHits().getHits().length == 0) {
             return null;
         }
+
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
                     NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    getResponse.getSourceAsBytesRef().streamInput())) {
+                    searchResponse.getHits().getHits()[0].getSourceRef().streamInput())) {
             return ForecastRequestStats.STRICT_PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new IllegalStateException(e);

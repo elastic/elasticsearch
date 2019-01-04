@@ -76,7 +76,7 @@ public class PlanExecutor {
                 listener.onFailure(new PlanningException("Cannot generate a query DSL for a special SQL command " +
                     "(e.g.: DESCRIBE, SHOW), sql statement: [{}]", sql));
             } else {
-                listener.onFailure(new PlanningException("Cannot generate a query DSL for sql statement [{}]", sql));
+                listener.onFailure(new PlanningException("Cannot generate a query DSL, sql statement: [{}]", sql));
             }
         }, listener::onFailure));
     }

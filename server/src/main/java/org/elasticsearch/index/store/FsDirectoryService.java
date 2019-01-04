@@ -129,10 +129,10 @@ public class FsDirectoryService extends DirectoryService {
         return directory;
     }
 
-    final static class HybridDirectory extends NIOFSDirectory {
+    static final class HybridDirectory extends NIOFSDirectory {
         private final FSDirectory randomAccessDirectory;
 
-        public HybridDirectory(Path location, LockFactory lockFactory, FSDirectory randomAccessDirectory) throws IOException {
+        HybridDirectory(Path location, LockFactory lockFactory, FSDirectory randomAccessDirectory) throws IOException {
             super(location, lockFactory);
             this.randomAccessDirectory = randomAccessDirectory;
         }

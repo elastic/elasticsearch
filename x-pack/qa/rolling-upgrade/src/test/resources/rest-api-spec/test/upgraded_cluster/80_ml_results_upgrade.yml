@@ -46,7 +46,7 @@
 
   - do:
       indices.exists:
-        index:
+        index: .ml-anomalies-custom-old-cluster-job-to-upgrade-custom
 
   - is_false: ''
 

@@ -89,7 +89,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final Collection<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
     private final Collection<TimeoutClusterStateListener> timeoutClusterStateListeners =
-        Collections.newSetFromMap(new ConcurrentHashMap<TimeoutClusterStateListener, Boolean>());
+        Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final LocalNodeMasterListeners localNodeMasterListeners;
 
@@ -97,18 +97,28 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final AtomicReference<ClusterState> state; // last applied state
 
-    private final String nodeName;
+    private final Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorFactory;
 
     private NodeConnectionsService nodeConnectionsService;
 
     public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(settings, clusterSettings, threadPool,
+            () -> EsExecutors.newSinglePrioritizing(
+                nodeName + "/" + CLUSTER_UPDATE_THREAD_NAME,
+                daemonThreadFactory(nodeName, CLUSTER_UPDATE_THREAD_NAME),
+                threadPool.getThreadContext(),
+                threadPool.scheduler()));
+    }
+
+    public ClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
+        Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorFactory) {
         super(settings);
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
         this.localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
-        this.nodeName = nodeName;
+        this.threadPoolExecutorFactory = threadPoolExecutorFactory;
     }
 
     public void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -134,11 +144,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
         Objects.requireNonNull(state.get(), "please set initial state before starting");
         addListener(localNodeMasterListeners);
-        threadPoolExecutor = EsExecutors.newSinglePrioritizing(
-                nodeName + "/" + CLUSTER_UPDATE_THREAD_NAME,
-                daemonThreadFactory(nodeName, CLUSTER_UPDATE_THREAD_NAME),
-                threadPool.getThreadContext(),
-                threadPool.scheduler());
+        threadPoolExecutor = threadPoolExecutorFactory.get();
     }
 
     class UpdateTask extends SourcePrioritizedRunnable implements Function<ClusterState, ClusterState> {

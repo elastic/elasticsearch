@@ -222,7 +222,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     @Override
     public Iterator<RoutingNode> iterator() {
-        return Collections.unmodifiableCollection(nodesToShards.values()).iterator();
+        return nodesToShards.values().stream().sorted(Comparator.comparing(RoutingNode::nodeId)).iterator();
     }
 
     public Iterator<RoutingNode> mutableIterator() {

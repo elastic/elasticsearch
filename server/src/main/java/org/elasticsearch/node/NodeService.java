@@ -61,7 +61,7 @@ public class NodeService implements Closeable {
 
     private final Discovery discovery;
 
-    NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
+    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
                 TransportService transportService, IndicesService indicesService, PluginsService pluginService,
                 CircuitBreakerService circuitBreakerService, ScriptService scriptService,
                 @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,

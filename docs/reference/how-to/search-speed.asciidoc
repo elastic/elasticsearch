@@ -400,8 +400,6 @@ So what is the right number of replicas? If you have a cluster that has
 be able to cope with `max_failures` node failures at once at most, then the
 right number of replicas for you is
 `max(max_failures, ceil(num_nodes / num_primaries) - 1)`.
-<<<<<<< HEAD
-=======
 
 [float]
 === Turn on adaptive replica selection
@@ -413,7 +411,6 @@ of the node containing each copy of the shard. This can improve query throughput
 and reduce latency for search-heavy applications.
 
 === Tune your queries with the Profile API
-
 :ref:  https://www.elastic.co/guide/en/elasticsearch/reference/current/search-profile.html
 :ref-searchprofiler:  https://www.elastic.co/guide/en/kibana/current/xpack-profiler.html
 
@@ -426,4 +423,3 @@ Some caveats to the Profile API are that:
  - the Profile API as a debugging tool adds significant overhead to search execution and can also have a very verbose output
  - given the added overhead, the resulting took times are not reliable indicators of actual took time, but can be used comparatively between clauses for relative timing differences
  - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause 
-

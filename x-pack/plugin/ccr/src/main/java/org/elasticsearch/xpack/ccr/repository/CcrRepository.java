@@ -357,7 +357,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             }
 
             if (filesToRecover.isEmpty()) {
-                logger.trace("shard [{}] no files to recover, all exist within the local store");
+                logger.trace("shard [{}] no files to recover, all exist within the local store", shardId);
             }
 
             final List<String> deleteIfExistFiles = Arrays.asList(getDirectoryFiles());

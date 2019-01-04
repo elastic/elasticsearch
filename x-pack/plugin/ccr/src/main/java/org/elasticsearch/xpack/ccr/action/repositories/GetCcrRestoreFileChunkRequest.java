@@ -18,10 +18,10 @@ import java.io.IOException;
 public class GetCcrRestoreFileChunkRequest extends ActionRequest implements RemoteClusterAwareRequest {
 
     private DiscoveryNode node;
-    private String sessionUUID;
-    private String fileName;
-    private long offset;
-    private int size;
+    private final String sessionUUID;
+    private final String fileName;
+    private final long offset;
+    private final int size;
 
     @Override
     public ActionRequestValidationException validate() {
@@ -30,14 +30,14 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
 
     public GetCcrRestoreFileChunkRequest(DiscoveryNode node, String sessionUUID, String fileName, long offset, int size) {
         this.sessionUUID = sessionUUID;
+        this.node = node;
         this.fileName = fileName;
         this.offset = offset;
         this.size = size;
-        this.node = node;
     }
 
     GetCcrRestoreFileChunkRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         sessionUUID = in.readString();
         fileName = in.readString();
         offset = in.readVLong();

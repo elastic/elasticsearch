@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr.action.repositories;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,15 +67,21 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
         @Override
         protected void doExecute(Task task, GetCcrRestoreFileChunkRequest request,
                                  ActionListener<GetCcrRestoreFileChunkResponse> listener) {
-            threadPool.generic().execute(() -> {
-                Engine.IndexCommitRef snapshot = restoreSourceService.getSession(request.getSessionUUID());
-                try (IndexInput in = snapshot.getIndexCommit().getDirectory().openInput(request.getFileName(), IOContext.READONCE)) {
-                    byte[] chunk = new byte[request.getSize()];
-                    in.seek(request.getOffset());
-                    in.readBytes(chunk, 0, request.getSize());
-                    listener.onResponse(new GetCcrRestoreFileChunkResponse(new BytesArray(chunk)));
-                } catch (IOException e) {
-                    throw new ElasticsearchException(e);
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    Engine.IndexCommitRef snapshot = restoreSourceService.getSession(request.getSessionUUID());
+                    try (IndexInput in = snapshot.getIndexCommit().getDirectory().openInput(request.getFileName(), IOContext.READONCE)) {
+                        byte[] chunk = new byte[request.getSize()];
+                        in.seek(request.getOffset());
+                        in.readBytes(chunk, 0, request.getSize());
+                        listener.onResponse(new GetCcrRestoreFileChunkResponse(new BytesArray(chunk)));
+                    }
                 }
             });
         }
@@ -83,7 +89,7 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
 
     public static class GetCcrRestoreFileChunkResponse extends ActionResponse {
 
-        private BytesReference chunk;
+        private final BytesReference chunk;
 
         GetCcrRestoreFileChunkResponse(StreamInput streamInput) throws IOException {
             super(streamInput);

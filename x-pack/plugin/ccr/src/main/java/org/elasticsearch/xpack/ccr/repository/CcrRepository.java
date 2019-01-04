@@ -329,7 +329,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 sourceFileMetaData);
         }
 
-        @SuppressWarnings("unchecked")
         void restoreFiles() {
             Store.MetadataSnapshot recoveryMetadata;
             try {
@@ -350,7 +349,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             }
 
             List<StoreFileMetaData> filesToRecover = new ArrayList<>();
-            for (StoreFileMetaData fileMetaData : Iterables.concat(diff.different, diff.missing)) {
+            for (StoreFileMetaData fileMetaData : concat(diff)) {
                 filesToRecover.add(fileMetaData);
                 recoveryState.getIndex().addFileDetail(fileMetaData.name(), fileMetaData.length(), false);
                 logger.trace("shard [{}] recovering file [{}]", shardId, fileMetaData.name());
@@ -396,6 +395,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             } catch (IOException e) {
                 throw new IndexShardRecoveryException(shardId, "failed to cleanup and verify the store", e);
             }
+        }
+
+        @SuppressWarnings("unchecked")
+        private static Iterable<StoreFileMetaData> concat(Store.RecoveryDiff diff) {
+            return Iterables.concat(diff.different, diff.missing);
         }
 
         private String[] getDirectoryFiles() {

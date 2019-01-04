@@ -8,6 +8,7 @@ This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.7.
 
 * <<breaking_67_plugin_changes>>
+* <<breaking_67_settings_changes>>
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
@@ -28,3 +29,13 @@ will result in an error. Additionally, there are two minor breaking changes here
 - `plugin.mandatory` is no longer compatible with `ingest-geoip` nor
   `ingest-user-agent`
 
+
+[float]
+[[breaking_67_settings_changes]]
+=== Settings changes
+
+[float]
+==== Disabling memory-mapping
+
+The setting `node.store.allow_mmapfs` has been deprecated. Use
+`node.store.allow_mmap` instead.

@@ -69,7 +69,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         client().performRequest(createTestIndex);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36816")
     public void testMigration() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createTestIndex();
@@ -157,6 +156,12 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     @SuppressWarnings("unchecked")
     private void waitForMigration(List<String> expectedMigratedJobs, List<String> expectedMigratedDatafeeds,
                                   List<String> unMigratedJobs, List<String> unMigratedDatafeeds) throws Exception {
+
+        // After v6.6.0 jobs are created in the index so no migration will take place
+        if (getOldClusterVersion().onOrAfter(Version.V_6_6_0)) {
+            return;
+        }
+
         assertBusy(() -> {
             // wait for the eligible configs to be moved from the clusterstate
             Request getClusterState = new Request("GET", "/_cluster/state/metadata");

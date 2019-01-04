@@ -49,6 +49,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -162,16 +163,18 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false);
-        for (boolean trackTotalHits : new boolean[] {true, false}) {
+        for (int trackTotalHits : new int[] {SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE}) {
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase =
                 searchPhaseController.reducedQueryPhase(queryResults.asList(), false, trackTotalHits, true);
             AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(nShards,
                 reducedQueryPhase.sortedTopDocs.scoreDocs, reducedQueryPhase.suggest);
             InternalSearchResponse mergedResponse = searchPhaseController.merge(false,
-                reducedQueryPhase,
-                fetchResults.asList(), fetchResults::get);
-            if (trackTotalHits == false) {
+                reducedQueryPhase, fetchResults.asList(), fetchResults::get);
+            if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 assertNull(mergedResponse.hits.getTotalHits());
+            } else {
+                assertThat(mergedResponse.hits.getTotalHits().value, equalTo(0L));
+                assertEquals(mergedResponse.hits.getTotalHits().relation, Relation.EQUAL_TO);
             }
             for (SearchHit hit : mergedResponse.hits().getHits()) {
                 SearchPhaseResult searchPhaseResult = fetchResults.get(hit.getShard().getShardId().id());

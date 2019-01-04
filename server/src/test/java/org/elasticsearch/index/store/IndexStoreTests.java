@@ -93,8 +93,8 @@ public class IndexStoreTests extends ESTestCase {
     }
 
     private void assertHybridDirectory(Directory directory) {
-        assertTrue(directory.toString(), directory instanceof FileSwitchDirectory);
-        Directory primaryDirectory = ((FileSwitchDirectory) directory).getPrimaryDir();
-        assertTrue("primary directory " +  primaryDirectory.toString(), primaryDirectory instanceof MMapDirectory);
+        assertTrue(directory.toString(), directory instanceof FsDirectoryService.HybridDirectory);
+        Directory randomAccessDirectory = ((FsDirectoryService.HybridDirectory) directory).getRandomAccessDirectory();
+        assertTrue("randomAccessDirectory:  " +  randomAccessDirectory.toString(), randomAccessDirectory instanceof MMapDirectory);
     }
 }

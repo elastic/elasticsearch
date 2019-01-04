@@ -92,33 +92,7 @@ public class FsDirectoryService extends DirectoryService {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory) {
-                    return new NIOFSDirectory(location, lockFactory) {
-                        @Override
-                        public IndexInput openInput(String name, IOContext context) throws IOException {
-                            String extension = FileSwitchDirectory.getExtension(name);
-                            switch(extension) {
-                                // We are mmapping norms, docvalues as well as term dictionaries, all other files are served through NIOFS
-                                // this provides good random access performance and does not lead to page cache thrashing.
-                                case "nvd":
-                                case "dvd":
-                                case "tim":
-                                    ensureOpen();
-                                    ensureCanRead(name);
-                                    // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
-                                    // we might run into trouble with files that are pendingDelete in one directory but still
-                                    // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
-                                    // and intersect for perf reasons.
-                                    return primaryDirectory.openInput(name, context);
-                                default:
-                                    return super.openInput(name, context);
-                            }
-                        }
-
-                        @Override
-                        public void close() throws IOException {
-                            IOUtils.close(super::close, primaryDirectory);
-                        }
-                    };
+                    return new HybridDirectory(location, lockFactory, primaryDirectory);
                 } else {
                     return primaryDirectory;
                 }
@@ -153,5 +127,45 @@ public class FsDirectoryService extends DirectoryService {
             };
         }
         return directory;
+    }
+
+    final static class HybridDirectory extends NIOFSDirectory {
+        private final FSDirectory randomAccessDirectory;
+
+        public HybridDirectory(Path location, LockFactory lockFactory, FSDirectory randomAccessDirectory) throws IOException {
+            super(location, lockFactory);
+            this.randomAccessDirectory = randomAccessDirectory;
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            String extension = FileSwitchDirectory.getExtension(name);
+            switch(extension) {
+                // We are mmapping norms, docvalues as well as term dictionaries, all other files are served through NIOFS
+                // this provides good random access performance and does not lead to page cache thrashing.
+                case "nvd":
+                case "dvd":
+                case "tim":
+                    // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+                    ensureOpen();
+                    ensureCanRead(name);
+                    // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
+                    // we might run into trouble with files that are pendingDelete in one directory but still
+                    // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
+                    // and intersect for perf reasons.
+                    return randomAccessDirectory.openInput(name, context);
+                default:
+                    return super.openInput(name, context);
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(super::close, randomAccessDirectory);
+        }
+
+        Directory getRandomAccessDirectory() {
+            return randomAccessDirectory;
+        }
     }
 }

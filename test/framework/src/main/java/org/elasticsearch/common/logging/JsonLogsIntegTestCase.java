@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
@@ -27,7 +26,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.function.Predicate;
+import java.util.Iterator;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
@@ -89,27 +88,25 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
 
     public void testNodeIdAndClusterIdConsistentOnceAvailable() throws IOException {
         try (JsonLogs jsonLogs = new JsonLogs(openReader(getLogFile()))) {
-            SetOnce<JsonLogLine> firstLineWithIds = new SetOnce<>();
+            Iterator<JsonLogLine> iterator = jsonLogs.iterator();
 
-            jsonLogs.stream()
-                .dropWhile(nodeIdNotPresent(firstLineWithIds))
-                .limit(LINES_TO_CHECK)
-                .forEach(jsonLogLine -> {
-                    //initially empty, but once found all lines should have same nodeId and clusterid
-                    assertThat(jsonLogLine.nodeId(), equalTo(firstLineWithIds.get().nodeId()));
-                    assertThat(jsonLogLine.clusterUuid(), equalTo(firstLineWithIds.get().clusterUuid()));
-                });
-        }
-    }
-
-    private Predicate<JsonLogLine> nodeIdNotPresent(SetOnce<JsonLogLine> firstLine) {
-        return line -> {
-            if (line.nodeId() != null) {
-                firstLine.set(line);
-                return false;
+            JsonLogLine firstLine = null;
+            while (iterator.hasNext()) {
+                JsonLogLine jsonLogLine = iterator.next();
+                if (jsonLogLine.nodeId() != null) {
+                    firstLine = jsonLogLine;
+                }
             }
-            return true;
-        };
+
+            //once the nodeId and clusterId are received, they should be the same on remaining lines
+
+            int i = 0;
+            while (iterator.hasNext() && i++ < LINES_TO_CHECK) {
+                JsonLogLine jsonLogLine = iterator.next();
+                assertThat(jsonLogLine.nodeId(), equalTo(firstLine.nodeId()));
+                assertThat(jsonLogLine.clusterUuid(), equalTo(firstLine.clusterUuid()));
+            }
+        }
     }
 
     @SuppressForbidden(reason = "PathUtils doesn't have permission to read this file")

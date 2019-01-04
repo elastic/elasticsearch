@@ -5,13 +5,13 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.apache.logging.log4j.message.SimpleMessage;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isEmptyString;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -35,13 +35,18 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
 
     JsonThrowablePatternConverter converter = JsonThrowablePatternConverter.newInstance(null, null);
 
-    public void testNoStacktrace() {
+    public void testNoStacktrace() throws IOException {
         LogEvent event = Log4jLogEvent.newBuilder()
             .build();
 
         String result = format(event);
 
-        assertThat(result, isEmptyString());
+        JsonLogs jsonLogs = new JsonLogs(new BufferedReader(new StringReader(result)));
+        JsonLogLine jsonLogLine = jsonLogs.stream()
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no logs parsed"));
+
+        assertThat(jsonLogLine.stacktrace(), Matchers.nullValue());
     }
 
 

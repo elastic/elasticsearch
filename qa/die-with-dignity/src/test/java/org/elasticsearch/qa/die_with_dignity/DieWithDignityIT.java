@@ -21,6 +21,7 @@ package org.elasticsearch.qa.die_with_dignity;
 
 import org.apache.http.ConnectionClosedException;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.JsonLogLine;
@@ -89,28 +90,43 @@ public class DieWithDignityIT extends ESRestTestCase {
             }
         });
 
+try {
+    // parse the logs and ensure that Elasticsearch died with the expected cause
+    Path path = PathUtils.get(System.getProperty("log"));
+    try (JsonLogs jsonLogs = new JsonLogs(path)) {
+        final Iterator<JsonLogLine> it = jsonLogs.iterator();
 
-        // parse the logs and ensure that Elasticsearch died with the expected cause
-        Path path = PathUtils.get(System.getProperty("log"));
-        try(JsonLogs jsonLogs = new JsonLogs(path)){
-            final Iterator<JsonLogLine> it = jsonLogs.iterator();
+        boolean fatalError = false;
+        boolean fatalErrorInThreadExiting = false;
 
-            boolean fatalError = false;
-            boolean fatalErrorInThreadExiting = false;
-
-            while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
-                final JsonLogLine line = it.next();
-                if (isFatalError(line)) {
-                    fatalError = true;
-                } else if (isFatalErrorInThreadExiting(line)) {
-                    fatalErrorInThreadExiting = true;
-                    assertThat(line.stacktrace(),
-                        hasItem(Matchers.containsString("java.lang.OutOfMemoryError: die with dignity")));
-                }
+        while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
+            final JsonLogLine line = it.next();
+            if (isFatalError(line)) {
+                fatalError = true;
+            } else if (isFatalErrorInThreadExiting(line)) {
+                fatalErrorInThreadExiting = true;
+                assertThat(line.stacktrace(),
+                    hasItem(Matchers.containsString("java.lang.OutOfMemoryError: die with dignity")));
             }
+        }
+        //temporarily adding logging
+//            if(!fatalError || !fatalErrorInThreadExiting){
 
-            assertTrue(fatalError);
-            assertTrue(fatalErrorInThreadExiting);
+//            }
+        assertTrue(fatalError);
+        assertTrue(fatalErrorInThreadExiting);
+    }
+}catch(AssertionError ae){
+    Path path = PathUtils.get(System.getProperty("log"));
+    debugLogs(path);
+    throw ae;
+}
+    }
+
+    private void debugLogs(Path path) throws IOException {
+        try(BufferedReader reader = Files.newBufferedReader(path)){
+            Terminal terminal = Terminal.DEFAULT;
+            reader.lines().forEach(line ->terminal.println(line));
         }
     }
 

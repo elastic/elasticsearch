@@ -136,7 +136,7 @@ public class JsonLogLine {
     }
 
     private static ObjectParser<JsonLogLine, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<JsonLogLine, Void> parser = new ObjectParser<>("search_template", ignoreUnknownFields, null);
+        ObjectParser<JsonLogLine, Void> parser = new ObjectParser<>("search_template", ignoreUnknownFields, JsonLogLine::new);
         parser.declareString(JsonLogLine::setType, new ParseField("type"));
         parser.declareString(JsonLogLine::setTimestamp, new ParseField("timestamp"));
         parser.declareString(JsonLogLine::setLevel, new ParseField("level"));

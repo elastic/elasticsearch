@@ -20,16 +20,17 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 
 import java.util.List;
 
 public class JsonLogLine {
-    public static final ConstructingObjectParser<JsonLogLine, Void> PARSER = createParser(false);
+    public static final ObjectParser<JsonLogLine, Void> PARSER = createParser(false);
+
     private String type;
     private String timestamp;
     private String level;
-    private String clazz;
+    private String component;
     private String clusterName;
     private String nodeName;
     private String clusterUuid;
@@ -37,29 +38,13 @@ public class JsonLogLine {
     private String message;
     private List<String> stacktrace;
 
-    private JsonLogLine(String type, String timestamp, String level, String clazz, String clusterName,
-                        String nodeName, String clusterUuid, String nodeId,
-                        String message,
-                        List<String> stacktrace) {
-        this.type = type;
-        this.timestamp = timestamp;
-        this.level = level;
-        this.clazz = clazz;
-        this.clusterName = clusterName;
-        this.nodeName = nodeName;
-        this.clusterUuid = clusterUuid;
-        this.nodeId = nodeId;
-        this.message = message;
-        this.stacktrace = stacktrace;
-    }
-
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("JsonLogLine{");
         sb.append("type='").append(type).append('\'');
         sb.append(", timestamp='").append(timestamp).append('\'');
         sb.append(", level='").append(level).append('\'');
-        sb.append(", clazz='").append(clazz).append('\'');
+        sb.append(", component='").append(component).append('\'');
         sb.append(", clusterName='").append(clusterName).append('\'');
         sb.append(", nodeName='").append(nodeName).append('\'');
         sb.append(", clusterUuid='").append(clusterUuid).append('\'');
@@ -82,8 +67,8 @@ public class JsonLogLine {
         return level;
     }
 
-    public String clazz() {
-        return clazz;
+    public String component() {
+        return component;
     }
 
     public String clusterName() {
@@ -110,107 +95,59 @@ public class JsonLogLine {
         return stacktrace;
     }
 
-    @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<JsonLogLine, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<JsonLogLine, Void> parser = new ConstructingObjectParser<>("jsong_log_line_parser", ignoreUnknownFields,
-            a -> JsonLogLine.builder()
-                .withType((String) a[0])
-                .withTimestamp((String) a[1])
-                .withLevel((String) a[2])
-                .withClazz((String) a[3])
-                .withClusterName((String) a[4])
-                .withNodeName((String) a[5])
-                .withClusterUuid((String) a[6])
-                .withNodeId((String) a[7])
-                .withMessage((String) a[8])
-                .withStacktrace((List<String>) a[9])
-                .build()
-        );
+    public void setType(String type) {
+        this.type = type;
+    }
 
-        parser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("type"));
-        parser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("timestamp"));
-        parser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("level"));
-        parser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("class"));
-        parser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("cluster.name"));
-        parser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("node.name"));
-        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("cluster.uuid"));
-        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("node.id"));
-        parser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("message"));
-        parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("stacktrace"));
+    public void setTimestamp(String timestamp) {
+        this.timestamp = timestamp;
+    }
 
+    public void setLevel(String level) {
+        this.level = level;
+    }
+
+    public void setComponent(String component) {
+        this.component = component;
+    }
+
+    public void setClusterName(String clusterName) {
+        this.clusterName = clusterName;
+    }
+
+    public void setNodeName(String nodeName) {
+        this.nodeName = nodeName;
+    }
+
+    public void setClusterUuid(String clusterUuid) {
+        this.clusterUuid = clusterUuid;
+    }
+
+    public void setNodeId(String nodeId) {
+        this.nodeId = nodeId;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+
+    public void setStacktrace(List<String> stacktrace) {
+        this.stacktrace = stacktrace;
+    }
+
+    private static ObjectParser<JsonLogLine, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<JsonLogLine, Void> parser = new ObjectParser<>("search_template", ignoreUnknownFields, null);
+        parser.declareString(JsonLogLine::setType, new ParseField("type"));
+        parser.declareString(JsonLogLine::setTimestamp, new ParseField("timestamp"));
+        parser.declareString(JsonLogLine::setLevel, new ParseField("level"));
+        parser.declareString(JsonLogLine::setComponent, new ParseField("component"));
+        parser.declareString(JsonLogLine::setClusterName, new ParseField("cluster.name"));
+        parser.declareString(JsonLogLine::setNodeName, new ParseField("node.name"));
+        parser.declareString(JsonLogLine::setClusterUuid, new ParseField("cluster.uuid"));
+        parser.declareString(JsonLogLine::setNodeId, new ParseField("node.id"));
+        parser.declareString(JsonLogLine::setMessage, new ParseField("message"));
+        parser.declareStringArray(JsonLogLine::setStacktrace, new ParseField("stacktrace"));
 
         return parser;
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    static class Builder {
-        String type;
-        String timestamp;
-        String level;
-        String clazz;
-        String clusterName;
-        String nodeName;
-        String clusterUuid;
-        String nodeId;
-        String message;
-        List<String> stacktrace;
-
-        public Builder withType(String type) {
-            this.type = type;
-            return this;
-        }
-
-        public Builder withTimestamp(String timestamp) {
-            this.timestamp = timestamp;
-            return this;
-        }
-
-        public Builder withLevel(String level) {
-            this.level = level;
-            return this;
-        }
-
-        public Builder withClazz(String clazz) {
-            this.clazz = clazz;
-            return this;
-        }
-
-        public Builder withClusterName(String clusterName) {
-            this.clusterName = clusterName;
-            return this;
-        }
-
-        public Builder withNodeName(String nodeName) {
-            this.nodeName = nodeName;
-            return this;
-        }
-
-        public Builder withClusterUuid(String clusterUuid) {
-            this.clusterUuid = clusterUuid;
-            return this;
-        }
-
-        public Builder withNodeId(String nodeId) {
-            this.nodeId = nodeId;
-            return this;
-        }
-
-        public Builder withMessage(String message) {
-            this.message = message;
-            return this;
-        }
-
-        public Builder withStacktrace(List<String> stacktrace) {
-            this.stacktrace = stacktrace;
-            return this;
-        }
-
-        public JsonLogLine build() {
-            return new JsonLogLine(type, timestamp, level, clazz, clusterName,
-                nodeName, clusterUuid, nodeId, message, stacktrace);
-        }
     }
 }

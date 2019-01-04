@@ -33,7 +33,7 @@ import java.util.StringJoiner;
  * This is a modification of a @link org.apache.logging.log4j.core.pattern.ExtendedThrowablePatternConverter
  * <p>
  * Outputs the Throwable portion of the LoggingEvent as a Json formatted field with array
- * "exception": [ stacktrace... ]
+ * "exception": [ "stacktrace", "lines", "as", "array", "elements" ]
  */
 @Plugin(name = "JsonThrowablePatternConverter", category = PatternConverter.CATEGORY)
 @ConverterKeys({"exceptionAsJson"})
@@ -43,10 +43,7 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
     private final ExtendedThrowablePatternConverter throwablePatternConverter;
 
     /**
-     * Private constructor.
-     *
-     * @param config  TODO
-     * @param options options, may be null.
+     * Private constructor. Parameters only used to configure wrapped throwablePatternConverter
      */
     private JsonThrowablePatternConverter(final Configuration config, final String[] options) {
         super("CustomExtendedThrowable", "throwable", options, config);
@@ -70,12 +67,12 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
      */
     @Override
     public void format(final LogEvent event, final StringBuilder toAppendTo) {
-        String stacktrace = formatStacktrace(event);
-        if (Strings.isNotEmpty(stacktrace)) {
-            String jsonException = formatJson(stacktrace);
+        String consoleStacktrace = formatStacktrace(event);
+        if (Strings.isNotEmpty(consoleStacktrace)) {
+            String jsonStacktrace = formatJson(consoleStacktrace);
 
             toAppendTo.append(", ");
-            toAppendTo.append(jsonException);
+            toAppendTo.append(jsonStacktrace);
         }
     }
 
@@ -85,8 +82,9 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
         return stringBuilder.toString();
     }
 
-    private String formatJson(String extStackTrace) {
-        String[] split = extStackTrace.split(options.getSeparator() + "\t|" + options.getSeparator());
+    private String formatJson(String consoleStacktrace) {
+        String lineSeparator = options.getSeparator() + "\t|" + options.getSeparator();
+        String[] split = consoleStacktrace.split(lineSeparator);
 
         StringJoiner stringJoiner = new StringJoiner(",\n", "\n\"stacktrace\": [", "]");
         for (String line : split) {

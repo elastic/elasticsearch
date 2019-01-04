@@ -116,14 +116,14 @@ public class DieWithDignityIT extends ESRestTestCase {
 
     private boolean isFatalErrorInThreadExiting(JsonLogLine line) {
         return line.level().equals("ERROR")
-            && line.clazz().equals("o.e.b.ElasticsearchUncaughtExceptionHandler")
+            && line.component().equals("o.e.b.ElasticsearchUncaughtExceptionHandler")
             && line.nodeName().equals("node-0")
             && line.message().matches("fatal error in thread \\[Thread-\\d+\\], exiting$");
     }
 
     private boolean isFatalError(JsonLogLine line) {
         return line.level().equals("ERROR")
-            && line.clazz().equals("o.e.ExceptionsHelper")
+            && line.component().equals("o.e.ExceptionsHelper")
             && line.nodeName().equals("node-0")
             && line.message().contains("fatal error");
     }

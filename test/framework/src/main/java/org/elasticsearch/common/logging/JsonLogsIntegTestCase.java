@@ -32,13 +32,16 @@ import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Tests that extend this class verify that the node name, cluster name, nodeId, clusterId appear in the first
- * few log lines on startup. Note that this won't pass for clusters that don't
+ * Tests that extend this class verify that all json layout fields appear in the first few log lines after startup
+ * Fields available straight away : type, timestamp, level, component, message, nodeName, clusterName
+ * nodeId and clusterId are available later once the clusterState was received.
+ * NodeName, ClusterName, NodeId, ClusterId should be consistent across all log lines
+ * Note that this won't pass for clusters that don't have
  * the node name defined in elasticsearch.yml <strong>and</strong> start with
  * DEBUG or TRACE level logging. Those nodes log a few lines before they
  * resolve the node name.
  */
-public abstract class NodeAndClusterInfoIntegTestCase extends ESRestTestCase {
+public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
     /**
      * Number of lines in the log file to check for the node name. We don't
      * just check the entire log file because it could be quite long and
@@ -79,7 +82,7 @@ public abstract class NodeAndClusterInfoIntegTestCase extends ESRestTestCase {
                 assertThat(jsonLogLine.type(), not(isEmptyOrNullString()));
                 assertThat(jsonLogLine.timestamp(), not(isEmptyOrNullString()));
                 assertThat(jsonLogLine.level(), not(isEmptyOrNullString()));
-                assertThat(jsonLogLine.clazz(), not(isEmptyOrNullString()));
+                assertThat(jsonLogLine.component(), not(isEmptyOrNullString()));
                 assertThat(jsonLogLine.message(), not(isEmptyOrNullString()));
 
                 //all lines should have the same nodeName and clusterName

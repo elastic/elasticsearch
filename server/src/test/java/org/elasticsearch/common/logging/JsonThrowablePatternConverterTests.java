@@ -66,12 +66,8 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
 
         String result = format(event);
 
-        String sampleLine = "{\"type\": \"console\", \"timestamp\": \"2019-01-03T16:30:53,058+0100\", \"level\": \"DEBUG\", \"class\": " +
-            "\"o.e.a.s.TransportSearchAction\", \"cluster.name\": \"clustername\", \"node.name\": \"node-0\", \"cluster.uuid\": " +
-            "\"OG5MkvOrR9azuClJhWvy6Q\", \"node.id\": \"VTShUqmcQG6SzeKY5nn7qA\",  \"message\": \"msg msg\" " + result + "}";
-
         //confirms exception is correctly parsed
-        JsonLogs jsonLogs = new JsonLogs(new BufferedReader(new StringReader(sampleLine)));
+        JsonLogs jsonLogs = new JsonLogs(new BufferedReader(new StringReader(result)));
 
         JsonLogLine jsonLogLine = jsonLogs.stream().findFirst()
             .orElseThrow(() -> new AssertionError("no logs parsed"));
@@ -85,6 +81,11 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
     private String format(LogEvent event) {
         StringBuilder builder = new StringBuilder();
         converter.format(event, builder);
-        return builder.toString();
+        String jsonStacktraceElement = builder.toString();
+
+        return "{\"type\": \"console\", \"timestamp\": \"2019-01-03T16:30:53,058+0100\", \"level\": \"DEBUG\", " +
+            "\"component\": \"o.e.a.s.TransportSearchAction\", \"cluster.name\": \"clustername\", \"node.name\": \"node-0\", " +
+            "\"cluster.uuid\": \"OG5MkvOrR9azuClJhWvy6Q\", \"node.id\": \"VTShUqmcQG6SzeKY5nn7qA\",  \"message\": \"msg msg\" " +
+            jsonStacktraceElement + "}";
     }
 }

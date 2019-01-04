@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.logging;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
@@ -26,6 +27,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
@@ -61,41 +63,54 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
      */
     protected abstract BufferedReader openReader(Path logFile);
 
-    public void testNodeNameIsOnAllLinesOfLog() throws IOException {
+
+    public void testElementsPresentOnAllLinesOfLog() throws IOException {
         try (JsonLogs jsonLogs = new JsonLogs(openReader(getLogFile()))) {
 
-            JsonLogLine firstLine = null;
-            String expectedNodeId = null;
-            String expectedClusterId = null;
-            for (JsonLogLine jsonLogLine : jsonLogs) {
-                if (firstLine == null) {
-                    firstLine = jsonLogLine;
-                }
+            JsonLogLine firstLine = jsonLogs.stream()
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no logs at all?!"));
 
-                if (jsonLogLine.nodeId() != null && expectedNodeId == null) {
-                    //nodeId and clusterid are set together
-                    expectedNodeId = jsonLogLine.nodeId();
-                    expectedClusterId = jsonLogLine.clusterUuid();
-                }
+            jsonLogs.stream()
+                .limit(LINES_TO_CHECK)
+                .forEach(jsonLogLine -> {
+                    assertThat(jsonLogLine.type(), not(isEmptyOrNullString()));
+                    assertThat(jsonLogLine.timestamp(), not(isEmptyOrNullString()));
+                    assertThat(jsonLogLine.level(), not(isEmptyOrNullString()));
+                    assertThat(jsonLogLine.component(), not(isEmptyOrNullString()));
+                    assertThat(jsonLogLine.message(), not(isEmptyOrNullString()));
 
-
-                assertThat(jsonLogLine.type(), not(isEmptyOrNullString()));
-                assertThat(jsonLogLine.timestamp(), not(isEmptyOrNullString()));
-                assertThat(jsonLogLine.level(), not(isEmptyOrNullString()));
-                assertThat(jsonLogLine.component(), not(isEmptyOrNullString()));
-                assertThat(jsonLogLine.message(), not(isEmptyOrNullString()));
-
-                //all lines should have the same nodeName and clusterName
-                assertThat(jsonLogLine.nodeName(), equalTo(firstLine.nodeName()));
-                assertThat(jsonLogLine.clusterName(), equalTo(firstLine.clusterName()));
-
-                //initially empty, but once found all lines shoudl have same nodeId and clusterid
-                assertThat(jsonLogLine.nodeId(), equalTo(expectedNodeId));
-                assertThat(jsonLogLine.clusterUuid(), equalTo(expectedClusterId));
-            }
+                    // all lines should have the same nodeName and clusterName
+                    assertThat(jsonLogLine.nodeName(), equalTo(firstLine.nodeName()));
+                    assertThat(jsonLogLine.clusterName(), equalTo(firstLine.clusterName()));
+                });
         }
     }
 
+    public void testNodeIdAndClusterIdConsistentOnceAvailable() throws IOException {
+        try (JsonLogs jsonLogs = new JsonLogs(openReader(getLogFile()))) {
+            SetOnce<JsonLogLine> firstLineWithIds = new SetOnce<>();
+
+            jsonLogs.stream()
+                .dropWhile(nodeIdNotPresent(firstLineWithIds))
+                .limit(LINES_TO_CHECK)
+                .forEach(jsonLogLine -> {
+                    //initially empty, but once found all lines should have same nodeId and clusterid
+                    assertThat(jsonLogLine.nodeId(), equalTo(firstLineWithIds.get().nodeId()));
+                    assertThat(jsonLogLine.clusterUuid(), equalTo(firstLineWithIds.get().clusterUuid()));
+                });
+        }
+    }
+
+    private Predicate<JsonLogLine> nodeIdNotPresent(SetOnce<JsonLogLine> firstLine) {
+        return line -> {
+            if (line.nodeId() != null) {
+                firstLine.set(line);
+                return false;
+            }
+            return true;
+        };
+    }
 
     @SuppressForbidden(reason = "PathUtils doesn't have permission to read this file")
     private Path getLogFile() {

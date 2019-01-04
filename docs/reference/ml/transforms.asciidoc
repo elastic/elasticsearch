@@ -127,7 +127,6 @@ PUT _ml/datafeeds/datafeed-test1
 {
   "job_id": "test1",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1
@@ -233,7 +232,6 @@ PUT _ml/datafeeds/datafeed-test2
 {
   "job_id": "test2",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1
@@ -482,7 +480,6 @@ PUT _ml/datafeeds/datafeed-test3
 {
   "job_id": "test3",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1
@@ -551,7 +548,6 @@ PUT _ml/datafeeds/datafeed-test4
 {
   "job_id": "test4",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1

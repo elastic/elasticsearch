@@ -257,14 +257,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. A non-null
-     * value (expected to be greater or equal than 0) indicates that this search request is being executed as part of a locally reduced
-     * cross-cluster search request. The provided current time is used to ensure that the same value, determined by the CCS coordinating
-     * node, is used on all clusters involved in the execution of the search request.
+     * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
+     * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
+     * request. When created through {@link #SearchRequest(String, long)}, this method returns the provided current time, otherwise
+     * it will return {@link System#currentTimeMillis()}.
+     *
      */
-    @Nullable
-    Long getAbsoluteStartMillis() {
-        return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? null : absoluteStartMillis;
+    long getOrCreateAbsoluteStartMillis() {
+        return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;
     }
 
     /**
@@ -607,7 +607,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", preFilterShardSize=" + preFilterShardSize +
                 ", allowPartialSearchResults=" + allowPartialSearchResults +
                 ", localClusterAlias=" + localClusterAlias +
-                ", absoluteStartMillis=" + absoluteStartMillis +
+                ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
                 ", source=" + source + '}';
     }
 }

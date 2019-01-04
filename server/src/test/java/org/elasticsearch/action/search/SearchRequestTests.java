@@ -40,6 +40,9 @@ import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
@@ -76,10 +79,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         //TODO update version after backport
         if (version.before(Version.V_7_0_0)) {
             assertNull(deserializedRequest.getLocalClusterAlias());
-            assertNull(deserializedRequest.getAbsoluteStartMillis());
+            assertAbsoluteStartMillisIsCurrentTime(deserializedRequest);
         } else {
             assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
-            assertEquals(searchRequest.getAbsoluteStartMillis(), deserializedRequest.getAbsoluteStartMillis());
+            assertEquals(searchRequest.getOrCreateAbsoluteStartMillis(), deserializedRequest.getOrCreateAbsoluteStartMillis());
         }
     }
 
@@ -91,8 +94,15 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest(in);
             assertArrayEquals(new String[]{"index"}, searchRequest.indices());
             assertNull(searchRequest.getLocalClusterAlias());
-            assertNull(searchRequest.getAbsoluteStartMillis());
+            assertAbsoluteStartMillisIsCurrentTime(searchRequest);
         }
+    }
+
+    private static void assertAbsoluteStartMillisIsCurrentTime(SearchRequest searchRequest) {
+        long before = System.currentTimeMillis();
+        long absoluteStartMillis = searchRequest.getOrCreateAbsoluteStartMillis();
+        long after = System.currentTimeMillis();
+        assertThat(absoluteStartMillis, allOf(greaterThanOrEqualTo(before), lessThanOrEqualTo(after)));
     }
 
     public void testIllegalArguments() {

@@ -48,10 +48,17 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (randomBoolean()) {
             return super.createSearchRequest();
         }
-        //clusterAlias does not have public getter/setter hence we randomize it only in this test specifically.
-        SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(5, 10));
+        //clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
+        SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong());
         RandomSearchRequestGenerator.randomSearchRequest(searchRequest, this::createSearchSourceBuilder);
         return searchRequest;
+    }
+
+    public void testClusterAliasValidation() {
+        expectThrows(NullPointerException.class, () -> new SearchRequest(null, 0));
+        expectThrows(IllegalArgumentException.class, () -> new SearchRequest("", -1));
+        SearchRequest searchRequest = new SearchRequest("", 0);
+        assertNull(searchRequest.validate());
     }
 
     public void testSerialization() throws Exception {
@@ -69,8 +76,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         //TODO update version after backport
         if (version.before(Version.V_7_0_0)) {
             assertNull(deserializedRequest.getLocalClusterAlias());
+            assertNull(deserializedRequest.getAbsoluteStartMillis());
         } else {
             assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
+            assertEquals(searchRequest.getAbsoluteStartMillis(), deserializedRequest.getAbsoluteStartMillis());
         }
     }
 
@@ -78,9 +87,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testReadFromPre7_0_0() throws IOException {
         String msg = "AAEBBWluZGV4AAAAAQACAAAA/////w8AAAAAAAAA/////w8AAAAAAAACAAAAAAABAAMCBAUBAAKABACAAQIAAA==";
         try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(msg))) {
+            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)));
             SearchRequest searchRequest = new SearchRequest(in);
             assertArrayEquals(new String[]{"index"}, searchRequest.indices());
             assertNull(searchRequest.getLocalClusterAlias());
+            assertNull(searchRequest.getAbsoluteStartMillis());
         }
     }
 

@@ -180,7 +180,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        final long absoluteStartMillis = System.currentTimeMillis();
+        final long absoluteStartMillis = searchRequest.getAbsoluteStartMillis() != null ?
+            searchRequest.getAbsoluteStartMillis() : System.currentTimeMillis();
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider =
                 new SearchTimeProvider(absoluteStartMillis, relativeStartNanos, System::nanoTime);

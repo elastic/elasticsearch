@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.LocationTests;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.tree.SourceTests;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.ZoneId;
@@ -39,7 +39,7 @@ public class FunctionRegistryTests extends ESTestCase {
         UnresolvedFunction ur = uf(STANDARD);
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
@@ -54,13 +54,13 @@ public class FunctionRegistryTests extends ESTestCase {
 
     public void testUnaryFunction() {
         UnresolvedFunction ur = uf(STANDARD, mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression e) -> {
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Source l, Expression e) -> {
             assertSame(e, ur.children().get(0));
             return new DummyFunction(l);
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertFalse(def.extractViable());
-        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
@@ -81,13 +81,13 @@ public class FunctionRegistryTests extends ESTestCase {
     public void testUnaryDistinctAwareFunction() {
         boolean urIsDistinct = randomBoolean();
         UnresolvedFunction ur = uf(urIsDistinct ? DISTINCT : STANDARD, mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression e, boolean distinct) -> {
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Source l, Expression e, boolean distinct) -> {
                     assertEquals(urIsDistinct, distinct);
                     assertSame(e, ur.children().get(0));
                     return new DummyFunction(l);
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
         assertFalse(def.extractViable());
 
         // No children aren't supported
@@ -106,13 +106,13 @@ public class FunctionRegistryTests extends ESTestCase {
         UnresolvedFunction ur = uf(urIsExtract ? EXTRACT : STANDARD, mock(Expression.class));
         ZoneId providedTimeZone = randomZone().normalized();
         Configuration providedConfiguration = randomConfiguration(providedTimeZone);
-        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression e, ZoneId zi) -> {
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Source l, Expression e, ZoneId zi) -> {
                     assertEquals(providedTimeZone, zi);
                     assertSame(e, ur.children().get(0));
                     return new DummyFunction(l);
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertEquals(ur.location(), ur.buildResolved(providedConfiguration, def).location());
+        assertEquals(ur.source(), ur.buildResolved(providedConfiguration, def).source());
         assertTrue(def.extractViable());
 
         // Distinct isn't supported
@@ -133,13 +133,13 @@ public class FunctionRegistryTests extends ESTestCase {
 
     public void testBinaryFunction() {
         UnresolvedFunction ur = uf(STANDARD, mock(Expression.class), mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression lhs, Expression rhs) -> {
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Source l, Expression lhs, Expression rhs) -> {
                     assertSame(lhs, ur.children().get(0));
                     assertSame(rhs, ur.children().get(1));
                     return new DummyFunction(l);
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
         assertFalse(def.extractViable());
 
         // Distinct isn't supported
@@ -187,33 +187,33 @@ public class FunctionRegistryTests extends ESTestCase {
 
     public void testFunctionResolving() {
         UnresolvedFunction ur = uf(STANDARD, mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression e) -> {
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Source l, Expression e) -> {
             assertSame(e, ur.children().get(0));
             return new DummyFunction(l);
         }, "DUMMY_FUNCTION", "DUMMY_FUNC"));
 
         // Resolve by primary name
         FunctionDefinition def = r.resolveFunction(r.resolveAlias("DuMMy_FuncTIon"));
-        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         def = r.resolveFunction(r.resolveAlias("Dummy_Function"));
-        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         def = r.resolveFunction(r.resolveAlias("dummy_function"));
-        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         def = r.resolveFunction(r.resolveAlias("DUMMY_FUNCTION"));
-        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // Resolve by alias
         def = r.resolveFunction(r.resolveAlias("DumMy_FunC"));
-        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         def = r.resolveFunction(r.resolveAlias("dummy_func"));
-        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         def = r.resolveFunction(r.resolveAlias("DUMMY_FUNC"));
-        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // Not resolved
         SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class,
@@ -228,7 +228,7 @@ public class FunctionRegistryTests extends ESTestCase {
     }
 
     private UnresolvedFunction uf(UnresolvedFunction.ResolutionType resolutionType, Expression... children) {
-        return new UnresolvedFunction(LocationTests.randomLocation(), "DUMMY_FUNCTION", resolutionType, Arrays.asList(children));
+        return new UnresolvedFunction(SourceTests.randomSource(), "DUMMY_FUNCTION", resolutionType, Arrays.asList(children));
     }
     
     private Configuration randomConfiguration() {
@@ -254,8 +254,8 @@ public class FunctionRegistryTests extends ESTestCase {
     }
 
     public static class DummyFunction extends ScalarFunction {
-        public DummyFunction(Location location) {
-            super(location, emptyList());
+        public DummyFunction(Source source) {
+            super(source, emptyList());
         }
 
         @Override
@@ -285,8 +285,8 @@ public class FunctionRegistryTests extends ESTestCase {
     }
     
     public static class DummyFunction2 extends DummyFunction {
-        public DummyFunction2(Location location) {
-            super(location);
+        public DummyFunction2(Source source) {
+            super(source);
         }
     }
 }

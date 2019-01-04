@@ -38,6 +38,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
+    private static final FreezeAction TEST_FREEZE_ACTION = new FreezeAction();
     private static final UnfollowAction TEST_UNFOLLOW_ACTION  = new UnfollowAction();
 
     public void testValidatePhases() {
@@ -356,10 +357,11 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
         // Cold Phase
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] { AllocateAction.NAME });
-
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
-
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
+        assertNextActionName("cold", AllocateAction.NAME, FreezeAction.NAME, FreezeAction.NAME);
+        assertNextActionName("cold", FreezeAction.NAME, null);
+        assertNextActionName("cold", FreezeAction.NAME, null, AllocateAction.NAME);
 
         assertInvalidAction("cold", "foo", new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", DeleteAction.NAME, new String[] { AllocateAction.NAME });
@@ -416,6 +418,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return new RolloverAction(ByteSizeValue.parseBytesSizeValue("0b", "test"), TimeValue.ZERO, 1L);
             case ShrinkAction.NAME:
                 return new ShrinkAction(1);
+            case FreezeAction.NAME:
+                return new FreezeAction();
             }
             return new DeleteAction();
         }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));
@@ -477,6 +481,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return TEST_ROLLOVER_ACTION;
             case ShrinkAction.NAME:
                 return TEST_SHRINK_ACTION;
+            case FreezeAction.NAME:
+                return TEST_FREEZE_ACTION;
             case UnfollowAction.NAME:
                 return TEST_UNFOLLOW_ACTION;
             default:

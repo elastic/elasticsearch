@@ -13,7 +13,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -61,12 +61,12 @@ public class QueryStringQuery extends LeafQuery {
     private final Map<String, String> options;
 
     // dedicated constructor for QueryTranslator
-    public QueryStringQuery(Location location, String query, String fieldName) {
-        this(location, query, Collections.singletonMap(fieldName, Float.valueOf(1.0f)), null);
+    public QueryStringQuery(Source source, String query, String fieldName) {
+        this(source, query, Collections.singletonMap(fieldName, Float.valueOf(1.0f)), null);
     }
 
-    public QueryStringQuery(Location location, String query, Map<String, Float> fields, StringQueryPredicate predicate) {
-        super(location);
+    public QueryStringQuery(Source source, String query, Map<String, Float> fields, StringQueryPredicate predicate) {
+        super(source);
         this.query = query;
         this.fields = fields;
         this.predicate = predicate;

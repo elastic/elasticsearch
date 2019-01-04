@@ -19,7 +19,6 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;

@@ -269,7 +269,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         //  response, we should be able to retry by creating a new session.
         try (RestoreSession restoreSession = RestoreSession.openSession(remoteClient, leaderShardId, indexShard, shardId, recoveryState)) {
             restoreSession.restoreFiles();
-            restoreSession.closeRemoteSession();
         }
 
         maybeUpdateMappings(client, remoteClient, leaderIndex, indexShard.indexSettings());
@@ -328,12 +327,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Store.MetadataSnapshot sourceFileMetaData = response.getStoreFileMetaData();
             return new RestoreSession(remoteClient, sessionUUID, response.getNode(), indexShard, shardId, recoveryState,
                 sourceFileMetaData);
-        }
-
-        void closeRemoteSession() {
-            ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(sessionUUID, node);
-            ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse response =
-                remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet();
         }
 
         @SuppressWarnings("unchecked")
@@ -465,6 +458,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         @Override
         public void close() {
             this.store.decRef();
+            ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(sessionUUID, node);
+            ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse response =
+                remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet();
         }
     }
 }

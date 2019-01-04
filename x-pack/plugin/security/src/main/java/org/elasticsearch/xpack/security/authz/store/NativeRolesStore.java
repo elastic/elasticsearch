@@ -114,7 +114,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
      * Retrieve a list of roles, if rolesToGet is null or empty, fetch all roles
      */
     public void getRoleDescriptors(Set<String> names, final ActionListener<RoleRetrievalResult> listener) {
-        if (securityIndex.indexExists() == false) {
+        if (securityIndex.exists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
         } else if (names == null || names.isEmpty()) {
@@ -170,7 +170,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (frozenSecurityIndex.exists() == false) {
             listener.onResponse(false);
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
@@ -308,7 +308,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleRetrievalResult> resultListener) {
-        if (securityIndex.indexExists() == false) {
+        if (securityIndex.exists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             resultListener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
         } else {

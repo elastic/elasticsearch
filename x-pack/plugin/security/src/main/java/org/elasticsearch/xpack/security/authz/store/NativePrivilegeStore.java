@@ -92,7 +92,7 @@ public class NativePrivilegeStore {
     public void getPrivileges(Collection<String> applications, Collection<String> names,
                               ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (frozenSecurityIndex.exists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
@@ -216,7 +216,7 @@ public class NativePrivilegeStore {
     public void deletePrivileges(String application, Collection<String> names, WriteRequest.RefreshPolicy refreshPolicy,
                                  ActionListener<Map<String, List<String>>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (frozenSecurityIndex.exists() == false) {
             listener.onResponse(Collections.emptyMap());
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());

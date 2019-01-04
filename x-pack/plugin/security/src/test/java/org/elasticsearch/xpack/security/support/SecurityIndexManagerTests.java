@@ -96,7 +96,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         markShardsAvailable(clusterStateBuilder);
         manager.clusterChanged(event(clusterStateBuilder));
 
-        assertThat(manager.indexExists(), Matchers.equalTo(true));
+        assertThat(manager.exists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(), Matchers.equalTo(true));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
     }
@@ -198,13 +198,13 @@ public class SecurityIndexManagerTests extends ESTestCase {
         AtomicBoolean upToDateChanged = new AtomicBoolean();
         manager.addIndexStateListener((prev, current) -> {
             listenerCalled.set(true);
-            upToDateChanged.set(prev.isIndexUpToDate != current.isIndexUpToDate);
+            upToDateChanged.set(prev.isUpToDate != current.isUpToDate);
         });
-        assertTrue(manager.isIndexUpToDate());
+        assertTrue(manager.isUpToDate());
 
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
         assertFalse(listenerCalled.get());
-        assertTrue(manager.isIndexUpToDate());
+        assertTrue(manager.isUpToDate());
 
         // index doesn't exist and now exists with wrong format
         ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME,
@@ -213,14 +213,14 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(clusterStateBuilder));
         assertTrue(listenerCalled.get());
         assertTrue(upToDateChanged.get());
-        assertFalse(manager.isIndexUpToDate());
+        assertFalse(manager.isUpToDate());
 
         listenerCalled.set(false);
         assertFalse(listenerCalled.get());
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
         assertTrue(listenerCalled.get());
         assertTrue(upToDateChanged.get());
-        assertTrue(manager.isIndexUpToDate());
+        assertTrue(manager.isUpToDate());
 
         listenerCalled.set(false);
         // index doesn't exist and now exists with correct format
@@ -229,17 +229,17 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(clusterStateBuilder));
         assertTrue(listenerCalled.get());
         assertFalse(upToDateChanged.get());
-        assertTrue(manager.isIndexUpToDate());
+        assertTrue(manager.isUpToDate());
     }
 
     private void assertInitialState() {
-        assertThat(manager.indexExists(), Matchers.equalTo(false));
+        assertThat(manager.exists(), Matchers.equalTo(false));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(false));
     }
 
     private void assertIndexUpToDateButNotAvailable() {
-        assertThat(manager.indexExists(), Matchers.equalTo(true));
+        assertThat(manager.exists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
     }

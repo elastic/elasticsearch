@@ -369,7 +369,7 @@ public class CompositeRolesStore {
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
         if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState) ||
-            previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
+            previousState.isUpToDate != currentState.isUpToDate) {
             invalidateAll();
         }
     }

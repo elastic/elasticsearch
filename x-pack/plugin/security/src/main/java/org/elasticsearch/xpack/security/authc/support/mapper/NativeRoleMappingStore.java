@@ -122,7 +122,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
      * <em>package private</em> for unit testing
      */
     void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
-        if (securityIndex.isIndexUpToDate() == false) {
+        if (securityIndex.isUpToDate() == false) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
@@ -178,7 +178,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     private <Request, Result> void modifyMapping(String name, CheckedBiConsumer<Request, ActionListener<Result>, Exception> inner,
                                                  Request request, ActionListener<Result> listener) {
-        if (securityIndex.isIndexUpToDate() == false) {
+        if (securityIndex.isUpToDate() == false) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
@@ -225,7 +225,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (frozenSecurityIndex.exists() == false) {
             listener.onResponse(false);
         } else if (securityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
@@ -288,7 +288,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             if (logger.isDebugEnabled()) {
                 logger.debug("Security Index [{}] [exists: {}] [available: {}] [mapping up to date: {}]",
                         SECURITY_ALIAS_NAME,
-                        securityIndex.indexExists(),
+                        securityIndex.exists(),
                         securityIndex.isAvailable(),
                         securityIndex.isMappingUpToDate()
                 );
@@ -323,7 +323,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
         if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState) ||
-            previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
+            previousState.isUpToDate != currentState.isUpToDate) {
             refreshRealms(NO_OP_ACTION_LISTENER, null);
         }
     }

@@ -120,7 +120,7 @@ public class TokenServiceTests extends ESTestCase {
             runnable.run();
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
         when(securityIndex.isAvailable()).thenReturn(true);
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
@@ -377,7 +377,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testInvalidatedToken() throws Exception {
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
         TokenService tokenService =
             new TokenService(tokenServiceEnabledSettings, systemUTC(), client, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
@@ -542,18 +542,18 @@ public class TokenServiceTests extends ESTestCase {
             assertNull(future.get());
 
             when(securityIndex.isAvailable()).thenReturn(false);
-            when(securityIndex.indexExists()).thenReturn(true);
+            when(securityIndex.exists()).thenReturn(true);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertNull(future.get());
 
-            when(securityIndex.indexExists()).thenReturn(false);
+            when(securityIndex.exists()).thenReturn(false);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertNull(future.get());
 
             when(securityIndex.isAvailable()).thenReturn(true);
-            when(securityIndex.indexExists()).thenReturn(true);
+            when(securityIndex.exists()).thenReturn(true);
             mockGetTokenFromId(token, false);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);

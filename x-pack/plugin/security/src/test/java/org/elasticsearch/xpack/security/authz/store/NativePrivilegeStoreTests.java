@@ -92,7 +92,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         };
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.freeze()).thenReturn(securityIndex);
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
         when(securityIndex.isAvailable()).thenReturn(true);
         Mockito.doAnswer(invocationOnMock -> {
             assertThat(invocationOnMock.getArguments().length, equalTo(2));

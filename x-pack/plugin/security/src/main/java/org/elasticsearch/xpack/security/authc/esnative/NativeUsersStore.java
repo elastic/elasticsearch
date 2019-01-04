@@ -127,7 +127,7 @@ public class NativeUsersStore {
         };
 
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (frozenSecurityIndex.exists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
@@ -165,7 +165,7 @@ public class NativeUsersStore {
 
     void getUserCount(final ActionListener<Long> listener) {
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (frozenSecurityIndex.exists() == false) {
             listener.onResponse(0L);
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
@@ -196,7 +196,7 @@ public class NativeUsersStore {
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.isAvailable() == false) {
-            if (frozenSecurityIndex.indexExists()) {
+            if (frozenSecurityIndex.exists()) {
                 logger.trace("could not retrieve user [{}] because security index does not exist", user);
             } else {
                 logger.error("security index is unavailable. short circuiting retrieval of user [{}]", user);
@@ -479,7 +479,7 @@ public class NativeUsersStore {
 
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (frozenSecurityIndex.exists() == false) {
             listener.onResponse(false);
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
@@ -525,7 +525,7 @@ public class NativeUsersStore {
 
     void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (frozenSecurityIndex.exists() == false) {
             listener.onResponse(null);
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
@@ -570,7 +570,7 @@ public class NativeUsersStore {
 
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.indexExists() == false) {
+        if (frozenSecurityIndex.exists() == false) {
             listener.onResponse(Collections.emptyMap());
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());

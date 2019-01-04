@@ -105,7 +105,7 @@ public class ReservedRealmTests extends ESTestCase {
         Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
         final boolean securityIndexExists = randomBoolean();
         if (securityIndexExists) {
-            when(securityIndex.indexExists()).thenReturn(true);
+            when(securityIndex.exists()).thenReturn(true);
         }
         final ReservedRealm reservedRealm =
             new ReservedRealm(mock(Environment.class), settings, usersStore,
@@ -137,7 +137,7 @@ public class ReservedRealmTests extends ESTestCase {
         final SecureString newPassword = new SecureString("foobar".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
             callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), enabled, false));
@@ -163,7 +163,7 @@ public class ReservedRealmTests extends ESTestCase {
         assertEquals(expectedUser, authenticated);
         assertThat(expectedUser.enabled(), is(enabled));
 
-        verify(securityIndex, times(2)).indexExists();
+        verify(securityIndex, times(2)).exists();
         verify(usersStore, times(2)).getReservedUserInfo(eq(principal), any(ActionListener.class));
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
         verify(securityIndex, times(2)).checkMappingVersion(predicateCaptor.capture());
@@ -182,7 +182,7 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.doLookupUser(principal, listener);
         final User user = listener.actionGet();
         assertEquals(expectedUser, user);
-        verify(securityIndex).indexExists();
+        verify(securityIndex).exists();
 
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
         verify(securityIndex).checkMappingVersion(predicateCaptor.capture());
@@ -216,7 +216,7 @@ public class ReservedRealmTests extends ESTestCase {
                 new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
         final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
         final RuntimeException e = new RuntimeException("store threw");
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
@@ -229,7 +229,7 @@ public class ReservedRealmTests extends ESTestCase {
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(securityException.getMessage(), containsString("failed to lookup"));
 
-        verify(securityIndex).indexExists();
+        verify(securityIndex).exists();
         verify(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
@@ -287,7 +287,7 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testFailedAuthentication() throws Exception {
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
         SecureString password = new SecureString("password".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
@@ -322,7 +322,7 @@ public class ReservedRealmTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
@@ -344,7 +344,7 @@ public class ReservedRealmTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
@@ -373,7 +373,7 @@ public class ReservedRealmTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityIndex.indexExists()).thenReturn(false);
+        when(securityIndex.exists()).thenReturn(false);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
@@ -391,7 +391,7 @@ public class ReservedRealmTests extends ESTestCase {
         final String password = randomAlphaOfLengthBetween(8, 24);
         mockSecureSettings.setString("bootstrap.password", password);
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
@@ -414,7 +414,7 @@ public class ReservedRealmTests extends ESTestCase {
         final String password = randomAlphaOfLengthBetween(8, 24);
         mockSecureSettings.setString("bootstrap.password", password);
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityIndex.indexExists()).thenReturn(false);
+        when(securityIndex.exists()).thenReturn(false);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);

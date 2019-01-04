@@ -930,7 +930,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         mockGetTokenFromId(tokenFuture.get().v1(), false, client);
         when(securityIndex.isAvailable()).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);
             service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
@@ -1001,7 +1001,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testExpiredToken() throws Exception {
         when(securityIndex.isAvailable()).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();

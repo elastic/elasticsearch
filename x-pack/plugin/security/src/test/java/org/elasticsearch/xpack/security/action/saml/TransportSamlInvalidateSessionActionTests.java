@@ -194,7 +194,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         when(securityIndex.isAvailable()).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.exists()).thenReturn(true);
         when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);

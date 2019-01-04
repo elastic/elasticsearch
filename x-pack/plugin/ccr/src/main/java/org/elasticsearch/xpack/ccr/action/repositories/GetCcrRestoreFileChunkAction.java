@@ -65,7 +65,8 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
         }
 
         @Override
-        protected void doExecute(Task task, GetCcrRestoreFileChunkRequest request, ActionListener<GetCcrRestoreFileChunkResponse> listener) {
+        protected void doExecute(Task task, GetCcrRestoreFileChunkRequest request,
+                                 ActionListener<GetCcrRestoreFileChunkResponse> listener) {
             threadPool.generic().execute(() -> {
                 Engine.IndexCommitRef snapshot = restoreSourceService.getSession(request.getSessionUUID());
                 try (IndexInput in = snapshot.getIndexCommit().getDirectory().openInput(request.getFileName(), IOContext.READONCE)) {

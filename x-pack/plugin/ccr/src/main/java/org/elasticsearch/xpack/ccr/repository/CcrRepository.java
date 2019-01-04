@@ -336,6 +336,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet();
         }
 
+        @SuppressWarnings("unchecked")
         void restoreFiles() {
             Store.MetadataSnapshot recoveryMetadata;
             try {

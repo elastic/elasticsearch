@@ -28,7 +28,7 @@ public enum Nullability {
                     value = TRUE;
                     break;
                 case FALSE:
-                    if (value == null || value == FALSE) {
+                    if (value == null) {
                         value = FALSE;
                     }
             }

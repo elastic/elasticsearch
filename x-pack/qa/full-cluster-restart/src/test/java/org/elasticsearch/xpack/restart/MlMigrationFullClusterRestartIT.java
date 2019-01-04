@@ -73,6 +73,12 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     public void testMigration() throws Exception {
+        // v5.5.0 is the first version where ml jobs can be
+        // retained after upgrade
+        if (getOldClusterVersion().before(Version.V_5_5_0)) {
+            return;
+        }
+
         if (isRunningAgainstOldCluster()) {
             createTestIndex();
             oldClusterTests();

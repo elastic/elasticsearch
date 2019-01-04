@@ -33,7 +33,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -46,6 +49,9 @@ public class RestGetIndicesAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetIndicesAction.class));
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get indices requests is deprecated. "
             + "The parameter will be removed in the next major version.";
+
+    private static final Set<String> allowedResponseParameters = Collections.unmodifiableSet(Stream
+            .concat(Collections.singleton("include_type_name").stream(), Settings.FORMAT_PARAMS.stream()).collect(Collectors.toSet()));
 
     public RestGetIndicesAction(
             final Settings settings,
@@ -77,9 +83,12 @@ public class RestGetIndicesAction extends BaseRestHandler {
         return channel -> client.admin().indices().getIndex(getIndexRequest, new RestToXContentListener<>(channel));
     }
 
+    /**
+     * Parameters used for controlling the response and thus might not be consumed during
+     * preparation of the request execution in {@link BaseRestHandler#prepareRequest(RestRequest, NodeClient)}.
+     */
     @Override
     protected Set<String> responseParams() {
-        return Settings.FORMAT_PARAMS;
+        return allowedResponseParameters;
     }
-
 }

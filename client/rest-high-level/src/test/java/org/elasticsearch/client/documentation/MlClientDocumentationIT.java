@@ -872,7 +872,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
-            .setTypes(Arrays.asList("_doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
@@ -932,7 +931,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
-            .setTypes(Arrays.asList("_doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
@@ -1053,14 +1051,12 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId1, job.getId())
-            .setTypes(Arrays.asList("_doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
         String datafeedId2 = secondJob.getId() + "-feed";
         DatafeedConfig secondDatafeed = DatafeedConfig.builder(datafeedId2, secondJob.getId())
-            .setTypes(Arrays.asList("_doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(secondDatafeed), RequestOptions.DEFAULT);

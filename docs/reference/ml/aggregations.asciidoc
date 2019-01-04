@@ -59,7 +59,6 @@ PUT _ml/datafeeds/datafeed-farequote
 {
   "job_id":"farequote",
   "indices": ["farequote"],
-  "types": ["response"],
   "aggregations": {
     "buckets": {
       "date_histogram": {

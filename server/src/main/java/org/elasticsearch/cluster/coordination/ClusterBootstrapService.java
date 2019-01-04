@@ -54,11 +54,6 @@ public class ClusterBootstrapService {
 
     private static final Logger logger = LogManager.getLogger(ClusterBootstrapService.class);
 
-    // The number of master-eligible nodes which, if discovered, can be used to bootstrap the cluster. This setting is unsafe in the event
-    // that more master nodes are started than expected.
-    public static final Setting<Integer> INITIAL_MASTER_NODE_COUNT_SETTING =
-        Setting.intSetting("cluster.unsafe_initial_master_node_count", 0, 0, Property.NodeScope);
-
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING =
         Setting.listSetting("cluster.initial_master_nodes", Collections.emptyList(), Function.identity(), Property.NodeScope);
 

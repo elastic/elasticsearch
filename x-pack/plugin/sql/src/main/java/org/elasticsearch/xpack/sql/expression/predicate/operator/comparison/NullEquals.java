@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  */
 public class NullEquals extends BinaryComparison {
 
-    public NullEquals(Location location, Expression left, Expression right) {
-        super(location, left, right, BinaryComparisonOperation.NULLEQ);
+    public NullEquals(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryComparisonOperation.NULLEQ);
     }
 
     @Override
@@ -26,12 +26,12 @@ public class NullEquals extends BinaryComparison {
 
     @Override
     protected NullEquals replaceChildren(Expression newLeft, Expression newRight) {
-        return new NullEquals(location(), newLeft, newRight);
+        return new NullEquals(source(), newLeft, newRight);
     }
 
     @Override
     public NullEquals swapLeftAndRight() {
-        return new NullEquals(location(), right(), left());
+        return new NullEquals(source(), right(), left());
     }
 
     @Override

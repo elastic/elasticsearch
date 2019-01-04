@@ -33,6 +33,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -491,8 +492,24 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         writeSettingsToStream(settings, out);
         out.writeVInt(mappings.size());
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+            String type = entry.getKey();
+            String value = entry.getValue();
+
+            out.writeString(type);
+            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+                out.writeString(value);
+            } else {
+                // Versions before 6.6.0 are missing a bug fix around empty mappings that are not nested under
+                // the type name. We therefore nest them under the type name before sending them to these nodes.
+                Map<String, Object> mappingSource = XContentHelper.convertToMap(
+                    new BytesArray(entry.getValue()), false, XContentType.JSON).v2();
+                if (mappingSource.size() != 1 || !mappingSource.containsKey(entry.getKey())) {
+                    mappingSource = MapBuilder.<String, Object>newMapBuilder().put(type, mappingSource).map();
+                }
+                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+                builder.map(mappingSource);
+                out.writeString(Strings.toString(builder));
+            }
         }
         if (out.getVersion().before(Version.V_6_5_0)) {
             // Size of custom index metadata, which is removed

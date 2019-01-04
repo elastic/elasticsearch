@@ -125,6 +125,40 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp WHERE WEEK(birth_date) > 
 // Aggregate
 //
 
+castedDateTimeWithGroupBy1
+SELECT CONVERT(birth_date, DOUBLE) AS date FROM test_emp GROUP BY date ORDER BY date LIMIT 10;
+
+    date:d      
+---------------
+null           
+-5.631552E8    
+-5.586624E8    
+-5.56416E8     
+-5.539104E8    
+-5.517504E8    
+-5.492448E8    
+-5.406912E8    
+-5.371488E8    
+-5.359392E8    
+;
+
+castedDateTimeWithGroupBy2
+SELECT CAST(hire_date AS INTEGER) AS date FROM test_emp GROUP BY date ORDER BY date LIMIT 10;
+
+    date:i      
+---------------
+477532800      
+478051200      
+484790400      
+489715200      
+495763200      
+498096000      
+498614400      
+501206400      
+501292800      
+501379200      
+;
+
 dateTimeAggByIsoDayOfWeekWithFilter
 SELECT IDOW(birth_date) day, DAY_NAME(birth_date) name, COUNT(*) c FROM test_emp WHERE IDOW(birth_date) < 6 GROUP BY day, name ORDER BY day desc;
 

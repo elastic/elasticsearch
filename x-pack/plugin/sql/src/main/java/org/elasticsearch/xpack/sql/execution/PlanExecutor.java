@@ -70,12 +70,13 @@ public class PlanExecutor {
                 listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
             } else if (exec instanceof LocalExec) {
                 listener.onFailure(new PlanningException("Cannot generate a query DSL for an SQL query that either " +
-                    "its WHERE clause evaluates to FALSE or doesn't operate on a table (missing a FROM clause), sql statement: {}"));
+                    "its WHERE clause evaluates to FALSE or doesn't operate on a table (missing a FROM clause), sql statement: [{}]",
+                    sql));
             } else if (exec instanceof CommandExec) {
                 listener.onFailure(new PlanningException("Cannot generate a query DSL for a special SQL command " +
-                    "(e.g.: DESCRIBE, SHOW), sql statement: {}"));
+                    "(e.g.: DESCRIBE, SHOW), sql statement: [{}]", sql));
             } else {
-                listener.onFailure(new PlanningException("Cannot generate a query DSL for {}", sql));
+                listener.onFailure(new PlanningException("Cannot generate a query DSL for sql statement [{}]", sql));
             }
         }, listener::onFailure));
     }

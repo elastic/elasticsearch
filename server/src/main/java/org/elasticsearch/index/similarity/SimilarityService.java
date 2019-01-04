@@ -31,6 +31,7 @@ import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
+import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
@@ -78,6 +79,10 @@ public final class SimilarityService extends AbstractIndexComponent {
             final BM25Similarity similarity = SimilarityProviders.createBM25Similarity(Settings.EMPTY, version);
             return () -> similarity;
         });
+        defaults.put("LegacyBM25", version -> {
+            final LegacyBM25Similarity similarity = SimilarityProviders.createLegacyBM25Similarity(Settings.EMPTY, version);
+            return () -> similarity;
+        });
         defaults.put("boolean", version -> {
             final Similarity similarity = new BooleanSimilarity();
             return () -> similarity;
@@ -98,6 +103,8 @@ public final class SimilarityService extends AbstractIndexComponent {
                 });
         builtIn.put("BM25",
                 (settings, version, scriptService) -> SimilarityProviders.createBM25Similarity(settings, version));
+        builtIn.put("LegacyBM25",
+            (settings, version, scriptService) -> SimilarityProviders.createLegacyBM25Similarity(settings, version));
         builtIn.put("boolean",
                 (settings, version, scriptService) -> SimilarityProviders.createBooleanSimilarity(settings, version));
         builtIn.put("DFR",

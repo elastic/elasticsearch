@@ -32,6 +32,7 @@ import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.NormalizationH2;
+import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +51,7 @@ import java.util.Collection;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class SimilarityTests extends ESSingleNodeTestCase {
 
@@ -61,15 +63,16 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     public void testResolveDefaultSimilarities() {
         SimilarityService similarityService = createIndex("foo").similarityService();
         assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(BM25Similarity.class));
+        assertThat(similarityService.getSimilarity("LegacyBM25").get(), instanceOf(LegacyBM25Similarity.class));
         assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));
-        assertThat(similarityService.getSimilarity("default"), equalTo(null));
+        assertThat(similarityService.getSimilarity("default"), nullValue());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> similarityService.getSimilarity("classic"));
         assertEquals("The [classic] similarity may not be used anymore. Please use the [BM25] similarity or build a custom [scripted] "
                 + "similarity instead.", e.getMessage());
     }
 
-    public void testResolveSimilaritiesFromMapping_classicIsForbidden() throws IOException {
+    public void testResolveSimilaritiesFromMapping_classicIsForbidden() {
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "classic")
             .put("index.similarity.my_similarity.discount_overlaps", false)
@@ -97,6 +100,28 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         assertThat(mapperService.fullName("field1").similarity().get(), instanceOf(BM25Similarity.class));
 
         BM25Similarity similarity = (BM25Similarity) mapperService.fullName("field1").similarity().get();
+        assertThat(similarity.getK1(), equalTo(2.0f));
+        assertThat(similarity.getB(), equalTo(0.5f));
+        assertThat(similarity.getDiscountOverlaps(), equalTo(false));
+    }
+
+    public void testResolveSimilaritiesFromMapping_LegacyBM25() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
+            .endObject()
+            .endObject().endObject();
+
+        Settings indexSettings = Settings.builder()
+            .put("index.similarity.my_similarity.type", "LegacyBM25")
+            .put("index.similarity.my_similarity.k1", 2.0f)
+            .put("index.similarity.my_similarity.b", 0.5f)
+            .put("index.similarity.my_similarity.discount_overlaps", false)
+            .build();
+        MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
+        assertThat(mapperService.fullName("field1").similarity().get(), instanceOf(LegacyBM25Similarity.class));
+
+        LegacyBM25Similarity similarity = (LegacyBM25Similarity) mapperService.fullName("field1").similarity().get();
         assertThat(similarity.getK1(), equalTo(2.0f));
         assertThat(similarity.getB(), equalTo(0.5f));
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));
@@ -233,7 +258,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testUnknownParameters() throws IOException {
+    public void testUnknownParameters() {
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "BM25")
             .put("index.similarity.my_similarity.z", 2.0f)

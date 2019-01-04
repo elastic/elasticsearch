@@ -51,6 +51,7 @@ import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
+import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -277,6 +278,18 @@ final class SimilarityProviders {
         boolean discountOverlaps = settings.getAsBoolean(DISCOUNT_OVERLAPS, true);
 
         BM25Similarity similarity = new BM25Similarity(k1, b);
+        similarity.setDiscountOverlaps(discountOverlaps);
+        return similarity;
+    }
+
+    public static LegacyBM25Similarity createLegacyBM25Similarity(Settings settings, Version indexCreatedVersion) {
+        assertSettingsIsSubsetOf("LegacyBM25", indexCreatedVersion, settings, "k1", "b", DISCOUNT_OVERLAPS);
+
+        float k1 = settings.getAsFloat("k1", 1.2f);
+        float b = settings.getAsFloat("b", 0.75f);
+        boolean discountOverlaps = settings.getAsBoolean(DISCOUNT_OVERLAPS, true);
+
+        LegacyBM25Similarity similarity = new LegacyBM25Similarity(k1, b);
         similarity.setDiscountOverlaps(discountOverlaps);
         return similarity;
     }

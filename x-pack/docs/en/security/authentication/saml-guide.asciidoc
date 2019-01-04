@@ -592,9 +592,11 @@ When a user authenticates using SAML, they are identified to the Elastic Stack,
 but this does not automatically grant them access to perform any actions or
 access any data.
 
-Your SAML users cannot do anything until they are mapped to {security}
-roles. This mapping is performed through the
-{ref}/security-api-put-role-mapping.html[add role mapping API].
+Your SAML users cannot do anything until they are assigned roles which can be done
+through  the {ref}/security-api-put-role-mapping.html[add role mapping API].
+
+NOTE: You cannot use {stack-ov}/defining-roles.html#roles-management-file[role mapping files]
+to grant roles to users authenticating via SAML.
 
 This is an example of a simple role mapping that grants the `kibana_user` role
 to any user who authenticates against the `saml1` realm:

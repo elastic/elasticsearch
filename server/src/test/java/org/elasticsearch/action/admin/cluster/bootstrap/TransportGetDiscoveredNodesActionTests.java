@@ -67,11 +67,14 @@ import java.util.EnumSet;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.discovery.PeerFinder.REQUEST_PEERS_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
@@ -204,8 +207,8 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         {
             final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-            getDiscoveredNodesRequest.setWaitForNodes(2);
             getDiscoveredNodesRequest.setTimeout(null);
+            getDiscoveredNodesRequest.setRequiredNodes(singletonList("not-a-node"));
             transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
                 @Override
                 public void handleResponse(GetDiscoveredNodesResponse response) {
@@ -221,8 +224,8 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         {
             final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-            getDiscoveredNodesRequest.setWaitForNodes(2);
             getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+            getDiscoveredNodesRequest.setRequiredNodes(singletonList("not-a-node"));
 
             final CountDownLatch countDownLatch = new CountDownLatch(1);
             transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
@@ -254,7 +257,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setWaitForNodes(2);
         getDiscoveredNodesRequest.setTimeout(null);
         transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
             @Override
@@ -283,8 +285,8 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setWaitForNodes(3);
         getDiscoveredNodesRequest.setTimeout(null);
+        getDiscoveredNodesRequest.setRequiredNodes(singletonList("not-a-node"));
         transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
             @Override
             public void handleResponse(GetDiscoveredNodesResponse response) {
@@ -342,7 +344,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
     public void testGetsDiscoveredNodesWithZeroTimeout() throws InterruptedException {
         setupGetDiscoveredNodesAction();
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setWaitForNodes(2);
         getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
         assertWaitConditionMet(getDiscoveredNodesRequest);
     }
@@ -377,7 +378,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
         String name = localNode.getName();
         getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(name, name));
-        getDiscoveredNodesRequest.setWaitForNodes(1);
         getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
         assertWaitConditionFailedOnDuplicate(getDiscoveredNodesRequest, "[" + localNode + "] matches [" + name + ", " + name + ']');
     }
@@ -396,7 +396,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
         getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(localNode.getAddress().toString(), "_missing"));
-        getDiscoveredNodesRequest.setWaitForNodes(1);
         getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
         transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
             @Override
@@ -423,8 +422,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
         final String ip = localNode.getAddress().getAddress();
-        getDiscoveredNodesRequest.setRequiredNodes(Collections.singletonList(ip));
-        getDiscoveredNodesRequest.setWaitForNodes(2);
+        getDiscoveredNodesRequest.setRequiredNodes(Stream.of(ip, "not-a-node").collect(Collectors.toList()));
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
@@ -480,7 +478,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         executeRequestPeersAction();
 
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setWaitForNodes(2);
+        getDiscoveredNodesRequest.setRequiredNodes(Stream.of(localNode.getName(), otherNode.getName()).collect(Collectors.toList()));
         assertWaitConditionMet(getDiscoveredNodesRequest);
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.tasks.Task;
@@ -75,8 +76,10 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
 
                 @Override
                 protected void doRun() throws Exception {
-                    Engine.IndexCommitRef snapshot = restoreSourceService.getSession(request.getSessionUUID());
-                    try (IndexInput in = snapshot.getIndexCommit().getDirectory().openInput(request.getFileName(), IOContext.READONCE)) {
+                    CcrRestoreSourceService.Session session = restoreSourceService.getSession(request.getSessionUUID());
+                    Engine.IndexCommitRef refCommit = session.refCommit();
+                    try (IndexInput in = refCommit.getIndexCommit().getDirectory().openInput(request.getFileName(), IOContext.READONCE);
+                         Releasable releasable = session::decRef) {
                         byte[] chunk = new byte[request.getSize()];
                         in.seek(request.getOffset());
                         in.readBytes(chunk, 0, request.getSize());

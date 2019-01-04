@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
@@ -133,33 +134,33 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         IOUtils.closeWhileHandlingException(restore);
     }
 
-    // TODO: The Engine.IndexCommitRef might be closed by a different thread while it is in use. We need to
-    //  look into the implications of this.
-    public Engine.IndexCommitRef getSession(String sessionUUID) {
+    public synchronized Session getSession(String sessionUUID) {
         RestoreContext restore = onGoingRestores.get(sessionUUID);
         if (restore == null) {
             logger.info("could not get session [{}] because session not found", sessionUUID);
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
-        return restore.commitRef;
+        Session session = restore.session;
+        session.incRef();
+        return session;
     }
 
     private class RestoreContext implements Closeable {
 
         private final String sessionUUID;
         private final IndexShard indexShard;
-        private final Engine.IndexCommitRef commitRef;
+        private final Session session;
 
         private RestoreContext(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef) {
             this.sessionUUID = sessionUUID;
             this.indexShard = indexShard;
-            this.commitRef = commitRef;
+            this.session = new Session(commitRef);
         }
 
         Store.MetadataSnapshot getMetaData() throws IOException {
             indexShard.store().incRef();
             try {
-                return indexShard.store().getMetadata(commitRef.getIndexCommit());
+                return indexShard.store().getMetadata(session.refCommit().getIndexCommit());
             } finally {
                 indexShard.store().decRef();
             }
@@ -169,7 +170,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         public void close() {
             assert Thread.holdsLock(CcrRestoreSourceService.this);
             removeSessionForShard(sessionUUID, indexShard);
-            IOUtils.closeWhileHandlingException(commitRef);
+            session.decRef();
         }
 
         private void removeSessionForShard(String sessionUUID, IndexShard indexShard) {
@@ -181,6 +182,26 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                     sessionsForShard.remove(indexShard);
                 }
             }
+        }
+    }
+
+    public static class Session extends AbstractRefCounted {
+
+        private static final String NAME = "ref-counted-session";
+        private final Engine.IndexCommitRef commitRef;
+
+        private Session(Engine.IndexCommitRef commitRef) {
+            super(NAME);
+            this.commitRef = commitRef;
+        }
+
+        public Engine.IndexCommitRef refCommit() {
+            return commitRef;
+        }
+
+        @Override
+        protected void closeInternal() {
+            IOUtils.closeWhileHandlingException(commitRef);
         }
     }
 }

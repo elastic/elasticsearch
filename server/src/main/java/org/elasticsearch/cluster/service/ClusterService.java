@@ -75,22 +75,22 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
         MasterService masterService) {
-        super(settings);
-        this.settings = settings;
-        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
-        this.masterService = masterService;
-        this.operationRouting = new OperationRouting(settings, clusterSettings);
-        this.clusterSettings = clusterSettings;
-        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-            this::setSlowTaskLoggingThreshold);
-        // Add a no-op update consumer so changes are logged
-        this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_META_DATA, (first, second) -> {}, (first, second) -> {});
-        this.clusterApplierService = new ClusterApplierService(nodeName, settings, clusterSettings, threadPool);
+        this(settings, clusterSettings, masterService,
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool));
     }
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
         MasterService masterService, Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorFactory) {
+        this(settings, clusterSettings, masterService,
+            new ClusterApplierService(settings, clusterSettings, threadPool, threadPoolExecutorFactory));
+    }
+
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(settings, clusterSettings, threadPool, new MasterService(Node.NODE_NAME_SETTING.get(settings), settings, threadPool));
+    }
+
+    private ClusterService(Settings settings, ClusterSettings clusterSettings, MasterService masterService,
+        ClusterApplierService clusterApplierService) {
         super(settings);
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
@@ -102,11 +102,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             this::setSlowTaskLoggingThreshold);
         // Add a no-op update consumer so changes are logged
         this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_META_DATA, (first, second) -> {}, (first, second) -> {});
-        this.clusterApplierService = new ClusterApplierService(settings, clusterSettings, threadPool, threadPoolExecutorFactory);
-    }
-
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this(settings, clusterSettings, threadPool, new MasterService(Node.NODE_NAME_SETTING.get(settings), settings, threadPool));
+        this.clusterApplierService = clusterApplierService;
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-bucket]]
-=== Get Buckets API
+=== Get buckets API
 ++++
-<titleabbrev>Get Buckets</titleabbrev>
+<titleabbrev>Get buckets</titleabbrev>
 ++++
 
 Retrieves job results for one or more buckets.
@@ -11,9 +11,9 @@ Retrieves job results for one or more buckets.
 
 ==== Request
 
-`GET _xpack/ml/anomaly_detectors/<job_id>/results/buckets` +
+`GET _ml/anomaly_detectors/<job_id>/results/buckets` +
 
-`GET _xpack/ml/anomaly_detectors/<job_id>/results/buckets/<timestamp>`
+`GET _ml/anomaly_detectors/<job_id>/results/buckets/<timestamp>`
 
 
 ==== Description
@@ -90,7 +90,7 @@ The following example gets bucket information for the `it-ops-kpi` job:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/it-ops-kpi/results/buckets
+GET _ml/anomaly_detectors/it-ops-kpi/results/buckets
 {
   "anomaly_score": 80,
   "start": "1454530200001"

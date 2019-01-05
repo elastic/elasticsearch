@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.Duration;
@@ -228,6 +229,14 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(2, eq.children().size());
     }
 
+    public void testNullEquals() {
+        Expression expr = parser.createExpression("a <=> 10");
+        assertEquals(NullEquals.class, expr.getClass());
+        NullEquals nullEquals = (NullEquals) expr;
+        assertEquals("(a) <=> 10", nullEquals.name());
+        assertEquals(2, nullEquals.children().size());
+    }
+
     public void testNotEquals() {
         Expression expr = parser.createExpression("a != 10");
         assertEquals(NotEquals.class, expr.getClass());
@@ -319,5 +328,41 @@ public class ExpressionTests extends ESTestCase {
     public void testConvertWithInvalidESDataType() {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, INVALID)"));
         assertEquals("line 1:13: Invalid data type [INVALID] provided", ex.getMessage());
+    }
+
+    public void testCurrentTimestamp() {
+        Expression expr = parser.createExpression("CURRENT_TIMESTAMP");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_TIMESTAMP", ur.name());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentTimestampPrecision() {
+        Expression expr = parser.createExpression("CURRENT_TIMESTAMP(4)");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_TIMESTAMP", ur.name());
+        assertEquals(1, ur.children().size());
+        Expression child = ur.children().get(0);
+        assertEquals(Literal.class, child.getClass());
+        assertEquals(Short.valueOf((short) 4), child.fold());
+    }
+
+    public void testCurrentTimestampInvalidPrecision() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CURRENT_TIMESTAMP(100)"));
+        assertEquals("line 1:20: Precision needs to be between [0-9], received [100]", ex.getMessage());
+    }
+
+    public void testSourceKeyword() throws Exception {
+        String s = "CUrrENT_timestamP";
+        Expression expr = parser.createExpression(s);
+        assertEquals(s, expr.sourceText());
+    }
+
+    public void testSourceFunction() throws Exception {
+        String s = "PerCentile_RaNK(fOO,    12 )";
+        Expression expr = parser.createExpression(s);
+        assertEquals(s, expr.sourceText());
     }
 }

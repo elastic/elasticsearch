@@ -146,7 +146,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
-    protected static class RawChannelFactory {
+    public static class RawChannelFactory {
 
         private final boolean tcpNoDelay;
         private final boolean tcpKeepAlive;

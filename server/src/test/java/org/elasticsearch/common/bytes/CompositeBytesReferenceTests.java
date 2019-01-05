@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -112,5 +113,19 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
     @Override
     public void testSliceToBytesRef() throws IOException {
         // CompositeBytesReference shifts offsets
+    }
+
+    public void testSliceIsNotCompositeIfMatchesSingleSubSlice() {
+        CompositeBytesReference bytesRef = new CompositeBytesReference(
+                new BytesArray(new byte[12]),
+                new BytesArray(new byte[15]),
+                new BytesArray(new byte[13]));
+
+        // Slices that cross boundaries are composite too
+        assertThat(bytesRef.slice(5, 8), Matchers.instanceOf(CompositeBytesReference.class));
+
+        // But not slices that cover a single sub reference
+        assertThat(bytesRef.slice(13, 10), Matchers.not(Matchers.instanceOf(CompositeBytesReference.class))); // strictly within sub
+        assertThat(bytesRef.slice(12, 15), Matchers.not(Matchers.instanceOf(CompositeBytesReference.class))); // equal to sub
     }
 }

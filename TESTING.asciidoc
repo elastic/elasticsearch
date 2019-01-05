@@ -251,6 +251,9 @@ If you want to just run the precommit checks:
 ./gradlew precommit
 ---------------------------------------------------------------------------
 
+Some of these checks will require `docker-compose` installed for bringing up
+test fixtures. If it's not present those checks will be skipped automatically.
+
 == Testing the REST layer
 
 The available integration tests make use of the java API to communicate with

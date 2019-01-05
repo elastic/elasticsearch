@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.xpack.upgrade.rest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,20 +34,27 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestIndexUpgradeAction extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestIndexUpgradeAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     public RestIndexUpgradeAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "_xpack/migration/upgrade/{index}", this);
+        controller.registerWithDeprecatedHandler(
+            POST, "_migration/upgrade/{index}", this,
+            POST, "_xpack/migration/upgrade/{index}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_migration_upgrade";
+        return "migration_upgrade";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (request.method().equals(RestRequest.Method.POST)) {
+        if (request.method().equals(POST)) {
             return handlePost(request, client);
         } else {
             throw new IllegalArgumentException("illegal method [" + request.method() + "] for request [" + request.path() + "]");

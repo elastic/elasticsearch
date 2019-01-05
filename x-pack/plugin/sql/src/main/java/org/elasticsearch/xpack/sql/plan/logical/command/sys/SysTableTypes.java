@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.Comparator;
@@ -27,8 +27,8 @@ import static java.util.stream.Collectors.toList;
  */
 public class SysTableTypes extends Command {
 
-    public SysTableTypes(Location location) {
-        super(location);
+    public SysTableTypes(Source source) {
+        super(source);
     }
 
     @Override

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunctio
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class Neg extends UnaryScalarFunction {
 
-    public Neg(Location location, Expression field) {
-        super(location, field);
+    public Neg(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -33,7 +33,7 @@ public class Neg extends UnaryScalarFunction {
 
     @Override
     protected Neg replaceChild(Expression newChild) {
-        return new Neg(location(), newChild);
+        return new Neg(source(), newChild);
     }
 
     @Override

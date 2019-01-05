@@ -1,1 +1,1 @@
-org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver
+org.elasticsearch.xpack.sql.jdbc.EsDriver

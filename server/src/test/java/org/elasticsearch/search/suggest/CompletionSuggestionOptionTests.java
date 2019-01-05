@@ -60,7 +60,7 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         SearchHit hit = null;
         float score = randomFloat();
         if (randomBoolean()) {
-            hit = SearchHitTests.createTestItem(false);
+            hit = SearchHitTests.createTestItem(false, true);
             score = hit.getScore();
         }
         Option option = new CompletionSuggestion.Entry.Option(docId, text, score, contexts);

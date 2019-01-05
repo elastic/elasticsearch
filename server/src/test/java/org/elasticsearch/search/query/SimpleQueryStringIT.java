@@ -348,7 +348,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1")
             .addMapping("type1", mapping, XContentType.JSON);
-        mappingRequest.execute().actionGet();
+        mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("location", "Köln"));
         refresh();
 
@@ -399,7 +399,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         CreateIndexRequestBuilder mappingRequest = client().admin().indices()
                 .prepareCreate("test1")
                 .addMapping("type1", mapping, XContentType.JSON);
-        mappingRequest.execute().actionGet();
+        mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("body", "Some Text"));
         refresh();
 
@@ -594,7 +594,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         Exception e = expectThrows(Exception.class, () -> {
                 SimpleQueryStringBuilder qb = simpleQueryStringQuery("bar");
                 if (randomBoolean()) {
-                    qb.useAllFields(true);
+                    qb.field("*");
                 }
                 client().prepareSearch("toomanyfields").setQuery(qb).get();
                 });
@@ -616,7 +616,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(simpleQueryStringQuery("value").field("f3_alias"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -636,7 +636,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(simpleQueryStringQuery("value").field("f3_*"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -657,7 +657,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         // By default, the boolean field should be ignored when building the query.
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("text").field("f*_alias"))
-            .execute().actionGet();
+            .get();
 
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -665,7 +665,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits(), equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

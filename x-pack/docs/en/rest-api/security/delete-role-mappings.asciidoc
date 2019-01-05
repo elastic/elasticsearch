@@ -1,12 +1,15 @@
 [role="xpack"]
 [[security-api-delete-role-mapping]]
 === Delete role mappings API
+++++
+<titleabbrev>Delete role mappings</titleabbrev>
+++++
 
 Removes role mappings.
 
 ==== Request
 
-`DELETE /_xpack/security/role_mapping/<name>` 
+`DELETE /_security/role_mapping/<name>` 
 
 ==== Description
 
@@ -33,7 +36,7 @@ The following example delete a role mapping:
 
 [source,js]
 --------------------------------------------------
-DELETE /_xpack/security/role_mapping/mapping1
+DELETE /_security/role_mapping/mapping1
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:role_mapping]

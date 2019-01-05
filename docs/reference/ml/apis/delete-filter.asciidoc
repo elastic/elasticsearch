@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-filter]]
-=== Delete Filter API
+=== Delete filter API
 ++++
-<titleabbrev>Delete Filter</titleabbrev>
+<titleabbrev>Delete filter</titleabbrev>
 ++++
 
 Deletes a filter.
@@ -11,7 +11,7 @@ Deletes a filter.
 
 ==== Request
 
-`DELETE _xpack/ml/filters/<filter_id>`
+`DELETE _ml/filters/<filter_id>`
 
 
 ==== Description
@@ -39,7 +39,7 @@ The following example deletes the `safe_domains` filter:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/ml/filters/safe_domains
+DELETE _ml/filters/safe_domains
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:ml_filter_safe_domains]

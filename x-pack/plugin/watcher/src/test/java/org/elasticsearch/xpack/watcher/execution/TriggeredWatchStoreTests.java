@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -217,7 +218,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", index, 0, null));
         hit.sourceRef(source);
-        SearchHits hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
+        SearchHits hits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         when(searchResponse1.getHits()).thenReturn(hits);
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
         doAnswer(invocation -> {
@@ -231,7 +232,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", index, 0, null));
         hit.sourceRef(source);
-        hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
+        hits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponse searchResponse2 = new SearchResponse(
             new InternalSearchResponse(hits, null, null, null, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
         SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId2", 1, 1, 0, 1, null, null);

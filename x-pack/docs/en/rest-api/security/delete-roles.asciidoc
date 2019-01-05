@@ -1,12 +1,15 @@
 [role="xpack"]
 [[security-api-delete-role]]
 === Delete roles API
+++++
+<titleabbrev>Delete roles</titleabbrev>
+++++
 
 Removes roles in the native realm.
 
 ==== Request
 
-`DELETE /_xpack/security/role/<name>` 
+`DELETE /_security/role/<name>` 
 
 
 ==== Description
@@ -35,7 +38,7 @@ The following example deletes a `my_admin_role` role:
 
 [source,js]
 --------------------------------------------------
-DELETE /_xpack/security/role/my_admin_role
+DELETE /_security/role/my_admin_role
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:admin_role]

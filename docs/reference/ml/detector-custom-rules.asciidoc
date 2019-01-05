@@ -32,7 +32,7 @@ We create our filter using the {ref}/ml-put-filter.html[put filter API]:
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/filters/safe_domains
+PUT _ml/filters/safe_domains
 {
   "description": "Our list of safe domains",
   "items": ["safe.com", "trusted.com"]
@@ -46,7 +46,7 @@ filter for the `highest_registered_domain` field:
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/dns_exfiltration_with_rule
+PUT _ml/anomaly_detectors/dns_exfiltration_with_rule
 {
   "analysis_config" : {
     "bucket_span":"5m",
@@ -79,7 +79,7 @@ domains that we want to add in the filter. We can do that by using the
 
 [source,js]
 ----------------------------------
-POST _xpack/ml/filters/safe_domains/_update
+POST _ml/filters/safe_domains/_update
 {
   "add_items": ["another-safe.com"]
 }
@@ -94,7 +94,7 @@ In the following example we scope multiple fields:
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/scoping_multiple_fields
+PUT _ml/anomaly_detectors/scoping_multiple_fields
 {
   "analysis_config" : {
     "bucket_span":"5m",
@@ -144,7 +144,7 @@ utilization is less than 0.20.
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/cpu_with_rule
+PUT _ml/anomaly_detectors/cpu_with_rule
 {
   "analysis_config" : {
     "bucket_span":"5m",
@@ -180,7 +180,7 @@ is greater than 30 and less than 50:
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/rule_with_range
+PUT _ml/anomaly_detectors/rule_with_range
 {
   "analysis_config" : {
     "bucket_span":"5m",

@@ -1,70 +1,38 @@
-[[java-rest-high-indices-exists]]
+--
+:api: indices-exists
+:request: GetIndexRequest
+:response: boolean
+--
+
+[id="{upid}-{api}"]
 === Indices Exists API
 
-[[java-rest-high-indices-exists-request]]
+[id="{upid}-{api}-request"]
 ==== Indices Exists Request
 
-The high-level REST client uses a `GetIndexRequest` for Indices Exists API. The index name (or indices' names) are required.
+The high-level REST client uses a +{request}+ for Indices Exists API. The index name (or indices' names) are required.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Index
 
 [[java-rest-high-indices-exists-optional-args]]
 ==== Optional arguments
-Indices Exists API also accepts following optional arguments, through a `GetIndexRequest`:
+Indices Exists API also accepts following optional arguments, through a +{request}+:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-request-optionals]
+include-tagged::{doc-tests-file}[{api}-request-optionals]
 --------------------------------------------------
 <1> Whether to return local information or retrieve the state from master node
 <2> Return result in a format suitable for humans
 <3> Whether to return all default setting for each of the indices
 <4> Controls how unavailable indices are resolved and how wildcard expressions are expanded
 
-[[java-rest-high-indices-sync]]
-==== Synchronous Execution
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-response]
---------------------------------------------------
+include::../execution.asciidoc[]
 
-[[java-rest-high-indices-async]]
-==== Asynchronous Execution
-The asynchronous execution of an indices exists request requires both the
-`GetIndexRequest` instance and an `ActionListener` instance to be passed
-to the asynchronous method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-async]
---------------------------------------------------
-<1> The `GetIndexRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for the Indices Exists looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-indices-exists-response]]
+[id="{upid}-{api}-response"]
 ==== Response
-The response is a `boolean` value, indicating whether the index (or indices) exist:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-response]
---------------------------------------------------
+The response is a +{response}+ value, indicating whether the index (or indices) exist.

@@ -20,33 +20,30 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FutureObjects;
 
 import java.nio.ByteBuffer;
 
 /**
  * This is a {@link BytesReference} backed by a {@link ByteBuffer}. The byte buffer can either be a heap or
- * direct byte buffer. The reference is composed of the space between the {@link ByteBuffer#position} and
- * {@link ByteBuffer#limit} at construction time. If the position or limit of the underlying byte buffer is
- * changed, those changes will not be reflected in this reference. However, modifying the limit or position
- * of the underlying byte buffer is not recommended as those can be used during {@link ByteBuffer#get()}
- * bounds checks. Use {@link ByteBuffer#duplicate()} at creation time if you plan on modifying the markers of
- * the underlying byte buffer. Any changes to the underlying data in the byte buffer will be reflected.
+ * direct byte buffer. The reference is composed of the space between the {@link ByteBuffer#position()} and
+ * {@link ByteBuffer#limit()} at construction time. If the position or limit of the underlying byte buffer is
+ * changed, those changes will not be reflected in this reference. Any changes to the underlying data in the
+ * byte buffer will be reflected in this reference.
  */
 public class ByteBufferReference extends BytesReference {
 
     private final ByteBuffer buffer;
-    private final int offset;
     private final int length;
 
-    public ByteBufferReference(ByteBuffer buffer) {
-        this.buffer = buffer;
-        this.offset = buffer.position();
+    ByteBufferReference(ByteBuffer buffer) {
+        this.buffer = buffer.slice();
         this.length = buffer.remaining();
     }
 
     @Override
     public byte get(int index) {
-        return buffer.get(index + offset);
+        return buffer.get(index);
     }
 
     @Override
@@ -56,14 +53,13 @@ public class ByteBufferReference extends BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        if (from < 0 || (from + length) > this.length) {
-            throw new IndexOutOfBoundsException("can't slice a buffer with length [" + this.length + "], with slice parameters from ["
-                + from + "], length [" + length + "]");
-        }
-        ByteBuffer newByteBuffer = buffer.duplicate();
-        newByteBuffer.position(offset + from);
-        newByteBuffer.limit(offset + from + length);
-        return new ByteBufferReference(newByteBuffer);
+        FutureObjects.checkFromIndexSize(from, length, this.length);
+        buffer.position(from);
+        buffer.limit(from + length);
+        ByteBufferReference newByteBuffer = new ByteBufferReference(buffer);
+        buffer.position(0);
+        buffer.limit(this.length);
+        return newByteBuffer;
     }
 
     /**
@@ -75,10 +71,10 @@ public class ByteBufferReference extends BytesReference {
     @Override
     public BytesRef toBytesRef() {
         if (buffer.hasArray()) {
-            return new BytesRef(buffer.array(), buffer.arrayOffset() + offset, length);
+            return new BytesRef(buffer.array(), buffer.arrayOffset(), length);
         }
         final byte[] copy = new byte[length];
-        buffer.get(copy, offset, length);
+        buffer.get(copy, 0, length);
         return new BytesRef(copy);
     }
 

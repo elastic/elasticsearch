@@ -32,12 +32,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.collapse.CollapseBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -158,6 +158,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         if (in.getVersion().before(Version.V_6_4_0)) {
+            @SuppressWarnings("unchecked")
             List<String> fieldList = (List<String>) in.readGenericValue();
             if (fieldList == null) {
                 docValueFields = null;
@@ -308,28 +309,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     }
 
     /**
-     * Gets the stored fields to load and return.
-     *
-     * @deprecated Use {@link InnerHitBuilder#getStoredFieldsContext()} instead.
-     */
-    @Deprecated
-    public List<String> getFieldNames() {
-        return storedFieldsContext == null ? null : storedFieldsContext.fieldNames();
-    }
-
-    /**
-     * Sets the stored fields to load and return.
-     * If none are specified, the source of the document will be returned.
-     *
-     * @deprecated Use {@link InnerHitBuilder#setStoredFieldNames(List)} instead.
-     */
-    @Deprecated
-    public InnerHitBuilder setFieldNames(List<String> fieldNames) {
-        return setStoredFieldNames(fieldNames);
-    }
-
-
-    /**
      * Gets the stored fields context.
      */
     public StoredFieldsContext getStoredFieldsContext() {
@@ -371,7 +350,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         if (docValueFields == null) {
             docValueFields = new ArrayList<>();
         }
-        docValueFields.add(new FieldAndFormat(field, null));
+        docValueFields.add(new FieldAndFormat(field, format));
         return this;
     }
 

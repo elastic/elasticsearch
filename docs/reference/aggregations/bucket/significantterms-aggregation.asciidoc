@@ -448,7 +448,7 @@ If the number of unique terms is greater than `size`, the returned list can be s
 size buckets was not returned).
 
 To ensure better accuracy a multiple of the final `size` is used as the number of terms to request from each shard
-using a heuristic based on the number of shards. To take manual control of this setting the `shard_size` parameter
+(`2 * (size * 1.5 + 10)`). To take manual control of this setting the `shard_size` parameter
 can be  used to control the volumes of candidate terms produced by each shard.
 
 Low-frequency terms can turn out to be the most interesting ones once all results are combined so the

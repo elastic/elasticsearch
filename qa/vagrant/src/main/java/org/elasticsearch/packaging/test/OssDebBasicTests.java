@@ -19,12 +19,37 @@
 
 package org.elasticsearch.packaging.test;
 
+import junit.framework.TestCase;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.Shell;
+
+import java.util.regex.Pattern;
+
+import static org.elasticsearch.packaging.util.Distribution.DEFAULT_DEB;
+import static org.elasticsearch.packaging.util.Distribution.OSS_DEB;
+import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
+import static org.junit.Assume.assumeTrue;
 
 public class OssDebBasicTests extends PackageTestCase {
 
     @Override
     protected Distribution distribution() {
         return Distribution.OSS_DEB;
+    }
+
+    public void test11DebDependencies() {
+        assumeTrue(Platforms.isDPKG());
+
+        final Shell sh = new Shell();
+
+        final Shell.Result defaultResult = sh.run("dpkg -I " + getDistributionFile(DEFAULT_DEB));
+        final Shell.Result ossResult = sh.run("dpkg -I " + getDistributionFile(OSS_DEB));
+
+        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(defaultResult.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(ossResult.stdout).find());
+
+        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: elasticsearch-oss$").matcher(defaultResult.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: elasticsearch$").matcher(ossResult.stdout).find());
     }
 }

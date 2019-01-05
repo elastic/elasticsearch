@@ -45,7 +45,7 @@ public class RollupRequestConvertersTests extends ESTestCase {
         PutRollupJobRequest put = new PutRollupJobRequest(config);
 
         Request request = RollupRequestConverters.putJob(put);
-        assertThat(request.getEndpoint(), equalTo("/_xpack/rollup/job/" + job));
+        assertThat(request.getEndpoint(), equalTo("/_rollup/job/" + job));
         assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(request.getParameters().keySet(), empty());
         RequestConvertersTests.assertToXContentBody(put, request.getEntity());
@@ -57,7 +57,7 @@ public class RollupRequestConvertersTests extends ESTestCase {
         StartRollupJobRequest startJob = new StartRollupJobRequest(jobId);
 
         Request request = RollupRequestConverters.startJob(startJob);
-        assertThat(request.getEndpoint(), equalTo("/_xpack/rollup/job/" + jobId + "/_start"));
+        assertThat(request.getEndpoint(), equalTo("/_rollup/job/" + jobId + "/_start"));
         assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(request.getParameters().keySet(), empty());
         assertThat(request.getEntity(), nullValue());
@@ -81,7 +81,7 @@ public class RollupRequestConvertersTests extends ESTestCase {
         }
 
         Request request = RollupRequestConverters.stopJob(stopJob);
-        assertThat(request.getEndpoint(), equalTo("/_xpack/rollup/job/" + jobId + "/_stop"));
+        assertThat(request.getEndpoint(), equalTo("/_rollup/job/" + jobId + "/_stop"));
         assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(request.getParameters().keySet().size(), equalTo(expectedParameters));
         assertThat(request.getParameters().get("timeout"), equalTo(expectedTimeOutString));
@@ -95,7 +95,7 @@ public class RollupRequestConvertersTests extends ESTestCase {
         GetRollupJobRequest get = getAll ? new GetRollupJobRequest() : new GetRollupJobRequest(job);
 
         Request request = RollupRequestConverters.getJob(get);
-        assertThat(request.getEndpoint(), equalTo("/_xpack/rollup/job/" + job));
+        assertThat(request.getEndpoint(), equalTo("/_rollup/job/" + job));
         assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(request.getParameters().keySet(), empty());
         assertThat(request.getEntity(), nullValue());

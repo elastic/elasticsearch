@@ -33,8 +33,9 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -59,13 +60,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class HttpClient extends AbstractComponent implements Closeable {
+public class HttpClient implements Closeable {
 
     private static final String SETTINGS_SSL_PREFIX = "xpack.http.ssl.";
     // picking a reasonable high value here to allow for setups with lots of watch executions or many http inputs/actions
     // this is also used as the value per route, if you are connecting to the same endpoint a lot, which is likely, when
     // you are querying a remote Elasticsearch cluster
     private static final int MAX_CONNECTIONS = 500;
+    private static final Logger logger = LogManager.getLogger(HttpClient.class);
 
     private final CloseableHttpClient client;
     private final HttpProxy settingsProxy;

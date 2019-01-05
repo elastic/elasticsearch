@@ -66,11 +66,11 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(stats("stats").field("value")))
-                .execute().actionGet();
+                .get();
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -91,11 +91,11 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("value"))
-                .execute().actionGet();
+                .get();
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -125,7 +125,7 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("value"))
-                .execute().actionGet();
+                .get();
 
         assertShardExecutionState(searchResponse, 0);
 
@@ -144,7 +144,7 @@ public class StatsIT extends AbstractNumericTestCase {
     public void testSingleValuedField_WithFormatter() throws Exception {
 
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(stats("stats").format("0000.0").field("value")).execute().actionGet();
+                .addAggregation(stats("stats").format("0000.0").field("value")).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -165,7 +165,7 @@ public class StatsIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedFieldGetProperty() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(global("global").subAggregation(stats("stats").field("value"))).execute().actionGet();
+                .addAggregation(global("global").subAggregation(stats("stats").field("value"))).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -204,7 +204,7 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("value"))
-                .execute().actionGet();
+                .get();
 
         assertShardExecutionState(searchResponse, 0);
 
@@ -275,7 +275,7 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("values"))
-                .execute().actionGet();
+                .get();
 
         assertShardExecutionState(searchResponse, 0);
 
@@ -392,7 +392,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testScriptMultiValued() throws Exception {
-        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", emptyMap());
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values']", emptyMap());
 
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())

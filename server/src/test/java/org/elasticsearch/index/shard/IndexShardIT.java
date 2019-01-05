@@ -63,6 +63,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -297,7 +299,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareIndex(INDEX, "bar", "1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
+        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
 
         logger.info("--> closing the index [{}]", INDEX);
         client().admin().indices().prepareClose(INDEX).get();
@@ -307,7 +309,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         ensureGreen(INDEX);
 
         resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
+        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
 
         // Now, try closing and changing the settings
 
@@ -332,7 +334,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         ensureGreen(INDEX);
 
         resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
+        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
 
         assertAcked(client().admin().indices().prepareDelete(INDEX));
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
@@ -355,8 +357,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-            SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
-            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            new SourceToParse("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
+            SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = getTranslog(shard);
         assertEquals(2, translog.stats().getUncommittedOperations());
@@ -405,8 +407,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (int i = 0; i < numberOfDocuments; i++) {
             assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
             final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                new SourceToParse("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
+                SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
             if (location.translogLocation + location.size > generationThreshold) {
@@ -689,7 +691,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             started.countDown();
             do {
                 searchResponse = client().prepareSearch().get();
-            } while (searchResponse.getHits().totalHits != totalNumDocs.get());
+            } while (searchResponse.getHits().getTotalHits().value != totalNumDocs.get());
         });
         t.start();
         started.await();
@@ -842,7 +844,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             }
         }
         shard.refresh("test");
-        assertThat(client().search(countRequest).actionGet().getHits().totalHits, equalTo(numDocs));
+        assertThat(client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs));
         assertThat(shard.getLocalCheckpoint(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         shard.resetEngineToGlobalCheckpoint();
         final long moreDocs = between(10, 20);
@@ -858,7 +860,31 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 (long) searcher.reader().numDocs(), equalTo(numDocs + moreDocs));
         }
         assertThat("numDocs=" + numDocs + " moreDocs=" + moreDocs,
-            client().search(countRequest).actionGet().getHits().totalHits, equalTo(numDocs + moreDocs));
+            client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs + moreDocs));
     }
 
+    public void testShardChangesWithDefaultDocType() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.translog.flush_threshold_size", "512mb") // do not flush
+            .put("index.soft_deletes.enabled", true).build();
+        IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
+        int numOps = between(1, 10);
+        for (int i = 0; i < numOps; i++) {
+            if (randomBoolean()) {
+                client().prepareIndex("index", randomFrom("_doc", "user_doc"), randomFrom("1", "2"))
+                    .setSource("{}", XContentType.JSON).get();
+            } else {
+                client().prepareDelete("index", randomFrom("_doc", "user_doc"), randomFrom("1", "2")).get();
+            }
+        }
+        IndexShard shard = indexService.getShard(0);
+        try (Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, numOps - 1, true);
+             Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()) {
+            List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
+            List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);
+            assertThat(opsFromLucene, equalTo(opsFromTranslog));
+        }
+    }
 }

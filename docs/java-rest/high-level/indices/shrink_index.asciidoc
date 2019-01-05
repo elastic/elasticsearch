@@ -1,15 +1,21 @@
-[[java-rest-high-shrink-index]]
+--
+:api: shrink-index
+:request: ResizeRequest
+:response: ResizeResponse
+--
+
+[id="{upid}-{api}"]
 === Shrink Index API
 
-[[java-rest-high-shrink-index-request]]
+[id="{upid}-{api}-request"]
 ==== Resize Request
 
-The Shrink API requires a `ResizeRequest` instance.
-A `ResizeRequest` requires two string arguments:
+The Shrink API requires a +{request}+ instance.
+A +{request}+ requires two string arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The target index (first argument) to shrink the source index (second argument) into
 
@@ -18,7 +24,7 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-request-timeout]
+include-tagged::{doc-tests-file}[{api}-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the index is opened
 as a `TimeValue`
@@ -27,14 +33,14 @@ as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-request-masterTimeout]
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-request-waitForActiveShards]
+include-tagged::{doc-tests-file}[{api}-request-waitForActiveShards]
 --------------------------------------------------
 <1> The number of active shard copies to wait for before the shrink index API
 returns a response, as an `int`
@@ -43,63 +49,28 @@ returns a response, as an `ActiveShardCount`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-request-settings]
+include-tagged::{doc-tests-file}[{api}-request-settings]
 --------------------------------------------------
 <1> The number of shards on the target of the shrink index request
 <2> Remove the allocation requirement copied from the source index
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-request-aliases]
+include-tagged::{doc-tests-file}[{api}-request-aliases]
 --------------------------------------------------
 <1> The aliases to associate the target index with
 
-[[java-rest-high-shrink-index-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-execute]
---------------------------------------------------
-
-[[java-rest-high-shrink-index-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a shrink index request requires both the `ResizeRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-execute-async]
---------------------------------------------------
-<1> The `ResizeRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `ResizeResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-shrink-index-response]]
+[id="{upid}-{api}-response"]
 ==== Shrink Index Response
 
-The returned `ResizeResponse` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Indicates whether all of the nodes have acknowledged the request
 <2> Indicates whether the requisite number of shard copies were started for

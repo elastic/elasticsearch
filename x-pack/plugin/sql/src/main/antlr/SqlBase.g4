@@ -62,7 +62,7 @@ statement
     | SYS COLUMNS (CATALOG cluster=string)?
                   (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
                   (columnPattern=likePattern)?                                                            #sysColumns
-    | SYS TYPES                                                                                           #sysTypes
+    | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
     | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
     
@@ -186,7 +186,7 @@ predicated
 // instead the property kind is used to differentiate
 predicate
     : NOT? kind=BETWEEN lower=valueExpression AND upper=valueExpression
-    | NOT? kind=IN '(' expression (',' expression)* ')'
+    | NOT? kind=IN '(' valueExpression (',' valueExpression)* ')'
     | NOT? kind=IN '(' query ')'
     | NOT? kind=LIKE pattern
     | NOT? kind=RLIKE regex=string
@@ -217,6 +217,7 @@ valueExpression
 primaryExpression
     : castExpression                                                                 #cast
     | extractExpression                                                              #extract
+    | builtinDateTimeFunction                                                        #currentDateTimeFunction
     | constant                                                                       #constantDefault
     | (qualifiedName DOT)? ASTERISK                                                  #star
     | functionExpression                                                             #function
@@ -234,6 +235,10 @@ castExpression
     
 castTemplate
     : CAST '(' expression AS dataType ')'
+    ;
+
+builtinDateTimeFunction
+    : name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
     ;
     
 convertTemplate
@@ -277,7 +282,7 @@ constant
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NULLEQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
@@ -334,7 +339,7 @@ string
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS 
+    | CATALOGS | COLUMNS | CURRENT 
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
     | FIRST | FORMAT | FUNCTIONS 
@@ -367,6 +372,8 @@ CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 CONVERT: 'CONVERT';
+CURRENT: 'CURRENT';
+CURRENT_TIMESTAMP : 'CURRENT_TIMESTAMP';
 DAY: 'DAY';
 DAYS: 'DAYS';
 DEBUG: 'DEBUG';
@@ -452,7 +459,8 @@ GUID_ESC: '{GUID';
 ESC_END: '}';
 
 EQ  : '=';
-NEQ : '<>' | '!=' | '<=>';
+NULLEQ: '<=>';
+NEQ : '<>' | '!=';
 LT  : '<';
 LTE : '<=';
 GT  : '>';

@@ -1,14 +1,17 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-trial]]
-=== Start Trial API
+=== Start trial API
+++++
+<titleabbrev>Start trial</titleabbrev>
+++++
 
 This API starts a 30-day trial license.
 
 [float]
 ==== Request
 
-`POST _xpack/license/start_trial`
+`POST /_license/start_trial`
 
 [float]
 ==== Description
@@ -42,7 +45,7 @@ parameter is required as you are initiating a license that will expire.
 
 [source,js]
 ------------------------------------------------------------
-POST _xpack/license/start_trial?acknowledge=true
+POST /_license/start_trial?acknowledge=true
 ------------------------------------------------------------
 // CONSOLE
 // TEST[skip:license testing issues]

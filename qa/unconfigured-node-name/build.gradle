@@ -22,6 +22,10 @@ apply plugin: 'elasticsearch.rest-test'
 
 integTestCluster {
   setting 'node.name', null
+  // Run with no discovery configuration at all, demonstrating that a node in its
+  // "out-of-the-box" configuration can automatically bootstrap a cluster
+  autoSetInitialMasterNodes = false
+  autoSetHostsProvider = false
 }
 
 integTestRunner {

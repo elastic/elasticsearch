@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -42,6 +43,16 @@ public class ClusterStateRequestTests extends ESTestCase {
 
             Version testVersion = VersionUtils.randomVersionBetween(random(),
                 Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+            // TODO: change version to V_6_6_0 after backporting:
+            if (testVersion.onOrAfter(Version.V_7_0_0)) {
+                if (randomBoolean()) {
+                    clusterStateRequest.waitForMetaDataVersion(randomLongBetween(1, Long.MAX_VALUE));
+                }
+                if (randomBoolean()) {
+                    clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
+                }
+            }
+
             BytesStreamOutput output = new BytesStreamOutput();
             output.setVersion(testVersion);
             clusterStateRequest.writeTo(output);
@@ -56,7 +67,18 @@ public class ClusterStateRequestTests extends ESTestCase {
             assertThat(deserializedCSRequest.blocks(), equalTo(clusterStateRequest.blocks()));
             assertThat(deserializedCSRequest.indices(), equalTo(clusterStateRequest.indices()));
             assertOptionsMatch(deserializedCSRequest.indicesOptions(), clusterStateRequest.indicesOptions());
+            if (testVersion.onOrAfter(Version.V_6_6_0)) {
+                assertThat(deserializedCSRequest.waitForMetaDataVersion(), equalTo(clusterStateRequest.waitForMetaDataVersion()));
+                assertThat(deserializedCSRequest.waitForTimeout(), equalTo(clusterStateRequest.waitForTimeout()));
+            }
         }
+    }
+
+    public void testWaitForMetaDataVersion() {
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        expectThrows(IllegalArgumentException.class,
+            () -> clusterStateRequest.waitForMetaDataVersion(randomLongBetween(Long.MIN_VALUE, 0)));
+        clusterStateRequest.waitForMetaDataVersion(randomLongBetween(1, Long.MAX_VALUE));
     }
 
     private static void assertOptionsMatch(IndicesOptions in, IndicesOptions out) {

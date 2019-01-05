@@ -48,8 +48,8 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             createIndex(sourceIndex, settings);
             createIndex(destinationIndex, settings);
             BulkRequest bulkRequest = new BulkRequest()
-                .add(new IndexRequest(sourceIndex, "type", "1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
-                .add(new IndexRequest(sourceIndex, "type", "2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+                .add(new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+                .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             assertEquals(
                 RestStatus.OK,
@@ -64,7 +64,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             ReindexRequest reindexRequest = new ReindexRequest();
             reindexRequest.setSourceIndices(sourceIndex);
             reindexRequest.setDestIndex(destinationIndex);
-            reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1").types("type"));
+            reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1"));
             reindexRequest.setRefresh(true);
 
             BulkByScrollResponse bulkResponse = execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
@@ -94,8 +94,8 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             createIndex(sourceIndex, settings);
             createIndex(destinationIndex, settings);
             BulkRequest bulkRequest = new BulkRequest()
-                .add(new IndexRequest(sourceIndex, "type", "1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
-                .add(new IndexRequest(sourceIndex, "type", "2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+                .add(new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+                .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             assertEquals(
                 RestStatus.OK,

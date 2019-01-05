@@ -20,6 +20,7 @@ package org.elasticsearch.discovery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NoopDiscovery;
@@ -60,6 +62,7 @@ public class DiscoveryModuleTests extends ESTestCase {
     private ClusterApplier clusterApplier;
     private ThreadPool threadPool;
     private ClusterSettings clusterSettings;
+    private GatewayMetaState gatewayMetaState;
 
     public interface DummyHostsProviderPlugin extends DiscoveryPlugin {
         Map<String, Supplier<UnicastHostsProvider>> impl();
@@ -77,7 +80,7 @@ public class DiscoveryModuleTests extends ESTestCase {
                                                                    NamedWriteableRegistry namedWriteableRegistry,
                                                                    MasterService masterService, ClusterApplier clusterApplier,
                                                                    ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
-                                                                   AllocationService allocationService) {
+                                                                   AllocationService allocationService, GatewayMetaState gatewayMetaState) {
             return impl();
         }
     }
@@ -90,6 +93,7 @@ public class DiscoveryModuleTests extends ESTestCase {
         clusterApplier = mock(ClusterApplier.class);
         threadPool = mock(ThreadPool.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        gatewayMetaState = mock(GatewayMetaState.class);
     }
 
     @After
@@ -99,12 +103,12 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     private DiscoveryModule newModule(Settings settings, List<DiscoveryPlugin> plugins) {
         return new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry, null, masterService,
-            clusterApplier, clusterSettings, plugins, null, createTempDir().toAbsolutePath());
+            clusterApplier, clusterSettings, plugins, null, createTempDir().toAbsolutePath(), gatewayMetaState);
     }
 
     public void testDefaults() {
         DiscoveryModule module = newModule(Settings.EMPTY, Collections.emptyList());
-        assertTrue(module.getDiscovery() instanceof ZenDiscovery);
+        assertTrue(module.getDiscovery() instanceof Coordinator);
     }
 
     public void testLazyConstructionDiscovery() {
@@ -202,7 +206,9 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     public void testJoinValidator() {
         BiConsumer<DiscoveryNode, ClusterState> consumer = (a, b) -> {};
-        DiscoveryModule module = newModule(Settings.EMPTY, Collections.singletonList(new DiscoveryPlugin() {
+        // TODO: move to zen2 once join validators are implemented
+        DiscoveryModule module = newModule(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
+            DiscoveryModule.ZEN_DISCOVERY_TYPE).build(), Collections.singletonList(new DiscoveryPlugin() {
             @Override
             public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
                 return consumer;

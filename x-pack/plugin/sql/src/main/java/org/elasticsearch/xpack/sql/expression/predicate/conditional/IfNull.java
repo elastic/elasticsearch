@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.Arrays;
@@ -18,13 +18,17 @@ import java.util.List;
  */
 public class IfNull extends Coalesce {
 
-    public IfNull(Location location, Expression first, Expression second) {
-        super(location, Arrays.asList(first, second));
+    public IfNull(Source source, Expression first, Expression second) {
+        this(source, Arrays.asList(first, second));
+    }
+
+    private IfNull(Source source, List<Expression> expressions) {
+        super(source, expressions);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new IfNull(location(), newChildren.get(0), newChildren.get(1));
+        return new IfNull(source(), newChildren);
     }
 
     @Override

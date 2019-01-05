@@ -47,9 +47,6 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
             builder.setIndices(DatafeedConfigTests.randomStringList(1, 10));
         }
         if (randomBoolean()) {
-            builder.setTypes(DatafeedConfigTests.randomStringList(1, 10));
-        }
-        if (randomBoolean()) {
             try {
                 builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
             } catch (IOException e) {

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-open-job]]
-=== Open Jobs API
+=== Open jobs API
 ++++
-<titleabbrev>Open Jobs</titleabbrev>
+<titleabbrev>Open jobs</titleabbrev>
 ++++
 
 Opens one or more jobs.
@@ -13,7 +13,7 @@ A job can be opened and closed multiple times throughout its lifecycle.
 
 ==== Request
 
-`POST _xpack/ml/anomaly_detectors/{job_id}/_open`
+`POST _ml/anomaly_detectors/{job_id}/_open`
 
 
 ==== Description
@@ -51,7 +51,7 @@ property:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/total-requests/_open
+POST _ml/anomaly_detectors/total-requests/_open
 {
   "timeout": "35m"
 }

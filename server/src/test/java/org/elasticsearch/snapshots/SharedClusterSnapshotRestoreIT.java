@@ -3179,6 +3179,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
      *
      * See https://github.com/elastic/elasticsearch/issues/20876
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37005")
     public void testSnapshotCanceledOnRemovedShard() throws Exception {
         final int numPrimaries = 1;
         final int numReplicas = 1;

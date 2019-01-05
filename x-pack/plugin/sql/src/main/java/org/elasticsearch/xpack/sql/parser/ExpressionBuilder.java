@@ -320,7 +320,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (value instanceof Literal) { // Minus already processed together with literal number
                     return value;
                 }
-                return new Neg(source(ctx.operator), value);
+                return new Neg(source(ctx), value);
             default:
                 throw new ParsingException(source, "Unknown arithmetic {}", source.text());
         }
@@ -331,7 +331,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(ctx.left);
         Expression right = expression(ctx.right);
 
-        Source source = source(ctx.operator);
+        Source source = source(ctx);
 
         switch (ctx.operator.getType()) {
             case SqlBaseParser.ASTERISK:
@@ -611,7 +611,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Interval<?> timeInterval = value instanceof Period ? new IntervalYearMonth((Period) value,
                 intervalType) : new IntervalDayTime((Duration) value, intervalType);
 
-        return new Literal(source(interval), text(interval), timeInterval, timeInterval.dataType());
+        return new Literal(source(interval), timeInterval, timeInterval.dataType());
     }
 
     private TemporalAmount of(NumberContext valueNumeric, TimeUnit unit) {
@@ -689,9 +689,16 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
-        String string = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
+        String string = ctx.getText();
+        Source source = minusAwareSource(ctx);
+        if (source != null) {
+            string = "-" + string;
+        } else {
+            source = source(ctx);
+        }
+
         try {
-            return new Literal(source(ctx), Double.valueOf(StringUtils.parseDouble(string)), DataType.DOUBLE);
+            return new Literal(source, Double.valueOf(StringUtils.parseDouble(string)), DataType.DOUBLE);
         } catch (SqlIllegalArgumentException siae) {
             throw new ParsingException(source(ctx), siae.getMessage());
         }
@@ -699,13 +706,20 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
-        String string = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
+        String string = ctx.getText();
+        Source source = minusAwareSource(ctx);
+
+        if (source != null) {
+            string = "-" + string;
+        } else {
+            source = source(ctx);
+        }
 
         long value;
         try {
             value = Long.valueOf(StringUtils.parseLong(string));
         } catch (SqlIllegalArgumentException siae) {
-            throw new ParsingException(source(ctx), siae.getMessage());
+            throw new ParsingException(source, siae.getMessage());
         }
 
         Object val = Long.valueOf(value);
@@ -715,7 +729,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             type = DataType.INTEGER;
             val = Integer.valueOf((int) value);
         }
-        return new Literal(source(ctx), val, type);
+        return new Literal(source, val, type);
     }
 
     @Override
@@ -876,7 +890,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         return new Literal(source(ctx), string, DataType.KEYWORD);
     }
 
-    private boolean hasMinusFromParent(SqlBaseParser.NumberContext ctx) {
+    /**
+     * Checks the presence of MINUS (-) in the parent and if found,
+     * returns the parent source or null otherwise.
+     * Parsing of the value shoudl not depend on the returned source
+     * as it might contain extra spaces.
+     */
+    private static Source minusAwareSource(SqlBaseParser.NumberContext ctx) {
         ParserRuleContext parentCtx = ctx.getParent();
         if (parentCtx != null) {
             if (parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
@@ -886,17 +906,23 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                     if (parentCtx != null && parentCtx instanceof SqlBaseParser.ValueExpressionDefaultContext) {
                         parentCtx = parentCtx.getParent();
                         if (parentCtx != null && parentCtx instanceof SqlBaseParser.ArithmeticUnaryContext) {
-                            return ((ArithmeticUnaryContext) parentCtx).MINUS() != null;
+                            if (((ArithmeticUnaryContext) parentCtx).MINUS() != null) {
+                                return source(parentCtx);
+                            }
                         }
                     }
                 }
             } else if (parentCtx instanceof SqlBaseParser.IntervalContext) {
                 IntervalContext ic = (IntervalContext) parentCtx;
-                return ic.sign != null && ic.sign.getType() == SqlBaseParser.MINUS;
+                if (ic.sign != null && ic.sign.getType() == SqlBaseParser.MINUS) {
+                    return source(ic);
+                }
             } else if (parentCtx instanceof SqlBaseParser.SysTypesContext) {
-                return ((SysTypesContext) parentCtx).MINUS() != null;
+                if (((SysTypesContext) parentCtx).MINUS() != null) {
+                    source(parentCtx);
+                }
             }
         }
-        return false;
+        return null;
     }
 }

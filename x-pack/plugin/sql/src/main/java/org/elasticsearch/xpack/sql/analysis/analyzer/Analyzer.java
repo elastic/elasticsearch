@@ -765,7 +765,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         private Expression collectResolvedAndReplace(Expression e, Map<String, List<Function>> seen) {
             if (e instanceof Function && e.resolved()) {
                 Function f = (Function) e;
-                String fName = f.functionName();
+                String fName = f.sourceText();
                 // the function is resolved and its name normalized already
                 List<Function> list = getList(seen, fName);
                 for (Function seenFunction : list) {
@@ -882,8 +882,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             return new Alias(c.source(), ((NamedExpression) c.field()).name(), c);
                         }
                     }
-                    //TODO: maybe add something closer to SQL
-                    return new Alias(child.source(), child.toString(), child);
+                    return new Alias(child.source(), child.sourceText(), child);
                 }, UnresolvedAlias.class);
                 newExpr.add(expr.equals(transformed) ? expr : transformed);
             }
@@ -1014,7 +1013,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         private boolean functionsEquals(Function f, Function seenFunction) {
-            return f.name().equals(seenFunction.name()) && f.arguments().equals(seenFunction.arguments());
+            return f.sourceText().equals(seenFunction.sourceText()) && f.arguments().equals(seenFunction.arguments());
         }
     }
 

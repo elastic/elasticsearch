@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.google.common.base.Joiner;
+
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -59,12 +60,12 @@ public class SqlParserTests extends ESTestCase {
 
     public void testSelectScore() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT SCORE() FROM foo")), UnresolvedFunction.class);
-        assertEquals("SCORE", f.functionName());
+        assertEquals("SCORE()", f.sourceText());
     }
 
     public void testSelectRightFunction() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT RIGHT()")), UnresolvedFunction.class);
-        assertEquals("RIGHT", f.functionName());
+        assertEquals("RIGHT()", f.sourceText());
     }
 
     public void testOrderByField() {
@@ -80,13 +81,13 @@ public class SqlParserTests extends ESTestCase {
 
     public void testOrderByScore() {
         Order.OrderDirection dir = randomFrom(Order.OrderDirection.values());
-        OrderBy ob = orderBy(parseStatement("SELECT * FROM foo ORDER BY SCORE()" + stringForDirection(dir)));
+        OrderBy ob = orderBy(parseStatement("SELECT * FROM foo ORDER BY SCORE( )" + stringForDirection(dir)));
         assertThat(ob.order(), hasSize(1));
         Order o = ob.order().get(0);
         assertEquals(dir, o.direction());
         assertThat(o.child(), instanceOf(UnresolvedFunction.class));
         UnresolvedFunction f = (UnresolvedFunction) o.child();
-        assertEquals("SCORE", f.functionName());
+        assertEquals("SCORE( )", f.sourceText());
     }
 
     public void testOrderByTwo() {

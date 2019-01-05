@@ -11,8 +11,8 @@ import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
@@ -21,7 +21,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -82,13 +81,6 @@ public class In extends ScalarFunction {
             return null;
         }
         return InProcessor.apply(value.fold(), Foldables.valuesOf(list, value.dataType()));
-    }
-
-    @Override
-    public String name() {
-        StringJoiner sj = new StringJoiner(", ", " IN (", ")");
-        list.forEach(e -> sj.add(Expressions.name(e)));
-        return Expressions.name(value) + sj.toString();
     }
 
     @Override

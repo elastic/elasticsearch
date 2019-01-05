@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -156,7 +156,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + functionName() + functionArgs();
+        return UNRESOLVED_PREFIX + sourceText();
     }
 
     @Override

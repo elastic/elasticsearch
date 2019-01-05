@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -106,17 +106,5 @@ public class Cast extends UnaryScalarFunction {
         Cast other = (Cast) obj;
         return Objects.equals(dataType, other.dataType())
             && Objects.equals(field(), other.field());
-    }
-
-    @Override
-    public String toString() {
-        return functionName() + "(" + field().toString() + " AS " + to().sqlName() + ")#" + id();
-    }
-
-    @Override
-    public String name() {
-        StringBuilder sb = new StringBuilder(super.name());
-        sb.insert(sb.length() - 1, " AS " + to().sqlName());
-        return sb.toString();
     }
 }

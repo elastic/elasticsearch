@@ -73,7 +73,8 @@ public abstract class BlobRestoreContext {
      * @param recoveryState recovery state to report progress
      * @param bufferSize    buffer size for restore
      */
-    BlobRestoreContext(String repositoryName, IndexShard indexShard, SnapshotId snapshotId, RecoveryState recoveryState, int bufferSize) {
+    protected BlobRestoreContext(String repositoryName, IndexShard indexShard, SnapshotId snapshotId, RecoveryState recoveryState,
+                                 int bufferSize) {
         this.repositoryName = repositoryName;
         this.recoveryState = recoveryState;
         this.indexShard = indexShard;
@@ -155,7 +156,7 @@ public abstract class BlobRestoreContext {
                 }
             }
 
-            for (StoreFileMetaData md : Iterables.concat(diff.different, diff.missing)) {
+            for (StoreFileMetaData md : concat(diff)) {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                 filesToRecover.add(fileInfo);
                 recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), false);
@@ -224,10 +225,15 @@ public abstract class BlobRestoreContext {
         }
     }
 
+    protected abstract InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo);
+
+    @SuppressWarnings("unchecked")
+    private Iterable<StoreFileMetaData> concat(Store.RecoveryDiff diff) {
+        return Iterables.concat(diff.different, diff.missing);
+    }
+
     /**
      * Restores a file
-     * This is asynchronous method. Upon completion of the operation latch is getting counted down and any failures are
-     * added to the {@code failures} list
      *
      * @param fileInfo file to be restored
      */
@@ -260,8 +266,6 @@ public abstract class BlobRestoreContext {
             }
         }
     }
-
-    abstract InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo);
 
     /**
      * This is a BWC layer to ensure we update the snapshots metadata with the corresponding hashes before we compare them.

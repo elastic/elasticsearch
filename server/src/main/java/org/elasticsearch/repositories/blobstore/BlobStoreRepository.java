@@ -1456,7 +1456,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         @Override
-        InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
+        protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
             if (restoreRateLimiter == null) {
                 return new PartSliceStream(blobContainer.get(), fileInfo);
             } else {

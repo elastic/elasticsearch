@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
@@ -34,8 +32,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -53,6 +51,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobRestoreContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
@@ -69,8 +68,8 @@ import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionReque
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -269,8 +268,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
         //  response, we should be able to retry by creating a new session.
-        try (RestoreSession restoreSession = RestoreSession.openSession(remoteClient, leaderShardId, indexShard, recoveryState)) {
+        String name = metadata.name();
+        try (RestoreSession restoreSession = RestoreSession.openSession(name, remoteClient, leaderShardId, indexShard, recoveryState)) {
             restoreSession.restoreFiles();
+        } catch (IOException e) {
+            throw new IndexShardRestoreFailedException(indexShard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
         }
 
         maybeUpdateMappings(client, remoteClient, leaderIndex, indexShard.indexSettings());
@@ -295,110 +297,119 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
     }
 
-    private static SnapshotFiles convert(Store.MetadataSnapshot sourceMetaData) {
-        return new SnapshotFiles(LATEST, null);
-    }
+    private static class RestoreSession extends BlobRestoreContext implements Closeable {
 
-    private static class RestoreSession implements Closeable {
-
-        private final int BUFFER_SIZE = 1 << 16;
+        private static final int BUFFER_SIZE = 1 << 16;
 
         private final Client remoteClient;
         private final String sessionUUID;
         private final DiscoveryNode node;
-        private final IndexShard indexShard;
         private final ShardId shardId;
         private final Store store;
-        private final RecoveryState recoveryState;
         private final Store.MetadataSnapshot sourceMetaData;
 
-        RestoreSession(Client remoteClient, String sessionUUID, DiscoveryNode node, IndexShard indexShard, RecoveryState recoveryState,
-                       Store.MetadataSnapshot sourceMetaData) {
+        RestoreSession(String repositoryName, Client remoteClient, String sessionUUID, DiscoveryNode node, IndexShard indexShard,
+                       RecoveryState recoveryState, Store.MetadataSnapshot sourceMetaData) {
+            super(repositoryName, indexShard, SNAPSHOT_ID, recoveryState, BUFFER_SIZE);
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;
-            this.indexShard = indexShard;
             this.shardId = indexShard.shardId();
             this.store = indexShard.store();
             this.store.incRef();
-            this.recoveryState = recoveryState;
             this.sourceMetaData = sourceMetaData;
         }
 
-        static RestoreSession openSession(Client remoteClient, ShardId leaderShardId, IndexShard indexShard, RecoveryState recoveryState) {
+        static RestoreSession openSession(String repositoryName, Client remoteClient, ShardId leaderShardId, IndexShard indexShard,
+                                          RecoveryState recoveryState) {
             String sessionUUID = UUIDs.randomBase64UUID();
             PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
                 new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)).actionGet();
             Store.MetadataSnapshot sourceFileMetaData = response.getStoreFileMetaData();
-            return new RestoreSession(remoteClient, sessionUUID, response.getNode(), indexShard, recoveryState, sourceFileMetaData);
+            return new RestoreSession(repositoryName, remoteClient, sessionUUID, response.getNode(), indexShard, recoveryState, sourceFileMetaData);
         }
 
-        void restoreFiles() {
-            Store.MetadataSnapshot recoveryMetadata;
-            try {
-                recoveryMetadata = indexShard.snapshotStoreMetadata();
-            } catch (IOException e) {
-                throw new IndexShardRecoveryException(shardId, "failed access store metadata", e);
+        void restoreFiles() throws IOException {
+            ArrayList<BlobStoreIndexShardSnapshot.FileInfo> fileInfos = new ArrayList<>();
+            for (StoreFileMetaData fileMetaData : sourceMetaData) {
+                ByteSizeValue fileSize = new ByteSizeValue(fileMetaData.length());
+                fileInfos.add(new BlobStoreIndexShardSnapshot.FileInfo(fileMetaData.name(), fileMetaData, fileSize));
             }
+            SnapshotFiles snapshotFiles = new SnapshotFiles(LATEST, fileInfos);
+            restore(snapshotFiles);
+        }
 
-            final StoreFileMetaData restoredSegmentsFile = sourceMetaData.getSegmentsFile();
-            if (restoredSegmentsFile == null) {
-                throw new IndexShardRestoreFailedException(shardId, "Ccr leader index has no segments file");
-            }
+//        void restoreFiles() {
+//            Store.MetadataSnapshot recoveryMetadata;
+//            try {
+//                recoveryMetadata = indexShard.snapshotStoreMetadata();
+//            } catch (IOException e) {
+//                throw new IndexShardRecoveryException(shardId, "failed access store metadata", e);
+//            }
+//
+//            final StoreFileMetaData restoredSegmentsFile = sourceMetaData.getSegmentsFile();
+//            if (restoredSegmentsFile == null) {
+//                throw new IndexShardRestoreFailedException(shardId, "Ccr leader index has no segments file");
+//            }
+//
+//            final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryMetadata);
+//            for (StoreFileMetaData fileMetaData : diff.identical) {
+//                recoveryState.getIndex().addFileDetail(fileMetaData.name(), fileMetaData.length(), true);
+//                logger.trace("shard [{}] not recovering file [{}], exists in local store and is identical", shardId, fileMetaData.name());
+//            }
+//
+//            List<StoreFileMetaData> filesToRecover = new ArrayList<>();
+//            for (StoreFileMetaData fileMetaData : concat(diff)) {
+//                filesToRecover.add(fileMetaData);
+//                recoveryState.getIndex().addFileDetail(fileMetaData.name(), fileMetaData.length(), false);
+//                logger.trace("shard [{}] recovering file [{}]", shardId, fileMetaData.name());
+//            }
+//
+//            if (filesToRecover.isEmpty()) {
+//                logger.trace("shard [{}] no files to recover, all exist within the local store", shardId);
+//            }
+//
+//            final List<String> deleteIfExistFiles = Arrays.asList(getDirectoryFiles());
+//            for (final StoreFileMetaData fileToRecover : filesToRecover) {
+//                // if a file with a same physical name already exist in the store we need to delete it
+//                // before restoring it from the snapshot. We could be lenient and try to reuse the existing
+//                // store files (and compare their names/length/checksum again with the snapshot files) but to
+//                // avoid extra complexity we simply delete them and restore them again like StoreRecovery
+//                // does with dangling indices. Any existing store file that is not restored from the snapshot
+//                // will be clean up by RecoveryTarget.cleanFiles().
+//                final String name = fileToRecover.name();
+//                if (deleteIfExistFiles.contains(name)) {
+//                    logger.trace("shard [{}] deleting pre-existing file [{}]", shardId, name);
+//                    deleteFile(name);
+//                }
+//
+//                logger.trace("[{}] restoring file [{}]", shardId, name);
+//                try {
+//                    restoreFile(fileToRecover, store);
+//                } catch (Exception e) {
+//                    logger.info(() -> new ParameterizedMessage("shard [{}] failed to restore file [{}]", shardId, name), e);
+//                    throw new IndexShardRecoveryException(shardId, "failed to restore file", e);
+//                }
+//            }
+//
+//            final SegmentInfos segmentCommitInfos;
+//            try {
+//                segmentCommitInfos = Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
+//            } catch (IOException e) {
+//                throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
+//            }
+//            recoveryState.getIndex().updateVersion(segmentCommitInfos.getVersion());
+//
+//            try {
+//                store.cleanupAndVerify("restore complete from remote", sourceMetaData);
+//            } catch (IOException e) {
+//                throw new IndexShardRecoveryException(shardId, "failed to cleanup and verify the store", e);
+//            }
+//        }
 
-            final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryMetadata);
-            for (StoreFileMetaData fileMetaData : diff.identical) {
-                recoveryState.getIndex().addFileDetail(fileMetaData.name(), fileMetaData.length(), true);
-                logger.trace("shard [{}] not recovering file [{}], exists in local store and is identical", shardId, fileMetaData.name());
-            }
-
-            List<StoreFileMetaData> filesToRecover = new ArrayList<>();
-            for (StoreFileMetaData fileMetaData : concat(diff)) {
-                filesToRecover.add(fileMetaData);
-                recoveryState.getIndex().addFileDetail(fileMetaData.name(), fileMetaData.length(), false);
-                logger.trace("shard [{}] recovering file [{}]", shardId, fileMetaData.name());
-            }
-
-            if (filesToRecover.isEmpty()) {
-                logger.trace("shard [{}] no files to recover, all exist within the local store", shardId);
-            }
-
-            final List<String> deleteIfExistFiles = Arrays.asList(getDirectoryFiles());
-            for (final StoreFileMetaData fileToRecover : filesToRecover) {
-                // if a file with a same physical name already exist in the store we need to delete it
-                // before restoring it from the snapshot. We could be lenient and try to reuse the existing
-                // store files (and compare their names/length/checksum again with the snapshot files) but to
-                // avoid extra complexity we simply delete them and restore them again like StoreRecovery
-                // does with dangling indices. Any existing store file that is not restored from the snapshot
-                // will be clean up by RecoveryTarget.cleanFiles().
-                final String name = fileToRecover.name();
-                if (deleteIfExistFiles.contains(name)) {
-                    logger.trace("shard [{}] deleting pre-existing file [{}]", shardId, name);
-                    deleteFile(name);
-                }
-
-                logger.trace("[{}] restoring file [{}]", shardId, name);
-                try {
-                    restoreFile(fileToRecover, store);
-                } catch (Exception e) {
-                    logger.info(() -> new ParameterizedMessage("shard [{}] failed to restore file [{}]", shardId, name), e);
-                    throw new IndexShardRecoveryException(shardId, "failed to restore file", e);
-                }
-            }
-
-            final SegmentInfos segmentCommitInfos;
-            try {
-                segmentCommitInfos = Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
-            } catch (IOException e) {
-                throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
-            }
-            recoveryState.getIndex().updateVersion(segmentCommitInfos.getVersion());
-
-            try {
-                store.cleanupAndVerify("restore complete from remote", sourceMetaData);
-            } catch (IOException e) {
-                throw new IndexShardRecoveryException(shardId, "failed to cleanup and verify the store", e);
-            }
+        @Override
+        protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
+            return new RestoreFileInputStream(remoteClient, sessionUUID, node, fileInfo.metadata());
         }
 
         @SuppressWarnings("unchecked")
@@ -422,53 +433,66 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             }
         }
 
-        private void restoreFile(StoreFileMetaData fileToRecover, Store store) throws IOException {
-            boolean success = false;
-            long pos = 0;
-
-            try (IndexOutput indexOutput = store.createVerifyingOutput(fileToRecover.name(), fileToRecover, IOContext.DEFAULT)) {
-
-                GetCcrRestoreFileChunkRequest request = new GetCcrRestoreFileChunkRequest(node, sessionUUID,
-                    fileToRecover.name(), pos, (int) Math.min(fileToRecover.length() - pos, BUFFER_SIZE));
-                BytesReference fileChunk = remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request).actionGet().getChunk();
-
-                BytesRefIterator iterator = fileChunk.iterator();
-                BytesRef ref;
-                int bytesWritten = 0;
-                while ((ref = iterator.next()) != null) {
-                    byte[] refBytes = ref.bytes;
-                    indexOutput.writeBytes(refBytes, 0, ref.length);
-                    recoveryState.getIndex().addRecoveredBytesToFile(fileToRecover.name(), ref.length);
-                    bytesWritten += ref.length;
-                }
-
-                assert bytesWritten == fileChunk.length() : "Did not write [" + bytesWritten + "] the expected [" + fileChunk.length()
-                    + "] number of bytes";
-
-                Store.verify(indexOutput);
-                indexOutput.close();
-                store.directory().sync(Collections.singleton(fileToRecover.name()));
-                success = true;
-            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-                try {
-                    store.markStoreCorrupted(ex);
-                } catch (IOException e) {
-                    logger.warn("store cannot be marked as corrupted", e);
-                }
-                throw ex;
-            } finally {
-                if (success == false) {
-                    store.deleteQuiet(fileToRecover.name());
-                }
-            }
-        }
-
         @Override
         public void close() {
             this.store.decRef();
             ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(sessionUUID, node);
             ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse response =
                 remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet();
+        }
+    }
+
+    private static class RestoreFileInputStream extends InputStream {
+
+        private final Client remoteClient;
+        private final String sessionUUID;
+        private final DiscoveryNode node;
+        private final StoreFileMetaData fileToRecover;
+
+        private long pos = 0;
+
+        private RestoreFileInputStream(Client remoteClient, String sessionUUID, DiscoveryNode node, StoreFileMetaData fileToRecover) {
+            this.remoteClient = remoteClient;
+            this.sessionUUID = sessionUUID;
+            this.node = node;
+            this.fileToRecover = fileToRecover;
+        }
+
+
+        @Override
+        public int read() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int read(byte[] bytes, int off, int len) throws IOException {
+            long remainingBytes = fileToRecover.length() - pos;
+            if (remainingBytes <= 0) {
+                return 0;
+            }
+
+            int bytesRequested = (int) Math.min(remainingBytes, len);
+            String fileName = fileToRecover.name();
+            GetCcrRestoreFileChunkRequest request = new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileName, pos, bytesRequested);
+            BytesReference fileChunk = remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request).actionGet().getChunk();
+
+            int bytesReceived = fileChunk.length();
+            if (bytesReceived > bytesRequested) {
+                throw new IOException("More bytes [" + bytesReceived + "] received than requested [" + bytesRequested + "]");
+            }
+
+            BytesRefIterator iterator = fileChunk.iterator();
+            BytesRef ref;
+            int bytesWritten = 0;
+            while ((ref = iterator.next()) != null) {
+                byte[] refBytes = ref.bytes;
+                System.arraycopy(refBytes, 0, bytes, off + bytesWritten, refBytes.length);
+                bytesWritten += ref.length;
+            }
+
+            pos += bytesReceived;
+
+            return bytesReceived;
         }
     }
 }

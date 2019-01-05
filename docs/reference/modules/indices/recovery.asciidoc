@@ -15,8 +15,9 @@ recoveries:
     set this limit too high then there is a risk that ongoing recoveries will
     consume an excess of bandwidth (or other resources) which could destabilize
     the cluster. Since this setting applies to each node separately, the total
-    bandwidth that might be used by recoveries is this setting multiplied by
-    half of the number of nodes in the cluster. Defaults to `40mb`.
+    bandwidth that might be used by recoveries is the value of this setting
+    multiplied by half of the number of nodes in the cluster. Defaults to
+    `40mb`.
 
 This setting can be dynamically updated on a live cluster with the
 <<cluster-update-settings,cluster-update-settings>> API.

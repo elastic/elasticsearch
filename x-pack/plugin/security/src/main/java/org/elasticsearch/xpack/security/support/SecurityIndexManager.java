@@ -155,7 +155,7 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     /**
-     * Returns whether the index has the latest mapping. Mapping can change at any version.
+     * Returns whether the index has the mapping Mapping can change at any version.
      */
     public boolean isMappingUpToDate() {
         return this.indexState.mappingUpToDate;

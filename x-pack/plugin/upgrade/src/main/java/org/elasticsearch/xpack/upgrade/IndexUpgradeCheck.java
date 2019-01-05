@@ -15,7 +15,6 @@ import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -73,8 +72,7 @@ public class IndexUpgradeCheck<T> {
                              BiConsumer<T, ActionListener<TransportResponse.Empty>> postUpgrade) {
         this.name = name;
         this.actionRequired = actionRequired;
-        this.reindexer = new InternalIndexReindexer<>(client, clusterService, IndexUpgradeCheckVersion.UPRADE_VERSION, updateScript,
-                types, preUpgrade, postUpgrade);
+        this.reindexer = new InternalIndexReindexer<>(client, clusterService, 6, updateScript, types, preUpgrade, postUpgrade);
     }
 
     /**

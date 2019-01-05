@@ -32,7 +32,7 @@ import static org.elasticsearch.index.IndexSettings.same;
 /**
  * A component that performs the following upgrade procedure:
  * <p>
- * - Check that all data and master nodes are running a compatible version (same minor)
+ * - Check that all data and master nodes are running a compatible version
  * - Checks
  * - Create a new index .{name}-{version}
  * - Make index .{name} read only

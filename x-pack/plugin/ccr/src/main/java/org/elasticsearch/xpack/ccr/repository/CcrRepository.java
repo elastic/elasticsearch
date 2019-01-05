@@ -45,6 +45,8 @@ import org.elasticsearch.index.shard.IndexShardRecoveryException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -267,7 +269,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
         // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
         //  response, we should be able to retry by creating a new session.
-        try (RestoreSession restoreSession = RestoreSession.openSession(remoteClient, leaderShardId, indexShard, shardId, recoveryState)) {
+        try (RestoreSession restoreSession = RestoreSession.openSession(remoteClient, leaderShardId, indexShard, recoveryState)) {
             restoreSession.restoreFiles();
         }
 
@@ -293,6 +295,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
     }
 
+    private static SnapshotFiles convert(Store.MetadataSnapshot sourceMetaData) {
+        return new SnapshotFiles(LATEST, null);
+    }
+
     private static class RestoreSession implements Closeable {
 
         private final int BUFFER_SIZE = 1 << 16;
@@ -306,27 +312,25 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         private final RecoveryState recoveryState;
         private final Store.MetadataSnapshot sourceMetaData;
 
-        RestoreSession(Client remoteClient, String sessionUUID, DiscoveryNode node, IndexShard indexShard, ShardId shardId,
-                       RecoveryState recoveryState, Store.MetadataSnapshot sourceMetaData) {
+        RestoreSession(Client remoteClient, String sessionUUID, DiscoveryNode node, IndexShard indexShard, RecoveryState recoveryState,
+                       Store.MetadataSnapshot sourceMetaData) {
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;
             this.indexShard = indexShard;
-            this.shardId = shardId;
+            this.shardId = indexShard.shardId();
             this.store = indexShard.store();
             this.store.incRef();
             this.recoveryState = recoveryState;
             this.sourceMetaData = sourceMetaData;
         }
 
-        static RestoreSession openSession(Client remoteClient, ShardId leaderShardId, IndexShard indexShard, ShardId shardId,
-                                          RecoveryState recoveryState) {
+        static RestoreSession openSession(Client remoteClient, ShardId leaderShardId, IndexShard indexShard, RecoveryState recoveryState) {
             String sessionUUID = UUIDs.randomBase64UUID();
             PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
                 new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)).actionGet();
             Store.MetadataSnapshot sourceFileMetaData = response.getStoreFileMetaData();
-            return new RestoreSession(remoteClient, sessionUUID, response.getNode(), indexShard, shardId, recoveryState,
-                sourceFileMetaData);
+            return new RestoreSession(remoteClient, sessionUUID, response.getNode(), indexShard, recoveryState, sourceFileMetaData);
         }
 
         void restoreFiles() {

@@ -60,7 +60,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -270,8 +269,6 @@ public class SnapshotsServiceTests extends ESTestCase {
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo").toAbsolutePath())
             .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
                 ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY))
-            // cluster info service blocks on a transport action for the length of this timeout
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
             .build());
     }
 

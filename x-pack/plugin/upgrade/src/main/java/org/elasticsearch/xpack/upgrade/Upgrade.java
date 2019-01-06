@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,14 +43,17 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+
 public class Upgrade extends Plugin implements ActionPlugin {
 
     public static final Version UPGRADE_INTRODUCED = Version.V_6_7_0;
 
-    private final List<BiFunction<Client, ClusterService, IndexUpgradeCheck>> upgradeCheckFactories;
+    private final List<BiFunction<Client, ClusterService, UpgradeCheck>> upgradeCheckFactories;
 
     public Upgrade() {
         this.upgradeCheckFactories = new ArrayList<>();
+        upgradeCheckFactories.add(getSecurityUpgradeCheckFactory());
     }
 
     @Override
@@ -57,8 +61,8 @@ public class Upgrade extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        List<IndexUpgradeCheck> upgradeChecks = new ArrayList<>(upgradeCheckFactories.size());
-        for (BiFunction<Client, ClusterService, IndexUpgradeCheck> checkFactory : upgradeCheckFactories) {
+        final List<UpgradeCheck> upgradeChecks = new ArrayList<>(upgradeCheckFactories.size());
+        for (BiFunction<Client, ClusterService, UpgradeCheck> checkFactory : upgradeCheckFactories) {
             upgradeChecks.add(checkFactory.apply(client, clusterService));
         }
         return Collections.singletonList(new IndexUpgradeService(Collections.unmodifiableList(upgradeChecks)));
@@ -81,6 +85,13 @@ public class Upgrade extends Plugin implements ActionPlugin {
                 new RestIndexUpgradeInfoAction(settings, restController),
                 new RestIndexUpgradeAction(settings, restController)
         );
+    }
+
+    static BiFunction<Client, ClusterService, UpgradeCheck> getSecurityUpgradeCheckFactory() {
+        return (client, clusterService) -> {
+            final Client clientWithOrigin = new OriginSettingClient(client, SECURITY_ORIGIN);
+            return new SecurityIndexUpgradeCheck("security", clientWithOrigin, clusterService);
+        };
     }
 
 }

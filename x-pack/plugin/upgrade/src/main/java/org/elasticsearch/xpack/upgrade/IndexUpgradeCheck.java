@@ -30,7 +30,7 @@ import java.util.function.Function;
  * - reindex is performed
  * - postUpgrade is called if reindex was successful
  */
-public class IndexUpgradeCheck<T> {
+public class IndexUpgradeCheck<T> implements UpgradeCheck {
 
     private final String name;
     private final Function<IndexMetaData, UpgradeActionRequired> actionRequired;
@@ -78,6 +78,7 @@ public class IndexUpgradeCheck<T> {
     /**
      * Returns the name of the check
      */
+    @Override
     public String getName() {
         return name;
     }
@@ -88,6 +89,7 @@ public class IndexUpgradeCheck<T> {
      * @param indexMetaData index metadata
      * @return required action or UpgradeActionRequired.NOT_APPLICABLE if this check cannot be performed on the index
      */
+    @Override
     public UpgradeActionRequired actionRequired(IndexMetaData indexMetaData) {
         return actionRequired.apply(indexMetaData);
     }
@@ -100,6 +102,7 @@ public class IndexUpgradeCheck<T> {
      * @param state         current cluster state
      * @param listener      the listener that should be called upon completion of the upgrade
      */
+    @Override
     public void upgrade(TaskId task, IndexMetaData indexMetaData, ClusterState state,
                         ActionListener<BulkByScrollResponse> listener) {
         reindexer.upgrade(task, indexMetaData.getIndex().getName(), state, listener);

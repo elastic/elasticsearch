@@ -41,7 +41,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.index.IndexSettings.same;
 
-public class SecurityIndexUpgradeCheck {
+public class SecurityIndexUpgradeCheck implements UpgradeCheck {
 
     private static final String SECURITY_ALIAS_NAME = ".security";
     private static final String TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
@@ -68,6 +68,7 @@ public class SecurityIndexUpgradeCheck {
     /**
      * Returns the name of the check
      */
+    @Override
     public String getName() {
         return name;
     }
@@ -78,11 +79,18 @@ public class SecurityIndexUpgradeCheck {
      * @param indexMetaData index metadata
      * @return required action or UpgradeActionRequired.NOT_APPLICABLE if this check cannot be performed on the index
      */
+    @Override
     public UpgradeActionRequired actionRequired(IndexMetaData indexMetaData) {
         if (indexMetaData.getIndex().getName().equals(INTERNAL_SECURITY_INDEX)) {
-            // no need to check the "index.format" setting as the name encodes the version
+            // no need to check the "index.format" setting value because the name encodes the format version
             return UpgradeActionRequired.UPGRADE;
-        } else {
+        } else if (indexMetaData.getIndex().getName().equals(NEW_INTERNAL_SECURITY_INDEX)) {
+            // no need to check the "index.format" setting value because the name encodes the format version
+            return UpgradeActionRequired.UP_TO_DATE;
+        } else if (indexMetaData.getIndex().getName().equals(INTERNAL_SECURITY_TOKENS_INDEX)) {
+            // no need to check the "index.format" setting value because the name encodes the format version
+            return UpgradeActionRequired.UP_TO_DATE;
+        }else {
             return UpgradeActionRequired.NOT_APPLICABLE;
         }
     }
@@ -95,13 +103,21 @@ public class SecurityIndexUpgradeCheck {
      * @param state         current cluster state
      * @param listener      the listener that should be called upon completion of the upgrade
      */
+    @Override
     public void upgrade(TaskId task, IndexMetaData indexMetaData, ClusterState state, ActionListener<BulkByScrollResponse> listener) {
         final ParentTaskAssigningClient parentAwareClient = new ParentTaskAssigningClient(client, task);
         final BoolQueryBuilder tokensQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "token"));
         final BoolQueryBuilder nonTokensQuery = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("doc_type", "token")));
-        final Consumer<Exception> removeReadOnlyConsumer = e -> removeReadOnlyBlock(parentAwareClient, INTERNAL_SECURITY_INDEX,
-                ActionListener.wrap(unsetReadOnlyResponse -> listener.onFailure(e), e1 -> listener.onFailure(e)));
+        final Consumer<Exception> removeReadOnlyBlock = e -> 
+            removeReadOnlyBlock(parentAwareClient, INTERNAL_SECURITY_INDEX, ActionListener.wrap(unsetReadOnlyResponse -> {
+                listener.onFailure(e);
+            }, e1 -> {
+                e.addSuppressed(e1);
+                listener.onFailure(e);
+            }));
+        // check all nodes can handle the new index format
+        checkMasterAndDataNodeVersion(state);
         // create the two new indices, but without their corresponding aliases
         createNewSecurityIndices(parentAwareClient, ActionListener.wrap(createIndicesResponse -> {
             // set a read-only block on the original .security-6 index
@@ -125,12 +141,18 @@ public class SecurityIndexUpgradeCheck {
                                                                 // merge both reindex responses to return to the action listener
                                                                 listener.onResponse(new BulkByScrollResponse(
                                                                         Arrays.asList(reindexTokensResponse, reindexNonTokensResponse), null));
-                                                            }, removeReadOnlyConsumer));
-                                                }, removeReadOnlyConsumer));
-                                    }, removeReadOnlyConsumer));
-                        }, removeReadOnlyConsumer));
+                                                            }, removeReadOnlyBlock));
+                                                }, removeReadOnlyBlock));
+                                    }, removeReadOnlyBlock));
+                        }, removeReadOnlyBlock));
             }, listener::onFailure));
         }, listener::onFailure));
+    }
+
+    private void checkMasterAndDataNodeVersion(ClusterState clusterState) {
+        if (clusterState.nodes().getMinNodeVersion().before(Upgrade.UPGRADE_INTRODUCED)) {
+            throw new IllegalStateException("All nodes should have at least version [" + Upgrade.UPGRADE_INTRODUCED + "] to upgrade");
+        }
     }
 
     private void createNewSecurityIndices(ParentTaskAssigningClient parentAwareClient, ActionListener<AcknowledgedResponse> listener) {

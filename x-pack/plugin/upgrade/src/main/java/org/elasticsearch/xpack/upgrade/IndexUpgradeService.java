@@ -27,11 +27,11 @@ public class IndexUpgradeService {
 
     private static final Logger logger = LogManager.getLogger(IndexUpgradeService.class);
 
-    private final List<IndexUpgradeCheck> upgradeChecks;
+    private final List<UpgradeCheck> upgradeChecks;
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public IndexUpgradeService(List<IndexUpgradeCheck> upgradeChecks) {
+    public IndexUpgradeService(List<UpgradeCheck> upgradeChecks) {
         this.upgradeChecks = upgradeChecks;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver();
     }
@@ -59,7 +59,7 @@ public class IndexUpgradeService {
     }
 
     private UpgradeActionRequired upgradeInfo(IndexMetaData indexMetaData, String index) {
-        for (IndexUpgradeCheck check : upgradeChecks) {
+        for (UpgradeCheck check : upgradeChecks) {
             UpgradeActionRequired upgradeActionRequired = check.actionRequired(indexMetaData);
             logger.trace("[{}] check [{}] returned [{}]", index, check.getName(), upgradeActionRequired);
             switch (upgradeActionRequired) {
@@ -92,7 +92,7 @@ public class IndexUpgradeService {
         if (indexMetaData == null) {
             throw new IndexNotFoundException(index);
         }
-        for (IndexUpgradeCheck check : upgradeChecks) {
+        for (UpgradeCheck check : upgradeChecks) {
             UpgradeActionRequired upgradeActionRequired = check.actionRequired(indexMetaData);
             switch (upgradeActionRequired) {
                 case UPGRADE:

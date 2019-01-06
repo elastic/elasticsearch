@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
 
     public void testAddOrUpdateRetentionLease() throws IOException {
-        final IndexShard indexShard = newStartedShard();
+        final IndexShard indexShard = newStartedShard(true);
         try {
             final int length = randomIntBetween(0, 8);
             final long[] minimumRetainingSequenceNumbers = new long[length];

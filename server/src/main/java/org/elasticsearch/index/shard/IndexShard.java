@@ -1873,6 +1873,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param source                  the source of the retention lease
      */
     void addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+        assert assertPrimaryMode();
+        verifyNotClosed();
         replicationTracker.addOrUpdateRetentionLease(id, retainingSequenceNumber, source);
     }
 

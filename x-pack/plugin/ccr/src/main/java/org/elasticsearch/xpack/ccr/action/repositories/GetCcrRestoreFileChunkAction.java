@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -19,9 +17,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -76,13 +72,9 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
 
                 @Override
                 protected void doRun() throws Exception {
-                    CcrRestoreSourceService.Session session = restoreSourceService.getSession(request.getSessionUUID());
-                    Engine.IndexCommitRef refCommit = session.refCommit();
-                    try (IndexInput in = refCommit.getIndexCommit().getDirectory().openInput(request.getFileName(), IOContext.READONCE);
-                         Releasable releasable = session::decRef) {
+                    try (CcrRestoreSourceService.FileReader fileReader = restoreSourceService.getSession(request.getSessionUUID())) {
                         byte[] chunk = new byte[request.getSize()];
-                        in.seek(request.getOffset());
-                        in.readBytes(chunk, 0, request.getSize());
+                        fileReader.readFileBytes(request.getFileName(), chunk, request.getOffset(), request.getSize());
                         listener.onResponse(new GetCcrRestoreFileChunkResponse(new BytesArray(chunk)));
                     }
                 }

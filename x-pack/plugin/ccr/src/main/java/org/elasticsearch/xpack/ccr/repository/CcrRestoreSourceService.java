@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -134,33 +136,31 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         IOUtils.closeWhileHandlingException(restore);
     }
 
-    public synchronized Session getSession(String sessionUUID) {
+    public synchronized FileReader getSession(String sessionUUID) {
         RestoreContext restore = onGoingRestores.get(sessionUUID);
         if (restore == null) {
             logger.info("could not get session [{}] because session not found", sessionUUID);
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
-        Session session = restore.session;
-        session.incRef();
-        return session;
+        return new FileReader(restore.session);
     }
 
     private class RestoreContext implements Closeable {
 
         private final String sessionUUID;
         private final IndexShard indexShard;
-        private final Session session;
+        private final RefCountedCommit session;
 
         private RestoreContext(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef) {
             this.sessionUUID = sessionUUID;
             this.indexShard = indexShard;
-            this.session = new Session(commitRef);
+            this.session = new RefCountedCommit(commitRef);
         }
 
         Store.MetadataSnapshot getMetaData() throws IOException {
             indexShard.store().incRef();
             try {
-                return indexShard.store().getMetadata(session.refCommit().getIndexCommit());
+                return indexShard.store().getMetadata(session.commitRef.getIndexCommit());
             } finally {
                 indexShard.store().decRef();
             }
@@ -185,23 +185,42 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
     }
 
-    public static class Session extends AbstractRefCounted {
+    private static class RefCountedCommit extends AbstractRefCounted {
 
         private static final String NAME = "ref-counted-session";
         private final Engine.IndexCommitRef commitRef;
 
-        private Session(Engine.IndexCommitRef commitRef) {
+        private RefCountedCommit(Engine.IndexCommitRef commitRef) {
             super(NAME);
             this.commitRef = commitRef;
-        }
-
-        public Engine.IndexCommitRef refCommit() {
-            return commitRef;
         }
 
         @Override
         protected void closeInternal() {
             IOUtils.closeWhileHandlingException(commitRef);
+        }
+    }
+
+    public static class FileReader implements Closeable {
+
+        private final RefCountedCommit session;
+
+        private FileReader(RefCountedCommit session) {
+            this.session = session;
+            session.incRef();
+        }
+
+        public void readFileBytes(String fileName, byte[] chunk, long offset, int length) throws IOException {
+            Engine.IndexCommitRef commitRef = session.commitRef;
+            try (IndexInput in = commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE)) {
+                in.seek(offset);
+                in.readBytes(chunk, 0, length);
+            }
+        }
+
+        @Override
+        public void close() {
+            session.decRef();
         }
     }
 }

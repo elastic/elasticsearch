@@ -18,6 +18,10 @@ dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
+sourceSets.main.resources {
+    srcDir '../core/src/main/resources'
+}
+
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 

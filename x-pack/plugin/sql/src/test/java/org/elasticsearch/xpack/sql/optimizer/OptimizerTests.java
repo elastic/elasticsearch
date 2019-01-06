@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -134,8 +135,8 @@ public class OptimizerTests extends ESTestCase {
         }
 
         @Override
-        public boolean nullable() {
-            return false;
+        public Nullability nullable() {
+            return Nullability.FALSE;
         }
 
         @Override
@@ -393,6 +394,8 @@ public class OptimizerTests extends ESTestCase {
         return ((Literal) new ConstantFolding().rule(b)).value();
     }
 
+    // Null folding
+
     public void testNullFoldingIsNull() {
         FoldNull foldNull = new FoldNull();
         assertEquals(true, foldNull.rule(new IsNull(EMPTY, Literal.NULL)).fold());
@@ -420,6 +423,34 @@ public class OptimizerTests extends ESTestCase {
         assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), Literal.NULL)));
         // regex
         assertNullLiteral(rule.rule(new RLike(EMPTY, Literal.NULL, "123")));
+    }
+
+    public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
+        FoldNull rule = new FoldNull();
+
+        Or or = new Or(EMPTY, Literal.NULL, Literal.TRUE);
+        assertEquals(or, rule.rule(or));
+        or = new Or(EMPTY, Literal.NULL, Literal.NULL);
+        assertEquals(or, rule.rule(or));
+
+        And and = new And(EMPTY, Literal.NULL, Literal.TRUE);
+        assertEquals(and, rule.rule(and));
+        and = new And(EMPTY, Literal.NULL, Literal.NULL);
+        assertEquals(and, rule.rule(and));
+    }
+
+    public void testNullFoldingDoesNotApplyOnConditionals() {
+        FoldNull rule = new FoldNull();
+
+        Coalesce coalesce = new Coalesce(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(coalesce, rule.rule(coalesce));
+        coalesce = new Coalesce(EMPTY, Arrays.asList(Literal.NULL, NULL, NULL));
+        assertEquals(coalesce, rule.rule(coalesce));
+
+        Greatest greatest = new Greatest(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(greatest, rule.rule(greatest));
+        greatest = new Greatest(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(greatest, rule.rule(greatest));
     }
 
     public void testSimplifyCoalesceNulls() {

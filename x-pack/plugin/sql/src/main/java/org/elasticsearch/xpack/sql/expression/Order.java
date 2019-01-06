@@ -41,8 +41,8 @@ public class Order extends Expression {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 
     @Override

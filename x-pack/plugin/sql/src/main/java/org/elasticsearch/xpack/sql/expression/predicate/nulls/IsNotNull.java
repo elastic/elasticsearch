@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.nulls;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
@@ -48,8 +49,8 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 
     @Override

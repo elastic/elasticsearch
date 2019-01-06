@@ -34,12 +34,12 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     public FieldAttribute(Location location, FieldAttribute parent, String name, EsField field) {
-        this(location, parent, name, field, null, true, null, false);
+        this(location, parent, name, field, null, Nullability.TRUE, null, false);
     }
 
     public FieldAttribute(Location location, FieldAttribute parent, String name, EsField field, String qualifier,
-                          boolean nullable, ExpressionId id, boolean synthetic) {
-        super(location, name, field.getDataType(), qualifier, nullable, id, synthetic);
+                          Nullability nullability, ExpressionId id, boolean synthetic) {
+        super(location, name, field.getDataType(), qualifier, nullability, id, synthetic);
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
@@ -98,13 +98,14 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected Expression canonicalize() {
-        return new FieldAttribute(location(), null, "<none>", field, null, true, id(), false);
+        return new FieldAttribute(location(), null, "<none>", field, null, Nullability.TRUE, id(), false);
     }
 
     @Override
-    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Location location, String name, String qualifier, Nullability nullability,
+                              ExpressionId id, boolean synthetic) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(location, qualifiedParent, name, field, qualifier, nullable, id, synthetic);
+        return new FieldAttribute(location, qualifiedParent, name, field, qualifier, nullability, id, synthetic);
     }
 
     @Override

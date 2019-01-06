@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
@@ -64,8 +65,8 @@ public class In extends ScalarFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullability nullable() {
+        return Nullability.UNKNOWN;
     }
 
     @Override

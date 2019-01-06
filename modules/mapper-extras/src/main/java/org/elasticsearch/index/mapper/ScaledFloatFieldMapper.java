@@ -62,6 +62,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -174,7 +175,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     public static final class ScaledFloatFieldType extends SimpleMappedFieldType {
 
-        private double scalingFactor;
+        private BigDecimal scalingFactor;
 
         public ScaledFloatFieldType() {
             super();
@@ -189,12 +190,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         public double getScalingFactor() {
-            return scalingFactor;
+            return scalingFactor.doubleValue();
         }
 
         public void setScalingFactor(double scalingFactor) {
             checkIfFrozen();
-            this.scalingFactor = scalingFactor;
+            this.scalingFactor = new BigDecimal(scalingFactor);
         }
 
         @Override
@@ -210,7 +211,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
             super.checkCompatibility(other, conflicts);
-            if (scalingFactor != ((ScaledFloatFieldType) other).getScalingFactor()) {
+            if (scalingFactor.doubleValue() != ((ScaledFloatFieldType) other).getScalingFactor()) {
                 conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
             }
         }
@@ -227,8 +228,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexed();
-            double queryValue = parse(value);
-            long scaledValue = Math.round(queryValue * scalingFactor);
+            long scaledValue = Math.round(scale(value));
             Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -241,8 +241,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNotIndexed();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
-                double queryValue = parse(value);
-                long scaledValue = Math.round(queryValue * scalingFactor);
+                long scaledValue = Math.round(scale(value));
                 scaledValues.add(scaledValue);
             }
             Query query = NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
@@ -257,7 +256,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNotIndexed();
             Long lo = null;
             if (lowerTerm != null) {
-                double dValue = parse(lowerTerm) * scalingFactor;
+                double dValue = scale(lowerTerm);
                 if (includeLower == false) {
                     dValue = Math.nextUp(dValue);
                 }
@@ -265,7 +264,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
             Long hi = null;
             if (upperTerm != null) {
-                double dValue = parse(upperTerm) * scalingFactor;
+                double dValue = scale(upperTerm);
                 if (includeUpper == false) {
                     dValue = Math.nextDown(dValue);
                 }
@@ -288,7 +287,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     final IndexNumericFieldData scaledValues = (IndexNumericFieldData) new DocValuesIndexFieldData.Builder()
                             .numericType(IndexNumericFieldData.NumericType.LONG)
                             .build(indexSettings, fieldType, cache, breakerService, mapperService);
-                    return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
+                    return new ScaledFloatIndexFieldData(scaledValues, scalingFactor.doubleValue());
                 }
             };
         }
@@ -298,7 +297,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (value == null) {
                 return null;
             }
-            return ((Number) value).longValue() / scalingFactor;
+            return ((Number) value).longValue() / scalingFactor.doubleValue();
         }
 
         @Override
@@ -319,12 +318,25 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (super.equals(o) == false) {
                 return false;
             }
-            return scalingFactor == ((ScaledFloatFieldType) o).scalingFactor;
+            return scalingFactor.equals(((ScaledFloatFieldType) o).scalingFactor);
         }
 
         @Override
         public int hashCode() {
-            return 31 * super.hashCode() + Double.hashCode(scalingFactor);
+            return 31 * super.hashCode() + Double.hashCode(scalingFactor.doubleValue());
+        }
+
+        /**
+         * Parses input value and multiplies it with the scaling factor.
+         * Uses the round-trip of creating a {@link BigDecimal} from the stringified {@code double}
+         * input to ensure intuitively exact floating point operations.
+         * (e.g. for a scaling factor of 100, JVM behaviour results in {@code 79.99D * 100 ==> 7998.99..} compared to
+         * {@code scale(79.99) ==> 7999})
+         * @param input Input value to parse floating point num from
+         * @return Scaled value
+         */
+        private double scale(Object input) {
+            return new BigDecimal(Double.toString(parse(input))).multiply(scalingFactor).doubleValue();
         }
     }
 

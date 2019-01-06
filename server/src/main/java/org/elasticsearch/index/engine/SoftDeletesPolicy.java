@@ -45,7 +45,6 @@ final class SoftDeletesPolicy {
     private long retentionOperations;
     // The min seq_no value that is retained - ops after this seq# should exist in the Lucene index.
     private long minRetainedSeqNo;
-    private Collection<RetentionLease> retentionLeases;
     // provides the retention leases used to calculate the minimum sequence number to retain
     private final Supplier<Collection<RetentionLease>> retentionLeasesSupplier;
 
@@ -120,8 +119,8 @@ final class SoftDeletesPolicy {
              */
 
             // calculate the minimum sequence number to retain based on retention leases
-            retentionLeases = retentionLeasesSupplier.get();
-            final long minimumRetainingSequenceNumber = retentionLeases
+            final long minimumRetainingSequenceNumber = retentionLeasesSupplier
+                    .get()
                     .stream()
                     .mapToLong(RetentionLease::retainingSequenceNumber)
                     .min()

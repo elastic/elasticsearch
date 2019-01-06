@@ -400,3 +400,28 @@ So what is the right number of replicas? If you have a cluster that has
 be able to cope with `max_failures` node failures at once at most, then the
 right number of replicas for you is
 `max(max_failures, ceil(num_nodes / num_primaries) - 1)`.
+
+[float]
+=== Turn on adaptive replica selection
+
+When multiple copies of data are present, elasticsearch can use a set of
+criteria called <<search-adaptive-replica,adaptive replica selection>> to select
+the best copy of the data based on response time, service time, and queue size
+of the node containing each copy of the shard. This can improve query throughput
+and reduce latency for search-heavy applications.
+
+=== Tune your queries with the Profile API
+
+You can also analyse how expensive each component of your queries and 
+aggregations are using the {ref}/search-profile.html[Profile API]. This might 
+allow you to tune your queries to be less expensive, resulting in a positive 
+performance result and reduced load. Also note that Profile API payloads can be 
+easily visualised for better readability in the 
+{kibana-ref}/xpack-profiler.html[Search Profiler], which is a Kibana dev tools 
+UI available in all X-Pack licenses, including the free X-Pack Basic license.
+
+Some caveats to the Profile API are that:
+
+ - the Profile API as a debugging tool adds significant overhead to search execution and can also have a very verbose output
+ - given the added overhead, the resulting took times are not reliable indicators of actual took time, but can be used comparatively between clauses for relative timing differences
+ - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause 

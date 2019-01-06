@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.fulltext;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -56,8 +57,8 @@ public abstract class FullTextPredicate extends Expression {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 
     @Override

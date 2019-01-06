@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.Params;
@@ -119,8 +120,8 @@ public class Range extends ScalarFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return value.nullable() && lower.nullable() && upper.nullable();
+    public Nullability nullable() {
+        return Nullability.and(value.nullable(), lower.nullable(), upper.nullable());
     }
 
     @Override

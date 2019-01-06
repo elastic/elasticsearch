@@ -29,14 +29,13 @@ public class LicenseTests extends ESTestCase {
             "\"max_nodes\":5," +
             "\"issued_to\":\"customer\"," +
             "\"issuer\":\"elasticsearch\"," +
-            "\"signature\":\"AAAAAgAAAA34V2kfTJVtvdL2LttwAAABmFJ6NGRnbEM3WVQrZVQwNkdKQmR1VytlMTMyM1J0dTZ1WGwyY2ZCVFhqMGtJU2gzZ3pnNTVpOWF5Y1" +
-            "NaUkwyN2VsTEtCYnlZR2c5WWtjQ0phaDlhRjlDUXViUmUwMWhjSkE2TFcwSGdneTJHbUV4N2RHUWJxV20ybjRsZHRzV2xkN0ZmdDlYblJmNVcxMlBWeU81V1hLUm1E" +
-            "K0V1dmF3cFdlSGZzTU5SZE1qUmFra3JkS1hCanBWVmVTaFFwV3BVZERzeG9Sci9rYnlJK2toODZXY09tNmFHUVNUL3IyUHExV3VSTlBneWNJcFQ0bXl0cmhNNnRwbE" +
-            "1CWE4zWjJ5eGFuWFo0NGhsb3B5WFd1eTdYbFFWQkxFVFFPSlBERlB0eVVJYXVSZ0lsR2JpRS9rN1h4MSsvNUpOcGN6cU1NOHN1cHNtSTFIUGN1bWNGNEcxekhrblhN" +
-            "OXZ2VEQvYmRzQUFwbytUZEpRR3l6QU5oS2ZFSFdSbGxxNDZyZ0xvUHIwRjdBL2JqcnJnNGFlK09Cek9pYlJ5Umc9PQAAAQAth77fQLF7CCEL7wA6Z0/UuRm/weECcs" +
-            "jW/50kBnPLO8yEs+9/bPa5LSU0bF6byEXOVeO0ebUQfztpjulbXh8TrBDSG+6VdxGtohPo2IYPBaXzGs3LOOor6An/lhptxBWdwYmf+xHAQ8tyvRqP5G+PRU7tiluE" +
-            "wR/eyHGZV2exdJNzmoGzdPSWwueBM5HK2GexORICH+UFI4cuGz444/hL2MMM1RdpVWQkT0SJ6D9x/VuSmHuYPdtX59Pp41LXvlbcp0m8mnXZh1vN9rmbTsZXnhBIoP" +
-            "TaRDwUBi3vJ3Ms3iLaEm4S8Slrfmtht2jUjgGZ2vAeZ9OHU2YsGtrSpz6fd\"}";
+            "\"signature\":\"AAAAAgAAAA34V2kfTJVtvdL2LttwAAABmFJ6NGRnbEM3WVQrZVQwNkdKQmR1VytlMTMyM1J0dTZ1WGwyY2ZCVFhqMGtJU2gzZ3pnNTVpOW" +
+            "F5Y1NaUkwyN2VsTEtCYnlZR2c5WWtjQ0phaDlhRjlDUXViUmUwMWhjSkE2TFcwSGdneTJHbUV4N2RHUWJxV20ybjRsZHRzV2xkN0ZmdDlYblJmNVcxMlBWeU81" +
+            "V1hLUm1EK0V1dmF3cFdlSGZzTU5SZE1qUmFra3JkS1hCanBWVmVTaFFwV3BVZERzeG9Sci9rYnlJK2toODZXY09tNmFHUVNUL3IyUHExV3VSTlBneWNJcFQ0bX" +
+            "l0cmhNNnRwbE1CWE4zWjJ5eGFuWFo0NGhsb3B5WFd1eTdYbFFWQkxFVFFPSlBERlB0eVVJYXVSZ0lsR2JpRS9rN1h4MSsvNUpOcGN6cU1NOHN1cHNtSTFIUGN1" +
+            "bWNGNEcxekhrblhNOXZ2VEQvYmRzQUFwbytUZEpRR3l6QU5oS2ZFSFdSbGxxNDZyZ0xvUHIwRjdBL2JqcnJnNGFlK09Cek9pYlJ5Umc9PQAAAQAth77fQLF7CC" +
+            "EL7wA6Z0/UuRm/weECcsjW/50kBnPLO8yEs+9/bPa5LSU0bF6byEXOVeO0ebUQfztpjulbXh8TrBDSG+6VdxGtohPo2IYPBaXzGs3LOOor6An/lhptxBWdwYmf" +
+            "bcp0m8mnXZh1vN9rmbTsZXnhBIoPTaRDwUBi3vJ3Ms3iLaEm4S8Slrfmtht2jUjgGZ2vAeZ9OHU2YsGtrSpz6f\"}";
         License license = License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON);
         assertThat(license.type(), equalTo("gold"));
@@ -99,14 +98,14 @@ public class LicenseTests extends ESTestCase {
             "\"max_nodes\":5," +
             "\"issued_to\":\"customer\"," +
             "\"issuer\":\"elasticsearch\"," +
-            "\"signature\":\"AAAAAgAAAA34V2kfTJVtvdL2LttwAAABmFJ6NGRnbEM3WVQrZVQwNkdKQmR1VytlMTMyM1J0dTZ1WGwyY2ZCVFhqMGtJU2gzZ3pnNTVpOWF5Y1" +
-            "NaUkwyN2VsTEtCYnlZR2c5WWtjQ0phaDlhRjlDUXViUmUwMWhjSkE2TFcwSGdneTJHbUV4N2RHUWJxV20ybjRsZHRzV2xkN0ZmdDlYblJmNVcxMlBWeU81V1hLUm1E" +
-            "K0V1dmF3cFdlSGZzTU5SZE1qUmFra3JkS1hCanBWVmVTaFFwV3BVZERzeG9Sci9rYnlJK2toODZXY09tNmFHUVNUL3IyUHExV3VSTlBneWNJcFQ0bXl0cmhNNnRwbE" +
-            "1CWE4zWjJ5eGFuWFo0NGhsb3B5WFd1eTdYbFFWQkxFVFFPSlBERlB0eVVJYXVSZ0lsR2JpRS9rN1h4MSsvNUpOcGN6cU1NOHN1cHNtSTFIUGN1bWNGNEcxekhrblhN" +
-            "OXZ2VEQvYmRzQUFwbytUZEpRR3l6QU5oS2ZFSFdSbGxxNDZyZ0xvUHIwRjdBL2JqcnJnNGFlK09Cek9pYlJ5Umc9PQAAAQAth77fQLF7CCEL7wA6Z0/UuRm/weECcs" +
-            "jW/50kBnPLO8yEs+9/bPa5LSU0bF6byEXOVeO0ebUQfztpjulbXh8TrBDSG+6VdxGtohPo2IYPBaXzGs3LOOor6An/lhptxBWdwYmf+xHAQ8tyvRqP5G+PRU7tiluE" +
-            "wR/eyHGZV2exdJNzmoGzdPSWwueBM5HK2GexORICH+UFI4cuGz444/hL2MMM1RdpVWQkT0SJ6D9x/VuSmHuYPdtX59Pp41LXvlbcp0m8mnXZh1vN9rmbTsZXnhBIoP" +
-            "TaRDwUBi3vJ3Ms3iLaEm4S8Slrfmtht2jUjgGZ2vAeZ9OHU2YsGtrSpz6fd\"}";
+            "\"signature\":\"AAAAAgAAAA34V2kfTJVtvdL2LttwAAABmFJ6NGRnbEM3WVQrZVQwNkdKQmR1VytlMTMyM1J0dTZ1WGwyY2ZCVFhqMGtJU2gzZ3pnNTVpOW" +
+            "F5Y1NaUkwyN2VsTEtCYnlZR2c5WWtjQ0phaDlhRjlDUXViUmUwMWhjSkE2TFcwSGdneTJHbUV4N2RHUWJxV20ybjRsZHRzV2xkN0ZmdDlYblJmNVcxMlBWeU81" +
+            "V1hLUm1EK0V1dmF3cFdlSGZzTU5SZE1qUmFra3JkS1hCanBWVmVTaFFwV3BVZERzeG9Sci9rYnlJK2toODZXY09tNmFHUVNUL3IyUHExV3VSTlBneWNJcFQ0bX" +
+            "l0cmhNNnRwbE1CWE4zWjJ5eGFuWFo0NGhsb3B5WFd1eTdYbFFWQkxFVFFPSlBERlB0eVVJYXVSZ0lsR2JpRS9rN1h4MSsvNUpOcGN6cU1NOHN1cHNtSTFIUGN1" +
+            "bWNGNEcxekhrblhNOXZ2VEQvYmRzQUFwbytUZEpRR3l6QU5oS2ZFSFdSbGxxNDZyZ0xvUHIwRjdBL2JqcnJnNGFlK09Cek9pYlJ5Umc9PQAAAQAth77fQLF7CC" +
+            "EL7wA6Z0/UuRm/weECcsjW/50kBnPLO8yEs+9/bPa5LSU0bF6byEXOVeO0ebUQfztpjulbXh8TrBDSG+6VdxGtohPo2IYPBaXzGs3LOOor6An/lhptxBWdwYmf" +
+            "+xHAQ8tyvRqP5G+PRU7tiluEwR/eyHGZV2exdJNzmoGzdPSWwueBM5HK2GexORICH+UFI4cuGz444/hL2MMM1RdpVWQkT0SJ6D9x/VuSmHuYPdtX59Pp41LXvl" +
+            "bcp0m8mnXZh1vN9rmbTsZXnhBIoPTaRDwUBi3vJ3Ms3iLaEm4S8Slrfmtht2jUjgGZ2vAeZ9OHU2YsGtrSpz6fd\"}";
         ElasticsearchException exception =
             expectThrows(ElasticsearchException.class,
                 () -> {

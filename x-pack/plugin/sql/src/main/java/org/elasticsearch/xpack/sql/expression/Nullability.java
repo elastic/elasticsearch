@@ -33,6 +33,6 @@ public enum Nullability {
                     }
             }
         }
-        return value != null ? value : UNKNOWN;
+        return value != null ? value : FALSE;
     }
 }

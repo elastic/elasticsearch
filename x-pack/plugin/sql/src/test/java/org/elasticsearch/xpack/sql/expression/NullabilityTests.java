@@ -14,7 +14,7 @@ import static org.elasticsearch.xpack.sql.expression.Nullability.UNKNOWN;
 public class NullabilityTests extends ESTestCase {
 
     public void testLogicalAndOfNullabilities() {
-        assertEquals(UNKNOWN, Nullability.and());
+        assertEquals(FALSE, Nullability.and());
 
         assertEquals(TRUE, Nullability.and(TRUE));
         assertEquals(FALSE, Nullability.and(FALSE));

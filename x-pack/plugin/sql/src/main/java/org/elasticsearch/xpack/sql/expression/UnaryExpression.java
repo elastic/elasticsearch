@@ -44,7 +44,7 @@ public abstract class UnaryExpression extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         return child.nullable();
     }
 

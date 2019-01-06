@@ -133,7 +133,8 @@ final class SoftDeletesPolicy {
                     Math.min(globalCheckpointSupplier.getAsLong() - retentionOperations, minimumRetainingSequenceNumber);
             final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, localCheckpointOfSafeCommit) + 1;
 
-            /* We take the maximum as minSeqNoToRetain can go backward as the retention operations value can be changed in settings, or from
+            /*
+             * We take the maximum as minSeqNoToRetain can go backward as the retention operations value can be changed in settings, or from
              * the addition of leases with a retaining sequence number lower than previous retaining sequence numbers.
              */
             minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);

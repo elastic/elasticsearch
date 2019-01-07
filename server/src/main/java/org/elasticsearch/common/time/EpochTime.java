@@ -32,8 +32,6 @@ import java.time.temporal.TemporalUnit;
 import java.time.temporal.ValueRange;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Predicate;
-import java.util.function.ToLongFunction;
 
 /**
  * This class provides {@link DateTimeFormatter}s capable of parsing epoch seconds and milliseconds.
@@ -47,9 +45,15 @@ class EpochTime {
 
     private static final ValueRange LONG_POSITIVE_RANGE = ValueRange.of(0, Long.MAX_VALUE);
 
-    private static final EpochField SECONDS = new EpochField(ChronoUnit.SECONDS, ChronoUnit.FOREVER, LONG_POSITIVE_RANGE,
-        temporal -> temporal.getLong(ChronoField.INSTANT_SECONDS),
-        temporal -> temporal.isSupported(ChronoField.INSTANT_SECONDS)) {
+    private static final EpochField SECONDS = new EpochField(ChronoUnit.SECONDS, ChronoUnit.FOREVER, LONG_POSITIVE_RANGE) {
+        @Override
+        public boolean isSupportedBy(TemporalAccessor temporal) {
+            return temporal.isSupported(ChronoField.INSTANT_SECONDS);
+        }
+        @Override
+        public long getFrom(TemporalAccessor temporal) {
+            return temporal.getLong(ChronoField.INSTANT_SECONDS);
+        }
         @Override
         public TemporalAccessor resolve(Map<TemporalField,Long> fieldValues,
                                         TemporalAccessor partialTemporal, ResolverStyle resolverStyle) {
@@ -63,32 +67,52 @@ class EpochTime {
         }
     };
 
-    private static final EpochField NANOS_OF_SECOND = new EpochField(ChronoUnit.NANOS, ChronoUnit.SECONDS, ValueRange.of(0, 999_999_999),
-        temporal -> temporal.getLong(ChronoField.NANO_OF_SECOND),
-        temporal -> temporal.isSupported(ChronoField.NANO_OF_SECOND) && temporal.getLong(ChronoField.NANO_OF_SECOND) != 0);
+    private static final EpochField NANOS_OF_SECOND = new EpochField(ChronoUnit.NANOS, ChronoUnit.SECONDS, ValueRange.of(0, 999_999_999)) {
+        @Override
+        public boolean isSupportedBy(TemporalAccessor temporal) {
+            return temporal.isSupported(ChronoField.NANO_OF_SECOND) && temporal.getLong(ChronoField.NANO_OF_SECOND) != 0;
+        }
+        @Override
+        public long getFrom(TemporalAccessor temporal) {
+            return temporal.getLong(ChronoField.NANO_OF_SECOND);
+        }
+    };
 
-    private static final EpochField MILLIS = new EpochField(ChronoUnit.MILLIS, ChronoUnit.FOREVER, LONG_POSITIVE_RANGE,
-        temporal -> temporal.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + temporal.getLong(ChronoField.MILLI_OF_SECOND),
-        temporal -> temporal.isSupported(ChronoField.INSTANT_SECONDS) && temporal.isSupported(ChronoField.MILLI_OF_SECOND)) {
-            @Override
-            public TemporalAccessor resolve(Map<TemporalField,Long> fieldValues,
-                                            TemporalAccessor partialTemporal, ResolverStyle resolverStyle) {
-                long secondsAndMillis = fieldValues.remove(this);
-                long seconds = secondsAndMillis / 1_000;
-                long nanos = secondsAndMillis % 1000 * 1_000_000;
-                Long nanosOfMilli = fieldValues.remove(NANOS_OF_MILLI);
-                if (nanosOfMilli != null) {
-                    nanos += nanosOfMilli;
-                }
-                fieldValues.put(ChronoField.INSTANT_SECONDS, seconds);
-                fieldValues.put(ChronoField.NANO_OF_SECOND, nanos);
-                return null;
+    private static final EpochField MILLIS = new EpochField(ChronoUnit.MILLIS, ChronoUnit.FOREVER, LONG_POSITIVE_RANGE) {
+        @Override
+        public boolean isSupportedBy(TemporalAccessor temporal) {
+            return temporal.isSupported(ChronoField.INSTANT_SECONDS) && temporal.isSupported(ChronoField.MILLI_OF_SECOND);
+        }
+        @Override
+        public long getFrom(TemporalAccessor temporal) {
+            return temporal.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + temporal.getLong(ChronoField.MILLI_OF_SECOND);
+        }
+        @Override
+        public TemporalAccessor resolve(Map<TemporalField,Long> fieldValues,
+                                        TemporalAccessor partialTemporal, ResolverStyle resolverStyle) {
+            long secondsAndMillis = fieldValues.remove(this);
+            long seconds = secondsAndMillis / 1_000;
+            long nanos = secondsAndMillis % 1000 * 1_000_000;
+            Long nanosOfMilli = fieldValues.remove(NANOS_OF_MILLI);
+            if (nanosOfMilli != null) {
+                nanos += nanosOfMilli;
             }
-        };
+            fieldValues.put(ChronoField.INSTANT_SECONDS, seconds);
+            fieldValues.put(ChronoField.NANO_OF_SECOND, nanos);
+            return null;
+        }
+    };
 
-    private static final EpochField NANOS_OF_MILLI = new EpochField(ChronoUnit.NANOS, ChronoUnit.MILLIS, ValueRange.of(0, 999_999),
-        temporal -> temporal.getLong(ChronoField.NANO_OF_SECOND),
-        temporal -> temporal.isSupported(ChronoField.NANO_OF_SECOND) && temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000 != 0);
+    private static final EpochField NANOS_OF_MILLI = new EpochField(ChronoUnit.NANOS, ChronoUnit.MILLIS, ValueRange.of(0, 999_999)) {
+        @Override
+        public boolean isSupportedBy(TemporalAccessor temporal) {
+            return temporal.isSupported(ChronoField.NANO_OF_SECOND) && temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000 != 0;
+        }
+        @Override
+        public long getFrom(TemporalAccessor temporal) {
+            return temporal.getLong(ChronoField.NANO_OF_SECOND);
+        }
+    };
 
     // this supports seconds without any fraction
     private static final DateTimeFormatter SECONDS_FORMATTER1 = new DateTimeFormatterBuilder()
@@ -134,21 +158,16 @@ class EpochTime {
     static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter("epoch_millis", MILLISECONDS_FORMATTER3,
         MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2, MILLISECONDS_FORMATTER3);
 
-    private static class EpochField implements TemporalField {
+    private static abstract class EpochField implements TemporalField {
 
         private final TemporalUnit baseUnit;
         private final TemporalUnit rangeUnit;
         private final ValueRange range;
-        private final ToLongFunction<TemporalAccessor> fromTemporal;
-        private final Predicate<TemporalAccessor> supportedBy;
 
-        private EpochField(TemporalUnit baseUnit, TemporalUnit rangeUnit, ValueRange range, ToLongFunction<TemporalAccessor> fromTemporal,
-                           Predicate<TemporalAccessor> supportedBy) {
+        private EpochField(TemporalUnit baseUnit, TemporalUnit rangeUnit, ValueRange range) {
             this.baseUnit = baseUnit;
             this.rangeUnit = rangeUnit;
             this.range = range;
-            this.fromTemporal = fromTemporal;
-            this.supportedBy = supportedBy;
         }
 
         @Override
@@ -187,18 +206,8 @@ class EpochTime {
         }
 
         @Override
-        public boolean isSupportedBy(TemporalAccessor temporal) {
-            return supportedBy.test(temporal);
-        }
-
-        @Override
         public ValueRange rangeRefinedBy(TemporalAccessor temporal) {
             return range();
-        }
-
-        @Override
-        public long getFrom(TemporalAccessor temporal) {
-            return fromTemporal.applyAsLong(temporal);
         }
 
         @SuppressWarnings("unchecked")

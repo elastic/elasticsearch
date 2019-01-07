@@ -251,7 +251,7 @@ additional names that can be used:
     `NameID` elements are an optional, but frequently provided, field within a
     SAML Assertion that the IdP may use to identify the Subject of that
     Assertion. In some cases the `NameID` will relate to the user's login
-    identifier (username) wihin the IdP, but in many cases they will be
+    identifier (username) within the IdP, but in many cases they will be
     internally generated identifiers that have no obvious meaning outside
     of the IdP.
 
@@ -531,7 +531,7 @@ The path to the PEM formatted certificate file. e.g. `saml/saml-sign.crt`
 The path to the PEM formatted key file. e.g. `saml/saml-sign.key`
 
 `signing.secure_key_passphrase`::
-The passphrase for the key, if the file is encypted. This is a
+The passphrase for the key, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
@@ -545,7 +545,7 @@ The path to the PKCS#12 or JKS keystore. e.g. `saml/saml-sign.p12`
 The alias of the key within the keystore. e.g. `signing-key`
 
 `signing.keystore.secure_password`::
-The passphrase for the keystore, if the file is encypted. This is a
+The passphrase for the keystore, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
@@ -582,7 +582,7 @@ The path to the PEM formatted certificate file. e.g. `saml/saml-crypt.crt`
 The path to the PEM formatted key file. e.g. `saml/saml-crypt.key`
 
 `encryption.secure_key_passphrase`::
-The passphrase for the key, if the file is encypted. This is a
+The passphrase for the key, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
@@ -596,7 +596,7 @@ The path to the PKCS#12 or JKS keystore. e.g. `saml/saml-crypt.p12`
 The alias of the key within the keystore. e.g. `encryption-key`
 
 `encryption.keystore.secure_password`::
-The passphrase for the keystore, if the file is encypted. This is a
+The passphrase for the keystore, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
@@ -620,10 +620,13 @@ When a user authenticates using SAML, they are identified to the Elastic Stack,
 but this does not automatically grant them access to perform any actions or
 access any data.
 
-Your SAML users cannot do anything until they are assigned roles. This is done
+Your SAML users cannot do anything until they are assigned roles. This can be done
 through either the
 {ref}/security-api-put-role-mapping.html[add role mapping API], or with
 <<authorization_realms, authorization realms>>.
+
+NOTE: You cannot use {stack-ov}/defining-roles.html#roles-management-file[role mapping files]
+to grant roles to users authenticating via SAML.
 
 This is an example of a simple role mapping that grants the `kibana_user` role
 to any user who authenticates against the `saml1` realm:
@@ -728,7 +731,7 @@ the certificates that {es} has been configured to use.
 
 SAML authentication in {kib} is also subject to the
 `xpack.security.sessionTimeout` setting that is described in the {kib} security
-documentation, and you may wish to adjst this timeout to meet your local needs.
+documentation, and you may wish to adjust this timeout to meet your local needs.
 
 The two additional settings that are required for SAML support are shown below:
 

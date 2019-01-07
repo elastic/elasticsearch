@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -99,7 +99,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         request.addParameter("size", Integer.toString(expectedNumDocs));
         request.addParameter("sort", "field:asc");
         request.addParameter("q", query);
-        request.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+        request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         Map<String, ?> response = toMap(client.performRequest(request));
 
         int numDocs = (int) XContentMapValues.extractValue("hits.total", response);

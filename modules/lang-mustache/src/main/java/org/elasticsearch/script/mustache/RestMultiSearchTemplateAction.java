@@ -49,7 +49,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
     static {
         final Set<String> responseParams = new HashSet<>(
-            Arrays.asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HIT_AS_INT_PARAM)
+            Arrays.asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM)
         );
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
@@ -103,6 +103,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                     } else {
                         throw new IllegalArgumentException("Malformed search template");
                     }
+                    RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
                 });
         return multiRequest;
     }

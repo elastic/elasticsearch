@@ -276,8 +276,11 @@ public class InternalEngine extends Engine {
         } else {
             lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
         }
-        return new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint, lastMinRetainedSeqNo,
-            engineConfig.getIndexSettings().getSoftDeleteRetentionOperations());
+        return new SoftDeletesPolicy(
+                translog::getLastSyncedGlobalCheckpoint,
+                lastMinRetainedSeqNo,
+                engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
+                engineConfig.retentionLeasesSupplier());
     }
 
     /**

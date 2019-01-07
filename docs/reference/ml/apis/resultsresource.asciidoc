@@ -269,7 +269,7 @@ probability of this occurrence.
 
 There can be many anomaly records depending on the characteristics and size of
 the input data. In practice, there are often too many to be able to manually
-process them. The {xpackml} features therefore perform a sophisticated
+process them. The {ml-features} therefore perform a sophisticated
 aggregation of the anomaly records into buckets.
 
 The number of record results depends on the number of anomalies found in each

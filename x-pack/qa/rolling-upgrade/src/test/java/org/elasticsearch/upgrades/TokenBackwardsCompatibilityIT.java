@@ -227,7 +227,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertEquals(401, e.getResponse().getStatusLine().getStatusCode());
         Response response = e.getResponse();
-        assertEquals("Bearer realm=\"security\", error=\"invalid_token\", error_description=\"The access token expired\"",
+        assertEquals("Bearer realm=\"security\", error=\"token expired\", error_description=\"The access token expired\"",
                 response.getHeader("WWW-Authenticate"));
     }
 

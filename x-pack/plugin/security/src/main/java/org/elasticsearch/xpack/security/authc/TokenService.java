@@ -148,7 +148,7 @@ public final class TokenService {
     private static final int VERSION_BYTES = 4;
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
     private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\"" + XPackField.SECURITY +
-            "\", error=\"invalid_token\", error_description=\"The access token expired\"";
+            "\", error=\"token expired\", error_description=\"The access token expired\"";
     private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\"" + XPackField.SECURITY +
             "\", error=\"invalid_token\", error_description=\"The access token is malformed\"";
     private static final String TYPE = "doc";

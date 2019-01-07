@@ -47,7 +47,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -65,6 +64,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -123,9 +123,6 @@ public class MetaDataIndexStateService {
             throw new IllegalArgumentException("Index name is required");
         }
 
-        final TimeValue timeout = request.ackTimeout();
-        final TimeValue masterTimeout = request.masterNodeTimeout();
-
         clusterService.submitStateUpdateTask("add-block-index-to-close " + Arrays.toString(concreteIndices),
             new ClusterStateUpdateTask(Priority.URGENT) {
 
@@ -144,7 +141,7 @@ public class MetaDataIndexStateService {
                     } else {
                         assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)
-                            .execute(new WaitForClosedBlocksApplied(blockedIndices, timeout,
+                            .execute(new WaitForClosedBlocksApplied(blockedIndices, request,
                                 ActionListener.wrap(closedBlocksResults ->
                                     clusterService.submitStateUpdateTask("close-indices", new ClusterStateUpdateTask(Priority.URGENT) {
                                         @Override
@@ -179,7 +176,7 @@ public class MetaDataIndexStateService {
 
                 @Override
                 public TimeValue timeout() {
-                    return masterTimeout;
+                    return request.masterNodeTimeout();
                 }
             }
         );
@@ -249,18 +246,18 @@ public class MetaDataIndexStateService {
     class WaitForClosedBlocksApplied extends AbstractRunnable {
 
         private final Set<Index> blockedIndices;
-        private final @Nullable TimeValue timeout;
+        private final CloseIndexClusterStateUpdateRequest request;
         private final ActionListener<Map<Index, AcknowledgedResponse>> listener;
 
         private WaitForClosedBlocksApplied(final Set<Index> blockedIndices,
-                                           final @Nullable TimeValue timeout,
+                                           final CloseIndexClusterStateUpdateRequest request,
                                            final ActionListener<Map<Index, AcknowledgedResponse>> listener) {
             if (blockedIndices == null || blockedIndices.isEmpty()) {
                 throw new IllegalArgumentException("Cannot wait for closed block to be applied to null or empty list of blocked indices");
             }
             this.blockedIndices = blockedIndices;
+            this.request = request;
             this.listener = listener;
-            this.timeout = timeout;
         }
 
         @Override
@@ -274,7 +271,7 @@ public class MetaDataIndexStateService {
             final CountDown countDown = new CountDown(blockedIndices.size());
             final ClusterState state = clusterService.state();
             for (Index blockedIndex : blockedIndices) {
-                waitForShardsReadyForClosing(blockedIndex, state, timeout, response -> {
+                waitForShardsReadyForClosing(blockedIndex, state, response -> {
                     results.put(blockedIndex, response);
                     if (countDown.countDown()) {
                         listener.onResponse(unmodifiableMap(results));
@@ -283,7 +280,7 @@ public class MetaDataIndexStateService {
             }
         }
 
-        private void waitForShardsReadyForClosing(final Index index, final ClusterState state, @Nullable final TimeValue timeout,
+        private void waitForShardsReadyForClosing(final Index index, final ClusterState state,
                                                   final Consumer<AcknowledgedResponse> onResponse) {
             final IndexMetaData indexMetaData = state.metaData().index(index);
             if (indexMetaData == null) {
@@ -305,7 +302,7 @@ public class MetaDataIndexStateService {
             for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
                 final IndexShardRoutingTable shardRoutingTable = shard.value;
                 final ShardId shardId = shardRoutingTable.shardId();
-                sendVerifyShardBeforeCloseRequest(shardRoutingTable, timeout, new NotifyOnceListener<ReplicationResponse>() {
+                sendVerifyShardBeforeCloseRequest(shardRoutingTable, new NotifyOnceListener<ReplicationResponse>() {
                     @Override
                     public void innerOnResponse(final ReplicationResponse replicationResponse) {
                         ReplicationResponse.ShardInfo shardInfo = replicationResponse.getShardInfo();
@@ -329,7 +326,7 @@ public class MetaDataIndexStateService {
             }
         }
 
-        private void sendVerifyShardBeforeCloseRequest(final IndexShardRoutingTable shardRoutingTable, @Nullable final TimeValue timeout,
+        private void sendVerifyShardBeforeCloseRequest(final IndexShardRoutingTable shardRoutingTable,
                                                        final ActionListener<ReplicationResponse> listener) {
             final ShardId shardId = shardRoutingTable.shardId();
             if (shardRoutingTable.primaryShard().unassigned()) {
@@ -339,10 +336,11 @@ public class MetaDataIndexStateService {
                 listener.onResponse(response);
                 return;
             }
+            final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), request.taskId());
             final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
-                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId);
-            if (timeout != null) {
-                shardRequest.timeout(timeout);
+                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, parentTaskId);
+            if (request.ackTimeout() != null) {
+                shardRequest.timeout(request.ackTimeout());
             }
             // TODO propagate a task id from the parent CloseIndexRequest to the ShardCloseRequests
             transportVerifyShardBeforeCloseAction.execute(shardRequest, listener);

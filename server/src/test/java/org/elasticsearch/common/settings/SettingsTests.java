@@ -25,6 +25,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -723,6 +725,22 @@ public class SettingsTests extends ESTestCase {
          * using a method that does not lose the original unit.
          */
         final TimeValue actual = setting.get(settings);
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testFractionalByteSizeValue() {
+        final Setting<ByteSizeValue> setting =
+                Setting.byteSizeSetting("key", ByteSizeValue.parseBytesSizeValue(randomIntBetween(1, 16) + "k", "key"));
+        final ByteSizeValue expected = new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
+        final Settings settings = Settings.builder().put("key", expected).build();
+        /*
+         * Previously we would internally convert the byte size value to a string using a method that tries to be smart about the units
+         * (e.g., 1024 bytes would be converted to 1kb). However, this had a problem in that, for example, 1536 bytes would be converted to
+         * 1.5k. Then, 1.5k could not be converted back to a ByteSizeValue because ByteSizeValues do not support fractional components.
+         * Effectively this test is then asserting that we no longer make this mistake when doing the internal string conversion. Instead,
+         * we convert to a string using a method that does not lose the original unit.
+         */
+        final ByteSizeValue actual = setting.get(settings);
         assertThat(actual, equalTo(expected));
     }
 

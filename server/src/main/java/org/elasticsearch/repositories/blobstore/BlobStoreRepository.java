@@ -851,7 +851,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
         final Context context = new Context(snapshotId, indexId, shard.shardId(), snapshotShardId);
-        final RestoreContext snapshotContext = new RestoreContext(shard, snapshotId, recoveryState);
+        BlobPath path = basePath().add("indices").add(indexId.getId()).add(Integer.toString(snapshotShardId.getId()));
+        BlobContainer blobContainer = blobStore().blobContainer(path);
+        final RestoreContext snapshotContext = new RestoreContext(shard, snapshotId, recoveryState, blobContainer);
         try {
             BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
             SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
@@ -1444,24 +1446,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private class RestoreContext extends FileRestoreContext {
 
+        private final BlobContainer blobContainer;
+
         /**
          * Constructs new restore context
-         *
-         * @param indexShard      shard to restore into
+         *  @param indexShard      shard to restore into
          * @param snapshotId      snapshot id
          * @param recoveryState   recovery state to report progress
+         * @param blobContainer
          */
-        RestoreContext(IndexShard indexShard, SnapshotId snapshotId, RecoveryState recoveryState) {
+        RestoreContext(IndexShard indexShard, SnapshotId snapshotId, RecoveryState recoveryState, BlobContainer blobContainer) {
             super(metadata.name(), indexShard, snapshotId, recoveryState, BUFFER_SIZE);
+            this.blobContainer = blobContainer;
         }
 
         @Override
         protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
             if (restoreRateLimiter == null) {
-                return new PartSliceStream(blobContainer.get(), fileInfo);
+                return new PartSliceStream(blobContainer, fileInfo);
             } else {
                 RateLimitingInputStream.Listener listener = restoreRateLimitingTimeInNanos::inc;
-                return new RateLimitingInputStream(new PartSliceStream(blobContainer.get(), fileInfo), restoreRateLimiter, listener);
+                return new RateLimitingInputStream(new PartSliceStream(blobContainer, fileInfo), restoreRateLimiter, listener);
             }
         }
     }

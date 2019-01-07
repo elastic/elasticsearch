@@ -1177,7 +1177,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Response build() throws IOException {
             Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
             request.setJsonEntity("{"
-                    + "\"job_id\": \"" + jobId + "\",\"indexes\":[\"" + index + "\"],\"types\":[\"" + type + "\"]"
+                    + "\"job_id\": \"" + jobId + "\",\"indexes\":[\"" + index + "\"]"
                     + (source ? ",\"_source\":true" : "")
                     + (scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields)
                     + (aggregations == null ? "" : ",\"aggs\":" + aggregations)

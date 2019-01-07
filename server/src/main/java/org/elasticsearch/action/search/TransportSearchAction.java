@@ -180,10 +180,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        final long absoluteStartMillis = System.currentTimeMillis();
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider =
-                new SearchTimeProvider(absoluteStartMillis, relativeStartNanos, System::nanoTime);
+            new SearchTimeProvider(searchRequest.getOrCreateAbsoluteStartMillis(), relativeStartNanos, System::nanoTime);
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
             if (source != searchRequest.source()) {
                 // only set it if it changed - we don't allow null values to be set but it might be already null be we want to catch
@@ -353,16 +352,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                               BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection) {
         return (clusterAlias, nodeId) -> {
             final DiscoveryNode discoveryNode;
+            final boolean remoteCluster;
             if (clusterAlias == null || requestClusterAlias != null) {
                 assert requestClusterAlias == null || requestClusterAlias.equals(clusterAlias);
                 discoveryNode = localNodes.apply(nodeId);
+                remoteCluster = false;
             } else {
                 discoveryNode = remoteNodes.apply(clusterAlias, nodeId);
+                remoteCluster = true;
             }
             if (discoveryNode == null) {
                 throw new IllegalStateException("no node found for id: " + nodeId);
             }
-            return nodeToConnection.apply(clusterAlias, discoveryNode);
+            return nodeToConnection.apply(remoteCluster ? clusterAlias : null, discoveryNode);
         };
     }
 

@@ -192,7 +192,7 @@ PERCENTILE(field_name<1>, numeric_exp<2>)
 *Input*:
 
 <1> a numeric field
-<2> a numeric expression
+<2> a numeric expression (must be a constant and not based on a field)
 
 *Output*: `double` numeric value
 
@@ -218,7 +218,7 @@ PERCENTILE_RANK(field_name<1>, numeric_exp<2>)
 *Input*:
 
 <1> a numeric field
-<2> a numeric expression
+<2> a numeric expression (must be a constant and not based on a field)
 
 *Output*: `double` numeric value
 

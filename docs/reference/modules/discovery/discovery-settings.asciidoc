@@ -3,6 +3,15 @@
 
 Discovery and cluster formation are affected by the following settings:
 
+`cluster.auto_shrink_voting_configuration`::
+
+    Controls whether the <<modules-discovery-voting,voting configuration>>
+    sheds departed nodes automatically, as long as it still contains at least 3
+    nodes. The default value is `true`. If set to `false`, the voting
+    configuration never shrinks automatically and you must remove departed
+    nodes manually with the <<voting-config-exclusions,voting configuration
+    exclusions API>>.
+
 [[master-election-settings]]`cluster.election.back_off_time`::
 
     Sets the amount to increase the upper bound on the wait before an election
@@ -152,9 +161,11 @@ APIs are not be blocked and can run on any available node.
 
     Provides a list of master-eligible nodes in the cluster. The list contains
     either an array of hosts or a comma-delimited string. Each value has the
-    format `host:port` or `host`, where `port` defaults to the setting `transport.profiles.default.port`. Note that IPv6 hosts must be bracketed.
+    format `host:port` or `host`, where `port` defaults to the setting
+    `transport.profiles.default.port`. Note that IPv6 hosts must be bracketed.
     The default value is `127.0.0.1, [::1]`. See <<unicast.hosts>>.
 
 `discovery.zen.ping.unicast.hosts.resolve_timeout`::
 
-    Sets the amount of time to wait for DNS lookups on each round of discovery. This is specified as a <<time-units, time unit>> and defaults to `5s`.
+    Sets the amount of time to wait for DNS lookups on each round of discovery.
+    This is specified as a <<time-units, time unit>> and defaults to `5s`.

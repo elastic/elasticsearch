@@ -62,10 +62,10 @@ public class CCRIT extends AbstractUpgradeTestCase {
             case MIXED:
                 if (SECOND_ROUND == false) {
                     index(leaderIndex, "2");
-                    assertDocumentExists(leaderIndex, "2");
+                    assertDocumentExists(leaderIndex, "1", "2");
                     assertBusy(() -> {
                         assertFollowerGlobalCheckpoint(followerIndex, 1);
-                        assertDocumentExists(followerIndex, "2");
+                        assertDocumentExists(followerIndex, "1", "2");
                     });
                 } else {
                     index(leaderIndex, "3");
@@ -83,9 +83,7 @@ public class CCRIT extends AbstractUpgradeTestCase {
                     assertFollowerGlobalCheckpoint(followerIndex, 3);
                     assertDocumentExists(followerIndex, "4");
                 });
-                pauseFollow(followerIndex);
-                closeIndex(followerIndex);
-                unfollow(followerIndex);
+                stopIndexFollowing(followerIndex);
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -108,12 +106,12 @@ public class CCRIT extends AbstractUpgradeTestCase {
 
         switch (CLUSTER_TYPE) {
             case OLD:
-                putAutoFollowPattern("test_pattern");
+                putAutoFollowPattern("test_pattern", "logs-*");
                 createIndex(leaderIndex1, indexSettings);
                 index(leaderIndex1, "1");
                 assertBusy(() -> {
                     String followerIndex = "copy-" + leaderIndex1;
-                    assertNumberOfSuccessfulFollowedIndices(1);
+                    assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(1));
                     assertFollowerGlobalCheckpoint(followerIndex, 0);
                     assertDocumentExists(followerIndex, "1");
                 });
@@ -133,7 +131,7 @@ public class CCRIT extends AbstractUpgradeTestCase {
                     index(leaderIndex2, "1");
                     assertBusy(() -> {
                         String followerIndex = "copy-" + leaderIndex2;
-                        assertNumberOfSuccessfulFollowedIndices(previousNumberOfSuccessfulFollowedIndices + 1);
+                        assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(previousNumberOfSuccessfulFollowedIndices + 1));
                         assertFollowerGlobalCheckpoint(followerIndex, 0);
                         assertDocumentExists(followerIndex, "1");
                     });
@@ -158,7 +156,7 @@ public class CCRIT extends AbstractUpgradeTestCase {
                     index(leaderIndex3, "1");
                     assertBusy(() -> {
                         String followerIndex = "copy-" + leaderIndex3;
-                        assertNumberOfSuccessfulFollowedIndices(previousNumberOfSuccessfulFollowedIndices + 1);
+                        assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(previousNumberOfSuccessfulFollowedIndices + 1));
                         assertFollowerGlobalCheckpoint(followerIndex, 0);
                         assertDocumentExists(followerIndex, "1");
                     });
@@ -186,21 +184,19 @@ public class CCRIT extends AbstractUpgradeTestCase {
 
                 deleteAutoFollowPattern("test_pattern");
 
-                pauseFollow("copy-" + leaderIndex1);
-                closeIndex("copy-" + leaderIndex1);
-                unfollow("copy-" + leaderIndex1);
-
-                pauseFollow("copy-" + leaderIndex2);
-                closeIndex("copy-" + leaderIndex2);
-                unfollow("copy-" + leaderIndex2);
-
-                pauseFollow("copy-" + leaderIndex3);
-                closeIndex("copy-" + leaderIndex3);
-                unfollow("copy-" + leaderIndex3);
+                stopIndexFollowing("copy-" + leaderIndex1);
+                stopIndexFollowing("copy-" + leaderIndex2);
+                stopIndexFollowing("copy-" + leaderIndex3);
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
+    }
+
+    private static void stopIndexFollowing(String followerIndex) throws IOException {
+        pauseFollow(followerIndex);
+        closeIndex(followerIndex);
+        unfollow(followerIndex);
     }
 
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
@@ -218,9 +214,9 @@ public class CCRIT extends AbstractUpgradeTestCase {
         assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/unfollow")));
     }
 
-    private static void putAutoFollowPattern(String patternName) throws IOException {
-        Request request = new Request("PUT", "/_ccr/auto_follow/" + patternName);
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"remote_cluster\": \"local\"," +
+    private static void putAutoFollowPattern(String name, String pattern) throws IOException {
+        Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
+        request.setJsonEntity("{\"leader_index_patterns\": [\"" + pattern + "\"], \"remote_cluster\": \"local\"," +
             "\"follow_index_pattern\": \"copy-{{leader_index}}\", \"read_poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
@@ -236,10 +232,12 @@ public class CCRIT extends AbstractUpgradeTestCase {
         assertOK(client().performRequest(request));
     }
 
-    private static void assertDocumentExists(String index, String id) throws IOException {
-        Request request = new Request("HEAD", "/" + index + "/_doc/" + id);
-        Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+    private static void assertDocumentExists(String index, String... ids) throws IOException {
+        for (String id : ids) {
+            Request request = new Request("HEAD", "/" + index + "/_doc/" + id);
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        }
     }
 
     private static void setupRemoteCluster() throws IOException {
@@ -266,22 +264,13 @@ public class CCRIT extends AbstractUpgradeTestCase {
         }
     }
 
-    private void assertNumberOfSuccessfulFollowedIndices(int expectedNumberOfSuccessfulFollowedIndices) throws IOException {
-        Request statsRequest = new Request("GET", "/_ccr/stats");
-        Map<?, ?> response = toMap(client().performRequest(statsRequest));
-        LOGGER.info("AUTO FOLLOW STATS={}", response.get("auto_follow_stats"));
-        Integer actualSuccessfulFollowedIndices = ObjectPath.eval("auto_follow_stats.number_of_successful_follow_indices", response);
-        assertThat(actualSuccessfulFollowedIndices, equalTo(expectedNumberOfSuccessfulFollowedIndices));
-    }
-
     private void assertFollowerGlobalCheckpoint(String followerIndex, int expectedFollowerCheckpoint) throws IOException {
-        Request statsRequest = new Request("GET", "/" + followerIndex + "/_ccr/stats");
+        Request statsRequest = new Request("GET", "/" + followerIndex + "/_stats");
+        statsRequest.addParameter("level", "shards");
         Map<?, ?> response = toMap(client().performRequest(statsRequest));
-        LOGGER.info("FOLLOW STATS={}", response);
+        LOGGER.info("INDEX STATS={}", response);
         assertThat(((List) response.get("indices")).size(), equalTo(1));
-        String index = ObjectPath.eval("indices.0.index", response);
-        assertThat(index, equalTo(followerIndex));
-        Integer actualFollowerCheckpoint = ObjectPath.eval("indices.0.shards.0.follower_global_checkpoint", response);
+        Integer actualFollowerCheckpoint = ObjectPath.eval("indices." + followerIndex + ".shards.0.seq_no.global_checkpoint", response);
         assertThat(actualFollowerCheckpoint, equalTo(expectedFollowerCheckpoint));
     }
 

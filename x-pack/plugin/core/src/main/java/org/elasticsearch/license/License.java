@@ -478,7 +478,7 @@ public class License implements ToXContentObject {
                 byte[] signatureBytes = Base64.getDecoder().decode(builder.signature);
                 ByteBuffer byteBuffer = ByteBuffer.wrap(signatureBytes);
                 version = byteBuffer.getInt();
-            } catch (BufferUnderflowException | IllegalArgumentException e) {
+            } catch (Exception e) {
                 throw new ElasticsearchException("malformed signature for license [" + builder.uid + "]", e);
             }
             // we take the absolute version, because negative versions

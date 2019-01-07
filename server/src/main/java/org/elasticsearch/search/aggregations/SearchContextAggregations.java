@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import java.util.function.IntConsumer;
-
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 
 /**
@@ -60,7 +58,7 @@ public class SearchContextAggregations {
      * Returns a consumer for multi bucket aggregation that checks the total number of buckets
      * created in the response
      */
-    public IntConsumer multiBucketConsumer() {
+    public MultiBucketConsumer multiBucketConsumer() {
         return multiBucketConsumer;
     }
 

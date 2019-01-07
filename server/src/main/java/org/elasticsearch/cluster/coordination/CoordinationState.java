@@ -86,6 +86,10 @@ public class CoordinationState {
         return getLastAcceptedState().version();
     }
 
+    private long getLastAcceptedVersionOrMetaDataVersion() {
+        return getLastAcceptedState().getVersionOrMetaDataVersion();
+    }
+
     public VotingConfiguration getLastCommittedConfiguration() {
         return getLastAcceptedState().getLastCommittedConfiguration();
     }
@@ -126,27 +130,29 @@ public class CoordinationState {
     /**
      * Used to bootstrap a cluster by injecting the initial state and configuration.
      *
-     * @param initialState The initial state to use. Must have term 0, version 1, and non-empty configurations.
+     * @param initialState The initial state to use. Must have term 0, version equal to the last-accepted version, and non-empty
+     *                     configurations.
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public void setInitialState(ClusterState initialState) {
-        final long lastAcceptedVersion = getLastAcceptedVersion();
-        if (lastAcceptedVersion != 0) {
-            logger.debug("setInitialState: rejecting since last-accepted version {} > 0", lastAcceptedVersion);
-            throw new CoordinationStateRejectedException("initial state already set: last-accepted version now " + lastAcceptedVersion);
+
+        final VotingConfiguration lastAcceptedConfiguration = getLastAcceptedConfiguration();
+        if (lastAcceptedConfiguration.isEmpty() == false) {
+            logger.debug("setInitialState: rejecting since last-accepted configuration is nonempty: {}", lastAcceptedConfiguration);
+            throw new CoordinationStateRejectedException(
+                "initial state already set: last-accepted configuration now " + lastAcceptedConfiguration);
         }
 
         assert getLastAcceptedTerm() == 0 : getLastAcceptedTerm();
-        assert getLastAcceptedConfiguration().isEmpty() : getLastAcceptedConfiguration();
         assert getLastCommittedConfiguration().isEmpty() : getLastCommittedConfiguration();
-        assert lastPublishedVersion == 0 : lastAcceptedVersion;
+        assert lastPublishedVersion == 0 : lastPublishedVersion;
         assert lastPublishedConfiguration.isEmpty() : lastPublishedConfiguration;
         assert electionWon == false;
         assert joinVotes.isEmpty() : joinVotes;
         assert publishVotes.isEmpty() : publishVotes;
 
-        assert initialState.term() == 0 : initialState;
-        assert initialState.version() == 1 : initialState;
+        assert initialState.term() == 0 : initialState + " should have term 0";
+        assert initialState.version() == getLastAcceptedVersion() : initialState + " should have version " + getLastAcceptedVersion();
         assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
         assert initialState.getLastCommittedConfiguration().isEmpty() == false;
 
@@ -191,7 +197,8 @@ public class CoordinationState {
         joinVotes = new VoteCollection();
         publishVotes = new VoteCollection();
 
-        return new Join(localNode, startJoinRequest.getSourceNode(), getCurrentTerm(), getLastAcceptedTerm(), getLastAcceptedVersion());
+        return new Join(localNode, startJoinRequest.getSourceNode(), getCurrentTerm(), getLastAcceptedTerm(),
+            getLastAcceptedVersionOrMetaDataVersion());
     }
 
     /**
@@ -224,20 +231,22 @@ public class CoordinationState {
                 " of join higher than current last accepted term " + lastAcceptedTerm);
         }
 
-        if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersion()) {
-            logger.debug("handleJoin: ignored join as joiner has a better last accepted version (expected: <=[{}], actual: [{}])",
-                getLastAcceptedVersion(), join.getLastAcceptedVersion());
+        if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersionOrMetaDataVersion()) {
+            logger.debug(
+                "handleJoin: ignored join as joiner has a better last accepted version (expected: <=[{}], actual: [{}]) in term {}",
+                getLastAcceptedVersionOrMetaDataVersion(), join.getLastAcceptedVersion(), lastAcceptedTerm);
             throw new CoordinationStateRejectedException("incoming last accepted version " + join.getLastAcceptedVersion() +
-                " of join higher than current last accepted version " + getLastAcceptedVersion());
+                " of join higher than current last accepted version " + getLastAcceptedVersionOrMetaDataVersion()
+                + " in term " + lastAcceptedTerm);
         }
 
-        if (getLastAcceptedVersion() == 0) {
+        if (getLastAcceptedConfiguration().isEmpty()) {
             // We do not check for an election won on setting the initial configuration, so it would be possible to end up in a state where
             // we have enough join votes to have won the election immediately on setting the initial configuration. It'd be quite
             // complicated to restore all the appropriate invariants when setting the initial configuration (it's not just electionWon)
             // so instead we just reject join votes received prior to receiving the initial configuration.
-            logger.debug("handleJoin: ignored join because initial configuration not set");
-            throw new CoordinationStateRejectedException("initial configuration not set");
+            logger.debug("handleJoin: rejecting join since this node has not received its initial configuration yet");
+            throw new CoordinationStateRejectedException("rejecting join since this node has not received its initial configuration yet");
         }
 
         boolean added = joinVotes.addVote(join.getSourceNode());

@@ -103,7 +103,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -135,7 +135,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -156,7 +156,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -179,7 +179,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")
@@ -210,7 +210,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         for (String option : supportedOptions.keySet()) {
             jsonDoc.field(option, "1234");
         }
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(jsonDoc.endObject()),
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(jsonDoc.endObject()),
                 XContentType.JSON));
 
         for (Map.Entry<String, IndexOptions> entry : supportedOptions.entrySet()) {
@@ -232,7 +232,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        SourceToParse sourceToParse = SourceToParse.source("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .array("field", new String[] {"a", "b"})
@@ -274,7 +274,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        SourceToParse sourceToParse = SourceToParse.source("test", "type", "1", BytesReference
+        SourceToParse sourceToParse = new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .array("field", new String[]{"a", "b"})
@@ -433,7 +433,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field1", "1234")
@@ -765,7 +765,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 new Term("synfield._index_phrase", "motor dog")})
             .build()));
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("field", "Some English text that is going to be very useful")
@@ -830,7 +830,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=2:10"));
 
-            ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+            ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                     .bytes(XContentFactory.jsonBuilder()
                             .startObject()
                             .field("field", "Some English text that is going to be very useful")

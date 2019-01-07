@@ -9,10 +9,9 @@ If {xpack} is installed, there is an additional node type:
 <<ml-node,Machine learning node>>::
 
 A node that has `xpack.ml.enabled` and `node.ml` set to `true`, which is the
-default behavior when {xpack} is installed. If you want to use {xpackml}
-features, there must be at least one {ml} node in your cluster. For more
-information about {xpackml} features,
-see {xpack-ref}/xpack-ml.html[Machine Learning in the Elastic Stack].
+default behavior when {xpack} is installed. If you want to use {ml-features}, there must be at least one {ml} node in your cluster. For more
+information about {ml-features},
+see {stack-ov}/xpack-ml.html[Machine learning in the {stack}].
 
 IMPORTANT: Do not set use the `node.ml` setting unless {xpack} is installed.
 Otherwise, the node fails to start.
@@ -88,11 +87,11 @@ node.ml: false <5>
 [[ml-node]]
 === [xpack]#Machine learning node#
 
-The {xpackml} features provide {ml} nodes, which run jobs and handle {ml} API
+The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API
 requests. If `xpack.ml.enabled` is set to true and `node.ml` is set to `false`,
 the node can service API requests but it cannot run jobs.
 
-If you want to use {xpackml} features in your cluster, you must enable {ml}
+If you want to use {ml-features} in your cluster, you must enable {ml}
 (set `xpack.ml.enabled` to `true`) on all master-eligible nodes. Do not use
 these settings if you do not have {xpack} installed.
 

@@ -23,7 +23,7 @@ public class DataFrameMessagesTests extends ESTestCase {
     }
 
     public void testMessageProperFormat() throws IllegalArgumentException, IllegalAccessException {
-        Field[] declaredFields = DataFrameMessages.class.getDeclaredFields();
+        Field[] declaredFields = DataFrameMessages.class.getFields();
         int checkedMessages = 0;
 
         for (Field field : declaredFields) {

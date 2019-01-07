@@ -205,11 +205,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        if (type == null) {
-            return Objects.hash(index, id, path, routing);
-        } else {
-            return Objects.hash(index, type, id, path, routing);
-        }
+        return Objects.hash(index, type, id, path, routing);
     }
 
     @Override

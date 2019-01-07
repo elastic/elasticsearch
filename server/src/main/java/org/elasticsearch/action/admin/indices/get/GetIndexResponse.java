@@ -265,15 +265,18 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                         }
                         builder.endObject();
                     } else {
-                        if (indexMappings != null && indexMappings.size() > 0) {
-                            builder.field("mappings");
-                            for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
-                                builder.map(typeEntry.value.sourceAsMap());
+                        MappingMetaData mappings = null;
+                        for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
+                            if (typeEntry.key.equals(MapperService.DEFAULT_MAPPING) == false) {
+                                assert mappings == null;
+                                mappings = typeEntry.value;
                             }
-                        } else {
-                            // we always want to output a mappings object, even if empty
-                            builder.startObject("mappings");
-                            builder.endObject();
+                            if (mappings == null) {
+                                // no mappings yet
+                                builder.startObject("mappings").endObject();
+                            } else {
+                                builder.field("mappings", mappings.sourceAsMap());
+                            }
                         }
                     }
 

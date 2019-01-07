@@ -180,10 +180,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        final long absoluteStartMillis = System.currentTimeMillis();
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider =
-                new SearchTimeProvider(absoluteStartMillis, relativeStartNanos, System::nanoTime);
+            new SearchTimeProvider(searchRequest.getOrCreateAbsoluteStartMillis(), relativeStartNanos, System::nanoTime);
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
             if (source != searchRequest.source()) {
                 // only set it if it changed - we don't allow null values to be set but it might be already null be we want to catch

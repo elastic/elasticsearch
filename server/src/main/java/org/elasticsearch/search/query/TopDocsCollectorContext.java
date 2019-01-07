@@ -293,19 +293,17 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
             final TopDocs topDocs = topDocsSupplier.get();
-            final TotalHits totalHits;
             final float maxScore;
             if (scrollContext.totalHits == null) {
                 // first round
-                totalHits = scrollContext.totalHits = totalHitsSupplier.get();
+                topDocs.totalHits = scrollContext.totalHits = totalHitsSupplier.get();
                 maxScore = scrollContext.maxScore = maxScoreSupplier.get();
             } else {
                 // subsequent round: the total number of hits and
                 // the maximum score were computed on the first round
-                totalHits = scrollContext.totalHits;
+                topDocs.totalHits = scrollContext.totalHits;
                 maxScore = scrollContext.maxScore;
             }
-            topDocs.totalHits = totalHits;
             if (numberOfShards == 1) {
                 // if we fetch the document in the same roundtrip, we already know the last emitted doc
                 if (topDocs.scoreDocs.length > 0) {

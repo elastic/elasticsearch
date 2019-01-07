@@ -67,8 +67,6 @@ import java.util.EnumSet;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -422,7 +420,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
         final String ip = localNode.getAddress().getAddress();
-        getDiscoveredNodesRequest.setRequiredNodes(Stream.of(ip, "not-a-node").collect(Collectors.toList()));
+        getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(ip, "not-a-node"));
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
@@ -478,7 +476,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         executeRequestPeersAction();
 
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setRequiredNodes(Stream.of(localNode.getName(), otherNode.getName()).collect(Collectors.toList()));
+        getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(localNode.getName(), otherNode.getName()));
         assertWaitConditionMet(getDiscoveredNodesRequest);
     }
 

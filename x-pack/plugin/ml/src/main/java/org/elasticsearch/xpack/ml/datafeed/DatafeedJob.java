@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -225,12 +226,12 @@ class DatafeedJob {
        Date currentTime = new Date(currentTimeSupplier.get());
        return new Annotation(msg,
            currentTime,
-           SystemUser.NAME,
+           XPackUser.NAME,
            startTime,
            endTime,
            jobId,
            currentTime,
-           SystemUser.NAME,
+           XPackUser.NAME,
            "annotation");
     }
 
@@ -253,7 +254,7 @@ class DatafeedJob {
 
     private void updateAnnotation(Annotation annotation) {
         Annotation updatedAnnotation = new Annotation(lastDataCheckAnnotation);
-        updatedAnnotation.setModifiedUsername(SystemUser.NAME);
+        updatedAnnotation.setModifiedUsername(XPackUser.NAME);
         updatedAnnotation.setModifiedTime(new Date(currentTimeSupplier.get()));
         updatedAnnotation.setAnnotation(annotation.getAnnotation());
         updatedAnnotation.setTimestamp(annotation.getTimestamp());

@@ -80,19 +80,19 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
                 protected void doRun() throws Exception {
                     int bytesRequested = request.getSize();
                     long fileOffset = request.getOffset();
-                    ByteArray byteArray = bigArrays.newByteArray(bytesRequested, false);
+                    ByteArray array = bigArrays.newByteArray(bytesRequested, false);
                     String fileName = request.getFileName();
                     String sessionUUID = request.getSessionUUID();
                     // This is currently safe to do because calling `onResponse` will serialize the bytes to the network layer data
                     // structure on the same thread. So the bytes will be copied before the reference is released.
-                    try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(byteArray, bytesRequested, byteArray)) {
-                        try (CcrRestoreSourceService.FileReader fileReader = restoreSourceService.getSessionReader(sessionUUID, fileName)) {
+                    try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(array, bytesRequested, array)) {
+                        try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID, fileName)) {
                             BytesRefIterator refIterator = reference.iterator();
                             BytesRef ref;
                             int bytesWritten = 0;
                             while ((ref = refIterator.next()) != null) {
                                 byte[] refBytes = ref.bytes;
-                                fileReader.readFileBytes(refBytes, fileOffset + bytesWritten, ref.length);
+                                reader.readFileBytes(refBytes, fileOffset + bytesWritten, ref.length);
                                 bytesWritten += ref.length;
                             }
 

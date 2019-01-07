@@ -298,7 +298,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         private final Client remoteClient;
         private final String sessionUUID;
         private final DiscoveryNode node;
-        private final ShardId shardId;
         private final Store store;
         private final Store.MetadataSnapshot sourceMetaData;
 
@@ -308,7 +307,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;
-            this.shardId = indexShard.shardId();
             this.store = indexShard.store();
             this.store.incRef();
             this.sourceMetaData = sourceMetaData;
@@ -319,8 +317,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             String sessionUUID = UUIDs.randomBase64UUID();
             PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
                 new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)).actionGet();
-            Store.MetadataSnapshot sourceFileMetaData = response.getStoreFileMetaData();
-            return new RestoreSession(repositoryName, remoteClient, sessionUUID, response.getNode(), indexShard, recoveryState, sourceFileMetaData);
+            return new RestoreSession(repositoryName, remoteClient, sessionUUID, response.getNode(), indexShard, recoveryState,
+                response.getStoreFileMetaData());
         }
 
         void restoreFiles() throws IOException {

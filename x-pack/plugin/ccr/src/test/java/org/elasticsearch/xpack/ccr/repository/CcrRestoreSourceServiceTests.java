@@ -148,7 +148,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             indexInput.readBytes(expectedBytes, 0, (int) fileMetaData.length());
         }
 
-        try (CcrRestoreSourceService.FileReader reader = restoreSourceService.getSessionReader(sessionUUID1, fileName)) {
+        try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID1, fileName)) {
             reader.readFileBytes(actualBytes, 0, (int) fileMetaData.length());
         }
 
@@ -165,7 +165,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         ArrayList<StoreFileMetaData> files = new ArrayList<>();
         indexShard1.snapshotStoreMetadata().forEach(files::add);
-        try (CcrRestoreSourceService.FileReader reader = restoreSourceService.getSessionReader(sessionUUID1, files.get(0).name())) {
+        try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID1, files.get(0).name())) {
             // Using try with close to ensure that reader is closed.
             assertNotNull(reader);
         }

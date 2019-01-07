@@ -136,7 +136,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         IOUtils.closeWhileHandlingException(restore);
     }
 
-    public synchronized FileReader getSessionReader(String sessionUUID, String fileName) throws IOException {
+    public synchronized Reader getSessionReader(String sessionUUID, String fileName) throws IOException {
         RestoreContext restore = onGoingRestores.get(sessionUUID);
         if (restore == null) {
             logger.info("could not get session [{}] because session not found", sessionUUID);
@@ -167,18 +167,18 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             }
         }
 
-        FileReader getFileReader(String fileName) throws IOException {
+        Reader getFileReader(String fileName) throws IOException {
             if (cachedInput != null) {
                 if (fileName.equals(cachedInput.name)) {
-                    return new FileReader(session, cachedInput);
+                    return new Reader(session, cachedInput);
                 } else {
                     cachedInput.decRef();
                     openNewIndexInput(fileName);
-                    return new FileReader(session, cachedInput);
+                    return new Reader(session, cachedInput);
                 }
             } else {
                 openNewIndexInput(fileName);
-                return new FileReader(session, cachedInput);
+                return new Reader(session, cachedInput);
 
             }
         }
@@ -230,12 +230,12 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
     }
 
-    public static class FileReader implements Closeable {
+    public static class Reader implements Closeable {
 
         private final RefCountedCloseable<Engine.IndexCommitRef> session;
         private final RefCountedCloseable<IndexInput> input;
 
-        private FileReader(RefCountedCloseable<Engine.IndexCommitRef> session, RefCountedCloseable<IndexInput> input) {
+        private Reader(RefCountedCloseable<Engine.IndexCommitRef> session, RefCountedCloseable<IndexInput> input) {
             this.session = session;
             this.input = input;
             input.incRef();

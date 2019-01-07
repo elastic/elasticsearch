@@ -121,19 +121,19 @@ public class SslConfig {
     }
 
 
-    private KeyStore loadKeyStore(String location, char[] pass, String keyStoreType) throws GeneralSecurityException, IOException {
+    private KeyStore loadKeyStore(String source, char[] pass, String keyStoreType) throws GeneralSecurityException, IOException {
         KeyStore keyStore = KeyStore.getInstance(keyStoreType);
-        Path path = Paths.get(location);
+        Path path = Paths.get(source);
 
         if (!Files.exists(path)) {
            throw new ClientException(
-                   "Expected to find keystore file at [" + location + "] but was unable to. Make sure you have specified a valid URI.");
+                    "Expected to find keystore file at [" + source + "] but was unable to. Make sure you have specified a valid URI.");
         }
 
-        try (InputStream in = Files.newInputStream(Paths.get(location), StandardOpenOption.READ)) {
+        try (InputStream in = Files.newInputStream(Paths.get(source), StandardOpenOption.READ)) {
             keyStore.load(in, pass);
         } catch (Exception ex) {
-            throw new ClientException("Cannot open keystore [" + location + "] - " + ex.getMessage(), ex);
+            throw new ClientException("Cannot open keystore [" + source + "] - " + ex.getMessage(), ex);
         } finally {
 
         }
@@ -174,6 +174,7 @@ public class SslConfig {
                 && Objects.equals(truststoreType, other.truststoreType);
     }
 
+    @Override
     public int hashCode() {
         return getClass().hashCode();
     }

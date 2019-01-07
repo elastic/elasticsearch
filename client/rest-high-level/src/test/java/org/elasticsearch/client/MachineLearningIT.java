@@ -558,7 +558,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Arrays.asList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
@@ -768,7 +767,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Collections.singletonList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
@@ -1403,7 +1401,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Arrays.asList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         highLevelClient().machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
         return datafeedId;

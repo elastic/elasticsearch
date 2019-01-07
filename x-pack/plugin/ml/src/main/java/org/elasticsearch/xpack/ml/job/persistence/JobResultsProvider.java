@@ -56,7 +56,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -1090,10 +1089,7 @@ public class JobResultsProvider {
             Consumer<Exception> errorHandler) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequestBuilder forecastSearch = client.prepareSearch(indexName)
-            .setTypes(ElasticsearchMappings.DOC_TYPE)
-            .setQuery(new BoolQueryBuilder()
-                    .filter(new TermQueryBuilder("_id",
-                        ForecastRequestStats.documentId(jobId, forecastId))));
+            .setQuery(QueryBuilders.idsQuery().addIds(ForecastRequestStats.documentId(jobId, forecastId)));
 
         searchSingleResult(jobId,
             ForecastRequestStats.RESULTS_FIELD.getPreferredName(),

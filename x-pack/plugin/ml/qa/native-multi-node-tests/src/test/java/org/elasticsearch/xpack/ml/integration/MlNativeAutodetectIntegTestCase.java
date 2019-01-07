@@ -25,9 +25,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
@@ -350,8 +348,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
 
     protected ForecastRequestStats getForecastStats(String jobId, String forecastId) {
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-            .setQuery(new BoolQueryBuilder()
-                .filter(new TermQueryBuilder("_id", ForecastRequestStats.documentId(jobId, forecastId))))
+            .setQuery(QueryBuilders.idsQuery().addIds(ForecastRequestStats.documentId(jobId, forecastId)))
             .get();
 
         if (searchResponse.getHits().getHits().length == 0) {
@@ -402,7 +399,6 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
 
     protected List<Forecast> getForecasts(String jobId, ForecastRequestStats forecastRequestStats) {
         List<Forecast> forecasts = new ArrayList<>();
-
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
                 .setSize((int) forecastRequestStats.getRecordCount())
                 .setQuery(QueryBuilders.boolQuery()

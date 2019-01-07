@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -151,11 +152,28 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return size;
     }
 
+    /**
+     * Returns null if the provided factory and his parents are compatible with
+     * this aggregator or the instance of the parent's factory that is incompatible with
+     * the composite aggregation.
+     */
+    private AggregatorFactory<?> checkParentIsNullOrNested(AggregatorFactory<?> factory) {
+        if (factory == null) {
+            return null;
+        } else if (factory instanceof NestedAggregatorFactory) {
+            return checkParentIsNullOrNested(factory.getParent());
+        } else {
+            return factory;
+        }
+    }
+
     @Override
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
                                            AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
-        if (parent != null) {
-            throw new IllegalArgumentException("[composite] aggregation cannot be used with a parent aggregation");
+        AggregatorFactory<?> invalid = checkParentIsNullOrNested(parent);
+        if (invalid != null) {
+            throw new IllegalArgumentException("[composite] aggregation cannot be used with a parent aggregation of" +
+                " type: [" + invalid.getClass().getSimpleName() + "]");
         }
         CompositeValuesSourceConfig[] configs = new CompositeValuesSourceConfig[sources.size()];
         for (int i = 0; i < configs.length; i++) {

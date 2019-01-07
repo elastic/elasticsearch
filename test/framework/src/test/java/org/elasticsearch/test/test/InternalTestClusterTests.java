@@ -271,7 +271,7 @@ public class InternalTestClusterTests extends ESTestCase {
         while (true) {
             final int bootstrapIndex = RandomNumbers.randomIntBetween(random, 0, updatedSettings.size() - 1);
             final Settings settings = updatedSettings.get(bootstrapIndex);
-            assertFalse(settings.hasValue(INITIAL_MASTER_NODES_SETTING.getKey()));
+            assertFalse(INITIAL_MASTER_NODES_SETTING.exists(settings));
             if (NODE_MASTER_SETTING.get(settings)) {
                 updatedSettings.set(bootstrapIndex,
                     Settings.builder().put(settings).putList(INITIAL_MASTER_NODES_SETTING.getKey(), allNodesSettings.stream()

@@ -20,10 +20,10 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.index.Index;
 
 import java.util.Map;
-import java.util.Set;
 
 public class MetaDataIndexStateServiceUtils {
 
@@ -31,16 +31,19 @@ public class MetaDataIndexStateServiceUtils {
     }
 
     /**
-     * Allows to call {@link MetaDataIndexStateService#addIndexClosedBlocks(Index[], ClusterState, Set)} which is a protected method.
+     * Allows to call {@link MetaDataIndexStateService#addIndexClosedBlocks(Index[], Map, ClusterState)} which is a protected method.
      */
-    public static ClusterState addIndexClosedBlocks(final Index[] indices, final ClusterState state, final Set<Index> blockedIndices) {
-        return MetaDataIndexStateService.addIndexClosedBlocks(indices, state, blockedIndices);
+    public static ClusterState addIndexClosedBlocks(final Index[] indices, final Map<Index, ClusterBlock> blockedIndices,
+                                                    final ClusterState state) {
+        return MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
     }
 
     /**
-     * Allows to call {@link MetaDataIndexStateService#closeRoutingTable(ClusterState, Map)} which is a protected method.
+     * Allows to call {@link MetaDataIndexStateService#closeRoutingTable(ClusterState, Map, Map)} which is a protected method.
      */
-    public static ClusterState closeRoutingTable(final ClusterState state, final Map<Index, AcknowledgedResponse> results) {
-        return MetaDataIndexStateService.closeRoutingTable(state, results);
+    public static ClusterState closeRoutingTable(final ClusterState state,
+                                                 final Map<Index, ClusterBlock> blockedIndices,
+                                                 final Map<Index, AcknowledgedResponse> results) {
+        return MetaDataIndexStateService.closeRoutingTable(state, blockedIndices, results);
     }
 }

@@ -29,9 +29,10 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -41,13 +42,14 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 public class TransportVerifyShardBeforeCloseAction extends TransportReplicationAction<
     TransportVerifyShardBeforeCloseAction.ShardRequest, TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> {
 
     public static final String NAME = CloseIndexAction.NAME + "[s]";
-    public static final ClusterBlock EXPECTED_BLOCK = MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 
     @Inject
     public TransportVerifyShardBeforeCloseAction(final Settings settings, final TransportService transportService,
@@ -83,25 +85,25 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     @Override
     protected PrimaryResult<ShardRequest, ReplicationResponse> shardOperationOnPrimary(final ShardRequest shardRequest,
                                                                                        final IndexShard primary) throws Exception {
-        executeShardOperation(primary);
+        executeShardOperation(shardRequest, primary);
         return new PrimaryResult<>(shardRequest, new ReplicationResponse());
     }
 
     @Override
     protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) throws Exception {
-        executeShardOperation(replica);
+        executeShardOperation(shardRequest, replica);
         return new ReplicaResult();
     }
 
-    private void executeShardOperation(final IndexShard indexShard) {
+    private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) {
         final ShardId shardId = indexShard.shardId();
         if (indexShard.getActiveOperationsCount() != 0) {
             throw new IllegalStateException("On-going operations in progress while checking index shard " + shardId + " before closing");
         }
 
         final ClusterBlocks clusterBlocks = clusterService.state().blocks();
-        if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), EXPECTED_BLOCK) == false) {
-            throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + EXPECTED_BLOCK + " before closing");
+        if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), request.clusterBlock()) == false) {
+            throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + request.clusterBlock() + " before closing");
         }
 
         final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
@@ -139,17 +141,36 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
 
     public static class ShardRequest extends ReplicationRequest<ShardRequest> {
 
+        private ClusterBlock clusterBlock;
+
         ShardRequest(){
         }
 
-        public ShardRequest(final ShardId shardId, final TaskId parentTaskId) {
+        public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final TaskId parentTaskId) {
             super(shardId);
+            this.clusterBlock = Objects.requireNonNull(clusterBlock);
             setParentTask(parentTaskId);
         }
 
         @Override
         public String toString() {
-            return "verify shard before close {" + shardId + "}";
+            return "verify shard " + shardId + " before close with block " + clusterBlock;
+        }
+
+        @Override
+        public void readFrom(final StreamInput in) throws IOException {
+            super.readFrom(in);
+            clusterBlock = ClusterBlock.readClusterBlock(in);
+        }
+
+        @Override
+        public void writeTo(final StreamOutput out) throws IOException {
+            super.writeTo(out);
+            clusterBlock.writeTo(out);
+        }
+
+        public ClusterBlock clusterBlock() {
+            return clusterBlock;
         }
     }
 }

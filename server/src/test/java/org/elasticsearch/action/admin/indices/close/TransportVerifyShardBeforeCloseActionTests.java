@@ -29,9 +29,11 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction.C
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -61,7 +63,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
-import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -81,6 +82,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     private IndexShard indexShard;
     private TransportVerifyShardBeforeCloseAction action;
     private ClusterService clusterService;
+    private ClusterBlock clusterBlock;
     private CapturingTransport transport;
 
     @BeforeClass
@@ -102,8 +104,10 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
 
         clusterService = createClusterService(threadPool);
+
+        clusterBlock = MetaDataIndexStateService.createIndexClosingBlock();
         setState(clusterService, new ClusterState.Builder(clusterService.state())
-            .blocks(ClusterBlocks.builder().addIndexBlock("index", INDEX_CLOSED_BLOCK).build()).build());
+            .blocks(ClusterBlocks.builder().blocks(clusterService.state().blocks()).addIndexBlock("index", clusterBlock).build()).build());
 
         transport = new CapturingTransport();
         TransportService transportService = transport.createTransportService(Settings.EMPTY, threadPool,
@@ -130,8 +134,9 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     }
 
     private void executeOnPrimaryOrReplica() throws Exception {
+        final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), new TaskId("_node_id", randomNonNegativeLong()));
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, taskId);
         if (randomBoolean()) {
             assertNotNull(action.shardOperationOnPrimary(request, indexShard));
         } else {
@@ -158,7 +163,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
         assertThat(exception.getMessage(),
-            equalTo("Index shard " + indexShard.shardId() + " must be blocked by " + INDEX_CLOSED_BLOCK + " before closing"));
+            equalTo("Index shard " + indexShard.shardId() + " must be blocked by " + clusterBlock + " before closing"));
         verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 
@@ -205,8 +210,9 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         assertThat(replicationGroup.getUnavailableInSyncShards().size(), greaterThan(0));
 
         final PlainActionFuture<PrimaryResult> listener = new PlainActionFuture<>();
+        TaskId taskId = new TaskId(clusterService.localNode().getId(), 0L);
         TransportVerifyShardBeforeCloseAction.ShardRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, new TaskId(clusterService.localNode().getId(), 0L));
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, clusterBlock, taskId);
         ReplicationOperation.Replicas<TransportVerifyShardBeforeCloseAction.ShardRequest> proxy = action.newReplicasProxy(primaryTerm);
         ReplicationOperation<TransportVerifyShardBeforeCloseAction.ShardRequest,
             TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult> operation =

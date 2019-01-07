@@ -96,7 +96,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         assertFalse(closeIndexResponse.isDone());
         indices.forEach(ReopenWhileClosingIT::assertIndexIsBlocked);
 
-        final List<String> reopenedIndices = randomSubsetOf(indices);
+        final List<String> reopenedIndices = randomSubsetOf(randomIntBetween(1, indices.size()), indices);
         assertAcked(client().admin().indices().prepareOpen(reopenedIndices.toArray(Strings.EMPTY_ARRAY)));
 
         releaseBlock.close();

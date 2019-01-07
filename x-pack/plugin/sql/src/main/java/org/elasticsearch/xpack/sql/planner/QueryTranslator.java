@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AndAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.CardinalityAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.ExtendedStatsAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.FilterExistsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByNumericHistogram;
@@ -135,6 +136,7 @@ final class QueryTranslator {
             new MatrixStatsAggs(),
             new PercentilesAggs(),
             new PercentileRanksAggs(),
+            new FieldCounts(),
             new DistinctCounts(),
             new DateTimes()
             );
@@ -779,6 +781,17 @@ final class QueryTranslator {
     // Agg translators
     //
 
+    static class FieldCounts extends SingleValueAggTranslator<Count> {
+
+        @Override
+        protected LeafAgg toAgg(String id, Count c) {
+            if (c.distinct()) {
+                return null;
+            }
+            return new FilterExistsAgg(id, field(c));
+        }
+    }
+    
     static class DistinctCounts extends SingleValueAggTranslator<Count> {
 
         @Override

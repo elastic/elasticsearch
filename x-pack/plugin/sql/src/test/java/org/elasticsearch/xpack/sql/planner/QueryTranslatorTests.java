@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -479,21 +482,89 @@ public class QueryTranslatorTests extends ESTestCase {
     }
     
     public void testCountDistinctCardinalityFolder() {
-        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT keyword) cnt FROM test GROUP BY bool HAVING cnt = 0");
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT keyword) dkey, COUNT(keyword) key FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
-        assertEquals(1, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("cnt{a->"));
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("dkey{a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("key{a->"));
         
         Collection<AggregationBuilder> subAggs = ee.queryContainer().aggs().asAggBuilder().getSubAggregations();
-        assertEquals(1, subAggs.size());
+        assertEquals(2, subAggs.size());
         assertTrue(subAggs.toArray()[0] instanceof CardinalityAggregationBuilder);
+        assertTrue(subAggs.toArray()[1] instanceof FilterAggregationBuilder);
+
+        CardinalityAggregationBuilder cardinalityKeyword = (CardinalityAggregationBuilder) subAggs.toArray()[0];
+        assertEquals("keyword", cardinalityKeyword.field());
         
-        CardinalityAggregationBuilder cardinalityAgg = (CardinalityAggregationBuilder) subAggs.toArray()[0];
-        assertEquals("keyword", cardinalityAgg.field());
+        FilterAggregationBuilder existsKeyword = (FilterAggregationBuilder) subAggs.toArray()[1];
+        assertTrue(existsKeyword.getFilter() instanceof ExistsQueryBuilder);
+        assertEquals("keyword", ((ExistsQueryBuilder) existsKeyword.getFilter()).fieldName());
+        
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-                endsWith("{\"buckets_path\":{\"a0\":\"" + cardinalityAgg.getName() +"\"},\"script\":{"
-                        + "\"source\":\"InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(params.a0,params.v0))\","
-                        + "\"lang\":\"painless\",\"params\":{\"v0\":0}},\"gap_policy\":\"skip\"}}}}}"));
+                endsWith("{\"filter\":{\"exists\":{\"field\":\"keyword\",\"boost\":1.0}}}}}}"));
+    }
+    
+    public void testAllCountVariantsGenerateCorrectAggregations() {
+        PhysicalPlan p = optimizeAndPlan("SELECT AVG(int), COUNT(keyword) ln, COUNT(distinct keyword) dln, COUNT(some.dotted.field) fn,"
+                + "COUNT(distinct some.dotted.field) dfn, COUNT(*) ccc FROM test GROUP BY bool "
+                + "HAVING dln > 3 AND ln > 32 AND dfn > 1 AND fn > 2 AND ccc > 5 AND AVG(int) > 50000");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(6, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("AVG(int){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("ln{a->"));
+        assertThat(ee.output().get(2).toString(), startsWith("dln{a->"));
+        assertThat(ee.output().get(3).toString(), startsWith("fn{a->"));
+        assertThat(ee.output().get(4).toString(), startsWith("dfn{a->"));
+        assertThat(ee.output().get(5).toString(), startsWith("ccc{a->"));
+        
+        Collection<AggregationBuilder> subAggs = ee.queryContainer().aggs().asAggBuilder().getSubAggregations();
+        assertEquals(5, subAggs.size());
+        assertTrue(subAggs.toArray()[0] instanceof AvgAggregationBuilder);
+        assertTrue(subAggs.toArray()[1] instanceof FilterAggregationBuilder);
+        assertTrue(subAggs.toArray()[2] instanceof CardinalityAggregationBuilder);
+        assertTrue(subAggs.toArray()[3] instanceof FilterAggregationBuilder);
+        assertTrue(subAggs.toArray()[4] instanceof CardinalityAggregationBuilder);
+        
+        AvgAggregationBuilder avgInt = (AvgAggregationBuilder) subAggs.toArray()[0];
+        assertEquals("int", avgInt.field());
+        
+        FilterAggregationBuilder existsKeyword = (FilterAggregationBuilder) subAggs.toArray()[1];
+        assertTrue(existsKeyword.getFilter() instanceof ExistsQueryBuilder);
+        assertEquals("keyword", ((ExistsQueryBuilder) existsKeyword.getFilter()).fieldName());
+        
+        CardinalityAggregationBuilder cardinalityKeyword = (CardinalityAggregationBuilder) subAggs.toArray()[2];
+        assertEquals("keyword", cardinalityKeyword.field());
+        
+        FilterAggregationBuilder existsDottedField = (FilterAggregationBuilder) subAggs.toArray()[3];
+        assertTrue(existsDottedField.getFilter() instanceof ExistsQueryBuilder);
+        assertEquals("some.dotted.field", ((ExistsQueryBuilder) existsDottedField.getFilter()).fieldName());
+        
+        CardinalityAggregationBuilder cardinalityDottedField = (CardinalityAggregationBuilder) subAggs.toArray()[4];
+        assertEquals("some.dotted.field", cardinalityDottedField.field());
+
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("{\"buckets_path\":{"
+                        + "\"a0\":\"" + cardinalityKeyword.getName() + "\","
+                        + "\"a1\":\"" + existsKeyword.getName() + "._count\","
+                        + "\"a2\":\"" + cardinalityDottedField.getName() + "\","
+                        + "\"a3\":\"" + existsDottedField.getName() + "._count\","
+                        + "\"a4\":\"_count\","
+                        + "\"a5\":\"" + avgInt.getName() + "\"},"
+                        + "\"script\":{\"source\":\""
+                        + "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
+                        +   "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
+                        +     "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
+                        +       "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
+                        +         "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
+                        +           "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a0,params.v0)),"
+                        +           "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a1,params.v1)))),"
+                        +         "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a2,params.v2)))),"
+                        +       "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a3,params.v3)))),"
+                        +     "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a4,params.v4)))),"
+                        +   "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a5,params.v5))))\","
+                        + "\"lang\":\"painless\",\"params\":{\"v0\":3,\"v1\":32,\"v2\":1,\"v3\":2,\"v4\":5,\"v5\":50000}},"
+                        + "\"gap_policy\":\"skip\"}}}}}"));
     }
 }

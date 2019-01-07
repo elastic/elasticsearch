@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -122,7 +122,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         return name;
     }
 
-    ResolutionType resolutionType() {
+    public ResolutionType resolutionType() {
         return resolutionType;
     }
 

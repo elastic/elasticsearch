@@ -98,7 +98,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         } else {
             if (type == null) {
                 throw new IllegalArgumentException("Typeless [terms] lookup queries are not supported if any " +
-                    "node is running a version lower than 7.0.");
+                    "node is running a version before 7.0.");
 
             }
             out.writeString(type);

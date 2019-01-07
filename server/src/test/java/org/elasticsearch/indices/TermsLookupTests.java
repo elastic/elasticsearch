@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -89,10 +88,9 @@ public class TermsLookupTests extends ESTestCase {
             output.setVersion(Version.V_6_7_0);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> termsLookup.writeTo(output));
             assertEquals("Typeless [terms] lookup queries are not supported if any " +
-                "node is running a version lower than 7.0.", e.getMessage());
+                "node is running a version before 7.0.", e.getMessage());
         }
     }
-
 
     public void testSerializationWithTypes() throws IOException {
         TermsLookup termsLookup = randomTermsLookupWithTypes();

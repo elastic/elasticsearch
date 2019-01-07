@@ -24,22 +24,34 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Allocation;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.elasticsearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class Zen1IT extends ESIntegTestCase {
@@ -227,5 +239,67 @@ public class Zen1IT extends ESIntegTestCase {
 
     public void testMultipleNodeMigrationFromZen1ToZen2WithThreeNodes() throws Exception {
         testMultipleNodeMigrationFromZen1ToZen2(3);
+    }
+
+    public void testFreshestMasterElectedAfterFullClusterRestart() throws Exception {
+        final List<String> nodeNames = internalCluster().startNodes(3, ZEN1_SETTINGS);
+
+        assertTrue(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+            .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.ALL)).get().isAcknowledged());
+
+        final List<NodeEnvironment> nodeEnvironments
+            = StreamSupport.stream(internalCluster().getDataOrMasterNodeInstances(NodeEnvironment.class).spliterator(), false)
+            .collect(Collectors.toList());
+
+        final boolean randomiseVersions = rarely();
+
+        internalCluster().fullRestart(new RestartCallback() {
+            int nodesStopped;
+
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                nodesStopped += 1;
+
+                if (nodesStopped == 1) {
+                    final Client client = internalCluster().client(randomValueOtherThan(nodeName, () -> randomFrom(nodeNames)));
+
+                    assertFalse(client.admin().cluster().health(Requests.clusterHealthRequest()
+                        .waitForEvents(Priority.LANGUID)
+                        .waitForNoRelocatingShards(true)
+                        .waitForNodes("2")).actionGet().isTimedOut());
+
+                    assertTrue(client.admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+                        .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE)).get().isAcknowledged());
+                }
+
+                if (nodesStopped == nodeNames.size()) {
+                    for (final NodeEnvironment nodeEnvironment : nodeEnvironments) {
+                        // The versions written by nodes following a Zen1 master cannot be trusted. Randomise them to demonstrate they are
+                        // not important.
+                        final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry());
+                        final Manifest manifest = metaStateService.loadManifestOrEmpty();
+                        assertThat(manifest.getCurrentTerm(), is(ZEN1_BWC_TERM));
+                        final long newVersion = randomiseVersions ? randomNonNegativeLong() : 0L;
+                        metaStateService.writeManifestAndCleanup("altering version to " + newVersion,
+                            new Manifest(manifest.getCurrentTerm(), newVersion, manifest.getGlobalGeneration(),
+                                manifest.getIndexGenerations()));
+                    }
+                }
+
+                return Coordinator.addZen1Attribute(false, Settings.builder())
+                    .put(ZEN2_SETTINGS)
+                    .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
+                    .build();
+            }
+        });
+
+        assertFalse(client().admin().cluster().health(Requests.clusterHealthRequest()
+            .waitForEvents(Priority.LANGUID)
+            .waitForNoRelocatingShards(true)
+            .waitForNodes("3")).actionGet().isTimedOut());
+
+        assertThat(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(
+            client().admin().cluster().state(new ClusterStateRequest()).get().getState().metaData().settings()),
+            equalTo(Allocation.NONE));
     }
 }

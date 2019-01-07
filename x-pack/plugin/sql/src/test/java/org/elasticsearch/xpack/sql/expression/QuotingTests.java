@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class QuotingTests extends ESTestCase {
 
     private static UnresolvedAttribute from(String s) {
-        return new UnresolvedAttribute(Location.EMPTY, s);
+        return new UnresolvedAttribute(Source.EMPTY, s);
     }
 
     public void testBasicString() {

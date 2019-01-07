@@ -16,9 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.gradle.api.internal.provider.Providers
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'nebula.maven-base-publish'
@@ -103,6 +100,7 @@ integTestRunner {
 
 integTestCluster {
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
+  setting 'reindex.remote.whitelist', '"[::1]:*"'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'

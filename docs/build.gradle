@@ -287,8 +287,8 @@ buildRestTests.setups['stackoverflow'] = '''
           body: |'''
 
 // Make Kibana strongly connected to elasticsearch and logstash
-// Make Kibana rarer (and therefore higher-ranking) than Javascript
-// Make Javascript strongly connected to jquery and angular
+// Make Kibana rarer (and therefore higher-ranking) than JavaScript
+// Make JavaScript strongly connected to jquery and angular
 // Make Cabana strongly connected to elasticsearch but only as a result of a single author
 
 for (int i = 0; i < 150; i++) {

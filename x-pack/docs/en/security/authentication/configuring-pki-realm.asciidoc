@@ -159,7 +159,7 @@ user: <1>
 <1> The name of a role.
 <2> The distinguished name (DN) of a PKI user.
 
-The disinguished name for a PKI user follows X.500 naming conventions which
+The distinguished name for a PKI user follows X.500 naming conventions which
 place the most specific fields (like `cn` or `uid`) at the beginning of the
 name, and the most general fields (like `o` or `dc`) at the end of the name.
 Some tools, such as _openssl_, may print out the subject name in a different

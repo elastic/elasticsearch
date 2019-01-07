@@ -53,6 +53,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -198,9 +199,14 @@ public class SSLService {
      * @return Never {@code null}.
      */
     public SSLSocketFactory sslSocketFactory(SSLConfiguration configuration) {
-        SSLSocketFactory socketFactory = sslContext(configuration).getSocketFactory();
-        return new SecuritySSLSocketFactory(socketFactory, configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
-                supportedCiphers(socketFactory.getSupportedCipherSuites(), configuration.cipherSuites(), false));
+        final SSLContextHolder contextHolder = sslContextHolder(configuration);
+        SSLSocketFactory socketFactory = contextHolder.sslContext().getSocketFactory();
+        final SecuritySSLSocketFactory securitySSLSocketFactory = new SecuritySSLSocketFactory(
+            () -> contextHolder.sslContext().getSocketFactory(),
+            configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
+            supportedCiphers(socketFactory.getSupportedCipherSuites(), configuration.cipherSuites(), false));
+        contextHolder.addReloadListener(securitySSLSocketFactory::reload);
+        return securitySSLSocketFactory;
     }
 
     /**
@@ -444,12 +450,15 @@ public class SSLService {
      */
     private static class SecuritySSLSocketFactory extends SSLSocketFactory {
 
-        private final SSLSocketFactory delegate;
+        private final Supplier<SSLSocketFactory> delegateSupplier;
         private final String[] supportedProtocols;
         private final String[] ciphers;
 
-        SecuritySSLSocketFactory(SSLSocketFactory delegate, String[] supportedProtocols, String[] ciphers) {
-            this.delegate = delegate;
+        private volatile SSLSocketFactory delegate;
+
+        SecuritySSLSocketFactory(Supplier<SSLSocketFactory> delegateSupplier, String[] supportedProtocols, String[] ciphers) {
+            this.delegateSupplier = delegateSupplier;
+            this.delegate = this.delegateSupplier.get();
             this.supportedProtocols = supportedProtocols;
             this.ciphers = ciphers;
         }
@@ -506,6 +515,11 @@ public class SSLService {
             return sslSocket;
         }
 
+        public void reload() {
+            final SSLSocketFactory newDelegate = delegateSupplier.get();
+            this.delegate = newDelegate;
+        }
+
         private void configureSSLSocket(SSLSocket socket) {
             SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
             // we use the cipher suite order so that we can prefer the ciphers we set first in the list
@@ -524,12 +538,14 @@ public class SSLService {
         private final KeyConfig keyConfig;
         private final TrustConfig trustConfig;
         private final SSLConfiguration sslConfiguration;
+        private final List<Runnable> reloadListeners;
 
         SSLContextHolder(SSLContext context, SSLConfiguration sslConfiguration) {
             this.context = context;
             this.sslConfiguration = sslConfiguration;
             this.keyConfig = sslConfiguration.keyConfig();
             this.trustConfig = sslConfiguration.trustConfig();
+            this.reloadListeners = new ArrayList<>();
         }
 
         SSLContext sslContext() {
@@ -540,6 +556,7 @@ public class SSLService {
             invalidateSessions(context.getClientSessionContext());
             invalidateSessions(context.getServerSessionContext());
             reloadSslContext();
+            this.reloadListeners.forEach(Runnable::run);
         }
 
         private void reloadSslContext() {
@@ -572,6 +589,10 @@ public class SSLService {
             TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("X509");
             trustManagerFactory.init(keyStore);
             return (X509ExtendedTrustManager) trustManagerFactory.getTrustManagers()[0];
+        }
+
+        public void addReloadListener(Runnable listener) {
+            this.reloadListeners.add(listener);
         }
     }
 

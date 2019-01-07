@@ -12,14 +12,14 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunctio
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class Not extends UnaryScalarFunction {
 
-    public Not(Location location, Expression child) {
-        super(location, child);
+    public Not(Source source, Expression child) {
+        super(source, child);
     }
 
     @Override
@@ -29,7 +29,7 @@ public class Not extends UnaryScalarFunction {
 
     @Override
     protected Not replaceChild(Expression newChild) {
-        return new Not(location(), newChild);
+        return new Not(source(), newChild);
     }
 
     @Override

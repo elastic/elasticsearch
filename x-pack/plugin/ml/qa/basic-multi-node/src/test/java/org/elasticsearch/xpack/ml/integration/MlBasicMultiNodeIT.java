@@ -265,7 +265,6 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.startObject();
         xContentBuilder.field("job_id", jobId);
         xContentBuilder.array("indexes", "airline-data");
-        xContentBuilder.array("types", "_doc");
         xContentBuilder.endObject();
         Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
         request.setJsonEntity(Strings.toString(xContentBuilder));

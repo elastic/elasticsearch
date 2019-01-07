@@ -137,9 +137,9 @@ public class ConfigurationUtilsTests extends ESTestCase {
         unknownTaggedConfig = new HashMap<>();
         unknownTaggedConfig.put("tag", "my_unknown");
         config2.add(Collections.singletonMap("unknown_processor", unknownTaggedConfig));
-        Map<String, Object> secondUnknonwTaggedConfig = new HashMap<>();
-        secondUnknonwTaggedConfig.put("tag", "my_second_unknown");
-        config2.add(Collections.singletonMap("second_unknown_processor", secondUnknonwTaggedConfig));
+        Map<String, Object> secondUnknownTaggedConfig = new HashMap<>();
+        secondUnknownTaggedConfig.put("tag", "my_second_unknown");
+        config2.add(Collections.singletonMap("second_unknown_processor", secondUnknownTaggedConfig));
         e = expectThrows(
             ElasticsearchParseException.class,
             () -> ConfigurationUtils.readProcessorConfigs(config2, scriptService, registry)

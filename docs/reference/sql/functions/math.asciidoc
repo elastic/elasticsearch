@@ -65,13 +65,11 @@ include-tagged::{sql-specs}/docs.csv-spec[mathInlineCbrtWithNegativeValue]
 [source, sql]
 --------------------------------------------------
 CEIL(numeric_exp<1>)
-CEILING(numeric_exp<2>)
 --------------------------------------------------
 
 *Input*:
 
 <1> numeric expression
-<2> numeric expression
 
 *Output*: integer or long numeric value
 
@@ -279,7 +277,7 @@ include-tagged::{sql-specs}/docs.csv-spec[mathInlinePowerNegative]
 --------------------------------------------------
 
 [[sql-functions-math-random]]
-===== `RANDOM`
+===== `RANDOM/RAND`
 
 .Synopsis:
 [source, sql]
@@ -334,7 +332,7 @@ include-tagged::{sql-specs}/docs.csv-spec[mathRoundWithNegativeParameter]
 --------------------------------------------------
 
 [[sql-functions-math-sign]]
-===== `SIGN`
+===== `SIGN/SIGNUM`
 
 .Synopsis:
 [source, sql]

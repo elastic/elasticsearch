@@ -14,9 +14,15 @@ desirable to add or remove some master-eligible nodes to or from a cluster.
 
 ==== Adding master-eligible nodes
 
-If you wish to add some master-eligible nodes to your cluster, simply configure
-the new nodes to find the existing cluster and start them up. Elasticsearch will
-add the new nodes to the voting configuration if it is appropriate to do so.
+If you wish to add some nodes to your cluster, simply configure the new nodes
+to find the existing cluster and start them up. Elasticsearch adds the new nodes
+to the voting configuration if it is appropriate to do so.
+
+During master election or when joining an existing formed cluster, a node
+sends a join request to the master in order to be officially added to the
+cluster. You can use the `cluster.join.timeout` setting to configure how long a
+node waits after sending a request to join a cluster. Its default value is `30s`.
+See <<modules-discovery-settings>>.
 
 ==== Removing master-eligible nodes
 
@@ -93,18 +99,13 @@ GET /_cluster/state?filter_path=metadata.cluster_coordination.voting_config_excl
 --------------------------------------------------
 // CONSOLE
 
-This list is limited in size by the following setting:
-
-`cluster.max_voting_config_exclusions`::
-
-    Sets a limits on the number of voting configuration exclusions at any one
-    time.  Defaults to `10`.
-
-Since voting configuration exclusions are persistent and limited in number, they
-must be cleaned up. Normally an exclusion is added when performing some
-maintenance on the cluster, and the exclusions should be cleaned up when the
-maintenance is complete. Clusters should have no voting configuration exclusions
-in normal operation.
+This list is limited in size by the `cluster.max_voting_config_exclusions` 
+setting, which defaults to `10`. See <<modules-discovery-settings>>. Since
+voting configuration exclusions are persistent and limited in number, they must
+be cleaned up. Normally an exclusion is added when performing some maintenance
+on the cluster, and the exclusions should be cleaned up when the maintenance is
+complete. Clusters should have no voting configuration exclusions in normal
+operation.
 
 If a node is excluded from the voting configuration because it is to be shut
 down permanently, its exclusion can be removed after it is shut down and removed

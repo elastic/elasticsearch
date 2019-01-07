@@ -88,77 +88,77 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruptionScheme);
         disruptionScheme.startDisrupting();
 
-        final Client remainingClient = client();
+        final Client clientToMasterlessNode = client();
 
         assertBusy(() -> {
-            ClusterState state = remainingClient.admin().cluster().prepareState().setLocal(true)
+            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true)
                 .execute().actionGet().getState();
             assertTrue(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID));
         });
 
-        assertThrows(remainingClient.prepareGet("test", "type1", "1"),
+        assertThrows(clientToMasterlessNode.prepareGet("test", "type1", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(remainingClient.prepareGet("no_index", "type1", "1"),
+        assertThrows(clientToMasterlessNode.prepareGet("no_index", "type1", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(remainingClient.prepareMultiGet().add("test", "type1", "1"),
+        assertThrows(clientToMasterlessNode.prepareMultiGet().add("test", "type1", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(remainingClient.prepareMultiGet().add("no_index", "type1", "1"),
+        assertThrows(clientToMasterlessNode.prepareMultiGet().add("no_index", "type1", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(remainingClient.admin().indices().prepareAnalyze("test", "this is a test"),
+        assertThrows(clientToMasterlessNode.admin().indices().prepareAnalyze("test", "this is a test"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(remainingClient.admin().indices().prepareAnalyze("no_index", "this is a test"),
+        assertThrows(clientToMasterlessNode.admin().indices().prepareAnalyze("no_index", "this is a test"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(remainingClient.prepareSearch("test").setSize(0),
+        assertThrows(clientToMasterlessNode.prepareSearch("test").setSize(0),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(remainingClient.prepareSearch("no_index").setSize(0),
+        assertThrows(clientToMasterlessNode.prepareSearch("no_index").setSize(0),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
         checkUpdateAction(false, timeout,
-            remainingClient.prepareUpdate("test", "type1", "1")
+            clientToMasterlessNode.prepareUpdate("test", "type1", "1")
                 .setScript(new Script(
                     ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script",
                     Collections.emptyMap())).setTimeout(timeout));
 
         checkUpdateAction(true, timeout,
-            remainingClient.prepareUpdate("no_index", "type1", "1")
+            clientToMasterlessNode.prepareUpdate("no_index", "type1", "1")
                 .setScript(new Script(
                     ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script",
                     Collections.emptyMap())).setTimeout(timeout));
 
 
-        checkWriteAction(remainingClient.prepareIndex("test", "type1", "1")
+        checkWriteAction(clientToMasterlessNode.prepareIndex("test", "type1", "1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
-        checkWriteAction(remainingClient.prepareIndex("no_index", "type1", "1")
+        checkWriteAction(clientToMasterlessNode.prepareIndex("no_index", "type1", "1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
-        BulkRequestBuilder bulkRequestBuilder = remainingClient.prepareBulk();
-        bulkRequestBuilder.add(remainingClient.prepareIndex("test", "type1", "1")
+        BulkRequestBuilder bulkRequestBuilder = clientToMasterlessNode.prepareBulk();
+        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("test", "type1", "1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        bulkRequestBuilder.add(remainingClient.prepareIndex("test", "type1", "2")
+        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("test", "type1", "2")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.setTimeout(timeout);
         checkWriteAction(bulkRequestBuilder);
 
-        bulkRequestBuilder = remainingClient.prepareBulk();
-        bulkRequestBuilder.add(remainingClient.prepareIndex("no_index", "type1", "1")
+        bulkRequestBuilder = clientToMasterlessNode.prepareBulk();
+        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("no_index", "type1", "1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        bulkRequestBuilder.add(remainingClient.prepareIndex("no_index", "type1", "2")
+        bulkRequestBuilder.add(clientToMasterlessNode.prepareIndex("no_index", "type1", "2")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.setTimeout(timeout);
         checkWriteAction(bulkRequestBuilder);
@@ -219,32 +219,32 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruptionScheme);
         disruptionScheme.startDisrupting();
 
-        final Client remainingClient = client();
+        final Client clientToMasterlessNode = client();
 
         assertTrue(awaitBusy(() -> {
-                ClusterState state = remainingClient.admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         ));
 
-        GetResponse getResponse = remainingClient.prepareGet("test1", "type1", "1").get();
+        GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "type1", "1").get();
         assertExists(getResponse);
 
-        SearchResponse countResponse = remainingClient.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get();
+        SearchResponse countResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get();
         assertHitCount(countResponse, 1L);
 
         logger.info("--> here 3");
-        SearchResponse searchResponse = remainingClient.prepareSearch("test1").setAllowPartialSearchResults(true).get();
+        SearchResponse searchResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).get();
         assertHitCount(searchResponse, 1L);
 
-        countResponse = remainingClient.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0).get();
+        countResponse = clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0).get();
         assertThat(countResponse.getTotalShards(), equalTo(3));
         assertThat(countResponse.getSuccessfulShards(), equalTo(1));
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
         long now = System.currentTimeMillis();
         try {
-            remainingClient.prepareUpdate("test1", "type1", "1")
+            clientToMasterlessNode.prepareUpdate("test1", "type1", "1")
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").setTimeout(timeout).get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
@@ -256,7 +256,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
 
         try {
-            remainingClient.prepareIndex("test1", "type1", "1")
+            clientToMasterlessNode.prepareIndex("test1", "type1", "1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {

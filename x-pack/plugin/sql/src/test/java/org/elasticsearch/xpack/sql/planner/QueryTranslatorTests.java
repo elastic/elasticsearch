@@ -433,6 +433,7 @@ public class QueryTranslatorTests extends ESTestCase {
             scriptTemplate.toString());
         assertEquals("[{v=int}, {v=10}]", scriptTemplate.params().toString());
     }
+
     public void testGroupByDateHistogram() {
         LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(int, 1000)");
         assertTrue(p instanceof Aggregate);
@@ -447,7 +448,6 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(FieldAttribute.class, field.getClass());
         assertEquals(DataType.INTEGER, field.dataType());
     }
-
 
     public void testGroupByHistogram() {
         LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(date, INTERVAL 2 YEARS)");

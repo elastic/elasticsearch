@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Collection;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.endsWith;
@@ -315,5 +318,24 @@ public class QueryFolderTests extends ESTestCase {
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(1, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+    
+    public void testCountDistinctCardinalityFolder() {
+        PhysicalPlan p = plan("SELECT COUNT(DISTINCT keyword) cnt FROM test GROUP BY bool HAVING cnt = 0");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("cnt{a->"));
+        
+        Collection<AggregationBuilder> subAggs = ee.queryContainer().aggs().asAggBuilder().getSubAggregations();
+        assertEquals(1, subAggs.size());
+        assertTrue(subAggs.toArray()[0] instanceof CardinalityAggregationBuilder);
+        
+        CardinalityAggregationBuilder cardinalityAgg = (CardinalityAggregationBuilder) subAggs.toArray()[0];
+        assertEquals("keyword", cardinalityAgg.field());
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("{\"buckets_path\":{\"a0\":\"" + cardinalityAgg.getName() +"\"},\"script\":{"
+                        + "\"source\":\"InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(params.a0,params.v0))\","
+                        + "\"lang\":\"painless\",\"params\":{\"v0\":0}},\"gap_policy\":\"skip\"}}}}}"));
     }
 }

@@ -23,7 +23,6 @@ setup:
         datafeed_id: old-cluster-datafeed
   - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed"}
   - length: { datafeeds.0.indices: 1 }
-  - length: { datafeeds.0.types: 1 }
   - gte: { datafeeds.0.scroll_size: 2000 }
 
   - do:
@@ -37,7 +36,6 @@ setup:
         datafeed_id: mixed-cluster-datafeed
   - match: { datafeeds.0.datafeed_id: "mixed-cluster-datafeed"}
   - length: { datafeeds.0.indices: 1 }
-  - length: { datafeeds.0.types: 1 }
   - gte: { datafeeds.0.scroll_size: 2000 }
 
   - do:

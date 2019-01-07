@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.regex;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
@@ -28,8 +29,11 @@ public abstract class RegexMatch extends UnaryScalarFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return field().nullable() && pattern != null;
+    public Nullability nullable() {
+        if (pattern == null) {
+            return Nullability.TRUE;
+        }
+        return field().nullable();
     }
 
     @Override

@@ -35,7 +35,9 @@ import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -145,6 +147,29 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * Cached value for the last replication group that was computed
      */
     volatile ReplicationGroup replicationGroup;
+
+    private final Map<String, RetentionLease> retentionLeases = new HashMap<>();
+
+    /**
+     * Get all retention leases tracker on this shard. An unmodifiable copy of the retention leases is returned.
+     *
+     * @return the retention leases
+     */
+    public synchronized Collection<RetentionLease> getRetentionLeases() {
+        return Collections.unmodifiableCollection(new ArrayList<>(retentionLeases.values()));
+    }
+
+    /**
+     * Adds a new or updates an existing retention lease.
+     *
+     * @param id                      the identifier of the retention lease
+     * @param retainingSequenceNumber the retaining sequence number
+     * @param source                  the source of the retention lease
+     */
+    public synchronized void addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+        assert primaryMode;
+        retentionLeases.put(id, new RetentionLease(id, retainingSequenceNumber, source));
+    }
 
     public static class CheckpointState implements Writeable {
 

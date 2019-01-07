@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
+import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.type.DataType;
+
 import java.util.List;
 import java.util.Objects;
 
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
-
 import static java.util.stream.Collectors.toList;
-
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Join extends BinaryPlan {
@@ -78,7 +78,7 @@ public class Join extends BinaryPlan {
 
     private static List<Attribute> makeNullable(List<Attribute> output) {
         return output.stream()
-                .map(a -> a.withNullability(true))
+                .map(a -> a.withNullability(Nullability.TRUE))
                 .collect(toList());
     }
 

@@ -243,7 +243,6 @@ public final class ReservedFieldNames {
             DatafeedConfig.QUERY_DELAY.getPreferredName(),
             DatafeedConfig.FREQUENCY.getPreferredName(),
             DatafeedConfig.INDICES.getPreferredName(),
-            DatafeedConfig.TYPES.getPreferredName(),
             DatafeedConfig.QUERY.getPreferredName(),
             DatafeedConfig.SCROLL_SIZE.getPreferredName(),
             DatafeedConfig.AGGREGATIONS.getPreferredName(),

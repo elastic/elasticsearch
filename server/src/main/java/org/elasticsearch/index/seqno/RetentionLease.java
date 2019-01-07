@@ -25,7 +25,7 @@ package org.elasticsearch.index.seqno;
  * otherwise merge away operations that have been soft deleted). Each retention lease contains a unique identifier, the retaining sequence
  * number, the timestamp of when the lease was created or renewed, and the source of the retention lease (e.g., "ccr").
  */
-public class RetentionLease {
+public final class RetentionLease {
 
     private final String id;
 

@@ -32,6 +32,25 @@ optional `should` clauses to match can be set using the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
 parameter.
 
+Here is an example when providing additional parameters (note the slight
+change in structure, `message` is the field name):
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "match" : {
+            "message" : {
+                "query" : "this is a test",
+                "operator" : "and"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
 The `analyzer` can be set to control which analyzer will perform the
 analysis process on the text. It defaults to the field explicit mapping
 definition, or the default search analyzer.
@@ -56,9 +75,6 @@ rewritten.
 Fuzzy transpositions (`ab` -> `ba`) are allowed by default but can be disabled
 by setting `fuzzy_transpositions` to `false`.
 
-Here is an example when providing additional parameters (note the slight
-change in structure, `message` is the field name):
-
 [source,js]
 --------------------------------------------------
 GET /_search
@@ -66,8 +82,8 @@ GET /_search
     "query": {
         "match" : {
             "message" : {
-                "query" : "this is a test",
-                "operator" : "and"
+                "query" : "this is a testt",
+                "fuzziness": "AUTO"
             }
         }
     }

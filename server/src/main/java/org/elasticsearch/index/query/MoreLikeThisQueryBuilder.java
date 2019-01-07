@@ -192,7 +192,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * @param index the index where the document is located
          * @param id and its id
          */
-        public Item(@Nullable String index,String id) {
+        public Item(@Nullable String index, String id) {
             if (id == null) {
                 throw new IllegalArgumentException("Item requires id to be non-null");
             }

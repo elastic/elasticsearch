@@ -192,9 +192,7 @@ processResources {
   dependsOn generateModulesList, generatePluginsList
 }
 
-thirdPartyAudit.excludes = [
-  // classes are missing!
-
+thirdPartyAudit.ignoreMissingClasses (
   // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
   'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -301,11 +299,11 @@ thirdPartyAudit.excludes = [
   'com.google.common.geometry.S2Projections',
   'com.google.common.geometry.S2Point',
   'com.google.common.geometry.S2$Metric',
-  'com.google.common.geometry.S2LatLng',
-]
+  'com.google.common.geometry.S2LatLng'
+)
 
 if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
+  thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }
 
 dependencyLicenses {

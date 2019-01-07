@@ -84,6 +84,17 @@ public class    IsolateDatafeedAction
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            datafeedId = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(datafeedId);
+        }
+
         public String getDatafeedId() {
             return datafeedId;
         }
@@ -97,18 +108,6 @@ public class    IsolateDatafeedAction
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedId = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(datafeedId);
         }
 
         @Override

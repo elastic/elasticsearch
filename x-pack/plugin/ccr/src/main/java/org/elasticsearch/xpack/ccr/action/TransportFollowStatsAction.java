@@ -27,6 +27,9 @@ import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -93,12 +96,19 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     protected void processTasks(final FollowStatsAction.StatsRequest request, final Consumer<ShardFollowNodeTask> operation) {
         final ClusterState state = clusterService.state();
         final PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        if (persistentTasksMetaData == null) {
+            return;
+        }
+
+        final Set<String> requestedFollowerIndices = request.indices() != null ?
+            new HashSet<>(Arrays.asList(request.indices())) : Collections.emptySet();
         final Set<String> followerIndices = persistentTasksMetaData.tasks().stream()
             .filter(persistentTask -> persistentTask.getTaskName().equals(ShardFollowTask.NAME))
             .map(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
                 return shardFollowTask.getFollowShardId().getIndexName();
             })
+            .filter(followerIndex -> requestedFollowerIndices.isEmpty() || requestedFollowerIndices.contains(followerIndex))
             .collect(Collectors.toSet());
 
         for (final Task task : taskManager.getTasks().values()) {

@@ -708,7 +708,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         document.add(new Field(keyword.name(), new BytesRef("category1"), keyword));
         // Ignore doc values
         document.add(new SortedSetDocValuesField(keyword.name(), new BytesRef("category1")));
-        Set<CharSequence> context = mapping.parseContext(document);
+        Set<String> context = mapping.parseContext(document);
         assertThat(context.size(), equalTo(1));
         assertTrue(context.contains("category1"));
 

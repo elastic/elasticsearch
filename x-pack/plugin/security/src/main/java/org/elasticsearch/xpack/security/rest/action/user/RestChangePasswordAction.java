@@ -42,9 +42,13 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
         this.securityContext = securityContext;
         passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         controller.registerHandler(POST, "/_xpack/security/user/{username}/_password", this);
+        controller.registerHandler(POST, "/_security/user/{username}/_password", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}/_password", this);
+        controller.registerHandler(PUT, "/_security/user/{username}/_password", this);
         controller.registerHandler(POST, "/_xpack/security/user/_password", this);
+        controller.registerHandler(POST, "/_security/user/_password", this);
         controller.registerHandler(PUT, "/_xpack/security/user/_password", this);
+        controller.registerHandler(PUT, "/_security/user/_password", this);
     }
 
     @Override

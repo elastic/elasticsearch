@@ -49,9 +49,16 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 values[d][i] = randomLong();
             }
         }
+
         Set<String> warnings = new HashSet<>();
-        Longs longs = wrap(values, (key, deprecationMessage) -> {
+        Set<String> keys = new HashSet<>();
+
+        Longs longs = wrap(values, (deprecationKey, deprecationMessage) -> {
+            keys.add(deprecationKey);
             warnings.add(deprecationMessage);
+            
+            // Create a temporary directory to prove we are running with the server's permissions.
+            createTempDir();
         });
 
         for (int round = 0; round < 10; round++) {
@@ -68,6 +75,30 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.getValues().add(100L));
             assertEquals("doc values are unmodifiable", e.getMessage());
         }
+
+        /*
+         * Invoke getValues() without any permissions to verify it still works.
+         * This is done using the callback created above, which creates a temp
+         * directory, which is not possible with "noPermission".
+         */
+        PermissionCollection noPermissions = new Permissions();
+        AccessControlContext noPermissionsAcc = new AccessControlContext(
+            new ProtectionDomain[] {
+                new ProtectionDomain(null, noPermissions)
+            }
+        );
+        AccessController.doPrivileged(new PrivilegedAction<Void>(){
+            public Void run() {
+                longs.getValues();
+                return null;
+            }
+        }, noPermissionsAcc);
+
+        assertThat(warnings, hasItems(
+            "Deprecated getValues used, the field is a list and should be accessed directly."
+            + " For example, use doc['foo'] instead of doc['foo'].values."));
+        assertThat(keys, hasItems("ScriptDocValues#getValues"));
+
     }
 
     public void testDates() throws IOException {

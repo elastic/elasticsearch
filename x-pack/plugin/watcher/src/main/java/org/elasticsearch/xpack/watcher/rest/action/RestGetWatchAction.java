@@ -34,9 +34,8 @@ public class RestGetWatchAction extends WatcherRestHandler {
     public RestGetWatchAction(Settings settings, RestController controller) {
         super(settings);
 
-        // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(GET, URI_BASE + "/watch/{id}", this,
-                                                 GET, "/_watcher/watch/{id}", deprecationLogger);
+        controller.registerHandler(GET, URI_BASE + "/watch/{id}", this);
+        controller.registerHandler(GET, "/_watcher/watch/{id}", this);
     }
 
     @Override

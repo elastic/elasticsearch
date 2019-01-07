@@ -67,6 +67,7 @@ import static org.elasticsearch.cluster.service.ClusterService.CLUSTER_SERVICE_S
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 public class MasterService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(MasterService.class);
 
     public static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 

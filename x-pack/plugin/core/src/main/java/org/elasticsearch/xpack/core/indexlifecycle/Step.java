@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A {@link LifecycleAction} which deletes the index.
+ * Represents one part of the execution of a {@link LifecycleAction}.
  */
 public abstract class Step {
     private final StepKey key;

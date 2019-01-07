@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFuncti
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.FilterExec;
@@ -140,9 +140,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         if (pj instanceof ScalarFunction) {
                             ScalarFunction f = (ScalarFunction) pj;
                             processors.put(f.toAttribute(), Expressions.pipe(f));
-                        } else if (pj instanceof In) {
-                            In in = (In) pj;
-                            processors.put(in.toAttribute(), Expressions.pipe(in));
                         }
                     }
                 }
@@ -286,7 +283,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction) {
                                         Processor action = null;
-                                        TimeZone tz = null;
+                                        TimeZone tz = DataType.DATE == exp.dataType() ? UTC : null;
                                         /*
                                          * special handling of dates since aggs return the typed Date object which needs
                                          * extraction instead of handling this in the scroller, the folder handles this
@@ -340,6 +337,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 TimeZone dt = DataType.DATE == child.dataType() ? UTC : null;
                                 queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, dt));
                             }
+                            // handle histogram
+                            else if (child instanceof GroupingFunction) {
+                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, null));
+                            }
+                            // fallback to regular agg functions
                             else {
                                 // the only thing left is agg function
                                 Check.isTrue(Functions.isAggregate(child),

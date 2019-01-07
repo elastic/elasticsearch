@@ -9,6 +9,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 
+/**
+ * Checks whether a condition has been met based on the cluster state.
+ *
+ * If checking a condition not based on the cluster state, or which may take time to evaluate, use {@link AsyncWaitStep}.
+ */
 public abstract class ClusterStateWaitStep extends Step {
 
     public ClusterStateWaitStep(StepKey key, StepKey nextStepKey) {

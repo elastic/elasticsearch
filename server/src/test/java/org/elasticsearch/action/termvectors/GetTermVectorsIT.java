@@ -765,7 +765,8 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             // check overridden by keyword analyzer ...
             if (perFieldAnalyzer.containsKey(fieldName)) {
                 TermsEnum iterator = terms.iterator();
-                assertThat("Analyzer for " + fieldName + " should have been overridden!", iterator.next().utf8ToString(), equalTo("some text here"));
+                assertThat("Analyzer for " + fieldName + " should have been overridden!",
+                    iterator.next().utf8ToString(), equalTo("some text here"));
                 assertThat(iterator.next(), nullValue());
             }
             validFields.add(fieldName);

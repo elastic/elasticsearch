@@ -19,9 +19,36 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
+
 /**
- * Marker interface for a specific type of {@link QueryBuilder} that allows to build span queries
+ * Marker interface for a specific type of {@link QueryBuilder} that allows to build span queries.
  */
 public interface SpanQueryBuilder extends QueryBuilder {
 
+    class SpanQueryBuilderUtil {
+
+        private static final DeprecationLogger DEPRECATION_LOGGER = 
+            new DeprecationLogger(LogManager.getLogger(SpanQueryBuilderUtil.class));
+
+        private SpanQueryBuilderUtil() {
+            // utility class
+        }
+
+        /**
+         * Checks boost value of a nested span clause is equal to {@link AbstractQueryBuilder#DEFAULT_BOOST},
+         * and if not issues a deprecation warning
+         * @param clause    a span query builder
+         */
+        static void checkNoBoost(SpanQueryBuilder clause) {
+            try {
+                if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("span_inner_queries", "setting boost on inner span queries is deprecated!");
+                }
+            } catch (UnsupportedOperationException ignored) {
+                // if boost is unsupported it can't have been set
+            }
+        }
+    }
 }

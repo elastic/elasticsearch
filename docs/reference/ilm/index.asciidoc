@@ -8,7 +8,13 @@
 :ILM:             ILM
 [partintro]
 --
-The <<index-lifecycle-management-api, {ilm} (ILM) APIs>> enable you to automate how you
+beta[]
+
+WARNING: {Ilm} is currently not supported by
+{stack-ov}/ccr-getting-started.html#ccr-getting-started-leader-index[leader indices] and
+{stack-ov}/ccr-getting-started.html#ccr-getting-started-follower-index[follower indices].
+
+The <<index-lifecycle-management-api, {Ilm} (ILM) APIs>> enable you to automate how you
 want to manage your indices over time. Rather than simply performing management
 actions on your indices on a set schedule, you can base actions on other factors
 such as shard size and performance requirements.
@@ -60,8 +66,8 @@ include::using-policies-rollover.asciidoc[]
 
 include::update-lifecycle-policy.asciidoc[]
 
-include::get-index-lifecycle-information.asciidoc[]
-
 include::error-handling.asciidoc[]
+
+include::ilm-and-snapshots.asciidoc[]
 
 include::start-stop-ilm.asciidoc[]

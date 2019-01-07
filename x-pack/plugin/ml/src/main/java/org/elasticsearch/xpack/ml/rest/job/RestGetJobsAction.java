@@ -26,7 +26,11 @@ public class RestGetJobsAction extends BaseRestHandler {
 
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.V7_BASE_PATH
+                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH
+                + "anomaly_detectors", this);
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.V7_BASE_PATH
                 + "anomaly_detectors", this);
     }
 

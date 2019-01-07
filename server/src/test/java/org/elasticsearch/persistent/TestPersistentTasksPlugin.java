@@ -19,6 +19,8 @@
 
 package org.elasticsearch.persistent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -293,16 +295,27 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
     public static class TestPersistentTasksExecutor extends PersistentTasksExecutor<TestParams> {
 
+        private static final Logger logger = LogManager.getLogger(TestPersistentTasksExecutor.class);
+
         public static final String NAME = "cluster:admin/persistent/test";
         private final ClusterService clusterService;
+
+        private static volatile boolean nonClusterStateCondition = true;
 
         public TestPersistentTasksExecutor(ClusterService clusterService) {
             super(NAME, ThreadPool.Names.GENERIC);
             this.clusterService = clusterService;
         }
 
+        public static void setNonClusterStateCondition(boolean nonClusterStateCondition) {
+            TestPersistentTasksExecutor.nonClusterStateCondition = nonClusterStateCondition;
+        }
+
         @Override
         public Assignment getAssignment(TestParams params, ClusterState clusterState) {
+            if (nonClusterStateCondition == false) {
+                return new Assignment(null, "non cluster state condition prevents assignment");
+            }
             if (params == null || params.getExecutorNodeAttr() == null) {
                 return super.getAssignment(params, clusterState);
             } else {
@@ -313,7 +326,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 } else {
                     return NO_NODE_FOUND;
                 }
-
             }
         }
 
@@ -450,9 +462,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         public TestTasksRequest() {
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public TestTasksRequest(StreamInput in) throws IOException {
+            super(in);
             operation = in.readOptionalString();
         }
 

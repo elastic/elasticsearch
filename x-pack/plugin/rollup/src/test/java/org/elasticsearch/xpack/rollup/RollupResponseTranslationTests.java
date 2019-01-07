@@ -443,8 +443,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         fieldType.setIndexOptions(IndexOptions.DOCS);
         fieldType.setName("foo");
         QueryBuilder filter = QueryBuilders.boolQuery()
-                .must(QueryBuilders.termQuery("field", "foo"))
-                .should(QueryBuilders.termQuery("field", "bar"));
+                .filter(QueryBuilders.termQuery("field", "foo"))
+                .filter(QueryBuilders.termQuery("field", "bar"));
         SignificantTermsAggregationBuilder builder = new SignificantTermsAggregationBuilder(
                 "test", ValueType.STRING)
                 .field("field")

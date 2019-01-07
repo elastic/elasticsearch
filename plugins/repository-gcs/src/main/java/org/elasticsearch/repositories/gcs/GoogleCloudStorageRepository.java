@@ -19,8 +19,8 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -45,8 +45,7 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 class GoogleCloudStorageRepository extends BlobStoreRepository {
-
-    private final Logger logger = LogManager.getLogger(GoogleCloudStorageRepository.class);
+    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRepository.class);
     private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     // package private for testing

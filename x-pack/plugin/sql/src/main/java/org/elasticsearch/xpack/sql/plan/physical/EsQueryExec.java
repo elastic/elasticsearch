@@ -56,7 +56,7 @@ public class EsQueryExec extends LeafExec {
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        Querier scroller = new Querier(session.client(), session.settings());
+        Querier scroller = new Querier(session.client(), session.configuration());
         scroller.query(Rows.schema(output), queryContainer, index, listener);
     }
 

@@ -44,7 +44,7 @@ public abstract class AbstractHlrcStreamableXContentTestCase<T extends ToXConten
     public abstract T convertHlrcToInternal(H instance);
 
     //TODO this would be final ideally: why do both responses need to parse from xcontent, only one (H) should? I think that T#fromXContent
-    //are only there for testing and could go away?
+    //are only there for testing and could go away? Then the additional testHlrcFromXContent is also no longer needed.
     @Override
     protected T doParseInstance(XContentParser parser) throws IOException {
         return convertHlrcToInternal(doHlrcParseInstance(parser));

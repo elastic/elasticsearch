@@ -35,7 +35,9 @@ public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
     public RestPutRoleMappingAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/role_mapping/{name}", this);
+        controller.registerHandler(POST, "/_security/role_mapping/{name}", this);
         controller.registerHandler(PUT, "/_xpack/security/role_mapping/{name}", this);
+        controller.registerHandler(PUT, "/_security/role_mapping/{name}", this);
     }
 
     @Override

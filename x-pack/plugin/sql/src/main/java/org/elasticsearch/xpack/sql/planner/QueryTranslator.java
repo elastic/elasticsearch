@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -27,9 +28,12 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
+import org.elasticsearch.xpack.sql.expression.literal.Intervals;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -47,6 +51,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
@@ -56,10 +61,10 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AndAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.CardinalityAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.ExtendedStatsAgg;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupByColumnKey;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateKey;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupByScriptKey;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByNumericHistogram;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MatrixStatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MaxAgg;
@@ -84,6 +89,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
@@ -230,9 +236,15 @@ final class QueryTranslator {
         Map<ExpressionId, GroupByKey> aggMap = new LinkedHashMap<>();
 
         for (Expression exp : groupings) {
+            GroupByKey key = null;
+            ExpressionId id;
             String aggId;
+
             if (exp instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) exp;
+
+                id = ne.id();
+                aggId = id.toString();
 
                 // change analyzed to non non-analyzed attributes
                 if (exp instanceof FieldAttribute) {
@@ -241,21 +253,51 @@ final class QueryTranslator {
                         ne = fa.exactAttribute();
                     }
                 }
-                aggId = ne.id().toString();
-
-                GroupByKey key;
 
                 // handle functions differently
                 if (exp instanceof Function) {
                     // dates are handled differently because of date histograms
                     if (exp instanceof DateTimeHistogramFunction) {
                         DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;
-                        key = new GroupByDateKey(aggId, nameOf(exp), dthf.interval(), dthf.timeZone());
+                        key = new GroupByDateHistogram(aggId, nameOf(exp), dthf.interval(), dthf.timeZone());
                     }
                     // all other scalar functions become a script
                     else if (exp instanceof ScalarFunction) {
                         ScalarFunction sf = (ScalarFunction) exp;
-                        key = new GroupByScriptKey(aggId, nameOf(exp), sf.asScript());
+                        key = new GroupByValue(aggId, sf.asScript());
+                    }
+                    // histogram
+                    else if (exp instanceof GroupingFunction) {
+                        if (exp instanceof Histogram) {
+                            Histogram h = (Histogram) exp;
+                            Expression field = h.field();
+
+                            // date histogram
+                            if (h.dataType() == DataType.DATE) {
+                                long intervalAsMillis = Intervals.inMillis(h.interval());
+                                // TODO: set timezone
+                                if (field instanceof FieldAttribute || field instanceof DateTimeHistogramFunction) {
+                                    key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.timeZone());
+                                } else if (field instanceof Function) {
+                                    key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), intervalAsMillis, h.timeZone());
+                                }
+                            }
+                            // numeric histogram
+                            else {
+                                if (field instanceof FieldAttribute || field instanceof DateTimeHistogramFunction) {
+                                    key = new GroupByNumericHistogram(aggId, nameOf(field), Foldables.doubleValueOf(h.interval()));
+                                } else if (field instanceof Function) {
+                                    key = new GroupByNumericHistogram(aggId, ((Function) field).asScript(),
+                                            Foldables.doubleValueOf(h.interval()));
+                                }
+                            }
+                            if (key == null) {
+                                throw new SqlIllegalArgumentException("Unsupported histogram field {}", field);
+                            }
+                        }
+                        else {
+                            throw new SqlIllegalArgumentException("Unsupproted grouping function {}", exp);
+                        }
                     }
                     // bumped into into an invalid function (which should be caught by the verifier)
                     else {
@@ -263,14 +305,14 @@ final class QueryTranslator {
                     }
                 }
                 else {
-                    key = new GroupByColumnKey(aggId, ne.name());
+                    key = new GroupByValue(aggId, ne.name());
                 }
-
-                aggMap.put(ne.id(), key);
             }
             else {
                 throw new SqlIllegalArgumentException("Don't know how to group on {}", exp.nodeString());
             }
+
+            aggMap.put(id, key);
         }
         return new GroupingContext(aggMap);
     }
@@ -585,7 +627,7 @@ final class QueryTranslator {
             if (bc instanceof LessThanOrEqual) {
                 return new RangeQuery(loc, name, null, false, value, true, format);
             }
-            if (bc instanceof Equals || bc instanceof NotEquals) {
+            if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
                 if (bc.left() instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) bc.left();
                     // equality should always be against an exact match

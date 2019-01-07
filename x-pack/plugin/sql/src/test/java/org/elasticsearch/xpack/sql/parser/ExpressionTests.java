@@ -10,14 +10,22 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
+import org.elasticsearch.xpack.sql.expression.literal.Interval;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.time.Duration;
+import java.time.Period;
+import java.time.temporal.TemporalAmount;
+import java.util.Locale;
+
+import static java.lang.String.format;
 import static org.hamcrest.core.StringStartsWith.startsWith;
 
 public class ExpressionTests extends ESTestCase {
@@ -120,6 +128,59 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("Number [1.9976931348623157e+308] is too large", ex.getErrorMessage());
     }
 
+    public void testExactDayTimeInterval() throws Exception {
+        int number = randomIntBetween(-100, 100);
+        assertEquals(Duration.ofDays(number), intervalOf("INTERVAL " + number + " DAY"));
+        number = randomIntBetween(-100, 100);
+        assertEquals(Duration.ofHours(number), intervalOf("INTERVAL " + number + " HOUR"));
+        number = randomIntBetween(-100, 100);
+        assertEquals(Duration.ofMinutes(number), intervalOf("INTERVAL " + number + " MINUTE"));
+        number = randomIntBetween(-100, 100);
+        assertEquals(Duration.ofSeconds(number), intervalOf("INTERVAL " + number + " SECOND"));
+    }
+
+    public void testExactYearMonthInterval() throws Exception {
+        int number = randomIntBetween(-100, 100);
+        assertEquals(Period.ofYears(number), intervalOf("INTERVAL " + number + " YEAR"));
+        number = randomIntBetween(-100, 100);
+        assertEquals(Period.ofMonths(number), intervalOf("INTERVAL " + number + " MONTH"));
+    }
+
+    public void testStringInterval() throws Exception {
+        int randomDay = randomInt(1024);
+        int randomHour = randomInt(23);
+        int randomMinute = randomInt(59);
+        int randomSecond = randomInt(59);
+        int randomMilli = randomInt(999999999);
+
+        String value = format(Locale.ROOT, "INTERVAL '%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
+                randomMilli);
+        assertEquals(Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond)
+                .plusMillis(randomMilli), intervalOf(value));
+    }
+
+    public void testNegativeStringInterval() throws Exception {
+        int randomDay = randomInt(1024);
+        int randomHour = randomInt(23);
+        int randomMinute = randomInt(59);
+        int randomSecond = randomInt(59);
+        int randomMilli = randomInt(999999999);
+
+        String value = format(Locale.ROOT, "INTERVAL -'%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
+                randomMilli);
+        assertEquals(Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond)
+                .plusMillis(randomMilli).negated(), intervalOf(value));
+    }
+
+    private TemporalAmount intervalOf(String query) {
+        Expression lt = parser.createExpression(query);
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        Object value = l.value();
+        assertTrue(Interval.class.isAssignableFrom(value.getClass()));
+        return ((Interval<?>) value).interval();
+    }
+
     public void testLiteralTimesLiteral() {
         Expression expr = parser.createExpression("10*2");
         assertEquals(Mul.class, expr.getClass());
@@ -166,6 +227,14 @@ public class ExpressionTests extends ESTestCase {
         Equals eq = (Equals) expr;
         assertEquals("(a) == 10", eq.name());
         assertEquals(2, eq.children().size());
+    }
+
+    public void testNullEquals() {
+        Expression expr = parser.createExpression("a <=> 10");
+        assertEquals(NullEquals.class, expr.getClass());
+        NullEquals nullEquals = (NullEquals) expr;
+        assertEquals("(a) <=> 10", nullEquals.name());
+        assertEquals(2, nullEquals.children().size());
     }
 
     public void testNotEquals() {
@@ -259,5 +328,29 @@ public class ExpressionTests extends ESTestCase {
     public void testConvertWithInvalidESDataType() {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, INVALID)"));
         assertEquals("line 1:13: Invalid data type [INVALID] provided", ex.getMessage());
+    }
+
+    public void testCurrentTimestamp() {
+        Expression expr = parser.createExpression("CURRENT_TIMESTAMP");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_TIMESTAMP", ur.name());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentTimestampPrecision() {
+        Expression expr = parser.createExpression("CURRENT_TIMESTAMP(4)");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_TIMESTAMP", ur.name());
+        assertEquals(1, ur.children().size());
+        Expression child = ur.children().get(0);
+        assertEquals(Literal.class, child.getClass());
+        assertEquals(Short.valueOf((short) 4), child.fold());
+    }
+
+    public void testCurrentTimestampInvalidPrecision() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CURRENT_TIMESTAMP(100)"));
+        assertEquals("line 1:20: Precision needs to be between [0-9], received [100]", ex.getMessage());
     }
 }

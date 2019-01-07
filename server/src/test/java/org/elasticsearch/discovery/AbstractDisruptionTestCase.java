@@ -26,14 +26,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
@@ -52,7 +50,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -62,17 +59,11 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
 
-    private ClusterDiscoveryConfiguration discoveryConfig;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(discoveryConfig.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(DEFAULT_SETTINGS)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
-    }
-
-    @Before
-    public void clearConfig() {
-        discoveryConfig = null;
     }
 
     @Override
@@ -115,18 +106,9 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         }
     }
 
-    List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
-        return startCluster(numberOfNodes, -1);
-    }
-
-    List<String> startCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
-        return startCluster(numberOfNodes, minimumMasterNode, null);
-    }
-
-    List<String> startCluster(int numberOfNodes, int minimumMasterNode, @Nullable int[] unicastHostsOrdinals) throws
-            ExecutionException, InterruptedException {
-        configureCluster(numberOfNodes, unicastHostsOrdinals, minimumMasterNode);
-        List<String> nodes = internalCluster().startNodes(numberOfNodes);
+    List<String> startCluster(int numberOfNodes) {
+        InternalTestCluster internalCluster = internalCluster();
+        List<String> nodes = internalCluster.startNodes(numberOfNodes);
         ensureStableCluster(numberOfNodes);
 
         // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
@@ -151,40 +133,6 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class);
-    }
-
-    void configureCluster(
-            int numberOfNodes,
-            @Nullable int[] unicastHostsOrdinals,
-            int minimumMasterNode
-    ) throws ExecutionException, InterruptedException {
-        configureCluster(DEFAULT_SETTINGS, numberOfNodes, unicastHostsOrdinals, minimumMasterNode);
-    }
-
-    void configureCluster(
-            Settings settings,
-            int numberOfNodes,
-            @Nullable int[] unicastHostsOrdinals,
-            int minimumMasterNode
-    ) throws ExecutionException, InterruptedException {
-        if (minimumMasterNode < 0) {
-            minimumMasterNode = numberOfNodes / 2 + 1;
-        }
-        logger.info("---> configured unicast");
-        // TODO: Rarely use default settings form some of these
-        Settings nodeSettings = Settings.builder()
-                .put(settings)
-                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numberOfNodes)
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minimumMasterNode)
-                .build();
-
-        if (discoveryConfig == null) {
-            if (unicastHostsOrdinals == null) {
-                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings);
-            } else {
-                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings, unicastHostsOrdinals);
-            }
-        }
     }
 
     ClusterState getNodeClusterState(String node) {

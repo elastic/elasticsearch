@@ -30,11 +30,6 @@ public class Radians extends MathFunction {
     }
 
     @Override
-    protected String mathFunction() {
-        return "toRadians";
-    }
-
-    @Override
     protected MathOperation operation() {
         return MathOperation.RADIANS;
     }

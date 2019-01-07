@@ -44,6 +44,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.core.MultiTermVectorsRequest;
+import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
@@ -73,6 +75,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -202,8 +205,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                     highLevelClient()::exists, highLevelClient()::existsAsync));
         }
     }
-    
-    public void testSourceExists() throws IOException {     
+
+    public void testSourceExists() throws IOException {
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
@@ -225,8 +228,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
     }
-    
-    public void testSourceDoesNotExist() throws IOException {     
+
+    public void testSourceDoesNotExist() throws IOException {
         final String noSourceIndex = "no_source";
         {
             // Prepare
@@ -234,8 +237,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mapping = "\"_doc\": { \"_source\": {\n" + 
-                    "        \"enabled\": false\n" + 
+            String mapping = "\"_doc\": { \"_source\": {\n" +
+                    "        \"enabled\": false\n" +
                     "      }  }";
             createIndex(noSourceIndex, settings, mapping);
             assertEquals(
@@ -250,13 +253,13 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                     RequestOptions.DEFAULT
                 ).status()
             );
-        }        
+        }
         {
             GetRequest getRequest = new GetRequest(noSourceIndex, "_doc", "1");
             assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
-    }    
+    }
 
     public void testGet() throws IOException {
         {
@@ -1221,10 +1224,10 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             // test _termvectors on artificial documents
-            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc");
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("field", "valuex").endObject();
-            tvRequest.setDoc(docBuilder);
+
+            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc", docBuilder);
             TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
 
             TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
@@ -1249,5 +1252,70 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> execute(request, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    // Not entirely sure if _mtermvectors belongs to CRUD, and in the absence of a better place, will have it here
+    public void testMultiTermvectors() throws IOException {
+        final String sourceIndex = "index1";
+        {
+            // prepare : index docs
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            String mappings = "\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\"}}}";
+            createIndex(sourceIndex, settings, mappings);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(sourceIndex, "_doc", "1")
+                            .source(Collections.singletonMap("field", "value1"), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex, "_doc", "2")
+                            .source(Collections.singletonMap("field", "value2"), XContentType.JSON))
+                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }
+        {
+            // test _mtermvectors where MultiTermVectorsRequest is constructed with ids and a template
+            String[] expectedIds = {"1", "2"};
+            TermVectorsRequest tvRequestTemplate = new TermVectorsRequest(sourceIndex, "_doc", "fake_id");
+            tvRequestTemplate.setFields("field");
+            MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest(expectedIds, tvRequestTemplate);
+
+            MultiTermVectorsResponse mtvResponse =
+                execute(mtvRequest, highLevelClient()::mtermvectors, highLevelClient()::mtermvectorsAsync);
+
+            List<String> ids = new ArrayList<>();
+            for (TermVectorsResponse tvResponse: mtvResponse.getTermVectorsResponses()) {
+                assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
+                assertTrue(tvResponse.getFound());
+                ids.add(tvResponse.getId());
+            }
+            assertArrayEquals(expectedIds, ids.toArray());
+        }
+
+        {
+            // test _mtermvectors where MultiTermVectorsRequest constructed with adding each separate request
+            MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest();
+            TermVectorsRequest tvRequest1 = new TermVectorsRequest(sourceIndex, "_doc", "1");
+            tvRequest1.setFields("field");
+            mtvRequest.add(tvRequest1);
+
+            XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+            docBuilder.startObject().field("field", "valuex").endObject();
+            TermVectorsRequest tvRequest2 = new TermVectorsRequest(sourceIndex, "_doc", docBuilder);
+            mtvRequest.add(tvRequest2);
+
+            MultiTermVectorsResponse mtvResponse =
+                execute(mtvRequest, highLevelClient()::mtermvectors, highLevelClient()::mtermvectorsAsync);
+            for (TermVectorsResponse tvResponse: mtvResponse.getTermVectorsResponses()) {
+                assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
+                assertTrue(tvResponse.getFound());
+            }
+        }
+
     }
 }

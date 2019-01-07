@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.rest.action.RestFreezeIndexAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
@@ -297,6 +298,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction(settings, restController));
         handlers.add(new RestXPackUsageAction(settings, restController));
+        handlers.add(new RestFreezeIndexAction(settings, restController));
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         return handlers;

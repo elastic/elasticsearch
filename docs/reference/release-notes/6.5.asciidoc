@@ -6,7 +6,7 @@
 // TEMPLATE
 
 // [[release-notes-n.n.n]]
-// == {es} n.n.n
+// == {es} version n.n.n
 
 // coming[n.n.n]
 
@@ -44,11 +44,96 @@
 // === Known Issues
 ////
 
-[[release-notes-6.5.0]]
-== 6.5.0 Release Notes
-
+[[release-notes-6.5.3]]
+== {es} version 6.5.3
 
 Also see <<breaking-changes-6.5>>.
+
+[float]
+[[enhancement-6.5.3]]
+=== Enhancements
+
+Engine::
+* Always configure soft-deletes field of IndexWriterConfig {pull}36196[#36196] (issue: {issue}36141[#36141])
+
+[float]
+[[bug-6.5.3]]
+=== Bug fixes
+
+Audit::
+* Fix deprecation of audit log settings {pull}36175[#36175] (issue: {issue}36162[#36162])
+
+CCR::
+* AutoFollowCoordinator should tolerate that auto follow patterns may be removed {pull}35945[#35945] (issue: {issue}35937[#35937])
+
+Features/Monitoring::
+* Add missing error type mapping for apm-server {pull}36178[#36178] (issue: {issue}1614[#1614])
+
+Infra/Packaging::
+* Fix error message when package install fails due to missing Java {pull}36077[#36077] (issue: {issue}31845[#31845])
+
+Infra/Scripting::
+* Properly support no-offset date formatting {pull}36316[#36316] (issue: {issue}36306[#36306])
+* Fix serialization bug in painless execute api request {pull}36075[#36075] (issue: {issue}36050[#36050])
+
+Security::
+* Remove license state listeners on closables {pull}36308[#36308] (issues: {issue}33328[#33328], {issue}35627[#35627], {issue}35628[#35628])
+
+Snapshot/Restore::
+* Improve Resilience SnapshotShardService {pull}36113[#36113] (issue: {issue}32265[#32265])
+
+
+[[release-notes-6.5.2]]
+== {es} version 6.5.2
+
+coming[6.5.2]
+
+Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
+
+
+[[release-notes-6.5.1]]
+== {es} version 6.5.1
+
+Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
+
+[float]
+[[enhancement-6.5.1]]
+=== Enhancements
+
+Authorization::
+* Grant .tasks access to kibana_system role {pull}35573[#35573]
+
+Search::
+* has_parent builder: exception message/param fix {pull}31182[#31182]
+
+[float]
+[[bug-6.5.1]]
+=== Bug fixes
+
+Aggregations::
+* Correct implemented interface of ParsedReverseNested {pull}35455[#35455] (issue: {issue}35449[#35449])
+* Handle IndexOrDocValuesQuery in composite aggregation {pull}35392[#35392]
+* Preserve `format` when aggregation contains unmapped date fields {pull}35254[#35254] (issue: {issue}31760[#31760])
+
+Infra/Core::
+* Upgrade to Joda 2.10.1 {pull}35410[#35410] (issue: {issue}33749[#33749])
+
+Machine Learning::
+* Fix find_file_structure NPE with should_trim_fields {pull}35465[#35465] (issue: {issue}35462[#35462])
+* Prevent notifications being created on deletion of a non existent job {pull}35337[#35337] (issues: {issue}34058[#34058], {issue}35336[#35336])
+
+SQL::
+* Fix query translation for scripted queries {pull}35408[#35408] (issue: {issue}35232[#35232])
+* Clear the cursor if nested inner hits are enough to fulfill the query required limits {pull}35398[#35398] (issue: {issue}35176[#35176])
+* SQL: Introduce IsNull node to simplify expressions {pull}35206[#35206] (issues: {issue}34876[#34876], {issue}35171[#35171])
+
+Scripting::
+* [Painless] Partially fixes def boxed types casting {pull}35563[#35563] (issue: {issue}35351[#35351])
+
+[[release-notes-6.5.0]]
+== {es} version 6.5.0 
+
+Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
 
 [[breaking-6.5.0]]
 [float]

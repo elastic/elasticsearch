@@ -57,4 +57,10 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     public void usedDeprecatedField(String usedName, String replacedWith) {
         DEPRECATION_LOGGER.deprecated("Deprecated field [{}] used, replaced by [{}]", usedName, replacedWith);
     }
+
+    @Override
+    public void deprecated(final String message, final Object... params) {
+        DEPRECATION_LOGGER.deprecated(message, params);
+    }
+
 }

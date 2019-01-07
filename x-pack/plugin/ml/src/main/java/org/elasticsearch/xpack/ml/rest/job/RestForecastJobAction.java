@@ -24,6 +24,8 @@ public class RestForecastJobAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast", this);
+        controller.registerHandler(RestRequest.Method.POST,
+                MachineLearning.V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast", this);
     }
 
     @Override

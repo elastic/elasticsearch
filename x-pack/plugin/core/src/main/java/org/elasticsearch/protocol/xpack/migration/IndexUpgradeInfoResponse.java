@@ -9,53 +9,17 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class IndexUpgradeInfoResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField INDICES = new ParseField("indices");
     private static final ParseField ACTION_REQUIRED = new ParseField("action_required");
-
-    private static final ConstructingObjectParser<IndexUpgradeInfoResponse, String> PARSER =
-        new ConstructingObjectParser<>("IndexUpgradeInfoResponse",
-            true,
-            (a, c) -> {
-            @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>)a[0];
-                Map<String, UpgradeActionRequired> actionsRequired = map.entrySet().stream()
-                    .filter(e -> {
-                        if (e.getValue() instanceof Map == false) {
-                            return false;
-                        }
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> value =(Map<String, Object>)e.getValue();
-                        return value.containsKey(ACTION_REQUIRED.getPreferredName());
-                    })
-                    .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> {
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> value = (Map<String, Object>) e.getValue();
-                            return UpgradeActionRequired.fromString((String)value.get(ACTION_REQUIRED.getPreferredName()));
-                        }
-                ));
-                return new IndexUpgradeInfoResponse(actionsRequired);
-            });
-
-    static {
-        PARSER.declareObject(constructorArg(), (p, c) -> p.map(), INDICES);
-    }
-
 
     private Map<String, UpgradeActionRequired> actions;
 
@@ -112,9 +76,5 @@ public class IndexUpgradeInfoResponse extends ActionResponse implements ToXConte
     @Override
     public int hashCode() {
         return Objects.hash(actions);
-    }
-
-    public static IndexUpgradeInfoResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 }

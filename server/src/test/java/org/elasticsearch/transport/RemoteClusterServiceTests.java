@@ -218,8 +218,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
                     assertFalse(service.isRemoteClusterRegistered("foo"));
-                    Map<String, List<String>> perClusterIndices = service.groupClusterIndices(new String[]{"foo:bar", "cluster_1:bar",
-                        "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo", "cluster*:baz", "*:boo", "no*match:boo"},
+                    Map<String, List<String>> perClusterIndices = service.groupClusterIndices(service.getRemoteClusterNames(),
+                        new String[]{"foo:bar", "cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo",
+                            "cluster*:baz", "*:boo", "no*match:boo"},
                         i -> false);
                     List<String> localIndices = perClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                     assertNotNull(localIndices);
@@ -229,7 +230,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals(Arrays.asList("foo:bar", "foo*", "baz", "boo"), perClusterIndices.get("cluster_2"));
 
                     IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                        service.groupClusterIndices(new String[]{"foo:bar", "cluster_1:bar",
+                        service.groupClusterIndices(service.getRemoteClusterNames(), new String[]{"foo:bar", "cluster_1:bar",
                             "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, "cluster_1:bar"::equals));
 
                     assertEquals("Can not filter indices; index cluster_1:bar exists but there is also a remote cluster named:" +
@@ -276,7 +277,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     }
                     {
                         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                            service.groupClusterIndices(new String[]{"foo:bar", "cluster_1:bar",
+                            service.groupClusterIndices(service.getRemoteClusterNames(), new String[]{"foo:bar", "cluster_1:bar",
                                 "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, "cluster_1:bar"::equals));
                         assertEquals("Can not filter indices; index cluster_1:bar exists but there is also a remote cluster named:" +
                             " cluster_1", iae.getMessage());
@@ -366,7 +367,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     RemoteClusterConnection remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
-                    assertEquals(pingSchedule, remoteClusterConnection.getConnectionManager().getPingSchedule());
+                    assertEquals(pingSchedule, remoteClusterConnection.getConnectionManager().getConnectionProfile().getPingInterval());
                 }
             }
         }
@@ -394,9 +395,11 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
                 builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
-                TimeValue pingSchedule1 = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(1, 10));
+                TimeValue pingSchedule1 = // randomBoolean() ? TimeValue.MINUS_ONE :
+                    TimeValue.timeValueSeconds(randomIntBetween(1, 10));
                 builder.put("cluster.remote.cluster_1.transport.ping_schedule", pingSchedule1);
-                TimeValue pingSchedule2 = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(1, 10));
+                TimeValue pingSchedule2 = //randomBoolean() ? TimeValue.MINUS_ONE :
+                    TimeValue.timeValueSeconds(randomIntBetween(1, 10));
                 builder.put("cluster.remote.cluster_2.transport.ping_schedule", pingSchedule2);
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
@@ -406,9 +409,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     RemoteClusterConnection remoteClusterConnection1 = service.getRemoteClusterConnection("cluster_1");
-                    assertEquals(pingSchedule1, remoteClusterConnection1.getConnectionManager().getPingSchedule());
+                    assertEquals(pingSchedule1, remoteClusterConnection1.getConnectionManager().getConnectionProfile().getPingInterval());
                     RemoteClusterConnection remoteClusterConnection2 = service.getRemoteClusterConnection("cluster_2");
-                    assertEquals(pingSchedule2, remoteClusterConnection2.getConnectionManager().getPingSchedule());
+                    assertEquals(pingSchedule2, remoteClusterConnection2.getConnectionManager().getConnectionProfile().getPingInterval());
                 }
             }
         }

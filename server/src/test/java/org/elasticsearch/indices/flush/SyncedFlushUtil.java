@@ -91,7 +91,10 @@ public class SyncedFlushUtil {
     /**
      * Blocking version of {@link SyncedFlushService#sendPreSyncRequests(List, ClusterState, ShardId, ActionListener)}
      */
-    public static Map<String, SyncedFlushService.PreSyncedFlushResponse> sendPreSyncRequests(SyncedFlushService service, List<ShardRouting> activeShards, ClusterState state, ShardId shardId) {
+    public static Map<String, SyncedFlushService.PreSyncedFlushResponse> sendPreSyncRequests(SyncedFlushService service,
+                                                                                             List<ShardRouting> activeShards,
+                                                                                             ClusterState state,
+                                                                                             ShardId shardId) {
         LatchedListener<Map<String, SyncedFlushService.PreSyncedFlushResponse>> listener = new LatchedListener<>();
         service.sendPreSyncRequests(activeShards, state, shardId, listener);
         try {

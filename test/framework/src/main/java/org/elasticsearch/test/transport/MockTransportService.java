@@ -20,6 +20,8 @@
 package org.elasticsearch.test.transport;
 
 import com.carrotsearch.randomizedtesting.SysGlobals;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
@@ -82,6 +84,7 @@ import java.util.function.Supplier;
  * fake DiscoveryNode instances where the publish address is one of the bound addresses).
  */
 public final class MockTransportService extends TransportService {
+    private static final Logger logger = LogManager.getLogger(MockTransportService.class);
 
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
     private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
@@ -213,8 +216,9 @@ public final class MockTransportService extends TransportService {
      * is added to fail as well.
      */
     public void addFailToSendNoConnectRule(TransportAddress transportAddress) {
-        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile) -> {
-            throw new ConnectTransportException(discoveryNode, "DISCONNECT: simulated");
+        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) -> {
+            listener.onFailure(new ConnectTransportException(discoveryNode, "DISCONNECT: simulated"));
+            return () -> {};
         });
 
         transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
@@ -275,8 +279,9 @@ public final class MockTransportService extends TransportService {
      * and failing to connect once the rule was added.
      */
     public void addUnresponsiveRule(TransportAddress transportAddress) {
-        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile) -> {
-            throw new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated");
+        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) -> {
+            listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
+            return () -> {};
         });
 
         transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
@@ -307,10 +312,10 @@ public final class MockTransportService extends TransportService {
 
         Supplier<TimeValue> delaySupplier = () -> new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
 
-        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile) -> {
+        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) -> {
             TimeValue delay = delaySupplier.get();
             if (delay.millis() <= 0) {
-                return original.openConnection(discoveryNode, profile);
+                return original.openConnection(discoveryNode, profile, listener);
             }
 
             // TODO: Replace with proper setting
@@ -318,13 +323,15 @@ public final class MockTransportService extends TransportService {
             try {
                 if (delay.millis() < connectingTimeout.millis()) {
                     Thread.sleep(delay.millis());
-                    return original.openConnection(discoveryNode, profile);
+                    return original.openConnection(discoveryNode, profile, listener);
                 } else {
                     Thread.sleep(connectingTimeout.millis());
-                    throw new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated");
+                    listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
+                    return () -> {};
                 }
             } catch (InterruptedException e) {
-                throw new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated");
+                listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
+                return () -> {};
             }
         });
 
@@ -464,7 +471,7 @@ public final class MockTransportService extends TransportService {
      * @return {@code true} if no default get connection behavior was registered.
      */
     public boolean addGetConnectionBehavior(StubbableConnectionManager.GetConnectionBehavior behavior) {
-        return connectionManager().setDefaultConnectBehavior(behavior);
+        return connectionManager().setDefaultGetConnectionBehavior(behavior);
     }
 
     /**

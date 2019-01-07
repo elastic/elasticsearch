@@ -108,8 +108,8 @@ class ClusterFormationTasks {
         for (int i = 0; i < config.numNodes; i++) {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
             // for each of those nodes we might have a different configuration
-            final Configuration distro
-            final String elasticsearchVersion
+            Configuration distro
+            String elasticsearchVersion
             if (i < config.numBwcNodes) {
                 elasticsearchVersion = config.bwcVersion.toString()
                 if (project.bwcVersions.unreleased.contains(config.bwcVersion)) {
@@ -344,6 +344,13 @@ class ClusterFormationTasks {
             // don't wait for state.. just start up quickly
             // this will also allow new and old nodes in the BWC case to become the master
             esConfig['discovery.initial_state_timeout'] = '0s'
+        }
+        if (esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
+            // If a node decides to become master based on partial information from the pinging, don't let it hang for 30 seconds to correct
+            // its mistake. Instead, only wait 5s to do another round of pinging.
+            // This is necessary since we use 30s as the default timeout in REST requests waiting for cluster formation
+            // so we need to bail quicker than the default 30s for the cluster to form in time.
+            esConfig['discovery.zen.master_election.wait_for_joins_timeout'] = '5s'
         }
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
@@ -582,7 +589,7 @@ class ClusterFormationTasks {
     }
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, String pluginName, String prefix) {
-        final FileCollection pluginZip;
+        FileCollection pluginZip;
         if (node.nodeVersion != Version.fromString(VersionProperties.elasticsearch)) {
             pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, pluginName))
         } else {

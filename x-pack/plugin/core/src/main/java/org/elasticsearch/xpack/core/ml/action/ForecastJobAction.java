@@ -74,6 +74,19 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.duration = in.readOptionalTimeValue();
+            this.expiresIn = in.readOptionalTimeValue();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalTimeValue(duration);
+            out.writeOptionalTimeValue(expiresIn);
+        }
+
         public Request(String jobId) {
             super(jobId);
         }
@@ -112,20 +125,6 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
                 throw new IllegalArgumentException("[" + EXPIRES_IN.getPreferredName() + "] must be non-negative: ["
                         + expiresIn.getStringRep() + "]");
             }
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.duration = in.readOptionalTimeValue();
-            this.expiresIn = in.readOptionalTimeValue();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalTimeValue(duration);
-            out.writeOptionalTimeValue(expiresIn);
         }
 
         @Override

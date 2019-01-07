@@ -21,6 +21,7 @@ public class RestMlInfoAction extends BaseRestHandler {
     public RestMlInfoAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "info", this);
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.V7_BASE_PATH + "info", this);
     }
 
     @Override

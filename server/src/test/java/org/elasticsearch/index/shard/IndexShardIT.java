@@ -223,10 +223,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareCreate("test")
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, 200)));
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
-        assertEquals(200, indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, 400)
+        assertEquals(200,
+            indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, 400)
             .build()).get();
-        assertEquals(400, indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
+        assertEquals(400,
+            indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
     }
 
     public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
@@ -238,7 +241,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             .build();
         createIndex("test", idxSettings);
         ensureGreen("test");
-        client().prepareIndex("test", "bar", "1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test", "bar", "1")
+            .setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse response = client().prepareSearch("test").get();
         assertHitCount(response, 1L);
         client().admin().indices().prepareDelete("test").get();
@@ -509,7 +513,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexShard shard = indexService.getShardOrNull(0);
         client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         client().prepareDelete("test", "test", "0").get();
-        client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE).get();
 
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
         shard.close("simon says", false);
@@ -575,14 +580,17 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 .setTransientSettings(Settings.builder().put("network.breaker.inflight_requests.overhead", 0.0)).get();
 
         // Generate a couple of segments
-        client().prepareIndex("test", "_doc", "1").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-                .setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test", "_doc", "1")
+            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE).get();
         // Use routing so 2 documents are guaranteed to be on the same shard
         String routing = randomAlphaOfLength(5);
-        client().prepareIndex("test", "_doc", "2").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-                .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
-        client().prepareIndex("test", "_doc", "3").setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-                .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
+        client().prepareIndex("test", "_doc", "2")
+            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
+        client().prepareIndex("test", "_doc", "3")
+            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
 
         checkAccountingBreaker();
         // Test that force merging causes the breaker to be correctly adjusted
@@ -596,7 +604,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         // Test that we're now above the parent limit due to the segments
         Exception e = expectThrows(Exception.class,
-                () -> client().prepareSearch("test").addAggregation(AggregationBuilders.terms("foo_terms").field("foo.keyword")).get());
+                () -> client().prepareSearch("test")
+                    .addAggregation(AggregationBuilders.terms("foo_terms").field("foo.keyword")).get());
         logger.info("--> got: {}", ExceptionsHelper.detailedMessage(e));
         assertThat(ExceptionsHelper.detailedMessage(e), containsString("[parent] Data too large, data for [<agg [foo_terms]>]"));
 
@@ -627,9 +636,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                                                  CircuitBreakerService cbs, IndexingOperationListener... listeners) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
         IndexShard newShard = new IndexShard(initializingShardRouting, indexService.getIndexSettings(), shard.shardPath(),
-            shard.store(), indexService.getIndexSortSupplier(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
-            shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
-            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners), () -> {}, cbs);
+            shard.store(), indexService.getIndexSortSupplier(), indexService.cache(), indexService.mapperService(),
+            indexService.similarityService(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
+            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners),
+            () -> {}, cbs);
         return newShard;
     }
 
@@ -643,7 +653,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testGlobalCheckpointListeners() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex("test", Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0).build());
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -689,7 +701,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testGlobalCheckpointListenerTimeout() throws InterruptedException {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex("test", Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0).build());
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -716,7 +730,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testInvalidateIndicesRequestCacheWhenRollbackEngine() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+        createIndex("test", Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
             .put("index.refresh_interval", -1).build());
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -742,7 +758,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertThat("numDocs=" + numDocs + " moreDocs=" + moreDocs, (long) searcher.reader().numDocs(), equalTo(numDocs + moreDocs));
+            assertThat("numDocs=" + numDocs + " moreDocs=" + moreDocs,
+                (long) searcher.reader().numDocs(), equalTo(numDocs + moreDocs));
         }
         assertThat("numDocs=" + numDocs + " moreDocs=" + moreDocs,
             client().search(countRequest).actionGet().getHits().totalHits, equalTo(numDocs + moreDocs));

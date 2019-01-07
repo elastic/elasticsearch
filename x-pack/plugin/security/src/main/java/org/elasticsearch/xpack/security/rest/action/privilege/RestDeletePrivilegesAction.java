@@ -34,6 +34,7 @@ public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
     public RestDeletePrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(DELETE, "/_xpack/security/privilege/{application}/{privilege}", this);
+        controller.registerHandler(DELETE, "/_security/privilege/{application}/{privilege}", this);
     }
 
     @Override

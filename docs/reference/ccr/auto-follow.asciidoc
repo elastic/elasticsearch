@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
-[[ccr-overview-auto-follow]]
+[[ccr-auto-follow]]
 === Automatically following indices
 
 beta[]

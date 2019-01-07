@@ -45,7 +45,7 @@ else
 fi
 
 if [ ! -x "$JAVA" ]; then
-  echo "could not find java; set JAVA_HOME or ensure java is in PATH"
+  echo "could not find java; set JAVA_HOME or ensure java is in PATH" >&2
   exit 1
 fi
 
@@ -81,13 +81,5 @@ ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 ES_DISTRIBUTION_TYPE=${es.distribution.type}
 
 if [ -z "$ES_TMPDIR" ]; then
-  set +e
-  mktemp --version 2>&1 | grep coreutils > /dev/null
-  mktemp_coreutils=$?
-  set -e
-  if [ $mktemp_coreutils -eq 0 ]; then
-    ES_TMPDIR=`mktemp -d --tmpdir "elasticsearch.XXXXXXXX"`
-  else
-    ES_TMPDIR=`mktemp -d -t elasticsearch`
-  fi
+  ES_TMPDIR=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
 fi

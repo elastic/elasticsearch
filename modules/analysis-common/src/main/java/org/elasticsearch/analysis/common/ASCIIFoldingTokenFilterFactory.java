@@ -33,7 +33,8 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
  * Factory for ASCIIFoldingFilter.
  */
 public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
-        implements MultiTermAwareComponent {
+    implements MultiTermAwareComponent {
+
     public static final ParseField PRESERVE_ORIGINAL = new ParseField("preserve_original");
     public static final boolean DEFAULT_PRESERVE_ORIGINAL = false;
 
@@ -53,7 +54,7 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
     }
 
     @Override
-    public Object getMultiTermComponent() {
+    public TokenFilterFactory getSynonymFilter() {
         if (preserveOriginal == false) {
             return this;
         } else {
@@ -69,5 +70,10 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
                 }
             };
         }
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return getSynonymFilter();
     }
 }

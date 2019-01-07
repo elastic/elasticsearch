@@ -29,6 +29,8 @@ public class RestDeleteJobAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.DELETE, MachineLearning.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.DELETE, MachineLearning.V7_BASE_PATH
+                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
     }
 
     @Override

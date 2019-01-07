@@ -72,22 +72,22 @@ the index/update/delete operations.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-pipeline]
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request-pipeline]
 --------------------------------------------------
 <1> Global pipelineId used on all sub requests, unless overridden on a sub request
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-routing]
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request-routing]
 --------------------------------------------------
 <1> Global routingId used on all sub requests, unless overridden on a sub request
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-index-type]
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request-index-type]
 --------------------------------------------------
 <1> A bulk request with global index and type used on all sub requests, unless overridden on a sub request.
-Both parameters are @Nullable and can only be set during +{request}+ creation.
+Both parameters are @Nullable and can only be set during BulkRequest creation.
 
 include::../execution.asciidoc[]
 

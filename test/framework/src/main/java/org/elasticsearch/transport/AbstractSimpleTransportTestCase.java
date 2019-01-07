@@ -264,7 +264,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         res = serviceB.submitRequest(nodeA, "internal:sayHello", new StringMessageRequest("moshe"),
-            TransportRequestOptions.builder().withCompress(true).build(), new TransportResponseHandler<StringMessageResponse>() {
+            TransportRequestOptions.EMPTY, new TransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse read(StreamInput in) throws IOException {
                     return new StringMessageResponse(in);
@@ -521,7 +521,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
 
             TransportFuture<TransportResponse.Empty> res = serviceC.submitRequest(nodeA, "internal:sayHello",
-                TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(true).build(),
+                TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
                     public TransportResponse.Empty read(StreamInput in) {
@@ -574,7 +574,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
 
             TransportFuture<StringMessageResponse> res = serviceC.submitRequest(nodeA, "internal:sayHello",
-                new StringMessageRequest("moshe"), TransportRequestOptions.builder().withCompress(true).build(),
+                new StringMessageRequest("moshe"), TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<StringMessageResponse>() {
                     @Override
                     public StringMessageResponse read(StreamInput in) throws IOException {
@@ -1801,7 +1801,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     DiscoveryNode node = randomFrom(nodeA, nodeB, nodeC);
                     logger.debug("send secondary request from {} to {} - {}", toNodeMap.get(service), node, request.info);
                     service.sendRequest(node, "internal:action1", new TestRequest("secondary " + request.info),
-                        TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
+                        TransportRequestOptions.EMPTY,
                         new TransportResponseHandler<TestResponse>() {
                             @Override
                             public TestResponse read(StreamInput in) throws IOException {
@@ -1892,7 +1892,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             DiscoveryNode node = randomFrom(nodeC, nodeB, nodeA);
             logger.debug("send from {} to {}", toNodeMap.get(service), node);
             service.sendRequest(node, "internal:action1", new TestRequest("REQ[" + i + "]"),
-                TransportRequestOptions.builder().withCompress(randomBoolean()).build(), new TestResponseHandler(i));
+                TransportRequestOptions.EMPTY, new TestResponseHandler(i));
         }
         logger.debug("waiting for response");
         fail.set(randomBoolean());
@@ -2013,7 +2013,29 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void testTcpHandshake() throws IOException, InterruptedException {
+    public void testKeepAlivePings() throws Exception {
+        assumeTrue("only tcp transport has keep alive pings", serviceA.getOriginalTransport() instanceof TcpTransport);
+        TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
+
+        ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
+        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
+            .setPingInterval(TimeValue.timeValueMillis(50))
+            .build();
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
+                version0);
+            originalTransport.openConnection(node, connectionProfile, future);
+            try (Transport.Connection connection = future.actionGet()) {
+                assertBusy(() -> {
+                    assertTrue(originalTransport.getKeepAlive().successfulPingCount() > 30);
+                });
+                assertEquals(0, originalTransport.getKeepAlive().failedPingCount());
+            }
+        }
+    }
+
+    public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
@@ -2042,11 +2064,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
-        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
-             TcpTransport.NodeChannels connection = originalTransport.openConnection(
-                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
-                 connectionProfile)) {
-            assertEquals(connection.getVersion(), Version.CURRENT);
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
+                version0);
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            originalTransport.openConnection(node, connectionProfile, future);
+            try (Transport.Connection connection = future.actionGet()) {
+                assertEquals(connection.getVersion(), Version.CURRENT);
+            }
         }
     }
 
@@ -2364,7 +2389,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(45, transportStats.getTxSize().getBytes());
+                assertEquals(50, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
@@ -2374,7 +2399,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(100, transportStats.getTxSize().getBytes());
+                assertEquals(105, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2382,7 +2407,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
             assertEquals(46, stats.getRxSize().getBytes());
-            assertEquals(100, stats.getTxSize().getBytes());
+            assertEquals(105, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2477,7 +2502,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(45, transportStats.getTxSize().getBytes());
+                assertEquals(50, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
@@ -2487,7 +2512,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(100, transportStats.getTxSize().getBytes());
+                assertEquals(105, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2498,7 +2523,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // if we are bound to a IPv6 address the response address is serialized with the exception so it will be different depending
             // on the stack. The emphemeral port will always be in the same range
             assertEquals(203 + addressLen, stats.getRxSize().getBytes());
-            assertEquals(100, stats.getTxSize().getBytes());
+            assertEquals(105, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }

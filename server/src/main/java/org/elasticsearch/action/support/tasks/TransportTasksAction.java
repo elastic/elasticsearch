@@ -73,24 +73,24 @@ public abstract class TransportTasksAction<
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
-    protected final Supplier<TasksRequest> requestSupplier;
+    protected final Writeable.Reader<TasksRequest> requestSupplier;
     protected final Supplier<TasksResponse> responseSupplier;
 
     protected final String transportNodeAction;
 
     protected TransportTasksAction(Settings settings, String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, Supplier<TasksRequest> requestSupplier,
+                                   IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<TasksRequest> requestSupplier,
                                    Supplier<TasksResponse> responseSupplier,
                                    String nodeExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, requestSupplier);
+        super(settings, actionName, threadPool, transportService, actionFilters, requestSupplier, indexNameExpressionResolver);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";
         this.requestSupplier = requestSupplier;
         this.responseSupplier = responseSupplier;
 
-        transportService.registerRequestHandler(transportNodeAction, NodeTaskRequest::new, nodeExecutor, new NodeTransportHandler());
+        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());
     }
 
     @Override
@@ -222,10 +222,6 @@ public abstract class TransportTasksAction<
      */
     protected abstract void taskOperation(TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
 
-    protected boolean transportCompress() {
-        return false;
-    }
-
     private class AsyncAction {
 
         private final TasksRequest request;
@@ -265,7 +261,6 @@ public abstract class TransportTasksAction<
                 if (request.getTimeout() != null) {
                     builder.withTimeout(request.getTimeout());
                 }
-                builder.withCompress(transportCompress());
                 for (int i = 0; i < nodesIds.length; i++) {
                     final String nodeId = nodesIds[i];
                     final int idx = i;
@@ -372,20 +367,9 @@ public abstract class TransportTasksAction<
     private class NodeTaskRequest extends TransportRequest {
         private TasksRequest tasksRequest;
 
-        protected NodeTaskRequest() {
-            super();
-        }
-
-        protected NodeTaskRequest(TasksRequest tasksRequest) {
-            super();
-            this.tasksRequest = tasksRequest;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            tasksRequest = requestSupplier.get();
-            tasksRequest.readFrom(in);
+        protected NodeTaskRequest(StreamInput in) throws IOException {
+            super(in);
+            this.tasksRequest = requestSupplier.read(in);
         }
 
         @Override
@@ -393,6 +377,12 @@ public abstract class TransportTasksAction<
             super.writeTo(out);
             tasksRequest.writeTo(out);
         }
+
+        protected NodeTaskRequest(TasksRequest tasksRequest) {
+            super();
+            this.tasksRequest = tasksRequest;
+        }
+
     }
 
     private class NodeTasksResponse extends TransportResponse {

@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectStateP
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ControlMsgToProcessWriter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AutodetectControlMsgWriter;
 import org.junit.Assert;
 import org.junit.Before;
 
@@ -103,7 +103,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
     public void testFlush() throws IOException {
         InputStream logStream = mock(InputStream.class);
         when(logStream.read(new byte[1024])).thenReturn(-1);
-        ByteArrayOutputStream bos = new ByteArrayOutputStream(ControlMsgToProcessWriter.FLUSH_SPACES_LENGTH + 1024);
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(AutodetectControlMsgWriter.FLUSH_SPACES_LENGTH + 1024);
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
                 bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
                 new AutodetectResultsParser(), mock(Runnable.class))) {
@@ -113,21 +113,21 @@ public class NativeAutodetectProcessTests extends ESTestCase {
             process.flushJob(params);
 
             ByteBuffer bb = ByteBuffer.wrap(bos.toByteArray());
-            assertThat(bb.remaining(), is(greaterThan(ControlMsgToProcessWriter.FLUSH_SPACES_LENGTH)));
+            assertThat(bb.remaining(), is(greaterThan(AutodetectControlMsgWriter.FLUSH_SPACES_LENGTH)));
         }
     }
 
     public void testWriteResetBucketsControlMessage() throws IOException {
         DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("86400").build(), Optional.empty());
-        testWriteMessage(p -> p.writeResetBucketsControlMessage(params), ControlMsgToProcessWriter.RESET_BUCKETS_MESSAGE_CODE);
+        testWriteMessage(p -> p.writeResetBucketsControlMessage(params), AutodetectControlMsgWriter.RESET_BUCKETS_MESSAGE_CODE);
     }
 
     public void testWriteUpdateConfigMessage() throws IOException {
-        testWriteMessage(p -> p.writeUpdateModelPlotMessage(new ModelPlotConfig()), ControlMsgToProcessWriter.UPDATE_MESSAGE_CODE);
+        testWriteMessage(p -> p.writeUpdateModelPlotMessage(new ModelPlotConfig()), AutodetectControlMsgWriter.UPDATE_MESSAGE_CODE);
     }
 
     public void testPersistJob() throws IOException {
-        testWriteMessage(p -> p.persistState(), ControlMsgToProcessWriter.BACKGROUND_PERSIST_MESSAGE_CODE);
+        testWriteMessage(p -> p.persistState(), AutodetectControlMsgWriter.BACKGROUND_PERSIST_MESSAGE_CODE);
     }
 
     public void testWriteMessage(CheckedConsumer<NativeAutodetectProcess> writeFunction, String expectedMessageCode) throws IOException {

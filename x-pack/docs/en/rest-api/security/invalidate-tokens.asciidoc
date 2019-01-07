@@ -1,0 +1,73 @@
+[role="xpack"]
+[[security-api-invalidate-token]]
+=== Invalidate token API
+
+Invalidates an access token or a refresh token.
+
+==== Request
+
+`DELETE /_xpack/security/oauth2/token`
+
+==== Description
+
+The access tokens returned by the <<security-api-get-token,get token API>> have a
+finite period of time for which they are valid and after that time period, they 
+can no longer be used. That time period is defined by the 
+`xpack.security.authc.token.timeout` setting. For more information, see 
+<<token-service-settings>>.
+
+The refresh tokens returned by the <<security-api-get-token,get token API>> are
+only valid for 24 hours. They can also be used exactly once.
+
+If you want to invalidate an access or refresh token immediately, use this invalidate token API.
+
+
+==== Request Body
+
+The following parameters can be specified in the body of a DELETE request and
+pertain to invalidating a token:
+
+`token` (optional)::
+(string) An access token. This parameter cannot be used when `refresh_token` is used.
+
+`refresh_token` (optional)::
+(string) A refresh token. This parameter cannot be used when `token` is used.
+
+NOTE: One of `token` or `refresh_token` parameters is required.
+
+==== Examples
+
+The following example invalidates the specified token immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/oauth2/token
+{
+  "token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+whereas the following example invalidates the specified refresh token immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/oauth2/token
+{
+  "refresh_token" : "movUJjPGRRC0PQ7+NW0eag"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+A successful call returns a JSON structure that indicates whether the token
+has already been invalidated.
+
+[source,js]
+--------------------------------------------------
+{
+  "created" : true <1>
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> When a token has already been invalidated, `created` is set to false.

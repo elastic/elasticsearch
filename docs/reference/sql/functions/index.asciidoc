@@ -3,20 +3,28 @@
 [[sql-functions]]
 == Functions and Operators
 
+beta[]
+
 {es-sql} provides a comprehensive set of built-in operators and functions:
 
 * <<sql-operators, Operators>>
 * <<sql-functions-aggs, Aggregate>>
+* <<sql-functions-grouping, Grouping>>
 * <<sql-functions-datetime, Date-Time>>
 * <<sql-functions-search, Full-Text Search>>
 * <<sql-functions-math, Mathematical>>
 * <<sql-functions-string, String>>
 * <<sql-functions-type-conversion,Type Conversion>>
+* <<sql-functions-conditional, Conditional>>
+* <<sql-functions-system, System>>
 
 include::operators.asciidoc[]
 include::aggs.asciidoc[]
+include::grouping.asciidoc[]
 include::date-time.asciidoc[]
 include::search.asciidoc[]
 include::math.asciidoc[]
 include::string.asciidoc[]
 include::type-conversion.asciidoc[]
+include::conditional.asciidoc[]
+include::system.asciidoc[]

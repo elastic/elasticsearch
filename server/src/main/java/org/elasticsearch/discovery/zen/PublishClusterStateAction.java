@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -30,7 +32,6 @@ import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -66,10 +67,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class PublishClusterStateAction extends AbstractComponent {
+public class PublishClusterStateAction {
+
+    private static final Logger logger = LogManager.getLogger(PublishClusterStateAction.class);
 
     public static final String SEND_ACTION_NAME = "internal:discovery/zen/publish/send";
     public static final String COMMIT_ACTION_NAME = "internal:discovery/zen/publish/commit";
+
+    // -> no need to put a timeout on the options, because we want the state response to eventually be received
+    //  and not log an error if it arrives after the timeout
+    private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
+        .withType(TransportRequestOptions.Type.STATE).build();
 
     public interface IncomingClusterStateListener {
 
@@ -279,14 +287,9 @@ public class PublishClusterStateAction extends AbstractComponent {
                                         final boolean sendDiffs, final Map<Version, BytesReference> serializedStates) {
         try {
 
-            // -> no need to put a timeout on the options here, because we want the response to eventually be received
-            //  and not log an error if it arrives after the timeout
-            // -> no need to compress, we already compressed the bytes
-            TransportRequestOptions options = TransportRequestOptions.builder()
-                .withType(TransportRequestOptions.Type.STATE).withCompress(false).build();
             transportService.sendRequest(node, SEND_ACTION_NAME,
                     new BytesTransportRequest(bytes, node.getVersion()),
-                    options,
+                    stateRequestOptions,
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
                         @Override
@@ -319,12 +322,9 @@ public class PublishClusterStateAction extends AbstractComponent {
         try {
             logger.trace("sending commit for cluster state (uuid: [{}], version [{}]) to [{}]",
                 clusterState.stateUUID(), clusterState.version(), node);
-            TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).build();
-            // no need to put a timeout on the options here, because we want the response to eventually be received
-            // and not log an error if it arrives after the timeout
             transportService.sendRequest(node, COMMIT_ACTION_NAME,
                     new CommitClusterStateRequest(clusterState.stateUUID()),
-                    options,
+                    stateRequestOptions,
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
                         @Override

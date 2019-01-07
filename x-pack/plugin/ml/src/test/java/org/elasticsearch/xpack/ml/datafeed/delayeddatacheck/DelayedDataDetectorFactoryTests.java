@@ -52,13 +52,13 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
         assertEquals(Messages.getMessage(
             Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, "12h", "2s"), e.getMessage());
 
-        Job withBigBucketSpan = createJob(TimeValue.timeValueHours(3));
+        Job withBigBucketSpan = createJob(TimeValue.timeValueHours(1));
         datafeedConfig = createDatafeed(true, null);
 
         // Should not throw
         DelayedDataDetector delayedDataDetector =
             DelayedDataDetectorFactory.buildDetector(withBigBucketSpan, datafeedConfig, mock(Client.class));
-        assertThat(delayedDataDetector.getWindow(), equalTo(TimeValue.timeValueHours(3).millis() * 8));
+        assertThat(delayedDataDetector.getWindow(), equalTo(TimeValue.timeValueHours(1).millis() * 8));
 
         datafeedConfig = createDatafeed(true, null);
 

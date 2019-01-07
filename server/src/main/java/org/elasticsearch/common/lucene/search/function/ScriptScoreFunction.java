@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -26,11 +27,14 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class ScriptScoreFunction extends ScoreFunction {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptScoreFunction.class));
 
     static final class CannedScorer extends Scorer {
         protected int docid;
@@ -79,6 +83,12 @@ public class ScriptScoreFunction extends ScoreFunction {
                 scorer.docid = docId;
                 scorer.score = subQueryScore;
                 double result = leafScript.execute();
+                if (result < 0f) {
+                    deprecationLogger.deprecatedAndMaybeLog("negative score in function score query", 
+                        "Negative scores for script score function are deprecated," + 
+                            " and will throw an error in the next major version. Got score: [" + result + "]"
+                    );
+                }    
                 return result;
             }
 

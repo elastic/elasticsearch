@@ -33,6 +33,8 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     private final String index;
     private final String type;
     private String id = null;
+    private XContentBuilder docBuilder = null;
+
     private String routing = null;
     private String preference = null;
     private boolean realtime = true;
@@ -44,7 +46,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     private boolean requestTermStatistics = false;
     private Map<String, String> perFieldAnalyzer = null;
     private Map<String, Integer> filterSettings = null;
-    private XContentBuilder docBuilder = null;
 
 
     /**
@@ -54,7 +55,8 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
      * @param docId - id of the document
      */
     public TermVectorsRequest(String index, String type, String docId) {
-        this(index, type);
+        this.index = index;
+        this.type = type;
         this.id = docId;
     }
 
@@ -62,10 +64,35 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
      * Constructs TermVectorRequest for an artificial document
      * @param index - index of the document
      * @param type - type of the document
+     * @param docBuilder - an artificial document
      */
-    public TermVectorsRequest(String index, String type) {
+    public TermVectorsRequest(String index, String type, XContentBuilder docBuilder) {
         this.index = index;
         this.type = type;
+        this.docBuilder = docBuilder;
+    }
+
+
+    /**
+     * Constructs a new TermVectorRequest from a template
+     * using the provided document id
+     * @param template - a term vector request served as a template
+     * @param id - id of the requested document
+     */
+    static TermVectorsRequest createFromTemplate(TermVectorsRequest template, String id) {
+        TermVectorsRequest request = new TermVectorsRequest(template.getIndex(), template.getType(), id);
+        request.realtime = template.getRealtime();
+        request.requestPositions = template.requestPositions;
+        request.requestPayloads = template.requestPayloads;
+        request.requestOffsets = template.requestOffsets;
+        request.requestFieldStatistics = template.requestFieldStatistics;
+        request.requestTermStatistics = template.requestTermStatistics;
+        if (template.routing != null) request.setRouting(template.getRouting());
+        if (template.preference != null) request.setPreference(template.getPreference());
+        if (template.fields != null) request.setFields(template.getFields());
+        if (template.perFieldAnalyzer != null) request.setPerFieldAnalyzer(template.perFieldAnalyzer);
+        if (template.filterSettings != null) request.setFilterSettings(template.filterSettings);
+        return request;
     }
 
     /**
@@ -144,13 +171,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     }
 
     /**
-     * Sets an artifical document on what to request _termvectors
-     */
-    public void setDoc(XContentBuilder docBuilder) {
-        this.docBuilder = docBuilder;
-    }
-
-    /**
      * Sets conditions for terms filtering
      */
     public void setFilterSettings(Map<String, Integer> filterSettings) {
@@ -197,6 +217,9 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("_index", index);
+        builder.field("_type", type);
+        if (id != null) builder.field("_id", id);
         // set values only when different from defaults
         if (requestPositions == false) builder.field("positions", false);
         if (requestPayloads == false) builder.field("payloads", false);

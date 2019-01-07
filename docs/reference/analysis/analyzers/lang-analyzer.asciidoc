@@ -421,6 +421,9 @@ PUT /catalan_example
 [[cjk-analyzer]]
 ===== `cjk` analyzer
 
+NOTE: You may find that `icu_analyzer` in the ICU analysis plugin works better
+for CJK text than the `cjk` analyzer.  Experiment with your text and queries.
+
 The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]

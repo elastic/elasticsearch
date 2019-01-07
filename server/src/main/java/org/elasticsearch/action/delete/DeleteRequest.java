@@ -112,6 +112,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     /**
      * Sets the type of the document to delete.
      */
+    @Override
     public DeleteRequest type(String type) {
         this.type = type;
         return this;

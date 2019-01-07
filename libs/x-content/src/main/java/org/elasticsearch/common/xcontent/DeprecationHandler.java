@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import java.util.Arrays;
+
 /**
  * Callback for notifying the creator of the {@link XContentParser} that
  * parsing hit a deprecated field.
@@ -41,6 +43,12 @@ public interface DeprecationHandler {
             throw new UnsupportedOperationException("deprecated fields not supported here but got ["
                 + usedName + "] which has been replaced with [" + modernName + "]");
         }
+
+        @Override
+        public void deprecated(String message, Object... params) {
+            throw new UnsupportedOperationException(
+                    "deprecations are not supported here but got [" + message + "] and " + Arrays.toString(params));
+        }
     };
 
     /**
@@ -57,4 +65,7 @@ public interface DeprecationHandler {
      * @param replacedWith the name of the field that replaced this field
      */
     void usedDeprecatedField(String usedName, String replacedWith);
+
+    void deprecated(String message, Object... params);
+
 }

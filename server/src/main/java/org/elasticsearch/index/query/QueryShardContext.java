@@ -179,7 +179,10 @@ public class QueryShardContext extends QueryRewriteContext {
 
     /**
      * Return whether we are currently parsing a filter or a query.
+     * @deprecated The distinction between query and filter context is removed
+     * in the next major version.
      */
+    @Deprecated
     public boolean isFilter() {
         return isFilter;
     }

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
 import javax.mail.MessagingException;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -104,7 +106,7 @@ public class EmailService extends NotificationService<Account> {
     private final CryptoService cryptoService;
 
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, ClusterSettings clusterSettings) {
-        super("email", clusterSettings, EmailService.getSettings());
+        super("email", settings, clusterSettings, EmailService.getDynamicSettings(), EmailService.getSecureSettings());
         this.cryptoService = cryptoService;
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
@@ -117,7 +119,6 @@ public class EmailService extends NotificationService<Account> {
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_PORT, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_USER, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_PASSWORD, (s, o) -> {}, (s, o) -> {});
-        clusterSettings.addAffixUpdateConsumer(SETTING_SECURE_PASSWORD, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_TIMEOUT, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_CONNECTION_TIMEOUT, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_WRITE_TIMEOUT, (s, o) -> {}, (s, o) -> {});
@@ -175,12 +176,21 @@ public class EmailService extends NotificationService<Account> {
         }
     }
 
-    public static List<Setting<?>> getSettings() {
+    private static List<Setting<?>> getDynamicSettings() {
         return Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_PROFILE, SETTING_EMAIL_DEFAULTS, SETTING_SMTP_AUTH, SETTING_SMTP_HOST,
                 SETTING_SMTP_PASSWORD, SETTING_SMTP_PORT, SETTING_SMTP_STARTTLS_ENABLE, SETTING_SMTP_USER, SETTING_SMTP_STARTTLS_REQUIRED,
                 SETTING_SMTP_TIMEOUT, SETTING_SMTP_CONNECTION_TIMEOUT, SETTING_SMTP_WRITE_TIMEOUT, SETTING_SMTP_LOCAL_ADDRESS,
-                SETTING_SMTP_LOCAL_PORT, SETTING_SMTP_SEND_PARTIAL, SETTING_SMTP_WAIT_ON_QUIT, SETTING_SMTP_SSL_TRUST_ADDRESS,
-                SETTING_SECURE_PASSWORD);
+                SETTING_SMTP_LOCAL_PORT, SETTING_SMTP_SEND_PARTIAL, SETTING_SMTP_WAIT_ON_QUIT, SETTING_SMTP_SSL_TRUST_ADDRESS);
+    }
+
+    private static List<Setting<?>> getSecureSettings() {
+        return Arrays.asList(SETTING_SECURE_PASSWORD);
+    }
+
+    public static List<Setting<?>> getSettings() {
+        List<Setting<?>> allSettings = new ArrayList<Setting<?>>(EmailService.getDynamicSettings());
+        allSettings.addAll(EmailService.getSecureSettings());
+        return allSettings;
     }
 
 }

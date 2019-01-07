@@ -118,7 +118,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
             assertEquals(testSearchContext.id(), expected.id());
             verify(licenseState, times(3)).isAuthAllowed();
-            verify(auditTrailService).accessDenied(authentication, "action", request, authentication.getUser().roles());
+            verify(auditTrailService).accessDenied(null, authentication, "action", request, authentication.getUser().roles());
         }
 
         // another user running as the original user
@@ -152,7 +152,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
             assertEquals(testSearchContext.id(), expected.id());
             verify(licenseState, times(5)).isAuthAllowed();
-            verify(auditTrailService).accessDenied(authentication, "action", request, authentication.getUser().roles());
+            verify(auditTrailService).accessDenied(null, authentication, "action", request, authentication.getUser().roles());
         }
     }
 
@@ -165,55 +165,59 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         TransportRequest request = Empty.INSTANCE;
         AuditTrailService auditTrail = mock(AuditTrailService.class);
 
-        ensureAuthenticatedUserIsSame(original, current, auditTrail, id, action, request, original.getUser().roles());
+        final String auditId = randomAlphaOfLengthBetween(8, 20);
+        ensureAuthenticatedUserIsSame(original, current, auditTrail, id, action, request, auditId, original.getUser().roles());
         verifyZeroInteractions(auditTrail);
 
         // original user being run as
         User user = new User(new User("test", "role"), new User("authenticated", "runas"));
         current = new Authentication(user, new RealmRef("realm", "file", "node"),
                 new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
-        ensureAuthenticatedUserIsSame(original, current, auditTrail, id, action, request, original.getUser().roles());
+        ensureAuthenticatedUserIsSame(original, current, auditTrail, id, action, request, auditId, original.getUser().roles());
         verifyZeroInteractions(auditTrail);
 
         // both user are run as
         current = new Authentication(user, new RealmRef("realm", "file", "node"),
                 new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
         Authentication runAs = current;
-        ensureAuthenticatedUserIsSame(runAs, current, auditTrail, id, action, request, original.getUser().roles());
+        ensureAuthenticatedUserIsSame(runAs, current, auditTrail, id, action, request, auditId, original.getUser().roles());
         verifyZeroInteractions(auditTrail);
 
         // different authenticated by type
         Authentication differentRealmType =
                 new Authentication(new User("test", "role"), new RealmRef("realm", randomAlphaOfLength(5), "node"), null);
         SearchContextMissingException e = expectThrows(SearchContextMissingException.class,
-                () -> ensureAuthenticatedUserIsSame(original, differentRealmType, auditTrail, id, action, request,
+                () -> ensureAuthenticatedUserIsSame(original, differentRealmType, auditTrail, id, action, request, auditId,
                         original.getUser().roles()));
         assertEquals(id, e.id());
-        verify(auditTrail).accessDenied(differentRealmType, action, request, original.getUser().roles());
+        verify(auditTrail).accessDenied(auditId, differentRealmType, action, request, original.getUser().roles());
 
         // wrong user
         Authentication differentUser =
                 new Authentication(new User("test2", "role"), new RealmRef("realm", "realm", "node"), null);
         e = expectThrows(SearchContextMissingException.class,
-                () -> ensureAuthenticatedUserIsSame(original, differentUser, auditTrail, id, action, request, original.getUser().roles()));
+                () -> ensureAuthenticatedUserIsSame(original, differentUser, auditTrail, id, action, request, auditId,
+                    original.getUser().roles()));
         assertEquals(id, e.id());
-        verify(auditTrail).accessDenied(differentUser, action, request, original.getUser().roles());
+        verify(auditTrail).accessDenied(auditId, differentUser, action, request, original.getUser().roles());
 
         // run as different user
         Authentication diffRunAs = new Authentication(new User(new User("test2", "role"), new User("authenticated", "runas")),
                 new RealmRef("realm", "file", "node1"), new RealmRef("realm", "file", "node1"));
         e = expectThrows(SearchContextMissingException.class,
-                () -> ensureAuthenticatedUserIsSame(original, diffRunAs, auditTrail, id, action, request, original.getUser().roles()));
+                () -> ensureAuthenticatedUserIsSame(original, diffRunAs, auditTrail, id, action, request, auditId,
+                    original.getUser().roles()));
         assertEquals(id, e.id());
-        verify(auditTrail).accessDenied(diffRunAs, action, request, original.getUser().roles());
+        verify(auditTrail).accessDenied(auditId, diffRunAs, action, request, original.getUser().roles());
 
         // run as different looked up by type
         Authentication runAsDiffType = new Authentication(user, new RealmRef("realm", "file", "node"),
                 new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node"));
         e = expectThrows(SearchContextMissingException.class,
-                () -> ensureAuthenticatedUserIsSame(runAs, runAsDiffType, auditTrail, id, action, request, original.getUser().roles()));
+                () -> ensureAuthenticatedUserIsSame(runAs, runAsDiffType, auditTrail, id, action, request, auditId,
+                    original.getUser().roles()));
         assertEquals(id, e.id());
-        verify(auditTrail).accessDenied(runAsDiffType, action, request, original.getUser().roles());
+        verify(auditTrail).accessDenied(auditId, runAsDiffType, action, request, original.getUser().roles());
     }
 
     static class TestScrollSearchContext extends TestSearchContext {

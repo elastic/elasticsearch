@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -49,6 +51,9 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  */
 public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     public static final String NAME = "bool";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(BoolQueryBuilder.class)
+    );
 
     public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
 
@@ -386,6 +391,12 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
         final String minimumShouldMatch;
         if (context.isFilter() && this.minimumShouldMatch == null && shouldClauses.size() > 0) {
+            if (mustClauses.size() > 0 || mustNotClauses.size() > 0 || filterClauses.size() > 0) {
+                deprecationLogger.deprecatedAndMaybeLog("filter_context_min_should_match",
+                    "Should clauses in the filter context will no longer automatically set the minimum should " +
+                        "match to 1 in the next major version. You should group them in a [filter] clause or explicitly set " +
+                        "[minimum_should_match] to 1 to restore this behavior in the next major version." );
+            }
             minimumShouldMatch = "1";
         } else {
             minimumShouldMatch = this.minimumShouldMatch;

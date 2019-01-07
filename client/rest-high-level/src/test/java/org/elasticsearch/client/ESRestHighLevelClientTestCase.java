@@ -22,7 +22,10 @@ package org.elasticsearch.client;
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -31,15 +34,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
@@ -189,6 +197,22 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         return buildRandomXContentPipeline(pipelineBuilder);
     }
 
+    protected static void createFieldAddingPipleine(String id, String fieldName, String value) throws IOException {
+        XContentBuilder pipeline = jsonBuilder()
+            .startObject()
+                .startArray("processors")
+                    .startObject()
+                        .startObject("set")
+                            .field("field", fieldName)
+                            .field("value", value)
+                        .endObject()
+                    .endObject()
+                .endArray()
+            .endObject();
+
+        createPipeline(new PutPipelineRequest(id, BytesReference.bytes(pipeline), XContentType.JSON));
+    }
+
     protected static void createPipeline(String pipelineId) throws IOException {
         XContentBuilder builder = buildRandomXContentPipeline();
         createPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(builder), builder.contentType()));
@@ -217,5 +241,33 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             .put(super.restClientSettings())
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();
+    }
+
+    protected Iterable<SearchHit> searchAll(String... indices) throws IOException {
+        SearchRequest searchRequest = new SearchRequest(indices);
+        return searchAll(searchRequest);
+    }
+
+    protected Iterable<SearchHit> searchAll(SearchRequest searchRequest) throws IOException {
+        refreshIndexes(searchRequest.indices());
+        SearchResponse search = highLevelClient().search(searchRequest, RequestOptions.DEFAULT);
+        return search.getHits();
+    }
+
+    protected void refreshIndexes(String... indices) throws IOException {
+        String joinedIndices = Arrays.stream(indices)
+            .collect(Collectors.joining(","));
+        Response refreshResponse = client().performRequest(new Request("POST", "/" + joinedIndices + "/_refresh"));
+        assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
+    }
+
+    protected void createIndexWithMultipleShards(String index) throws IOException {
+        CreateIndexRequest indexRequest = new CreateIndexRequest(index);
+        int shards = randomIntBetween(8,10);
+        indexRequest.settings(Settings.builder()
+            .put("index.number_of_shards", shards)
+            .put("index.number_of_replicas", 0)
+        );
+        highLevelClient().indices().create(indexRequest, RequestOptions.DEFAULT);
     }
 }

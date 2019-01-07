@@ -84,6 +84,31 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             openJobIds = new String[] {};
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            timeout = in.readTimeValue();
+            force = in.readBoolean();
+            openJobIds = in.readStringArray();
+            local = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoJobs = in.readBoolean();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(jobId);
+            out.writeTimeValue(timeout);
+            out.writeBoolean(force);
+            out.writeStringArray(openJobIds);
+            out.writeBoolean(local);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoJobs);
+            }
+        }
+
         public Request(String jobId) {
             this();
             this.jobId = jobId;
@@ -131,32 +156,6 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
         public void setOpenJobIds(String [] openJobIds) {
             this.openJobIds = openJobIds;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            timeout = in.readTimeValue();
-            force = in.readBoolean();
-            openJobIds = in.readStringArray();
-            local = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoJobs = in.readBoolean();
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(jobId);
-            out.writeTimeValue(timeout);
-            out.writeBoolean(force);
-            out.writeStringArray(openJobIds);
-            out.writeBoolean(local);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoJobs);
-            }
         }
 
         @Override

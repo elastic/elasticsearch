@@ -70,6 +70,15 @@ public final class Expressions {
         return false;
     }
 
+    public static boolean match(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
+        for (Expression exp : exps) {
+            if (predicate.test(exp)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean nullable(List<? extends Expression> exps) {
         for (Expression exp : exps) {
             if (exp.nullable()) {
@@ -155,7 +164,7 @@ public final class Expressions {
     }
 
     public static TypeResolution typeMustBeInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt.isInteger, operationName, paramOrd, "integer");
+        return typeMustBe(e, DataType::isInteger, operationName, paramOrd, "integer");
     }
 
     public static TypeResolution typeMustBeNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {

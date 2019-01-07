@@ -3,6 +3,8 @@
 [[index-lifecycle-error-handling]]
 == Index Lifecycle Error Handling
 
+beta[]
+
 During Index Lifecycle Management's execution of the policy for an index, it's
 possible for a step to encounter an error during its execution. When this
 happens, ILM will move the management state into an "error" step. This halts
@@ -142,6 +144,7 @@ PUT _ilm/policy/shrink-the-index
 // CONSOLE
 // TEST[continued]
 
+[float]
 === Retrying failed index lifecycle management steps
 
 Once the underlying issue that caused an index to move to the error step has

@@ -19,13 +19,14 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -43,7 +44,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-public class MembershipAction extends AbstractComponent {
+public class MembershipAction {
+
+    private static final Logger logger = LogManager.getLogger(MembershipAction.class);
 
     public static final String DISCOVERY_JOIN_ACTION_NAME = "internal:discovery/zen/join";
     public static final String DISCOVERY_JOIN_VALIDATE_ACTION_NAME = "internal:discovery/zen/join/validate";
@@ -105,7 +108,11 @@ public class MembershipAction extends AbstractComponent {
 
     public static class JoinRequest extends TransportRequest {
 
-        DiscoveryNode node;
+        private DiscoveryNode node;
+
+        public DiscoveryNode getNode() {
+            return node;
+        }
 
         public JoinRequest() {
         }
@@ -132,7 +139,7 @@ public class MembershipAction extends AbstractComponent {
 
         @Override
         public void messageReceived(final JoinRequest request, final TransportChannel channel) throws Exception {
-            listener.onJoin(request.node, new JoinCallback() {
+            listener.onJoin(request.getNode(), new JoinCallback() {
                 @Override
                 public void onSuccess() {
                     try {

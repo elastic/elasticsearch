@@ -32,6 +32,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -76,7 +77,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
         boolean success = false;
         Directory directory = store.directory();
         try (DirectoryReader reader = DirectoryReader.open(directory)) {
-            canMatchReader = new RewriteCachingDirectoryReader(directory, reader.leaves());
+            canMatchReader = ElasticsearchDirectoryReader.wrap(new RewriteCachingDirectoryReader(directory, reader.leaves()),
+                config.getShardId());
             success = true;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -158,7 +160,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     listeners.beforeRefresh();
                 }
                 reader = DirectoryReader.open(engineConfig.getStore().directory());
-                searcherFactory.processReaders(reader, null);
+                processReaders(reader, null);
                 reader = lastOpenedReader = wrapReader(reader, Function.identity());
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
                 for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
@@ -205,10 +207,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     assert false : "this is a read-only engine";
                 case "doc_stats":
                     assert false : "doc_stats are overwritten";
+                case "refresh_needed":
+                    assert false : "refresh_needed is always false";
                 case "segments":
                 case "segments_stats":
                 case "completion_stats":
-                case "refresh_needed":
                 case "can_match": // special case for can_match phase - we use the cached point values reader
                     maybeOpenReader = false;
                     break;

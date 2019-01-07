@@ -27,6 +27,9 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.POST,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/model_snapshots/{" +
                         RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName() + "}/_revert", this);
+        controller.registerHandler(RestRequest.Method.POST,
+                MachineLearning.V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/model_snapshots/{" +
+                        RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName() + "}/_revert", this);
     }
 
     @Override

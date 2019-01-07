@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -26,6 +27,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -38,6 +40,9 @@ import java.util.List;
 import java.util.function.Function;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
+
+    private static final DeprecationLogger deprecationLogger
+        = new DeprecationLogger(LogManager.getLogger(SynonymTokenFilterFactory.class));
 
     /**
      * @deprecated this property only works with tokenizer property
@@ -109,10 +114,18 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             public TokenStream create(TokenStream tokenStream) {
                 return synonyms.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonyms, false);
             }
+
+            @Override
+            public TokenFilterFactory getSynonymFilter() {
+                // In order to allow chained synonym filters, we return IDENTITY here to
+                // ensure that synonyms don't get applied to the synonym map itself,
+                // which doesn't support stacked input tokens
+                return IDENTITY_FILTER;
+            }
         };
     }
 
-    protected Analyzer buildSynonymAnalyzer(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
+    public Analyzer buildSynonymAnalyzer(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
                                             List<TokenFilterFactory> tokenFilters) {
         if (tokenizerFactory != null) {
             return new Analyzer() {

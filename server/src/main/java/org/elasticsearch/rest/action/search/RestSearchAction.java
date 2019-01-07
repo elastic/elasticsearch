@@ -43,6 +43,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
@@ -54,7 +55,13 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 public class RestSearchAction extends BaseRestHandler {
 
     public static final String TYPED_KEYS_PARAM = "typed_keys";
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
+    public static final String TOTAL_HIT_AS_INT_PARAM = "rest_total_hits_as_int";
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HIT_AS_INT_PARAM));
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
 
     public RestSearchAction(Settings settings, RestController controller) {
         super(settings);

@@ -186,25 +186,6 @@ public class Detector implements ToXContentObject, Writeable {
     );
 
     /**
-     * The set of functions that must not be used with overlapping buckets
-     */
-    public static final EnumSet<DetectorFunction> NO_OVERLAPPING_BUCKETS_FUNCTIONS = EnumSet.of(
-            DetectorFunction.RARE,
-            DetectorFunction.FREQ_RARE
-    );
-
-    /**
-     * The set of functions that should not be used with overlapping buckets
-     * as they gain no benefit but have overhead
-     */
-    public static final EnumSet<DetectorFunction> OVERLAPPING_BUCKETS_FUNCTIONS_NOT_NEEDED = EnumSet.of(
-            DetectorFunction.MIN,
-            DetectorFunction.MAX,
-            DetectorFunction.TIME_OF_DAY,
-            DetectorFunction.TIME_OF_WEEK
-    );
-
-    /**
      * Functions that do not support rule conditions:
      * <ul>
      * <li>lat_long - because it is a multivariate feature

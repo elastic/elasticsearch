@@ -111,6 +111,7 @@ The configuration object has the following properties:
   (time units) The window of time before the latest finalized bucket that should be searched
   for late data. Defaults to `null` which causes an appropriate `check_window` to be calculated
   when the real-time {dfeed} runs.
+  The default `check_window` span calculation is the max between `2h` or `8 * bucket_span`.
 
 [float]
 [[ml-datafeed-counts]]

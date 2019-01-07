@@ -32,6 +32,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
+/**
+ * Checks whether all shards have been correctly routed in response to an update to the allocation rules for an index.
+ */
 public class AllocationRoutedStep extends ClusterStateWaitStep {
     public static final String NAME = "check-allocation";
 

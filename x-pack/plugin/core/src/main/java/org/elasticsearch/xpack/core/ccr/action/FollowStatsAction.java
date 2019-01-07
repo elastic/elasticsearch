@@ -132,6 +132,19 @@ public class FollowStatsAction
 
         private String[] indices;
 
+        public StatsRequest() {}
+
+        public StatsRequest(StreamInput in) throws IOException {
+            super(in);
+            indices = in.readOptionalStringArray();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalStringArray(indices);
+        }
+
         @Override
         public String[] indices() {
             return indices;
@@ -162,18 +175,6 @@ public class FollowStatsAction
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            indices = in.readOptionalStringArray();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalStringArray(indices);
         }
 
         @Override

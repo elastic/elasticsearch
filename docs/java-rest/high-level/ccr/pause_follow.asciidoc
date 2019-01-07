@@ -1,7 +1,7 @@
 --
 :api: ccr-pause-follow
 :request: PauseFollowRequest
-:response: PauseFollowResponse
+:response: AcknowledgedResponse
 --
 
 [id="{upid}-{api}"]

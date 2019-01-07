@@ -514,11 +514,11 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                        XContentParser parser, Map<String, CompletionInputMetaData> inputMap) throws IOException {
         String currentFieldName = null;
         if (token == Token.VALUE_STRING) {
-            inputMap.put(parser.text(), new CompletionInputMetaData(parser.text(), Collections.emptyMap(), 1));
+            inputMap.put(parser.text(), new CompletionInputMetaData(parser.text(), Collections.<String, Set<String>>emptyMap(), 1));
         } else if (token == Token.START_OBJECT) {
             Set<String> inputs = new HashSet<>();
             int weight = 1;
-            Map<String, Set<CharSequence>> contextsMap = new HashMap<>();
+            Map<String, Set<String>> contextsMap = new HashMap<>();
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -603,10 +603,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
     static class CompletionInputMetaData {
         public final String input;
-        public final Map<String, Set<CharSequence>> contexts;
+        public final Map<String, Set<String>> contexts;
         public final int weight;
 
-        CompletionInputMetaData(String input, Map<String, Set<CharSequence>> contexts, int weight) {
+        CompletionInputMetaData(String input, Map<String, Set<String>> contexts, int weight) {
             this.input = input;
             this.contexts = contexts;
             this.weight = weight;

@@ -28,4 +28,5 @@ public final class Protocol {
      */
     public static final String CLEAR_CURSOR_REST_ENDPOINT = "/_xpack/sql/close";
     public static final String SQL_QUERY_REST_ENDPOINT = "/_xpack/sql";
+    public static final String SQL_STATS_REST_ENDPOINT = "/_xpack/sql/stats";
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
@@ -80,6 +81,7 @@ import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 public class TransportService extends AbstractLifecycleComponent implements TransportMessageListener, TransportConnectionListener {
+    private static final Logger logger = LogManager.getLogger(TransportService.class);
 
     public static final Setting<Integer> CONNECTIONS_PER_NODE_RECOVERY =
         intSetting("transport.connections_per_node.recovery", 2, 1, Setting.Property.NodeScope);
@@ -893,13 +895,15 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     /** called by the {@link Transport} implementation once a response was sent to calling node */
-    public void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions options) {
+    @Override
+    public void onResponseSent(long requestId, String action, TransportResponse response) {
         if (traceEnabled() && shouldTraceAction(action)) {
             traceResponseSent(requestId, action);
         }
     }
 
     /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
+    @Override
     public void onResponseSent(long requestId, String action, Exception e) {
         if (traceEnabled() && shouldTraceAction(action)) {
             traceResponseSent(requestId, action, e);
@@ -914,6 +918,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * called by the {@link Transport} implementation when an incoming request arrives but before
      * any parsing of it has happened (with the exception of the requestId and action)
      */
+    @Override
     public void onRequestReceived(long requestId, String action) {
         try {
             blockIncomingRequestsLatch.await();
@@ -1168,7 +1173,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
-            service.onResponseSent(requestId, action, response, TransportResponseOptions.EMPTY);
+            service.onResponseSent(requestId, action, response);
             final TransportResponseHandler handler = service.responseHandlers.onResponseReceived(requestId, service);
             // ignore if its null, the service logs it
             if (handler != null) {

@@ -168,14 +168,16 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         .endObject().endObject()
         ).get();
 
-        GetMappingsResponse getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
+        GetMappingsResponse getResponse = client().admin().indices()
+            .prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
         Map<String, Object> defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
         assertThat(defaultMapping, hasKey("date_detection"));
 
 
         logger.info("Emptying _default_ mappings");
         // now remove it
-        AcknowledgedResponse putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+        AcknowledgedResponse putResponse = client().admin().indices()
+            .preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                         .endObject().endObject()
         ).get();
@@ -258,7 +260,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
                         ImmutableOpenMap<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
                         assertThat(mappings.containsKey(typeName), equalTo(true));
-                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(), Matchers.hasItem(fieldName));
+                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(),
+                            Matchers.hasItem(fieldName));
                     }
                 } catch (Exception e) {
                     threadException.set(e);

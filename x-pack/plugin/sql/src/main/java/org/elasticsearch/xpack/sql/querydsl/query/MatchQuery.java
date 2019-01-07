@@ -11,7 +11,7 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -47,12 +47,12 @@ public class MatchQuery extends LeafQuery {
     private final Map<String, String> options;
 
 
-    public MatchQuery(Location location, String name, Object text) {
-        this(location, name, text, null);
+    public MatchQuery(Source source, String name, Object text) {
+        this(source, name, text, null);
     }
 
-    public MatchQuery(Location location, String name, Object text, MatchQueryPredicate predicate) {
-        super(location);
+    public MatchQuery(Source source, String name, Object text, MatchQueryPredicate predicate) {
+        super(source);
         this.name = name;
         this.text = text;
         this.predicate = predicate;

@@ -9,7 +9,8 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.expression.Nullability;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;
@@ -23,14 +24,14 @@ public abstract class Function extends NamedExpression {
 
     private final String functionName, name;
 
-    protected Function(Location location, List<Expression> children) {
-        this(location, children, null, false);
+    protected Function(Source source, List<Expression> children) {
+        this(source, children, null, false);
     }
 
     // TODO: Functions supporting distinct should add a dedicated constructor Location, List<Expression>, boolean
-    protected Function(Location location, List<Expression> children, ExpressionId id, boolean synthetic) {
+    protected Function(Source source, List<Expression> children, ExpressionId id, boolean synthetic) {
         // cannot detect name yet so override the name
-        super(location, null, children, id, synthetic);
+        super(source, null, children, id, synthetic);
         functionName = StringUtils.camelCaseToUnderscore(getClass().getSimpleName());
         name = functionName() + functionArgs();
     }
@@ -45,7 +46,7 @@ public abstract class Function extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         return Expressions.nullable(children());
     }
 

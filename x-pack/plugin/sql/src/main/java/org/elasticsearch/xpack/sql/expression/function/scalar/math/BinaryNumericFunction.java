@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Objects;
@@ -20,8 +20,8 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
     private final BinaryMathOperation operation;
 
-    BinaryNumericFunction(Location location, Expression left, Expression right, BinaryMathOperation operation) {
-        super(location, left, right);
+    BinaryNumericFunction(Source source, Expression left, Expression right, BinaryMathOperation operation) {
+        super(source, left, right);
         this.operation = operation;
     }
 
@@ -51,7 +51,7 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new BinaryMathPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()), operation);
+        return new BinaryMathPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), operation);
     }
 
     @Override

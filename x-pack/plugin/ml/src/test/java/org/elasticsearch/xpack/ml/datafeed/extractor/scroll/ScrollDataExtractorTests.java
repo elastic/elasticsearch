@@ -65,7 +65,6 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private ArgumentCaptor<ClearScrollRequest> capturedClearScrollRequests;
     private String jobId;
     private TimeBasedExtractedFields extractedFields;
-    private List<String> types;
     private List<String> indices;
     private QueryBuilder query;
     private List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -134,7 +133,6 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractedFields = new TimeBasedExtractedFields(timeField,
                 Arrays.asList(timeField, ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE)));
         indices = Arrays.asList("index-1", "index-2");
-        types = Arrays.asList("type-1", "type-2");
         query = QueryBuilders.matchAllQuery();
         scriptFields = Collections.emptyList();
         scrollSize = 1000;
@@ -422,7 +420,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         List<SearchSourceBuilder.ScriptField> sFields = Arrays.asList(withoutSplit, withSplit);
         ScrollDataExtractorContext context = new ScrollDataExtractorContext(jobId, extractedFields, indices,
-                types, query, sFields, scrollSize, 1000, 2000, Collections.emptyMap());
+                query, sFields, scrollSize, 1000, 2000, Collections.emptyMap());
 
         TestDataExtractor extractor = new TestDataExtractor(context);
 
@@ -467,7 +465,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     private ScrollDataExtractorContext createContext(long start, long end) {
-        return new ScrollDataExtractorContext(jobId, extractedFields, indices, types, query, scriptFields, scrollSize, start, end,
+        return new ScrollDataExtractorContext(jobId, extractedFields, indices, query, scriptFields, scrollSize, start, end,
                 Collections.emptyMap());
     }
 

@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.AttributeInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
@@ -26,12 +26,12 @@ public abstract class NamedExpression extends Expression {
     private Pipe lazyPipe = null;
 
 
-    public NamedExpression(Location location, String name, List<Expression> children, ExpressionId id) {
-        this(location, name, children, id, false);
+    public NamedExpression(Source source, String name, List<Expression> children, ExpressionId id) {
+        this(source, name, children, id, false);
     }
 
-    public NamedExpression(Location location, String name, List<Expression> children, ExpressionId id, boolean synthetic) {
-        super(location, children);
+    public NamedExpression(Source source, String name, List<Expression> children, ExpressionId id, boolean synthetic) {
+        super(source, children);
         this.name = name;
         this.id = id == null ? new ExpressionId() : id;
         this.synthetic = synthetic;
@@ -53,14 +53,14 @@ public abstract class NamedExpression extends Expression {
 
     public Pipe asPipe() {
         if (lazyPipe == null) {
-            lazyPipe = foldable() ? new ConstantInput(location(), this, fold()) : makePipe();
+            lazyPipe = foldable() ? new ConstantInput(source(), this, fold()) : makePipe();
         }
 
         return lazyPipe;
     }
 
     protected Pipe makePipe() {
-        return new AttributeInput(location(), this, toAttribute());
+        return new AttributeInput(source(), this, toAttribute());
     }
 
     public abstract ScriptTemplate asScript();

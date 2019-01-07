@@ -62,7 +62,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 512;
 
+    private static final long DEFAULT_ABSOLUTE_START_MILLIS = -1;
+
     private final String localClusterAlias;
+    private final long absoluteStartMillis;
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -95,6 +98,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     public SearchRequest() {
         this.localClusterAlias = null;
+        this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
     }
 
     /**
@@ -115,6 +119,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         this.source = searchRequest.source;
         this.types = searchRequest.types;
         this.localClusterAlias = searchRequest.localClusterAlias;
+        this.absoluteStartMillis = searchRequest.absoluteStartMillis;
     }
 
     /**
@@ -138,12 +143,17 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Creates a new search request by providing the alias of the cluster where it will be executed. Used when a {@link SearchRequest}
-     * is created and executed as part of a cross-cluster search request performing local reduction on each cluster.
-     * The coordinating CCS node provides the alias to prefix index names with in the returned search results.
+     * Creates a new search request by providing the alias of the cluster where it will be executed, as well as the current time in
+     * milliseconds from the epoch time. Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search
+     * request performing local reduction on each cluster. The coordinating CCS node provides the alias to prefix index names with in
+     * the returned search results, and the current time to be used on the remote clusters to ensure that the same value is used.
      */
-    SearchRequest(String localClusterAlias) {
+    SearchRequest(String localClusterAlias, long absoluteStartMillis) {
         this.localClusterAlias = Objects.requireNonNull(localClusterAlias, "cluster alias must not be null");
+        if (absoluteStartMillis < 0) {
+            throw new IllegalArgumentException("absoluteStartMillis must not be negative but was [" + absoluteStartMillis + "]");
+        }
+        this.absoluteStartMillis = absoluteStartMillis;
     }
 
     /**
@@ -155,10 +165,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public SearchRequest(StreamInput in) throws IOException {
         super(in);
         searchType = SearchType.fromId(in.readByte());
-        indices = new String[in.readVInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readString();
-        }
+        indices = in.readStringArray();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
@@ -175,8 +182,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         //TODO update version after backport
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             localClusterAlias = in.readOptionalString();
+            if (localClusterAlias != null) {
+                absoluteStartMillis = in.readVLong();
+            } else {
+                absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+            }
         } else {
             localClusterAlias = null;
+            absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         }
     }
 
@@ -184,10 +197,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeByte(searchType.id());
-        out.writeVInt(indices.length);
-        for (String index : indices) {
-            out.writeString(index);
-        }
+        out.writeStringArray(indices);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         out.writeOptionalWriteable(scroll);
@@ -204,6 +214,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         //TODO update version after backport
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeOptionalString(localClusterAlias);
+            if (localClusterAlias != null) {
+                out.writeVLong(absoluteStartMillis);
+            }
         }
     }
 
@@ -241,6 +254,17 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     @Nullable
     String getLocalClusterAlias() {
         return localClusterAlias;
+    }
+
+    /**
+     * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
+     * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
+     * request. When created through {@link #SearchRequest(String, long)}, this method returns the provided current time, otherwise
+     * it will return {@link System#currentTimeMillis()}.
+     *
+     */
+    long getOrCreateAbsoluteStartMillis() {
+        return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;
     }
 
     /**
@@ -435,7 +459,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         return this.allowPartialSearchResults;
     }
 
-
     /**
      * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
      * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
@@ -499,13 +522,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Returns <code>true</code> iff the maxConcurrentShardRequest is set.
-     */
-    boolean isMaxConcurrentShardRequestsSet() {
-        return maxConcurrentShardRequests != 0;
-    }
-
-    /**
      * @return true if the request only has suggest
      */
     public boolean isSuggestOnly() {
@@ -538,7 +554,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public void readFrom(StreamInput in) {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
@@ -564,14 +580,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults) &&
-                Objects.equals(localClusterAlias, that.localClusterAlias);
+                Objects.equals(localClusterAlias, that.localClusterAlias) &&
+                absoluteStartMillis == that.absoluteStartMillis;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
                 scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, localClusterAlias);
+                allowPartialSearchResults, localClusterAlias, absoluteStartMillis);
     }
 
     @Override
@@ -590,6 +607,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", preFilterShardSize=" + preFilterShardSize +
                 ", allowPartialSearchResults=" + allowPartialSearchResults +
                 ", localClusterAlias=" + localClusterAlias +
+                ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
                 ", source=" + source + '}';
     }
 }

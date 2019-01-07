@@ -1,0 +1,30 @@
+[[add-elasticsearch-nodes]]
+== Adding nodes to your cluster
+
+An {es} _node_ is a single server that is part of your
+cluster and stores pieces of your data called _shards_. 
+
+image::setup/images/elas_0202.png["A cluster with one node and three primary shards"]
+
+You can add more nodes to your cluster and optionally designate specific
+purposes for each node. For example, you can allocate master nodes, data nodes,
+ingest nodes, machine learning nodes, and dedicated coordinating nodes. For
+details about each node type, see <<modules-node,Nodes>>.
+
+In a single cluster, you can have as many nodes as you want but they must be
+able to communicate with each other. The communication between nodes in a
+cluster is handled by the <<modules-transport,transport module>>.
+
+When you have multiple nodes, your data can be distributed across the cluster in
+multiple primary and replica shards. For example:
+
+image::setup/images/elas_0204.png["A cluster with three nodes"]
+
+For more information about the concepts of
+clusters, nodes, and shards, see <<getting-started-concepts>>.
+
+The method for adding nodes to your cluster varies depending on whether you are
+in development or production mode, whether you are adding the new node on the
+same server or a different server, and which {es} package you installed.
+
+For more information, see <<modules-discovery-adding-removing-nodes>>.

@@ -28,14 +28,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
+import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 
 import java.io.IOException;
 import java.util.Set;
@@ -164,21 +167,24 @@ public class SecurityActionFilter implements ActionFilter {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
         } else {
-            final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer = new AuthorizationUtils.AsyncAuthorizer(authentication, listener,
-                    (userRoles, runAsRoles) -> {
-                        authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                        /*
-                         * We use a separate concept for code that needs to be run after authentication and authorization that could
-                         * affect the running of the action. This is done to make it more clear of the state of the request.
-                         */
-                        for (RequestInterceptor interceptor : requestInterceptors) {
-                            if (interceptor.supports(request)) {
-                                interceptor.intercept(request, authentication, runAsRoles != null ? runAsRoles : userRoles, securityAction);
-                            }
-                        }
-                        listener.onResponse(null);
-                    });
-            asyncAuthorizer.authorize(authzService);
+            authzService.authorize(authentication, securityAction, request, ActionListener.wrap(ignore -> {
+                /*
+                 * We use a separate concept for code that needs to be run after authentication and authorization that could
+                 * affect the running of the action. This is done to make it more clear of the state of the request.
+                 */
+                // FIXME this needs to be done in a way that allows us to operate without a role
+                Role role = null;
+                AuthorizationInfo authorizationInfo = threadContext.getTransient("_authz_info");
+                if (authorizationInfo instanceof RBACAuthorizationInfo) {
+                    role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+                }
+                for (RequestInterceptor interceptor : requestInterceptors) {
+                    if (interceptor.supports(request)) {
+                        interceptor.intercept(request, authentication, role, securityAction);
+                    }
+                }
+                listener.onResponse(null);
+            }, listener::onFailure));
         }
     }
 }

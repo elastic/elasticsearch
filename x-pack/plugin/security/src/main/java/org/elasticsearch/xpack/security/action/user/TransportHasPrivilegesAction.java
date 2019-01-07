@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -30,7 +32,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 
 import java.util.ArrayList;
@@ -51,16 +53,16 @@ import java.util.stream.Collectors;
 public class TransportHasPrivilegesAction extends HandledTransportAction<HasPrivilegesRequest, HasPrivilegesResponse> {
 
     private final ThreadPool threadPool;
-    private final AuthorizationService authorizationService;
+    private final CompositeRolesStore rolesStore;
     private final NativePrivilegeStore privilegeStore;
 
     @Inject
     public TransportHasPrivilegesAction(ThreadPool threadPool, TransportService transportService,
-                                        ActionFilters actionFilters, AuthorizationService authorizationService,
+                                        ActionFilters actionFilters, CompositeRolesStore rolesStore,
                                         NativePrivilegeStore privilegeStore) {
         super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
         this.threadPool = threadPool;
-        this.authorizationService = authorizationService;
+        this.rolesStore = rolesStore;
         this.privilegeStore = privilegeStore;
     }
 
@@ -74,7 +76,8 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             return;
         }
 
-        authorizationService.roles(user, ActionListener.wrap(
+        // FIXME
+        rolesStore.getRoles(user, new FieldPermissionsCache(Settings.EMPTY), ActionListener.wrap(
             role -> resolveApplicationPrivileges(request, ActionListener.wrap(
                 applicationPrivilegeLookup -> checkPrivileges(request, role, applicationPrivilegeLookup, listener),
                 listener::onFailure)),

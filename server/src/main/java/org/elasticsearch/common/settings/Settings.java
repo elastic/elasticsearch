@@ -861,7 +861,7 @@ public final class Settings implements ToXContentFragment {
          * @param byteSizeValue The setting value
          * @return The builder
          */
-        public Builder put(String key, ByteSizeValue byteSizeValue) {
+        public Builder put(final String key, final ByteSizeValue byteSizeValue) {
             return put(key, byteSizeValue.getStringRep());
         }
 

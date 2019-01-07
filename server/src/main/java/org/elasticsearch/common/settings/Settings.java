@@ -862,7 +862,7 @@ public final class Settings implements ToXContentFragment {
          * @return The builder
          */
         public Builder put(String key, ByteSizeValue byteSizeValue) {
-            return put(key, byteSizeValue.toString());
+            return put(key, byteSizeValue.getStringRep());
         }
 
         /**

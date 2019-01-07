@@ -1,23 +1,23 @@
 [[recovery]]
 === Indices Recovery
 
-_Recovery_ is the process used to build a new copy of a shard on a node by
-copying data from the primary. {es} uses this recovery process to rebuild shard
-copies that were lost if a node has failed, and uses the same process when
-migrating a shard copy between nodes to rebalance the cluster or to honor any
-changes to the <<modules-cluster,shard allocation settings>>.
+_Peer recovery_ is the process used to build a new copy of a shard on a node by
+copying data from the primary. {es} uses this peer recovery process to rebuild
+shard copies that were lost if a node has failed, and uses the same process
+when migrating a shard copy between nodes to rebalance the cluster or to honor
+any changes to the <<modules-cluster,shard allocation settings>>.
 
 The following _expert_ setting can be set to manage the resources consumed by
-recoveries:
+peer recoveries:
 
 `indices.recovery.max_bytes_per_sec`::
-    Limits the total inbound and outbound recovery traffic on each node. If you
-    set this limit too high then there is a risk that ongoing recoveries will
-    consume an excess of bandwidth (or other resources) which could destabilize
-    the cluster. Since this setting applies to each node separately, the total
-    bandwidth that might be used by recoveries is the value of this setting
-    multiplied by half of the number of nodes in the cluster. Defaults to
-    `40mb`.
+    Limits the total inbound and outbound peer recovery traffic on each node.
+    If you set this limit too high then there is a risk that ongoing recoveries
+    will consume an excess of bandwidth (or other resources) which could
+    destabilize the cluster. Since this setting applies to each node
+    separately, the total bandwidth that might be used by peer recoveries is
+    the value of this setting multiplied by half of the number of nodes in the
+    cluster. Defaults to `40mb`.
 
 This setting can be dynamically updated on a live cluster with the
 <<cluster-update-settings,cluster-update-settings>> API.

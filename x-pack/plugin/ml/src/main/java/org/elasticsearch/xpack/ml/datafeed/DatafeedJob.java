@@ -238,9 +238,11 @@ class DatafeedJob {
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             request.source(xContentBuilder);
-            IndexResponse response = client.index(request).actionGet();
-            lastDataCheckAnnotation = annotation;
-            return response.getId();
+            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+                IndexResponse response = client.index(request).actionGet();
+                lastDataCheckAnnotation = annotation;
+                return response.getId();
+            }
         } catch (IOException ex) {
             String errorMessage = "[" + jobId + "] failed to create annotation for delayed data checker.";
             LOGGER.error(errorMessage, ex);
@@ -260,8 +262,10 @@ class DatafeedJob {
             IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             indexRequest.id(lastDataCheckAnnotationId);
             indexRequest.source(xContentBuilder);
-            client.index(indexRequest).actionGet();
-            lastDataCheckAnnotation = updatedAnnotation;
+            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+                client.index(indexRequest).actionGet();
+                lastDataCheckAnnotation = updatedAnnotation;
+            }
         } catch (IOException ex) {
             String errorMessage = "[" + jobId + "] failed to update annotation for delayed data checker.";
             LOGGER.error(errorMessage, ex);

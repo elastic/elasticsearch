@@ -173,7 +173,7 @@ public class AuthorizationService {
                 // TODO need a failure handler better than this!
                 listener.onFailure(denyRunAs(requestId, authentication, action, unwrappedRequest, authzInfo, e));
             }), threadContext);
-            authorizeRunAs(authentication, unwrappedRequest, action, requestId, authzInfo, runAsListener);
+            authorizeRunAs(authentication, action, requestId, unwrappedRequest, authzInfo, runAsListener);
         } else {
             authorizeAction(authentication, action, requestId, unwrappedRequest, authzInfo, listener);
         }
@@ -337,8 +337,8 @@ public class AuthorizationService {
         return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user);
     }
 
-    private void authorizeRunAs(final Authentication authentication, final TransportRequest request, final String action,
-                                final String requestId, final AuthorizationInfo authzInfo,
+    private void authorizeRunAs(final Authentication authentication, final String action, final String requestId,
+                                final TransportRequest request, final AuthorizationInfo authzInfo,
                                 final ActionListener<AuthorizationResult> listener) {
         if (authentication.getLookedUpBy() == null) {
             // this user did not really exist

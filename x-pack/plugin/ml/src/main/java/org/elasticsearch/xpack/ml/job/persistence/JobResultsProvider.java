@@ -957,7 +957,6 @@ public class JobResultsProvider {
                 ), client::search);
     }
 
-    //TODO: 6.7 Adjust so that multiple indices are supported
     private <U, T> void getResult(String jobId, String resultDescription, GetRequest get, BiFunction<XContentParser, U, T> objectParser,
             Consumer<Result<T>> handler, Consumer<Exception> errorHandler, Supplier<T> notFoundSupplier) {
 
@@ -1113,7 +1112,6 @@ public class JobResultsProvider {
                 client::search);
     }
 
-    //TODO: 6.7 Adjust so that multiple indices are supported
     public void getForecastRequestStats(String jobId, String forecastId, Consumer<ForecastRequestStats> handler,
             Consumer<Exception> errorHandler) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);

@@ -348,7 +348,6 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    //TODO: 6.7 Adjust so that multiple indices are supported
     protected ForecastRequestStats getForecastStats(String jobId, String forecastId) {
         GetResponse getResponse = client().prepareGet()
                 .setIndex(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))

@@ -53,7 +53,10 @@ excluded.
 
 `xpack.security.audit.logfile.events.emit_request_body`::
 Specifies whether to include the request body from REST requests on certain
-event types such as `authentication_failed`. The default value is `false`.
+event types. The subset of event types that `emit_request_body` applies to is:
+`anonymous_access_denied, authentication_success, authentication_failed,
+run_as_denied, tampered_request`. Possible values are `true` or `false` with
+the default value of `false`.
 +
 --
 IMPORTANT: No filtering is performed when auditing, so sensitive data may be
@@ -141,7 +144,10 @@ excluded.
 
 `xpack.security.audit.index.events.emit_request_body`::
 Specifies whether to include the request body from REST requests on certain
-event types such as `authentication_failed`. The default value is `false`.
+event types such as `authentication_failed`. The subset of event types that `emit_request_body` applies to is:
+`anonymous_access_denied, authentication_success, authentication_failed,
+run_as_denied, tampered_request`. Possible values are `true` or `false` with
+the default value of `false`.
 
 `xpack.security.audit.index.settings`::
 Specifies settings for the indices that the events are stored in. For example,

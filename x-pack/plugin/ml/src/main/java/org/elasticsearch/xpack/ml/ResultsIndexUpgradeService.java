@@ -100,10 +100,10 @@ public class ResultsIndexUpgradeService {
      * @param metaData      Cluster metadata
      * @param newIndexName  The index to check
      * @param shouldUpgrade Should be index be upgraded
-     * @return {@code true} if the "new index" is not considered valid
+     * @return {@code true} if the "new index" is valid
      */
-    private static boolean invalidIndexForUpgrade(MetaData metaData, String newIndexName, Predicate<IndexMetaData> shouldUpgrade) {
-        return metaData.hasIndex(newIndexName) && shouldUpgrade.test(metaData.index(newIndexName));
+    private static boolean validNewIndex(MetaData metaData, String newIndexName, Predicate<IndexMetaData> shouldUpgrade) {
+        return (metaData.hasIndex(newIndexName) && shouldUpgrade.test(metaData.index(newIndexName))) == false;
     }
 
     private static void validateMinNodeVersion(ClusterState clusterState) {
@@ -454,12 +454,12 @@ public class ResultsIndexUpgradeService {
             for (String index : oldIndices) {
                 String newWriteName = newWriteName(index);
                 // If the "new" indices exist, either they were created from a previous run of the upgrade process or the end user
-                if (invalidIndexForUpgrade(metaData, newWriteName, shouldUpgrade)) {
+                if (validNewIndex(metaData, newWriteName, shouldUpgrade) == false) {
                     return new IllegalStateException("Index [" + newWriteName + "] already exists and is not the current version.");
                 }
 
                 String newReadName = newReadName(index);
-                if (invalidIndexForUpgrade(metaData, newReadName, shouldUpgrade)) {
+                if (validNewIndex(metaData, newReadName, shouldUpgrade) == false) {
                     return new IllegalStateException("Index [" + newReadName + "] already exists and is not the current version.");
                 }
             }

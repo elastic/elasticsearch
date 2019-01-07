@@ -1,5 +1,8 @@
 [[discovery-settings]]
-=== Discovery and cluster formation settings
+=== Important discovery and cluster formation settings
+++++
+<titleabbrev>Discovery and cluster formation settings</titleabbrev>
+++++
 
 There are two important discovery and cluster formation settings that should be
 configured before going to production so that nodes in the cluster can discover
@@ -58,3 +61,5 @@ cluster.initial_master_nodes:
 <4> Initial master nodes can also be identified by their IP address.
 <5> If multiple master nodes share an IP address then the port must be used to
     disambiguate them.
+
+For more information, see <<modules-discovery-settings>>.

@@ -7,40 +7,39 @@ package org.elasticsearch.xpack.sql.tree;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.sql.tree.LocationTests.randomLocation;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
 
 public class NodeTests extends ESTestCase {
     public void testToString() {
-        assertEquals("NoChildren[thing]", new NoChildren(randomLocation(), "thing").toString());
+        assertEquals("NoChildren[thing]", new NoChildren(randomSource(), "thing").toString());
         {
-            ChildrenAreAProperty empty = new ChildrenAreAProperty(randomLocation(), emptyList(), "thing");
+            ChildrenAreAProperty empty = new ChildrenAreAProperty(randomSource(), emptyList(), "thing");
             assertEquals("ChildrenAreAProperty[thing]", empty.toString());
             assertEquals("ChildrenAreAProperty[single]\n\\_ChildrenAreAProperty[thing]",
-                new ChildrenAreAProperty(randomLocation(), singletonList(empty), "single").toString());
+                new ChildrenAreAProperty(randomSource(), singletonList(empty), "single").toString());
             assertEquals("ChildrenAreAProperty[many]\n"
                        + "|_ChildrenAreAProperty[thing]\n"
                       + "\\_ChildrenAreAProperty[thing]",
-                new ChildrenAreAProperty(randomLocation(), Arrays.asList(empty, empty), "many").toString());
+                new ChildrenAreAProperty(randomSource(), Arrays.asList(empty, empty), "many").toString());
         }
         {
-            NoChildren empty = new NoChildren(randomLocation(), "thing");
+            NoChildren empty = new NoChildren(randomSource(), "thing");
             assertEquals("AChildIsAProperty[single]\n"
                       + "\\_NoChildren[thing]",
-                new AChildIsAProperty(randomLocation(), empty, "single").toString());
+                new AChildIsAProperty(randomSource(), empty, "single").toString());
         }
     }
 
     public abstract static class Dummy extends Node<Dummy> {
         private final String thing;
-        public Dummy(Location location, List<Dummy> children, String thing) {
-            super(location, children);
+        public Dummy(Source source, List<Dummy> children, String thing) {
+            super(source, children);
             this.thing = thing;
         }
 
@@ -68,8 +67,8 @@ public class NodeTests extends ESTestCase {
     }
 
     public static class ChildrenAreAProperty extends Dummy {
-        public ChildrenAreAProperty(Location location, List<Dummy> children, String thing) {
-            super(location, children, thing);
+        public ChildrenAreAProperty(Source source, List<Dummy> children, String thing) {
+            super(source, children, thing);
         }
 
         @Override
@@ -79,13 +78,13 @@ public class NodeTests extends ESTestCase {
 
         @Override
         public ChildrenAreAProperty replaceChildren(List<Dummy> newChildren) {
-            return new ChildrenAreAProperty(location(), newChildren, thing());
+            return new ChildrenAreAProperty(source(), newChildren, thing());
         }
     }
 
     public static class AChildIsAProperty extends Dummy {
-        public AChildIsAProperty(Location location, Dummy child, String thing) {
-            super(location, singletonList(child), thing);
+        public AChildIsAProperty(Source source, Dummy child, String thing) {
+            super(source, singletonList(child), thing);
         }
 
         @Override
@@ -98,7 +97,7 @@ public class NodeTests extends ESTestCase {
             if (newChildren.size() != 1) {
                 throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
             }
-            return new AChildIsAProperty(location(), newChildren.get(0), thing());
+            return new AChildIsAProperty(source(), newChildren.get(0), thing());
         }
 
         public Dummy child() {
@@ -107,8 +106,8 @@ public class NodeTests extends ESTestCase {
     }
 
     public static class NoChildren extends Dummy {
-        public NoChildren(Location location, String thing) {
-            super(location, emptyList(), thing);
+        public NoChildren(Source source, String thing) {
+            super(source, emptyList(), thing);
         }
 
         @Override

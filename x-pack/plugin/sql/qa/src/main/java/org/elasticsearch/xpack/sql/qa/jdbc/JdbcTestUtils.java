@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.sql.action.CliFormatter;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -134,7 +135,7 @@ public abstract class JdbcTestUtils {
         logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
     
-    public static ZonedDateTime of(long millis) {
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
+    public static String of(long millis) {
+        return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC));
     }
 }

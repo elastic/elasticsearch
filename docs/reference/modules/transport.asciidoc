@@ -103,6 +103,34 @@ cause idle connections to be closed, or by setting `transport.ping_schedule` if
 keepalives cannot be configured.
 
 [float]
+==== Transport Compression
+
+[float]
+===== Request Compression
+
+By default, the `transport.compress` setting is `false` and network-level
+request compression is disabled between nodes in the cluster. This default
+normally makes sense for local cluster communication as compression has a
+noticeable CPU cost and local clusters tend to be set up with fast network
+connections between nodes.
+
+The `transport.compress` setting always configures local cluster request
+compression and is the fallback setting for remote cluster request compression.
+If you want to configure remote request compression differently than local
+request compression, you can set it on a per-remote cluster basis using the
+<<remote-cluster-settings,`cluster.remote.${cluster_alias}.transport.compress` setting>>.
+
+
+[float]
+===== Response Compression
+
+The compression settings do not configure compression for responses. {es} will
+compress a response if the inbound request was compressed--even when compression
+is not enabled. Similarly, {es} will not compress a response if the inbound
+request was uncompressed--even when compression is enabled.
+
+
+[float]
 === Transport Tracer
 
 The transport module has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated

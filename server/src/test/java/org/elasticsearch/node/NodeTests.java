@@ -34,13 +34,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -166,6 +169,42 @@ public class NodeTests extends ESTestCase {
             fail("should not allow a server_name attribute with an underscore");
         } catch (IllegalArgumentException e) {
             assertEquals("invalid node.attr.server_name [invalid_hostname]", e.getMessage());
+        }
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
+    }
+
+    public void testCheckIfClusterNameInDataPaths() throws NodeValidationException, IOException {
+        ClusterName clusterName = new ClusterName(randomAlphaOfLengthBetween(3, 10));
+        Path invalidDataPath = createTempDir("invalidData");
+        Path clusterNameDir = invalidDataPath.resolve(clusterName.value());
+        Files.createDirectory(clusterNameDir);
+
+        // check valid data files
+        Node.checkIfClusterNameInDataPaths(clusterName, new Path[] { createTempDir() });
+        // expect exception when clusterName is found as subdirectory in data path
+        Exception e = expectThrows(NodeValidationException.class,
+            () -> Node.checkIfClusterNameInDataPaths(clusterName, new Path[] { invalidDataPath }));
+        assertThat(e, hasToString(containsString("Cluster name [" + clusterName.value() + "] subdirectory exists in data paths ["
+            + clusterNameDir.toString() + "]. " + "All data under these paths must be moved up one directory to paths ["
+            + invalidDataPath.toString() + "]")));
+    }
+
+    public void testCheckIfClusterNameInDataPathsOnNodeStartup() throws IOException {
+        String clusterName = randomAlphaOfLengthBetween(3, 10);
+        Path invalidDataPath = createTempDir("invalidData");
+        Path clusterNameDir = invalidDataPath.resolve(clusterName);
+        Files.createDirectory(clusterNameDir);
+        Settings invalidSettings = baseSettings()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), Collections.singletonList(invalidDataPath.toString())).build();
+        // expect node validation exception when clusterName is found as subdirectory in data path
+        try (Node node = new MockNode(invalidSettings, Collections.singleton(getTestTransportPlugin()))) {
+            Exception e = expectThrows(NodeValidationException.class, () -> node.start());
+            assertThat(e, hasToString(containsString("Cluster name [" + clusterName + "] subdirectory exists in data paths ["
+                + clusterNameDir.toString() + "]. " + "All data under these paths must be moved up one directory to paths ["
+                + invalidDataPath.toString() + "]")));
         }
 
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });

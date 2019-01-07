@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -830,10 +831,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::reindex-request-conflicts
             request.setConflicts("proceed"); // <1>
             // end::reindex-request-conflicts
-            // tag::reindex-request-typeOrQuery
-            request.setSourceDocTypes("doc"); // <1>
-            request.setSourceQuery(new TermQueryBuilder("user", "kimchy")); // <2>
-            // end::reindex-request-typeOrQuery
             // tag::reindex-request-size
             request.setSize(10); // <1>
             // end::reindex-request-size
@@ -854,27 +851,29 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     "if (ctx._source.user == 'kimchy') {ctx._source.likes++;}",
                     Collections.emptyMap())); // <1>
             // end::reindex-request-script
+            HttpHost host = getClusterHosts().get(0);
+            Integer remotePort = host.getPort();
+            String remoteHost = host.getHostName();
+            String user = "test_user";
+            String password = "test-password";
+
             // tag::reindex-request-remote
             request.setRemoteInfo(
                 new RemoteInfo(
-                    "https", "localhost", 9002, null,
+                    "http", remoteHost, remotePort, null,
                     new BytesArray(new MatchAllQueryBuilder().toString()),
-                    "user", "pass", Collections.emptyMap(),
+                    user, password, Collections.emptyMap(),
                     new TimeValue(100, TimeUnit.MILLISECONDS),
                     new TimeValue(100, TimeUnit.SECONDS)
                 )
             ); // <1>
             // end::reindex-request-remote
-            request.setRemoteInfo(null); // Remove it for tests
             // tag::reindex-request-timeout
             request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
             // end::reindex-request-timeout
             // tag::reindex-request-refresh
             request.setRefresh(true); // <1>
             // end::reindex-request-refresh
-            // tag::reindex-request-slices
-            request.setSlices(2); // <1>
-            // end::reindex-request-slices
             // tag::reindex-request-scroll
             request.setScroll(TimeValue.timeValueMinutes(10)); // <1>
             // end::reindex-request-scroll
@@ -911,6 +910,15 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             ReindexRequest request = new ReindexRequest();
             request.setSourceIndices("source1");
             request.setDestIndex("dest");
+
+            // These cannot be set with a remote set, so its set here instead for the docs
+            // tag::reindex-request-typeOrQuery
+            request.setSourceDocTypes("doc"); // <1>
+            request.setSourceQuery(new TermQueryBuilder("user", "kimchy")); // <2>
+            // end::reindex-request-typeOrQuery
+            // tag::reindex-request-slices
+            request.setSlices(2); // <1>
+            // end::reindex-request-slices
 
             ActionListener<BulkByScrollResponse> listener;
             // tag::reindex-execute-listener

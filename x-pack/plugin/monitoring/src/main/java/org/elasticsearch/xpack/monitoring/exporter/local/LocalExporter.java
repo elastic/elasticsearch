@@ -251,7 +251,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                                          final boolean clusterStateChange) {
         // we are on the elected master
         // Check that there is nothing that could block metadata updates
-        if (clusterState.blocks().hasGlobalBlock(ClusterBlockLevel.METADATA_WRITE)) {
+        if (clusterState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.METADATA_WRITE)) {
             logger.debug("waiting until metadata writes are unblocked");
             return false;
         }

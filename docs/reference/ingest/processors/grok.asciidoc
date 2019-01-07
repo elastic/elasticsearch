@@ -17,7 +17,7 @@ If you need help building patterns to match your logs, you will find the {kibana
 
 Grok sits on top of regular expressions, so any regular expressions are valid in grok as well.
 The regular expression library is Oniguruma, and you can see the full supported regexp syntax
-https://github.com/kkos/oniguruma/blob/master/doc/RE[on the Onigiruma site].
+https://github.com/kkos/oniguruma/blob/master/doc/RE[on the Oniguruma site].
 
 Grok works by leveraging this regular expression language to allow naming existing patterns and combining them into more
 complex patterns that match your fields.
@@ -119,8 +119,8 @@ This pipeline will insert these named captures as new fields within the document
 [[custom-patterns]]
 ==== Custom Patterns
 
-The Grok processor comes pre-packaged with a base set of pattern. These patterns may not always have
-what you are looking for. Pattern have a very basic format. Each entry describes has a name and the pattern itself.
+The Grok processor comes pre-packaged with a base set of patterns. These patterns may not always have
+what you are looking for. Patterns have a very basic format. Each entry has a name and the pattern itself.
 
 You can add your own patterns to a processor definition under the `pattern_definitions` option.
 Here is an example of a pipeline specifying custom pattern definitions:

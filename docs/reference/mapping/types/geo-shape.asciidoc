@@ -121,7 +121,7 @@ near perfect spatial resolution (down to 1e-7 decimal degree precision) since al
 spatial relations are computed using an encoded vector representation of the
 original shape instead of a raster-grid representation as used by the
 <<prefix-trees>> indexing approach. Performance of the tessellator primarily
-depends on the number of vertices that define the polygon/multi-polyogn. While
+depends on the number of vertices that define the polygon/multi-polygon. While
 this is the default indexing technique prefix trees can still be used by setting
 the `tree` or `strategy` parameters according to the appropriate
 <<geo-shape-mapping-options>>. Note that these parameters are now deprecated

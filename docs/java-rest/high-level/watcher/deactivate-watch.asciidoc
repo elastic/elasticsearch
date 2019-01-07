@@ -1,6 +1,6 @@
 --
 :api: deactivate-watch
-:request: deactivateWatchRequet
+:request: deactivateWatchRequest
 :response: deactivateWatchResponse
 :doc-tests-file: {doc-tests}/WatcherDocumentationIT.java
 --

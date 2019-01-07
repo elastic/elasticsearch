@@ -121,8 +121,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
-            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards() == 1));
+            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
         bucketCountThresholds.ensureValidity();
         if (valuesSource instanceof ValuesSource.Bytes) {

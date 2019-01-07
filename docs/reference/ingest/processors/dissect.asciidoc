@@ -47,7 +47,7 @@ Later dissect matches the `[` and then `]` and then assigns `@timestamp` to ever
 Paying special attention the parts of the string to discard will help build successful dissect patterns.
 
 Successful matches require all keys in a pattern to have a value. If any of the `%{keyname}` defined in the pattern do
-not have a value, then an exception is thrown and may be handled by the <<handling-failure-in-pipelines,on_falure>> directive.
+not have a value, then an exception is thrown and may be handled by the <<handling-failure-in-pipelines,on_failure>> directive.
 An empty key `%{}` or a <<dissect-modifier-named-skip-key, named skip key>> can be used to match values, but exclude the value from
 the final document. All matched values are represented as string data types. The <<convert-processor, convert processor>>
 may be used to convert to expected data type.

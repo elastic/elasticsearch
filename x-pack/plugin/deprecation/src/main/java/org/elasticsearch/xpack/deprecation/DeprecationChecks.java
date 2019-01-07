@@ -43,6 +43,7 @@ public class DeprecationChecks {
             NodeDeprecationChecks::indexThreadPoolCheck,
             NodeDeprecationChecks::bulkThreadPoolCheck,
             NodeDeprecationChecks::tribeNodeCheck,
+            NodeDeprecationChecks::authRealmsTypeCheck,
             NodeDeprecationChecks::httpPipeliningCheck,
             NodeDeprecationChecks::discoveryConfigurationCheck,
             NodeDeprecationChecks::azureRepositoryChanges,

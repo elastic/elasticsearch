@@ -169,7 +169,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             ccrLicenseChecker,
             restoreSourceService,
             new CcrRepositoryManager(settings, clusterService, (NodeClient) client),
-            new AutoFollowCoordinator(settings, client, clusterService, ccrLicenseChecker, threadPool::relativeTimeInMillis)
+            new AutoFollowCoordinator(settings, client, clusterService, ccrLicenseChecker,
+                threadPool::relativeTimeInMillis, threadPool::absoluteTimeInMillis)
         );
     }
 

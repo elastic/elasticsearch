@@ -304,6 +304,10 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         // Hot Phase
         assertNextActionName("hot", RolloverAction.NAME, null, new String[] {});
         assertNextActionName("hot", RolloverAction.NAME, null, new String[] { RolloverAction.NAME });
+        assertNextActionName("hot", UnfollowAction.NAME, null, new String[] {});
+        assertNextActionName("hot", UnfollowAction.NAME, null, new String[] {UnfollowAction.NAME});
+        assertNextActionName("hot", UnfollowAction.NAME, RolloverAction.NAME,
+            new String[] {UnfollowAction.NAME, RolloverAction.NAME});
         assertInvalidAction("hot", "foo", new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", AllocateAction.NAME, new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", DeleteAction.NAME, new String[] { RolloverAction.NAME });

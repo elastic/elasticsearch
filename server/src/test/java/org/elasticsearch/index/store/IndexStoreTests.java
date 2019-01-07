@@ -64,6 +64,9 @@ public class IndexStoreTests extends ESTestCase {
             new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
         try (Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             switch (type) {
+                case HYBRIDFS:
+                    assertHybridDirectory(directory);
+                    break;
                 case NIOFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
                     break;
@@ -88,4 +91,9 @@ public class IndexStoreTests extends ESTestCase {
         }
     }
 
+    private void assertHybridDirectory(Directory directory) {
+        assertTrue(directory.toString(), directory instanceof FsDirectoryService.HybridDirectory);
+        Directory randomAccessDirectory = ((FsDirectoryService.HybridDirectory) directory).getRandomAccessDirectory();
+        assertTrue("randomAccessDirectory:  " +  randomAccessDirectory.toString(), randomAccessDirectory instanceof MMapDirectory);
+    }
 }

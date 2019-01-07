@@ -870,13 +870,15 @@ which will return:
   "_index": "test2",
   "_type": "_doc",
   "_version": 1,
+  "_seq_no": 44,
+  "_primary_term": 1,
   "_source": {
     "text": "words words",
     "tag": "foo"
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 
 [float]
 [[docs-reindex-slice]]

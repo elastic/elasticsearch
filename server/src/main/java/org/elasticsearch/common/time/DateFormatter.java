@@ -126,16 +126,20 @@ public interface DateFormatter {
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
-        return forPattern(input, Locale.ROOT);
-    }
-
-    static DateFormatter forPattern(String input, Locale locale) {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
+        if (input.startsWith("8") == false) {
+            return Joda.forPattern(input);
+        }
+
+        // force java 8 date format
         List<DateFormatter> formatters = new ArrayList<>();
-        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
-            formatters.add(Joda.forPattern(pattern, locale));
+        for (String pattern : Strings.delimitedListToStringArray(input.substring(1), "||")) {
+            if (Strings.hasLength(pattern) == false) {
+                throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
+            }
+            formatters.add(DateFormatters.forPattern(pattern));
         }
 
         if (formatters.size() == 1) {

@@ -79,3 +79,61 @@ GET /stackoverflow/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:stackoverflow]
+
+[float]
+=== Settings changes
+
+[float]
+[[watcher-notifications-account-settings]]
+==== Watcher notifications account settings
+
+The following settings have been deprecated and the secure variants should
+be used instead. The <<secure-settings, secure settings>> have to be defined
+inside each cluster node's keystore, i.e., they are not to be specified via
+the cluster settings API.
+
+- `xpack.notification.email.account.<id>.smtp.password`, instead use
+`xpack.notification.email.account.<id>.smtp.secure_password`
+- `xpack.notification.hipchat.account.<id>.auth_token`, instead use
+`xpack.notification.hipchat.account.<id>.secure_auth_token`
+- `xpack.notification.jira.account.<id>.url`, instead use
+`xpack.notification.jira.account.<id>.secure_url`
+- `xpack.notification.jira.account.<id>.user`, instead use
+`xpack.notification.jira.account.<id>.secure_user`
+- `xpack.notification.jira.account.<id>.password`, instead use
+`xpack.notification.jira.account.<id>.secure_password`
+- `xpack.notification.pagerduty.account.<id>.service_api_key`, instead use
+`xpack.notification.pagerduty.account.<id>.secure_service_api_key`
+- `xpack.notification.slack.account.<id>.url`, instead use
+`xpack.notification.slack.account.<id>.secure_url`
+
+[float]
+=== Mappings changes
+
+[float]
+==== Changed default `geo_shape` indexing strategy
+
+`geo_shape` types now default to using a vector indexing approach based on Lucene's new
+`LatLonShape` field type. This indexes shapes as a triangular mesh instead of decomposing
+them into individual grid cells. To index using legacy prefix trees the `tree` parameter
+must be explicitly set to one of `quadtree` or `geohash`. Note that these strategies are
+now deprecated and will be removed in a future version.
+
+The impact of changing the default indexing strategy is as follows:
+
+* `CONTAINS` queries are not yet supported
+* `geo_shape` query does not support querying by `MULTIPOINT` type
+* `LINESTRING` and `MULTILINESTRING` queries do not yet support `WITHIN` relations
+
+*IMPORTANT NOTE*: If you are using any of the features listed above, newly created indexes
+with default `geo_shape` type (e.g., templates) might no longer work. It is recommended
+to update the `geo_shape` field mapping to explicitly define the `tree` parameter to one of
+`geohash` or `quadtree`. This will ensure newly created indexes are feature compatible with
+previously created indexes.
+
+[float]
+==== deprecated `geo_shape` parameters
+
+The following type parameters are deprecated for the `geo_shape` field type: `tree`,
+`precision`, `tree_levels`, `distance_error_pct`, `points_only`, and `strategy`. They
+will be removed in a future version.

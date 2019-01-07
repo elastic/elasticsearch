@@ -125,11 +125,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Settings connectionSettings = Settings.builder()
-            .put(TransportService.CONNECTIONS_PER_NODE_RECOVERY.getKey(), 1)
-            .put(TransportService.CONNECTIONS_PER_NODE_BULK.getKey(), 1)
-            .put(TransportService.CONNECTIONS_PER_NODE_REG.getKey(), 2)
-            .put(TransportService.CONNECTIONS_PER_NODE_STATE.getKey(), 1)
-            .put(TransportService.CONNECTIONS_PER_NODE_PING.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_BULK.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_REG.getKey(), 2)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_STATE.getKey(), 1)
+            .put(TransportSettings.CONNECTIONS_PER_NODE_PING.getKey(), 1)
             .build();
 
         serviceA = buildService("TS_A",  version0, clusterSettings, connectionSettings); // this one supports dynamic tracer updates
@@ -169,8 +169,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 Settings.builder()
                         .put(settings)
                         .put(Node.NODE_NAME_SETTING.getKey(), name)
-                        .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                        .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                        .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+                        .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                         .build(),
                 version,
                 clusterSettings, doHandshake);
@@ -515,7 +515,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceC.start();
             serviceC.acceptIncomingRequests();
 
-            Settings settingsWithCompress = Settings.builder().put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), true).build();
+            Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
 
@@ -569,7 +569,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            Settings settingsWithCompress = Settings.builder().put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), true).build();
+            Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
 
@@ -1055,8 +1055,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             excludeSettings = "DOESN'T_MATCH";
         }
         clusterSettings.applySettings(Settings.builder()
-            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), includeSettings)
-            .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
+            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), includeSettings)
+            .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
             .build());
 
         tracer.reset(4);
@@ -1740,8 +1740,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         TransportService serviceC = build(
             Settings.builder()
                 .put("name", "TS_TEST")
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+                .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .build(),
             version0,
             null, true);
@@ -2602,34 +2602,34 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
 
         Settings transportSettings = Settings.builder()
-            .put("transport.tcp_no_delay", enable)
+            .put("transport.tcp.no_delay", enable)
             .put("transport.tcp.keep_alive", enable)
             .put("transport.tcp.reuse_address", enable)
             .put("transport.tcp.send_buffer_size", "43000b")
             .put("transport.tcp.receive_buffer_size", "42000b")
             .put("transport.publish_host", "the_publish_host")
-            .put("transport.tcp.port", "9700-9800")
+            .put("transport.port", "9700-9800")
             .put("transport.bind_host", "the_bind_host")
             .put(globalSettings2)
             .build();
 
         Settings transportSettings2 = Settings.builder()
-            .put("transport.tcp_no_delay", !enable)
+            .put("transport.tcp.no_delay", !enable)
             .put("transport.tcp.keep_alive", !enable)
             .put("transport.tcp.reuse_address", !enable)
             .put("transport.tcp.send_buffer_size", "5b")
             .put("transport.tcp.receive_buffer_size", "6b")
             .put("transport.publish_host", "another_publish_host")
-            .put("transport.tcp.port", "9702-9802")
+            .put("transport.port", "9702-9802")
             .put("transport.bind_host", "another_bind_host")
             .put(globalSettings2)
             .build();
         Settings defaultProfileSettings = Settings.builder()
-            .put("transport.profiles.default.tcp_no_delay", enable)
-            .put("transport.profiles.default.tcp_keep_alive", enable)
+            .put("transport.profiles.default.tcp.no_delay", enable)
+            .put("transport.profiles.default.tcp.keep_alive", enable)
             .put("transport.profiles.default.reuse_address", enable)
-            .put("transport.profiles.default.send_buffer_size", "43000b")
-            .put("transport.profiles.default.receive_buffer_size", "42000b")
+            .put("transport.profiles.default.tcp.send_buffer_size", "43000b")
+            .put("transport.profiles.default.tcp.receive_buffer_size", "42000b")
             .put("transport.profiles.default.port", "9700-9800")
             .put("transport.profiles.default.publish_host", "the_publish_host")
             .put("transport.profiles.default.bind_host", "the_bind_host")
@@ -2638,11 +2638,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
 
         Settings profileSettings = Settings.builder()
-            .put("transport.profiles.some_profile.tcp_no_delay", enable)
-            .put("transport.profiles.some_profile.tcp_keep_alive", enable)
+            .put("transport.profiles.some_profile.tcp.no_delay", enable)
+            .put("transport.profiles.some_profile.tcp.keep_alive", enable)
             .put("transport.profiles.some_profile.reuse_address", enable)
-            .put("transport.profiles.some_profile.send_buffer_size", "43000b")
-            .put("transport.profiles.some_profile.receive_buffer_size", "42000b")
+            .put("transport.profiles.some_profile.tcp.send_buffer_size", "43000b")
+            .put("transport.profiles.some_profile.tcp.receive_buffer_size", "42000b")
             .put("transport.profiles.some_profile.port", "9700-9800")
             .put("transport.profiles.some_profile.publish_host", "the_publish_host")
             .put("transport.profiles.some_profile.bind_host", "the_bind_host")
@@ -2683,7 +2683,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testProfilesIncludesDefault() {
         Set<TcpTransport.ProfileSettings> profileSettings = TcpTransport.getProfileSettings(Settings.EMPTY);
         assertEquals(1, profileSettings.size());
-        assertEquals(TcpTransport.DEFAULT_PROFILE, profileSettings.stream().findAny().get().profileName);
+        assertEquals(TransportSettings.DEFAULT_PROFILE, profileSettings.stream().findAny().get().profileName);
 
         profileSettings = TcpTransport.getProfileSettings(Settings.builder()
             .put("transport.profiles.test.port", "0")

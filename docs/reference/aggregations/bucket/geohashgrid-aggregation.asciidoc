@@ -121,6 +121,22 @@ POST /museums/_search?size=0
 // CONSOLE
 // TEST[continued]
 
+The geohashes returned by the `geohash_grid` aggregation as bucket keys can be also
+used for "zooming in" by translating them into bounding boxes using one of available
+geohash libraries. For example, for javascript the
+https://github.com/sunng87/node-geohash[node-geohash] library can be used:
+
+[source,js]
+--------------------------------------------------
+var geohash = require('ngeohash');
+
+// bbox will contain [ 52.03125, 4.21875, 53.4375, 5.625 ]
+//                   [   minlat,  minlon,  maxlat, maxlon]
+var bbox = geohash.decode_bbox('u17');
+--------------------------------------------------
+// NOTCONSOLE
+
+
 ==== Cell dimensions at the equator
 The table below shows the metric dimensions for cells covered by various string lengths of geohash.
 Cell dimensions vary with latitude and so the table is for the worst-case scenario at the equator.

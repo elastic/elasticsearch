@@ -71,6 +71,7 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.Interna
 import org.elasticsearch.search.aggregations.metrics.scripted.InternalScriptedMetricTests;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHitsTests;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCountTests;
+import org.elasticsearch.search.aggregations.metrics.weighted_avg.InternalWeightedAvgTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValueTests;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.InternalPercentilesBucketTests;
@@ -114,6 +115,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalMinTests());
         aggsTests.add(new InternalMaxTests());
         aggsTests.add(new InternalAvgTests());
+        aggsTests.add(new InternalWeightedAvgTests());
         aggsTests.add(new InternalSumTests());
         aggsTests.add(new InternalValueCountTests());
         aggsTests.add(new InternalSimpleValueTests());

@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[migration-api-assistance]]
-=== Migration Assistance API
+=== Migration assistance API
+++++
+<titleabbrev>Migration assistance</titleabbrev>
+++++
 
 The Migration Assistance API analyzes existing indices in the cluster and
 returns the information about indices that require some changes before the

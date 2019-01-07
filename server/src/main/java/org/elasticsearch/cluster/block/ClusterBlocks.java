@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.block;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -119,7 +118,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return global.contains(block);
     }
 
-    public boolean hasGlobalBlock(int blockId) {
+    public boolean hasGlobalBlockWithId(final int blockId) {
         for (ClusterBlock clusterBlock : global) {
             if (clusterBlock.id() == blockId) {
                 return true;
@@ -128,14 +127,14 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return false;
     }
 
-    public boolean hasGlobalBlock(ClusterBlockLevel level) {
+    public boolean hasGlobalBlockWithLevel(ClusterBlockLevel level) {
         return global(level).size() > 0;
     }
 
     /**
      * Is there a global block with the provided status?
      */
-    public boolean hasGlobalBlock(RestStatus status) {
+    public boolean hasGlobalBlockWithStatus(final RestStatus status) {
         for (ClusterBlock clusterBlock : global) {
             if (clusterBlock.status().equals(status)) {
                 return true;

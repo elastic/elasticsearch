@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-put-role]]
 === Create or update roles API
+++++
+<titleabbrev>Create or update roles</titleabbrev>
+++++
 
 Adds and updates roles in the native realm.
 

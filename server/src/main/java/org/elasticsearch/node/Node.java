@@ -41,6 +41,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -244,7 +245,6 @@ public abstract class Node implements Closeable {
     private final Logger logger;
     private final Injector injector;
     private final Settings settings;
-    private final Settings originalSettings;
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
@@ -280,7 +280,6 @@ public abstract class Node implements Closeable {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
         try {
-            originalSettings = environment.settings();
             Settings tmpSettings = Settings.builder().put(environment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
@@ -633,6 +632,29 @@ public abstract class Node implements Closeable {
         }
     }
 
+    /**
+     * Checks if a subdirectory sharing the same name as the cluster is found in one of the data paths.
+     *
+     * @param clusterName the name of the cluster
+     * @param dataFiles the node's data directories
+     * @throws NodeValidationException if a subdirectory named after the cluster is found in one of the data directories
+     */
+    static void checkIfClusterNameInDataPaths(ClusterName clusterName, Path[] dataFiles) throws NodeValidationException {
+        final List<Path> existingPathsWithClusterName = Arrays.stream(dataFiles)
+            .map(p -> p.resolve(clusterName.value()))
+            .filter(Files::exists).collect(Collectors.toList());
+        if (existingPathsWithClusterName.isEmpty() == false) {
+            final List<String> clusterPathStrings = existingPathsWithClusterName.stream()
+                .map(Path::toString).collect(Collectors.toList());
+            final List<String> dataPathStrings = existingPathsWithClusterName.stream()
+                .map(Path::getParent).map(Path::toString).collect(Collectors.toList());
+            throw new NodeValidationException("Cluster name [" + clusterName.value()
+                + "] subdirectory exists in data paths [" + String.join(",", clusterPathStrings) + "]. " +
+                "All data under these paths must be moved up one directory to paths [" + String.join(",", dataPathStrings) + "]");
+        }
+
+    }
+
     static void warnIfPreRelease(final Version version, final boolean isSnapshot, final Logger logger) {
         if (!version.isRelease() || isSnapshot) {
             logger.warn(
@@ -650,13 +672,6 @@ public abstract class Node implements Closeable {
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
         // Noop in production, overridden by tests
-    }
-
-    /**
-     * The original settings that were used to create the node
-     */
-    public Settings originalSettings() {
-        return originalSettings;
     }
 
     /**
@@ -739,6 +754,9 @@ public abstract class Node implements Closeable {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+
+        checkIfClusterNameInDataPaths(clusterService.getClusterName(), environment.dataFiles());
+
         validateNodeBeforeAcceptingRequests(new BootstrapContext(environment, onDiskMetadata), transportService.boundAddress(), pluginsService
             .filterPlugins(Plugin
             .class)

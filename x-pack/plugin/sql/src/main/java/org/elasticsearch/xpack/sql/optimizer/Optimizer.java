@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
+import org.elasticsearch.xpack.sql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
@@ -1096,12 +1097,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected Expression rule(Expression e) {
             if (e instanceof IsNotNull) {
-                if (((IsNotNull) e).field().nullable() == false) {
+                if (((IsNotNull) e).field().nullable() == Nullability.FALSE) {
                     return new Literal(e.location(), Expressions.name(e), Boolean.TRUE, DataType.BOOLEAN);
                 }
 
             } else if (e instanceof IsNull) {
-                if (((IsNull) e).field().nullable() == false) {
+                if (((IsNull) e).field().nullable() == Nullability.FALSE) {
                     return new Literal(e.location(), Expressions.name(e), Boolean.FALSE, DataType.BOOLEAN);
                 }
 
@@ -1111,10 +1112,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
-            } else if (e instanceof NullIf) {
-                return e;
-
-            } else if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+            } else if (e.nullable() == Nullability.TRUE && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
 
@@ -1313,7 +1311,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // true for equality
             if (bc instanceof Equals || bc instanceof GreaterThanOrEqual || bc instanceof LessThanOrEqual) {
-                if (!l.nullable() && !r.nullable() && l.semanticEquals(r)) {
+                if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
                     return TRUE;
                 }
             }
@@ -1328,7 +1326,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // false for equality
             if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
-                if (!l.nullable() && !r.nullable() && l.semanticEquals(r)) {
+                if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
                     return FALSE;
                 }
             }
@@ -1849,14 +1847,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 List<Object> values = extractConstants(p.projections());
-                if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation)) {
+                if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation) &&
+                    isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
                     return new LocalRelation(p.location(), new SingletonExecutable(p.output(), values.toArray()));
                 }
             }
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
                 List<Object> values = extractConstants(a.aggregates());
-                if (values.size() == a.aggregates().size()) {
+                if (values.size() == a.aggregates().size() && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
                     return new LocalRelation(a.location(), new SingletonExecutable(a.output(), values.toArray()));
                 }
             }
@@ -1874,6 +1873,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return values;
+        }
+
+        /**
+         * Check if the plan doesn't model a query with FROM clause on a table
+         * that its filter (WHERE clause) is folded to FALSE.
+         */
+        private static boolean isNotQueryWithFromClauseAndFilterFoldedToFalse(UnaryPlan plan) {
+            return (!(plan.child() instanceof LocalRelation) || (plan.child() instanceof LocalRelation &&
+                !(((LocalRelation) plan.child()).executable() instanceof EmptyExecutable)));
         }
     }
 

@@ -725,6 +725,27 @@ SELECT HISTOGRAM(salary, 5000) AS h FROM emp GROUP BY h;
 // end::histogramNumeric  
 ;
 
+histogramNumericExpression
+schema::h:i|c:l
+// tag::histogramNumericExpression
+SELECT HISTOGRAM(salary % 100, 10) AS h, COUNT(*) AS c FROM emp GROUP BY h;
+
+       h       |       c       
+---------------+---------------
+0              |10             
+10             |15             
+20             |10             
+30             |14             
+40             |9              
+50             |9              
+60             |8              
+70             |13             
+80             |3              
+90             |9    
+
+// end::histogramNumericExpression  
+;
+
 histogramDate
 schema::h:ts|c:l
 // tag::histogramDate
@@ -750,6 +771,30 @@ null                |10
 1964-02-02T00:00:00Z|5    
 
 // end::histogramDate
+;
+
+expressionOnHistogramNotAllowed-Ignore
+// tag::expressionOnHistogramNotAllowed
+SELECT MONTH(HISTOGRAM(birth_date), 2)) AS h, COUNT(*) as c FROM emp GROUP BY h ORDER BY h DESC;
+// end::expressionOnHistogramNotAllowed
+
+histogramDateExpression
+schema::h:i|c:l
+// tag::histogramDateExpression
+SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM emp GROUP BY h ORDER BY h DESC;
+
+       h       |       c       
+---------------+---------------
+12             |7              
+10             |17             
+8              |16             
+6              |16             
+4              |18             
+2              |10             
+0              |6              
+null           |10 
+
+// end::histogramDateExpression   
 ;
 
 ///////////////////////////////
@@ -2083,5 +2128,32 @@ SELECT NOW() AS result;
          result         
 ------------------------
 2018-12-12T14:48:52.448Z
-// end::nowIgnore
+// end::nowFunction
+;
+
+////////////
+// Next two queries need to have the same output, as they should be equivalent.
+// They are used in the "SQL Limitations" page.
+////////////
+limitationSubSelect
+// tag::limitationSubSelect
+SELECT * FROM (SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%') WHERE first_name LIKE 'A%';
+
+  first_name   |   last_name
+---------------+---------------
+Anneke         |Preusig
+Anoosh         |Peyn
+Arumugam       |Ossenbruggen
+// end::limitationSubSelect
+;
+
+limitationSubSelect
+// tag::limitationSubSelectRewritten
+SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%' AND first_name LIKE 'A%';
+// end::limitationSubSelectRewritten
+  first_name   |   last_name
+---------------+---------------
+Anneke         |Preusig
+Anoosh         |Peyn
+Arumugam       |Ossenbruggen
 ;

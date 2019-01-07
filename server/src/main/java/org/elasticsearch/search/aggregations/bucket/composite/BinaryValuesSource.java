@@ -114,12 +114,30 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         return compareValues(currentValue, afterValue);
     }
 
+    @Override
+    int hashCode(int slot) {
+        if (missingBucket && values.get(slot) == null) {
+            return 0;
+        } else {
+            return values.get(slot).hashCode();
+        }
+    }
+
+    @Override
+    int hashCodeCurrent() {
+        if (missingBucket && currentValue == null) {
+            return 0;
+        } else {
+            return currentValue.hashCode();
+        }
+    }
+
     int compareValues(BytesRef v1, BytesRef v2) {
         return v1.compareTo(v2) * reverseMul;
     }
 
     @Override
-    void setAfter(Comparable<?> value) {
+    void setAfter(Comparable value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value.getClass() == String.class) {
@@ -155,7 +173,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable<?> value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != BytesRef.class) {
             throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
         }

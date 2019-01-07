@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.security.authc.ldap.support;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
+import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
+import com.unboundid.ldap.listener.InMemoryListenerConfig;
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
@@ -29,13 +31,21 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapLoadBalancin
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
 import java.security.AccessController;
+import java.security.KeyStore;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
@@ -61,7 +71,25 @@ public abstract class LdapTestCase extends ESTestCase {
     public void startLdap() throws Exception {
         ldapServers = new InMemoryDirectoryServer[numberOfLdapServers];
         for (int i = 0; i < numberOfLdapServers; i++) {
-            InMemoryDirectoryServer ldapServer = new InMemoryDirectoryServer("o=sevenSeas");
+            InMemoryDirectoryServerConfig serverConfig = new InMemoryDirectoryServerConfig("o=sevenSeas");
+            List<InMemoryListenerConfig> listeners = new ArrayList<>(2);
+            listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap"));
+            if (openLdapsPort()) {
+                final char[] ldapPassword = "ldap-password".toCharArray();
+                final KeyStore ks = CertParsingUtils.getKeyStoreFromPEM(
+                    getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-test-case.crt"),
+                    getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-test-case.key"),
+                    ldapPassword
+                );
+                X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(ks, ldapPassword, KeyManagerFactory.getDefaultAlgorithm());
+                final SSLContext context = SSLContext.getInstance("TLSv1.2");
+                context.init(new KeyManager[] { keyManager }, null, null);
+                SSLServerSocketFactory serverSocketFactory = context.getServerSocketFactory();
+                SSLSocketFactory clientSocketFactory = context.getSocketFactory();
+                listeners.add(InMemoryListenerConfig.createLDAPSConfig("ldaps", null, 0, serverSocketFactory, clientSocketFactory));
+            }
+            serverConfig.setListenerConfigs(listeners);
+            InMemoryDirectoryServer ldapServer = new InMemoryDirectoryServer(serverConfig);
             ldapServer.add("o=sevenSeas", new Attribute("dc", "UnboundID"),
                     new Attribute("objectClass", "top", "domain", "extensibleObject"));
             ldapServer.importFromLDIF(false,
@@ -73,6 +101,10 @@ public abstract class LdapTestCase extends ESTestCase {
             });
             ldapServers[i] = ldapServer;
         }
+    }
+
+    protected boolean openLdapsPort() {
+        return false;
     }
 
     @After

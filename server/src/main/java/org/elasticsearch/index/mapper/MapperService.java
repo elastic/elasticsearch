@@ -58,6 +58,7 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -106,10 +107,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     //TODO this needs to be cleaned up: _timestamp and _ttl are not supported anymore, _field_names, _seq_no, _version and _source are
     //also missing, not sure if on purpose. See IndicesModule#getMetadataMappers
-    private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
-            "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
-            "_size", "_timestamp", "_ttl", IgnoredFieldMapper.NAME
-    );
+    private static final String[] SORTED_META_FIELDS = new String[]{
+        "_all", "_id", IgnoredFieldMapper.NAME, "_index", "_parent", "_routing", "_size", "_timestamp", "_ttl", "_type", "_uid"
+    };
+
+    private static final ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(SORTED_META_FIELDS);
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(MapperService.class));
 
@@ -812,7 +814,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static String[] getAllMetaFields() {
-        return META_FIELDS.toArray(String.class);
+        return Arrays.copyOf(SORTED_META_FIELDS, SORTED_META_FIELDS.length);
     }
 
     /** An analyzer wrapper that can lookup fields within the index mappings */

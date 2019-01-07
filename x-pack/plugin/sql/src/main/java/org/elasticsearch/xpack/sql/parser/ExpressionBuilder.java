@@ -226,13 +226,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (pCtx.query() != null) {
                     throw new ParsingException(loc, "IN query not supported yet");
                 }
-                e = new In(loc, exp, expressions(pCtx.expression()));
+                e = new In(loc, exp, expressions(pCtx.valueExpression()));
                 break;
             case SqlBaseParser.LIKE:
                 e = new Like(loc, exp, visitPattern(pCtx.pattern()));
                 break;
             case SqlBaseParser.RLIKE:
-                e = new RLike(loc, exp, new Literal(source(pCtx.regex), string(pCtx.regex), DataType.KEYWORD));
+                e = new RLike(loc, exp, string(pCtx.regex));
                 break;
             case SqlBaseParser.NULL:
                 // shortcut to avoid double negation later on (since there's no IsNull (missing in ES is a negated exists))
@@ -301,7 +301,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
 
-        return new LikePattern(source(ctx), pattern, escape);
+        return new LikePattern(pattern, escape);
     }
 
 

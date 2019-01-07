@@ -14,15 +14,18 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedStateDocIdsIterator;
 
 import java.util.Arrays;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -81,7 +84,18 @@ public class UnusedStateRemover implements MlDataRemover {
     }
 
     private Set<String> getJobIds() {
-        return MlMetadata.getMlMetadata(clusterService.state()).getJobs().keySet();
+        Set<String> jobIds = new HashSet<>();
+
+        // TODO Once at 8.0, we can stop searching for jobs in cluster state
+        // and remove cluster service as a member all together.
+        jobIds.addAll(MlMetadata.getMlMetadata(clusterService.state()).getJobs().keySet());
+
+        BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, AnomalyDetectorsIndex.configIndexName());
+        while (jobsIterator.hasNext()) {
+            Deque<Job.Builder> jobs = jobsIterator.next();
+            jobs.stream().map(Job.Builder::getId).forEach(jobIds::add);
+        }
+        return jobIds;
     }
 
     private void executeDeleteUnusedStateDocs(BulkRequestBuilder deleteUnusedStateRequestBuilder, ActionListener<Boolean> listener) {

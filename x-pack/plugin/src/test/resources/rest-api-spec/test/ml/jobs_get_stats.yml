@@ -66,8 +66,7 @@ setup:
         body:  >
           {
             "job_id":"jobs-get-stats-datafeed-job",
-            "indexes":["farequote"],
-            "types":["response"]
+            "indexes":["farequote"]
           }
 
 ---
@@ -151,7 +150,9 @@ setup:
       ml.get_job_stats:
         job_id: _all
   - match: { count: 2 }
+  - match: { jobs.0.job_id : job-stats-test }
   - match: { jobs.0.state: opened }
+  - match: { jobs.1.job_id : jobs-get-stats-datafeed-job }
   - match: { jobs.1.state: opened }
 
 ---
@@ -161,7 +162,9 @@ setup:
       ml.get_job_stats:
         job_id: "*"
   - match: { count: 2 }
+  - match: { jobs.0.job_id : job-stats-test }
   - match: { jobs.0.state: opened }
+  - match: { jobs.1.job_id : jobs-get-stats-datafeed-job }
   - match: { jobs.1.state: opened }
 
 ---
@@ -311,6 +314,7 @@ setup:
   - do:
       ml.get_job_stats: {}
   - match: { count: 2 }
+  - match: { jobs.0.job_id : job-stats-test }
   - match: { jobs.0.data_counts.processed_record_count: 0 }
   - match: { jobs.0.data_counts.processed_field_count: 0 }
   - match: { jobs.0.data_counts.input_field_count: 0 }
@@ -318,6 +322,7 @@ setup:
   - match: { jobs.0.state: closed }
   - is_false: jobs.0.node
   - is_false: jobs.0.open_time
+  - match: { jobs.1.job_id : jobs-get-stats-datafeed-job }
   - match: { jobs.1.data_counts.processed_record_count: 0 }
   - match: { jobs.1.data_counts.processed_field_count: 0 }
   - match: { jobs.1.data_counts.input_field_count: 0 }
@@ -325,5 +330,3 @@ setup:
   - match: { jobs.1.state: closed }
   - is_false: jobs.1.node
   - is_false: jobs.1.open_time
-
-

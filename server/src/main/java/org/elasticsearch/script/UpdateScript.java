@@ -20,8 +20,6 @@
 
 package org.elasticsearch.script;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -30,17 +28,6 @@ import java.util.Map;
 public abstract class UpdateScript {
 
     public static final String[] PARAMETERS = { };
-
-    private static final Map<String, String> DEPRECATIONS;
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
-            "ctx",
-            "Accessing variable [ctx] via [params.ctx] from within a update script " +
-                "is deprecated in favor of directly accessing [ctx]."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
 
     /** The context used to compile {@link UpdateScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("update", Factory.class);
@@ -52,9 +39,7 @@ public abstract class UpdateScript {
     private final Map<String, Object> ctx;
 
     public UpdateScript(Map<String, Object> params, Map<String, Object> ctx) {
-        Map<String, Object> paramsWithCtx = new HashMap<>(params);
-        paramsWithCtx.put("ctx", ctx);
-        this.params = new ParameterMap(paramsWithCtx, DEPRECATIONS);
+        this.params = params;
         this.ctx = ctx;
     }
 

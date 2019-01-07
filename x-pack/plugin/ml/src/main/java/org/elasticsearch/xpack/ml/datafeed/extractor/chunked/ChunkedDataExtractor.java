@@ -191,7 +191,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         private DataSummary newScrolledDataSummary() throws IOException {
-            SearchRequestBuilder searchRequestBuilder = rangeSearchRequest().setTypes(context.types);
+            SearchRequestBuilder searchRequestBuilder = rangeSearchRequest();
 
             SearchResponse response = executeSearchRequest(searchRequestBuilder);
             LOGGER.debug("[{}] Scrolling Data summary response was obtained", context.jobId);

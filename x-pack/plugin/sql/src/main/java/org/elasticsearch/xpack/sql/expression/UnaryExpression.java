@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
@@ -17,8 +17,8 @@ public abstract class UnaryExpression extends Expression {
 
     private final Expression child;
 
-    protected UnaryExpression(Location location, Expression child) {
-        super(location, singletonList(child));
+    protected UnaryExpression(Source source, Expression child) {
+        super(source, singletonList(child));
         this.child = child;
     }
 
@@ -41,7 +41,7 @@ public abstract class UnaryExpression extends Expression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         return child.nullable();
     }
 

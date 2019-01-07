@@ -9,13 +9,13 @@ import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class ConstantInput extends LeafInput<Object> {
 
-    public ConstantInput(Location location, Expression expression, Object context) {
-        super(location, expression, context);
+    public ConstantInput(Source source, Expression expression, Object context) {
+        super(source, expression, context);
     }
 
     @Override

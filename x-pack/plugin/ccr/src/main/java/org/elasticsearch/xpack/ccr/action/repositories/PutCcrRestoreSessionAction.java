@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -70,7 +71,7 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
                 throw new ShardNotFoundException(shardId);
             }
             ccrRestoreService.openSession(request.getSessionUUID(), indexShard);
-            return new PutCcrRestoreSessionResponse(indexShard.routingEntry().currentNodeId());
+            return new PutCcrRestoreSessionResponse(clusterService.localNode());
         }
 
         @Override
@@ -93,34 +94,34 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
 
     public static class PutCcrRestoreSessionResponse extends ActionResponse {
 
-        private String nodeId;
+        private DiscoveryNode node;
 
         PutCcrRestoreSessionResponse() {
         }
 
-        PutCcrRestoreSessionResponse(String nodeId) {
-            this.nodeId = nodeId;
+        PutCcrRestoreSessionResponse(DiscoveryNode node) {
+            this.node = node;
         }
 
         PutCcrRestoreSessionResponse(StreamInput in) throws IOException {
             super(in);
-            nodeId = in.readString();
+            node = new DiscoveryNode(in);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            nodeId = in.readString();
+            node = new DiscoveryNode(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(nodeId);
+            node.writeTo(out);
         }
 
-        public String getNodeId() {
-            return nodeId;
+        public DiscoveryNode getNode() {
+            return node;
         }
     }
 }

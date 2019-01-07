@@ -6,17 +6,21 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,14 +55,16 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
 
         private final CcrRestoreSourceService restoreSourceService;
         private final ThreadPool threadPool;
+        private final BigArrays bigArrays;
 
         @Inject
-        public TransportGetCcrRestoreFileChunkAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
+        public TransportGetCcrRestoreFileChunkAction(BigArrays bigArrays, TransportService transportService, ActionFilters actionFilters,
                                                      CcrRestoreSourceService restoreSourceService) {
             super(NAME, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new);
             TransportActionProxy.registerProxyAction(transportService, NAME, GetCcrRestoreFileChunkResponse::new);
-            this.threadPool = threadPool;
+            this.threadPool = transportService.getThreadPool();
             this.restoreSourceService = restoreSourceService;
+            this.bigArrays = bigArrays;
         }
 
         @Override
@@ -72,12 +78,26 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
 
                 @Override
                 protected void doRun() throws Exception {
+                    int bytesRequested = request.getSize();
+                    long fileOffset = request.getOffset();
+                    ByteArray byteArray = bigArrays.newByteArray(bytesRequested, false);
                     String fileName = request.getFileName();
                     String sessionUUID = request.getSessionUUID();
-                    try (CcrRestoreSourceService.FileReader fileReader = restoreSourceService.getSessionReader(sessionUUID, fileName)) {
-                        byte[] chunk = new byte[request.getSize()];
-                        fileReader.readFileBytes(chunk, request.getOffset(), request.getSize());
-                        listener.onResponse(new GetCcrRestoreFileChunkResponse(new BytesArray(chunk)));
+                    // This is currently safe to do because calling `onResponse` will serialize the bytes to the network layer data
+                    // structure on the same thread. So the bytes will be copied before the reference is released.
+                    try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(byteArray, bytesRequested, byteArray)) {
+                        try (CcrRestoreSourceService.FileReader fileReader = restoreSourceService.getSessionReader(sessionUUID, fileName)) {
+                            BytesRefIterator refIterator = reference.iterator();
+                            BytesRef ref;
+                            int bytesWritten = 0;
+                            while ((ref = refIterator.next()) != null) {
+                                byte[] refBytes = ref.bytes;
+                                fileReader.readFileBytes(refBytes, fileOffset + bytesWritten, ref.length);
+                                bytesWritten += ref.length;
+                            }
+
+                            listener.onResponse(new GetCcrRestoreFileChunkResponse(reference));
+                        }
                     }
                 }
             });

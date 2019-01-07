@@ -1,0 +1,171 @@
+[[modules-discovery-settings]]
+=== Discovery and cluster formation settings
+
+Discovery and cluster formation are affected by the following settings:
+
+`cluster.auto_shrink_voting_configuration`::
+
+    Controls whether the <<modules-discovery-voting,voting configuration>>
+    sheds departed nodes automatically, as long as it still contains at least 3
+    nodes. The default value is `true`. If set to `false`, the voting
+    configuration never shrinks automatically and you must remove departed
+    nodes manually with the <<voting-config-exclusions,voting configuration
+    exclusions API>>.
+
+[[master-election-settings]]`cluster.election.back_off_time`::
+
+    Sets the amount to increase the upper bound on the wait before an election
+    on each election failure. Note that this is _linear_ backoff. This defaults
+    to `100ms`
+
+`cluster.election.duration`::
+
+    Sets how long each election is allowed to take before a node considers it to
+    have failed and schedules a retry. This defaults to `500ms`.
+    
+`cluster.election.initial_timeout`::
+
+    Sets the upper bound on how long a node will wait initially, or after the
+    elected master fails, before attempting its first election. This defaults
+    to `100ms`.
+
+    
+`cluster.election.max_timeout`::
+
+    Sets the maximum upper bound on how long a node will wait before attempting
+    an first election, so that an network partition that lasts for a long time
+    does not result in excessively sparse elections. This defaults to `10s`
+        
+[[fault-detection-settings]]`cluster.fault_detection.follower_check.interval`::
+
+    Sets how long the elected master waits between follower checks to each
+    other node in the cluster. Defaults to `1s`.
+
+`cluster.fault_detection.follower_check.timeout`::
+
+    Sets how long the elected master waits for a response to a follower check
+    before considering it to have failed. Defaults to `30s`.
+
+`cluster.fault_detection.follower_check.retry_count`::
+
+    Sets how many consecutive follower check failures must occur to each node
+    before the elected master considers that node to be faulty and removes it
+    from the cluster. Defaults to `3`.
+
+`cluster.fault_detection.leader_check.interval`::
+
+    Sets how long each node waits between checks of the elected master.
+    Defaults to `1s`.
+
+`cluster.fault_detection.leader_check.timeout`::
+
+    Sets how long each node waits for a response to a leader check from the
+    elected master before considering it to have failed. Defaults to `30s`.
+
+`cluster.fault_detection.leader_check.retry_count`::
+
+    Sets how many consecutive leader check failures must occur before a node
+    considers the elected master to be faulty and attempts to find or elect a
+    new master. Defaults to `3`.
+
+`cluster.follower_lag.timeout`::
+
+    Sets how long the master node waits to receive acknowledgements for cluster
+    state updates from lagging nodes. The default value is `90s`. If a node does
+    not successfully apply the cluster state update within this period of time,
+    it is considered to have failed and is removed from the cluster. See
+    <<cluster-state-publishing>>.  
+
+`cluster.initial_master_nodes`::
+
+    Sets a list of the <<node.name,node names>> or transport addresses of the
+    initial set of master-eligible nodes in a brand-new cluster. By default
+    this list is empty, meaning that this node expects to join a cluster that
+    has already been bootstrapped. See <<initial_master_nodes>>.
+
+`cluster.join.timeout`::
+
+    Sets how long a node will wait after sending a request to join a cluster
+    before it considers the request to have failed and retries. Defaults to
+    `60s`.
+    
+`cluster.max_voting_config_exclusions`::
+
+    Sets a limit on the number of voting configuration exclusions at any one
+    time. The default value is `10`. See
+    <<modules-discovery-adding-removing-nodes>>.
+    
+`cluster.publish.timeout`:: 
+    
+    Sets how long the master node waits for each cluster state update to be
+    completely published to all nodes. The default value is `30s`. If this
+    period of time elapses, the cluster state change is rejected. See
+    <<cluster-state-publishing>>.   
+
+`discovery.cluster_formation_warning_timeout`::
+
+    Sets how long a node will try to form a cluster before logging a warning
+    that the cluster did not form. Defaults to `10s`. If a cluster has not 
+    formed after `discovery.cluster_formation_warning_timeout` has elapsed then
+    the node will log a warning message that starts with the phrase `master not discovered` which describes the current state of the discovery process.
+
+`discovery.find_peers_interval`::
+
+    Sets how long a node will wait before attempting another discovery round.
+    Defaults to `1s`.
+
+`discovery.probe.connect_timeout`::
+
+    Sets how long to wait when attempting to connect to each address. Defaults
+    to `3s`.
+
+`discovery.probe.handshake_timeout`::
+
+    Sets how long to wait when attempting to identify the remote node via a
+    handshake. Defaults to `1s`.
+    
+`discovery.request_peers_timeout`::
+    Sets how long a node will wait after asking its peers again before
+    considering the request to have failed. Defaults to `3s`.    
+
+`discovery.zen.hosts_provider`:: 
+    Specifies which type of <<built-in-hosts-providers,hosts provider>> provides
+    the list of seed nodes. By default, it is the 
+    <<settings-based-hosts-provider,settings-based hosts provider>>.
+
+[[no-master-block]]`discovery.zen.no_master_block`::
+Specifies which operations are rejected when there is no active master in a
+cluster. This setting has two valid values:
++
+--
+`all`::: All operations on the node (both read and write operations) are rejected.
+This also applies for API cluster state read or write operations, like the get
+index settings, put mapping and cluster state API.
+
+`write`::: (default) Write operations are rejected. Read operations succeed,
+based on the last known cluster configuration. This situation may result in
+partial reads of stale data as this node may be isolated from the rest of the
+cluster.
+
+[NOTE]
+===============================
+* The `discovery.zen.no_master_block` setting doesn't apply to nodes-based APIs
+(for example, cluster stats, node info, and node stats APIs). Requests to these
+APIs are not be blocked and can run on any available node.
+  
+* For the cluster to be fully operational, it must have an active master.
+===============================
+--
+
+`discovery.zen.ping.unicast.hosts`::
+
+    Provides a list of master-eligible nodes in the cluster. The list contains
+    either an array of hosts or a comma-delimited string. Each value has the
+    format `host:port` or `host`, where `port` defaults to the setting
+    `transport.profiles.default.port`. Note that IPv6 hosts must be bracketed.
+    The default value is `127.0.0.1, [::1]`. See <<unicast.hosts>>.
+
+`discovery.zen.ping.unicast.hosts.resolve_timeout`::
+
+    Sets the amount of time to wait for DNS lookups on each round of discovery.
+    This is specified as a <<time-units, time unit>> and defaults to `5s`.

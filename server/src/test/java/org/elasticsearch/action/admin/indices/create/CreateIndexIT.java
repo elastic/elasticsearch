@@ -24,17 +24,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -118,6 +121,70 @@ public class CreateIndexIT extends ESIntegTestCase {
         } catch (IllegalStateException ise) {
             // expected
         }
+    }
+
+    public void testNonNestedMappings() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("date")
+                        .field("type", "date")
+                    .endObject()
+                .endObject()
+            .endObject()));
+
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
+
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        assertNotNull(mappings);
+
+        MappingMetaData metadata = mappings.get("_doc");
+        assertNotNull(metadata);
+        assertFalse(metadata.sourceAsMap().isEmpty());
+    }
+
+    public void testNonNestedEmptyMappings() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping("_doc", XContentFactory.jsonBuilder().startObject().endObject()));
+
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
+
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        assertNotNull(mappings);
+
+        MappingMetaData metadata = mappings.get("_doc");
+        assertNotNull(metadata);
+        assertTrue(metadata.sourceAsMap().isEmpty());
+    }
+
+    public void testEmptyMappings() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc").endObject()
+            .endObject()));
+
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
+
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        assertNotNull(mappings);
+
+        MappingMetaData metadata = mappings.get("_doc");
+        assertNotNull(metadata);
+        assertTrue(metadata.sourceAsMap().isEmpty());
+    }
+
+    public void testFlatMappingFormat() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping("_doc", "field", "type=keyword"));
+
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
+
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        assertNotNull(mappings);
+
+        MappingMetaData metadata = mappings.get("_doc");
+        assertNotNull(metadata);
+        assertFalse(metadata.sourceAsMap().isEmpty());
     }
 
     public void testInvalidShardCountSettings() throws Exception {

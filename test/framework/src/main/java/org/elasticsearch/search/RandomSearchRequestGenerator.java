@@ -39,6 +39,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -83,7 +84,17 @@ public class RandomSearchRequestGenerator {
      *        {@link #randomSearchSourceBuilder(Supplier, Supplier, Supplier, Supplier, Supplier)}.
      */
     public static SearchRequest randomSearchRequest(Supplier<SearchSourceBuilder> randomSearchSourceBuilder) {
-        SearchRequest searchRequest = new SearchRequest();
+        return randomSearchRequest(new SearchRequest(), randomSearchSourceBuilder);
+    }
+
+    /**
+     * Set random fields to the provided search request.
+     *
+     * @param searchRequest the search request
+     * @param randomSearchSourceBuilder builds a random {@link SearchSourceBuilder}. You can use
+     *        {@link #randomSearchSourceBuilder(Supplier, Supplier, Supplier, Supplier, Supplier)}.
+     */
+    public static SearchRequest randomSearchRequest(SearchRequest searchRequest, Supplier<SearchSourceBuilder> randomSearchSourceBuilder) {
         searchRequest.allowPartialSearchResults(true);
         if (randomBoolean()) {
             searchRequest.indices(generateRandomStringArray(10, 10, false, false));
@@ -147,7 +158,13 @@ public class RandomSearchRequestGenerator {
             builder.terminateAfter(randomIntBetween(1, 100000));
         }
         if (randomBoolean()) {
-            builder.trackTotalHits(randomBoolean());
+            if (randomBoolean()) {
+                builder.trackTotalHits(randomBoolean());
+            } else {
+                builder.trackTotalHitsUpTo(
+                    randomIntBetween(SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO)
+                );
+            }
         }
 
         switch(randomInt(2)) {

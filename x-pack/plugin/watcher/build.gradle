@@ -48,28 +48,41 @@ dependencies {
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
-thirdPartyAudit.excludes = [
-    // uses internal java api: sun.misc.Unsafe
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+thirdPartyAudit { 
+    ignoreViolations (
+        // uses internal java api: sun.misc.Unsafe
+        'com.google.common.cache.Striped64',
+        'com.google.common.cache.Striped64$1',
+        'com.google.common.cache.Striped64$Cell',
+        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+    )
 
-    // pulled in as external dependency to work on java 9
-    'com.sun.activation.registries.LineTokenizer',
-    'com.sun.activation.registries.LogSupport',
-    'com.sun.activation.registries.MailcapFile',
-    'com.sun.activation.registries.MailcapTokenizer',
-    'com.sun.activation.registries.MimeTypeEntry',
-    'com.sun.activation.registries.MimeTypeFile',
-    'javax.activation.MailcapCommandMap',
-    'javax.activation.MimetypesFileTypeMap',
-]
+    ignoreViolations(
+      'com.sun.activation.registries.LineTokenizer',
+      'com.sun.activation.registries.LogSupport',
+      'com.sun.activation.registries.MailcapFile',
+      'com.sun.activation.registries.MailcapTokenizer',
+      'com.sun.activation.registries.MimeTypeEntry',
+      'com.sun.activation.registries.MimeTypeFile',
+      'javax.activation.MailcapCommandMap',
+      'javax.activation.MimetypesFileTypeMap'
+    )
+}
 
 // pulled in as external dependency to work on java 9
 if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.excludes += [
+    thirdPartyAudit.ignoreJarHellWithJDK (
+        // pulled in as external dependency to work on java 9
+        'com.sun.activation.registries.LineTokenizer',
+        'com.sun.activation.registries.LogSupport',
+        'com.sun.activation.registries.MailcapFile',
+        'com.sun.activation.registries.MailcapTokenizer',
+        'com.sun.activation.registries.MimeTypeEntry',
+        'com.sun.activation.registries.MimeTypeFile',
+        'javax.activation.MailcapCommandMap',
+        'javax.activation.MimetypesFileTypeMap',
+
         'com.sun.activation.registries.MailcapParseException',
         'javax.activation.ActivationDataFlavor',
         'javax.activation.CommandInfo',
@@ -96,7 +109,7 @@ if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
         'javax.activation.SecuritySupport',
         'javax.activation.URLDataSource',
         'javax.activation.UnsupportedDataTypeException'
-    ]
+    )
 }
 
 run {

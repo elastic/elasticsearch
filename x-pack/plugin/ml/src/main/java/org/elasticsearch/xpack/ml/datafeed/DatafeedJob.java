@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
@@ -189,24 +190,27 @@ class DatafeedJob {
                 long totalRecordsMissing = missingDataBuckets.stream()
                     .mapToLong(BucketWithMissingData::getMissingDocumentCount)
                     .sum();
-                Date endTime = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket().getTimestamp();
-                Annotation annotation = createAnnotation(missingDataBuckets.get(0).getBucket().getTimestamp(),
-                    endTime,
-                    totalRecordsMissing);
+                Bucket lastBucket = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket();
+                // Get the end of the last bucket and make it milliseconds
+                Date endTime = new Date((lastBucket.getEpoch() + lastBucket.getBucketSpan()) * 1000);
+
+                String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing,
+                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(lastBucket.getTimestamp().getTime()));
+
+                Annotation annotation = createAnnotation(missingDataBuckets.get(0).getBucket().getTimestamp(), endTime, msg);
 
                 // Have we an annotation that covers the same area with the same message?
                 // Cannot use annotation.equals(other) as that checks createTime
                 if (lastDataCheckAnnotation != null
                     && annotation.getAnnotation().equals(lastDataCheckAnnotation.getAnnotation())
                     && annotation.getTimestamp().equals(lastDataCheckAnnotation.getTimestamp())
-                    && annotation.getEndTimestamp().equals(lastDataCheckAnnotation.getTimestamp())) {
+                    && annotation.getEndTimestamp().equals(lastDataCheckAnnotation.getEndTimestamp())) {
                     return;
                 }
 
                 // Creating a warning in addition to updating/creating our annotation. This allows the issue to be plainly visible
                 // in the job list page.
-                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing,
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(endTime.getTime())));
+                auditor.warning(jobId, msg);
 
                 if (lastDataCheckAnnotationId != null) {
                     updateAnnotation(annotation);
@@ -217,17 +221,16 @@ class DatafeedJob {
         }
     }
 
-    private Annotation createAnnotation(Date startTime, Date endTime, long recordsMissing) {
-       String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, recordsMissing,
-            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(endTime.getTime()));
+    private Annotation createAnnotation(Date startTime, Date endTime, String msg) {
+       Date currentTime = new Date(currentTimeSupplier.get());
        return new Annotation(msg,
-           new Date(currentTimeSupplier.get()),
+           currentTime,
            SystemUser.NAME,
            startTime,
            endTime,
            jobId,
-           null,
-           null,
+           currentTime,
+           SystemUser.NAME,
            "annotation");
     }
 

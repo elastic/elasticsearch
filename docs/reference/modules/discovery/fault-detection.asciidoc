@@ -1,52 +1,20 @@
-[[fault-detection-settings]]
-=== Cluster fault detection settings
+[[cluster-fault-detection]]
+=== Cluster fault detection
 
-An elected master periodically checks each of the nodes in the cluster in order
-to ensure that they are still connected and healthy, and in turn each node in
-the cluster periodically checks the health of the elected master. These checks
-are known respectively as _follower checks_ and _leader checks_.
+The elected master periodically checks each of the nodes in the cluster to
+ensure that they are still connected and healthy. Each node in the cluster also
+periodically checks the health of the elected master. These checks are known
+respectively as _follower checks_ and _leader checks_.
 
-Elasticsearch allows for these checks occasionally to fail or timeout without
-taking any action, and will only consider a node to be truly faulty after a
-number of consecutive checks have failed. The following settings control the
-behaviour of fault detection.
+Elasticsearch allows these checks to occasionally fail or timeout without
+taking any action. It considers a node to be faulty only after a number of
+consecutive checks have failed. You can control fault detection behavior with
+<<modules-discovery-settings,`cluster.fault_detection.*` settings>>.
 
-`cluster.fault_detection.follower_check.interval`::
-
-    Sets how long the elected master waits between follower checks to each
-    other node in the cluster. Defaults to `1s`.
-
-`cluster.fault_detection.follower_check.timeout`::
-
-    Sets how long the elected master waits for a response to a follower check
-    before considering it to have failed. Defaults to `30s`.
-
-`cluster.fault_detection.follower_check.retry_count`::
-
-    Sets how many consecutive follower check failures must occur to each node
-    before the elected master considers that node to be faulty and removes it
-    from the cluster. Defaults to `3`.
-
-`cluster.fault_detection.leader_check.interval`::
-
-    Sets how long each node waits between checks of the elected master.
-    Defaults to `1s`.
-
-`cluster.fault_detection.leader_check.timeout`::
-
-    Sets how long each node waits for a response to a leader check from the
-    elected master before considering it to have failed. Defaults to `30s`.
-
-`cluster.fault_detection.leader_check.retry_count`::
-
-    Sets how many consecutive leader check failures must occur before a node
-    considers the elected master to be faulty and attempts to find or elect a
-    new master. Defaults to `3`.
-
-If the elected master detects that a node has disconnected then this is treated
-as an immediate failure, bypassing the timeouts and retries listed above, and
-the master attempts to remove the node from the cluster. Similarly, if a node
-detects that the elected master has disconnected then this is treated as an
-immediate failure, bypassing the timeouts and retries listed above, and the
-follower restarts its discovery phase to try and find or elect a new master.
-
+If the elected master detects that a node has disconnected, however, this
+situation is treated as an immediate failure. The master bypasses the timeout
+and retry setting values and attempts to remove the node from the cluster.
+Similarly, if a node detects that the elected master has disconnected, this
+situation is treated as an immediate failure. The node bypasses the timeout and
+retry settings and restarts its discovery phase to try and find or elect a new
+master.

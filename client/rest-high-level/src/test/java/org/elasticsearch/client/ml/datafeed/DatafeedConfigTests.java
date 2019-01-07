@@ -51,7 +51,6 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
         long bucketSpanMillis = 3600000;
         DatafeedConfig.Builder builder = constructBuilder();
         builder.setIndices(randomStringList(1, 10));
-        builder.setTypes(randomStringList(0, 10));
         if (randomBoolean()) {
             try {
                 builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));

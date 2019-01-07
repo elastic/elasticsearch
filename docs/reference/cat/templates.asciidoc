@@ -12,7 +12,7 @@ GET /_cat/templates?v&s=name
 // TEST[s/^/PUT _template\/template0\n{"index_patterns": "te*", "order": 0}\n/]
 // TEST[s/^/PUT _template\/template1\n{"index_patterns": "tea*", "order": 1}\n/]
 // TEST[s/^/PUT _template\/template2\n{"index_patterns": "teak*", "order": 2, "version": 7}\n/]
-// The substitions do two things:
+// The substitutions do two things:
 // 1. Filter the response to just templates matching the te* pattern
 //    so that we only get the templates we expect regardless of which
 //    templates exist. If xpack is installed there will be unexpected

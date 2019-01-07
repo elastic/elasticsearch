@@ -92,30 +92,59 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(realm.cacheHasher, sameInstance(Hasher.resolve(cachingHashAlgo)));
     }
 
+    public void testCacheSizeWhenCacheDisabled() {
+        final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
+        final Settings settings = Settings.builder()
+                .put(globalSettings)
+                .put(RealmSettings.getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), -1)
+                .build();
+
+        final RealmConfig config =
+                new RealmConfig(identifier, settings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+        final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
+            @Override
+            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+                listener.onResponse(AuthenticationResult.success(new User("username", new String[]{"r1", "r2", "r3"})));
+            }
+
+            @Override
+            protected void doLookupUser(String username, ActionListener<User> listener) {
+                listener.onFailure(new UnsupportedOperationException("this method should not be called"));
+            }
+        };
+        assertThat(realm.getCacheSize(), equalTo(-1));
+    }
+
     public void testAuthCache() {
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings, threadPool);
         SecureString pass = new SecureString("pass");
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("a", pass), future);
         future.actionGet();
+        assertThat(realm.getCacheSize(), equalTo(1));
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("b", pass), future);
         future.actionGet();
+        assertThat(realm.getCacheSize(), equalTo(2));
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("c", pass), future);
         future.actionGet();
+        assertThat(realm.getCacheSize(), equalTo(3));
 
         assertThat(realm.authInvocationCounter.intValue(), is(3));
 
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("a", pass), future);
         future.actionGet();
+        assertThat(realm.getCacheSize(), equalTo(3));
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("b", pass), future);
         future.actionGet();
+        assertThat(realm.getCacheSize(), equalTo(3));
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("c", pass), future);
         future.actionGet();
+        assertThat(realm.getCacheSize(), equalTo(3));
 
         assertThat(realm.authInvocationCounter.intValue(), is(3));
         assertThat(realm.lookupInvocationCounter.intValue(), is(0));

@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
@@ -301,6 +302,42 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(firstRealm).authenticate(eq(token), any(ActionListener.class));
         verify(secondRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
         verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
+    }
+
+    public void testCacheClearOnSecurityIndexChange() {
+        long expectedInvalidation = 0L;
+        assertEquals(expectedInvalidation, service.getNumInvalidation());
+
+        // existing to no longer present
+        SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        SecurityIndexManager.State currentState = dummyState(null);
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(++expectedInvalidation, service.getNumInvalidation());
+
+        // doesn't exist to exists
+        previousState = dummyState(null);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(++expectedInvalidation, service.getNumInvalidation());
+
+        // green or yellow to red
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(ClusterHealthStatus.RED);
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(expectedInvalidation, service.getNumInvalidation());
+
+        // red to non red
+        previousState = dummyState(ClusterHealthStatus.RED);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(++expectedInvalidation, service.getNumInvalidation());
+
+        // green to yellow or yellow to green
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
+            ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(expectedInvalidation, service.getNumInvalidation());
     }
 
     public void testAuthenticateSmartRealmOrderingDisabled() {
@@ -1223,5 +1260,9 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     private void setCompletedToTrue(AtomicBoolean completed) {
         assertTrue(completed.compareAndSet(false, true));
+    }
+
+    private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
+        return new SecurityIndexManager.State(true, true, true, true, null, indexStatus);
     }
 }

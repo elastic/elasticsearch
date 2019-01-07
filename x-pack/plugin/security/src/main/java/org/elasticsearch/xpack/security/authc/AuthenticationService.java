@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,6 +53,9 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
 /**
  * An authentication service that delegates the authentication process to its configured {@link Realm realms}.
@@ -157,6 +161,14 @@ public class AuthenticationService {
         }
     }
 
+    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+        if (lastSuccessfulAuthCache != null) {
+            if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)) {
+                expireAll();
+            }
+        }
+    }
+
     // pkg private method for testing
     Authenticator createAuthenticator(RestRequest request, ActionListener<Authentication> listener) {
         return new Authenticator(request, listener);
@@ -165,6 +177,11 @@ public class AuthenticationService {
     // pkg private method for testing
     Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
         return new Authenticator(action, message, fallbackUser, listener);
+    }
+
+    // pkg private method for testing
+    long getNumInvalidation() {
+        return numInvalidation.get();
     }
 
     /**

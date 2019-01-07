@@ -35,7 +35,7 @@ public final class Expressions {
     private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.location(), exp.nodeName(), exp);
+        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.nodeName(), exp);
     }
 
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
@@ -70,13 +70,17 @@ public final class Expressions {
         return false;
     }
 
-    public static boolean nullable(List<? extends Expression> exps) {
+    public static boolean match(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
         for (Expression exp : exps) {
-            if (exp.nullable()) {
+            if (predicate.test(exp)) {
                 return true;
             }
         }
         return false;
+    }
+
+    public static Nullability nullable(List<? extends Expression> exps) {
+       return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
     }
 
     public static boolean foldable(List<? extends Expression> exps) {

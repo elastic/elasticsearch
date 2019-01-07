@@ -49,10 +49,11 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -71,6 +72,8 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
@@ -881,15 +884,46 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         encodes.put("template-*", "template-*");
         encodes.put("foo^bar", "foo%5Ebar");
         List<String> names = ESTestCase.randomSubsetOf(1, encodes.keySet());
-        GetIndexTemplatesRequest getTemplatesRequest = new GetIndexTemplatesRequest().names(names.toArray(new String[0]));
+        GetIndexTemplatesRequest getTemplatesRequest = new GetIndexTemplatesRequest(names);
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(getTemplatesRequest, expectedParams);
-        RequestConvertersTests.setRandomLocal(getTemplatesRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(getTemplatesRequest::setMasterNodeTimeout, expectedParams);
+        RequestConvertersTests.setRandomLocal(getTemplatesRequest::setLocal, expectedParams);
         Request request = IndicesRequestConverters.getTemplates(getTemplatesRequest);
         Assert.assertThat(request.getEndpoint(),
             equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
         Assert.assertThat(request.getEntity(), nullValue());
+
+        expectThrows(NullPointerException.class, () -> new GetIndexTemplatesRequest((String[]) null));
+        expectThrows(NullPointerException.class, () -> new GetIndexTemplatesRequest((List<String>) null));
+        expectThrows(IllegalArgumentException.class, () -> new GetIndexTemplatesRequest(singletonList(randomBoolean() ? "" : null)));
+        expectThrows(IllegalArgumentException.class, () -> new GetIndexTemplatesRequest(new String[] { (randomBoolean() ? "" : null) }));
+    }
+
+    public void testTemplatesExistRequest() {
+        final int numberOfNames = ESTestCase.usually()
+            ? 1
+            : ESTestCase.randomIntBetween(2, 20);
+        final List<String> names = Arrays.asList(ESTestCase.randomArray(numberOfNames, numberOfNames, String[]::new,
+            () -> ESTestCase.randomAlphaOfLengthBetween(1, 100)));
+        final Map<String, String> expectedParams = new HashMap<>();
+        final IndexTemplatesExistRequest indexTemplatesExistRequest = new IndexTemplatesExistRequest(names);
+        RequestConvertersTests.setRandomMasterTimeout(indexTemplatesExistRequest::setMasterNodeTimeout, expectedParams);
+        RequestConvertersTests.setRandomLocal(indexTemplatesExistRequest::setLocal, expectedParams);
+        assertThat(indexTemplatesExistRequest.names(), equalTo(names));
+
+        final Request request = IndicesRequestConverters.templatesExist(indexTemplatesExistRequest);
+        assertThat(request.getMethod(), equalTo(HttpHead.METHOD_NAME));
+        assertThat(request.getEndpoint(), equalTo("/_template/" + String.join(",", names)));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+
+        expectThrows(NullPointerException.class, () -> new IndexTemplatesExistRequest((String[]) null));
+        expectThrows(NullPointerException.class, () -> new IndexTemplatesExistRequest((List<String>) null));
+        expectThrows(IllegalArgumentException.class, () -> new IndexTemplatesExistRequest(new String[] { (randomBoolean() ? "" : null) }));
+        expectThrows(IllegalArgumentException.class, () -> new IndexTemplatesExistRequest(singletonList(randomBoolean() ? "" : null)));
+        expectThrows(IllegalArgumentException.class, () -> new IndexTemplatesExistRequest(new String[] {}));
+        expectThrows(IllegalArgumentException.class, () -> new IndexTemplatesExistRequest(emptyList()));
     }
 
     public void testDeleteTemplateRequest() {

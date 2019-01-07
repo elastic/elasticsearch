@@ -105,7 +105,11 @@ public class MembershipAction {
 
     public static class JoinRequest extends TransportRequest {
 
-        public DiscoveryNode node;
+        private DiscoveryNode node;
+
+        public DiscoveryNode getNode() {
+            return node;
+        }
 
         public JoinRequest() {
         }
@@ -132,7 +136,7 @@ public class MembershipAction {
 
         @Override
         public void messageReceived(final JoinRequest request, final TransportChannel channel, Task task) throws Exception {
-            listener.onJoin(request.node, new JoinCallback() {
+            listener.onJoin(request.getNode(), new JoinCallback() {
                 @Override
                 public void onSuccess() {
                     try {

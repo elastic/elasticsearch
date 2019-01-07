@@ -92,11 +92,6 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    protected boolean transportCompress() {
-        return true; // this can become big...
-    }
-
-    @Override
     protected NodeRequest newNodeRequest(String nodeId, Request request) {
         return new NodeRequest(nodeId, request);
     }

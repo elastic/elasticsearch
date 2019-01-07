@@ -18,19 +18,16 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -48,9 +45,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 
 public class DatafeedManager {
 
@@ -78,17 +75,14 @@ public class DatafeedManager {
         clusterService.addListener(taskRunner);
     }
 
-    public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> taskHandler) {
-        String datafeedId = task.getDatafeedId();
-        ClusterState state = clusterService.state();
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
 
-        DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
-        Job job = mlMetadata.getJobs().get(datafeed.getJobId());
+    public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> finishHandler) {
+        String datafeedId = task.getDatafeedId();
 
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
                 datafeedJob -> {
-                    Holder holder = new Holder(task, datafeed, datafeedJob, new ProblemTracker(auditor, job.getId()), taskHandler);
+                    Holder holder = new Holder(task, datafeedId, datafeedJob,
+                            new ProblemTracker(auditor, datafeedJob.getJobId()), finishHandler);
                     runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
                     task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
                         @Override
@@ -98,13 +92,13 @@ public class DatafeedManager {
 
                         @Override
                         public void onFailure(Exception e) {
-                            taskHandler.accept(e);
+                            finishHandler.accept(e);
                         }
                     });
-                }, taskHandler::accept
+                }, finishHandler::accept
         );
 
-        datafeedJobBuilder.build(job, datafeed, datafeedJobHandler);
+        datafeedJobBuilder.build(datafeedId, datafeedJobHandler);
     }
 
     public void stopDatafeed(TransportStartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {
@@ -159,7 +153,7 @@ public class DatafeedManager {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Failed lookback import for job [" + holder.datafeed.getJobId() + "]", e);
+                logger.error("Failed lookback import for job [" + holder.datafeedJob.getJobId() + "]", e);
                 holder.stop("general_lookback_failure", TimeValue.timeValueSeconds(20), e);
             }
 
@@ -189,17 +183,17 @@ public class DatafeedManager {
                     } else {
                         // Notify that a lookback-only run found no data
                         String lookbackNoDataMsg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA);
-                        logger.warn("[{}] {}", holder.datafeed.getJobId(), lookbackNoDataMsg);
-                        auditor.warning(holder.datafeed.getJobId(), lookbackNoDataMsg);
+                        logger.warn("[{}] {}", holder.datafeedJob.getJobId(), lookbackNoDataMsg);
+                        auditor.warning(holder.datafeedJob.getJobId(), lookbackNoDataMsg);
                     }
                 } catch (Exception e) {
-                    logger.error("Failed lookback import for job [" + holder.datafeed.getJobId() + "]", e);
+                    logger.error("Failed lookback import for job [" + holder.datafeedJob.getJobId() + "]", e);
                     holder.stop("general_lookback_failure", TimeValue.timeValueSeconds(20), e);
                     return;
                 }
                 if (isolated == false) {
                     if (next != null) {
-                        doDatafeedRealtime(next, holder.datafeed.getJobId(), holder);
+                        doDatafeedRealtime(next, holder.datafeedJob.getJobId(), holder);
                     } else {
                         holder.stop("no_realtime", TimeValue.timeValueSeconds(20), null);
                         holder.problemTracker.finishReport();
@@ -277,29 +271,29 @@ public class DatafeedManager {
 
         private final TransportStartDatafeedAction.DatafeedTask task;
         private final long allocationId;
-        private final DatafeedConfig datafeed;
+        private final String datafeedId;
         // To ensure that we wait until loopback / realtime search has completed before we stop the datafeed
         private final ReentrantLock datafeedJobLock = new ReentrantLock(true);
         private final DatafeedJob datafeedJob;
         private final boolean autoCloseJob;
         private final ProblemTracker problemTracker;
-        private final Consumer<Exception> handler;
+        private final Consumer<Exception> finishHandler;
         volatile Future<?> future;
         private volatile boolean isRelocating;
 
-        Holder(TransportStartDatafeedAction.DatafeedTask task, DatafeedConfig datafeed, DatafeedJob datafeedJob,
-               ProblemTracker problemTracker, Consumer<Exception> handler) {
+        Holder(TransportStartDatafeedAction.DatafeedTask task, String datafeedId, DatafeedJob datafeedJob,
+               ProblemTracker problemTracker, Consumer<Exception> finishHandler) {
             this.task = task;
             this.allocationId = task.getAllocationId();
-            this.datafeed = datafeed;
+            this.datafeedId = datafeedId;
             this.datafeedJob = datafeedJob;
             this.autoCloseJob = task.isLookbackOnly();
             this.problemTracker = problemTracker;
-            this.handler = handler;
+            this.finishHandler = finishHandler;
         }
 
         String getJobId() {
-            return datafeed.getJobId();
+            return datafeedJob.getJobId();
         }
 
         boolean isRunning() {
@@ -315,23 +309,23 @@ public class DatafeedManager {
                 return;
             }
 
-            logger.info("[{}] attempt to stop datafeed [{}] for job [{}]", source, datafeed.getId(), datafeed.getJobId());
+            logger.info("[{}] attempt to stop datafeed [{}] for job [{}]", source, datafeedId, datafeedJob.getJobId());
             if (datafeedJob.stop()) {
                 boolean acquired = false;
                 try {
-                    logger.info("[{}] try lock [{}] to stop datafeed [{}] for job [{}]...", source, timeout, datafeed.getId(),
-                            datafeed.getJobId());
+                    logger.info("[{}] try lock [{}] to stop datafeed [{}] for job [{}]...", source, timeout, datafeedId,
+                            datafeedJob.getJobId());
                     acquired = datafeedJobLock.tryLock(timeout.millis(), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException e1) {
                     Thread.currentThread().interrupt();
                 } finally {
-                    logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeed.getId(),
-                            datafeed.getJobId(), acquired);
+                    logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeedId,
+                            datafeedJob.getJobId(), acquired);
                     runningDatafeedsOnThisNode.remove(allocationId);
                     FutureUtils.cancel(future);
-                    auditor.info(datafeed.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
-                    handler.accept(e);
-                    logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeed.getId(), datafeed.getJobId(),
+                    auditor.info(datafeedJob.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
+                    finishHandler.accept(e);
+                    logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeedId, datafeedJob.getJobId(),
                             acquired ? "" : ", but there may be pending tasks as the timeout [" + timeout.getStringRep() + "] expired");
                     if (autoCloseJob) {
                         closeJob();
@@ -341,7 +335,7 @@ public class DatafeedManager {
                     }
                 }
             } else {
-                logger.info("[{}] datafeed [{}] for job [{}] was already stopped", source, datafeed.getId(), datafeed.getJobId());
+                logger.info("[{}] datafeed [{}] for job [{}] was already stopped", source, datafeedId, datafeedJob.getJobId());
             }
         }
 

@@ -5,10 +5,10 @@ setup:
 
   - do:
       cluster.health:
-          wait_for_status: yellow
+        wait_for_status: yellow
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "token_user"
         body:  >
           {
@@ -20,7 +20,7 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "token_user"
         ignore: 404
 
@@ -28,7 +28,7 @@ teardown:
 "Test get and use token":
 
   - do:
-      xpack.security.get_token:
+      security.get_token:
         body:
           grant_type: "password"
           username: "token_user"
@@ -43,7 +43,7 @@ teardown:
   - do:
       headers:
         Authorization: Bearer ${token}
-      xpack.security.authenticate: {}
+      security.authenticate: {}
 
   - match: { username: "token_user" }
   - match: { roles.0:  "superuser" }
@@ -53,7 +53,7 @@ teardown:
 "Test invalidate token":
 
   - do:
-      xpack.security.get_token:
+      security.get_token:
         body:
           grant_type: "password"
           username: "token_user"
@@ -68,21 +68,104 @@ teardown:
   - do:
       headers:
         Authorization: Bearer ${token}
-      xpack.security.authenticate: {}
+      security.authenticate: {}
 
   - match: { username: "token_user" }
   - match: { roles.0:  "superuser" }
   - match: { full_name: "Token User" }
 
   - do:
-      xpack.security.invalidate_token:
+      security.invalidate_token:
         body:
           token: $token
 
-  - match: { created: true }
+  - match: { invalidated_tokens: 1 }
+  - match: { previously_invalidated_tokens: 0 }
+  - match: { error_count: 0 }
 
   - do:
       catch: unauthorized
       headers:
         Authorization: Bearer ${token}
-      xpack.security.authenticate: {}
+      security.authenticate: {}
+
+---
+"Test invalidate user's tokens":
+
+  - do:
+      security.get_token:
+        body:
+          grant_type: "password"
+          username: "token_user"
+          password: "x-pack-test-password"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: token }
+  - match: { expires_in: 1200 }
+  - is_false: scope
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      security.authenticate: {}
+
+  - match: { username: "token_user" }
+  - match: { roles.0:  "superuser" }
+  - match: { full_name: "Token User" }
+
+  - do:
+      security.invalidate_token:
+        body:
+          username: "token_user"
+
+  - match: { invalidated_tokens: 2 }
+  - match: { previously_invalidated_tokens: 0 }
+  - match: { error_count: 0 }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${token}
+      security.authenticate: {}
+
+
+---
+"Test invalidate realm's tokens":
+
+  - do:
+      security.get_token:
+        body:
+          grant_type: "password"
+          username: "token_user"
+          password: "x-pack-test-password"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: token }
+  - match: { expires_in: 1200 }
+  - is_false: scope
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      security.authenticate: {}
+
+  - match: { username: "token_user" }
+  - match: { roles.0:  "superuser" }
+  - match: { full_name: "Token User" }
+
+  - do:
+      security.invalidate_token:
+        body:
+          realm_name: "default_native"
+
+  - match: { invalidated_tokens: 2 }
+  - match: { previously_invalidated_tokens: 0 }
+  - match: { error_count: 0 }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${token}
+      security.authenticate: {}

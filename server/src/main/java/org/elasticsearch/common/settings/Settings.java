@@ -850,8 +850,8 @@ public final class Settings implements ToXContentFragment {
          * @param timeValue The setting timeValue
          * @return The builder
          */
-        public Builder put(String key, TimeValue timeValue) {
-            return put(key, timeValue.toString());
+        public Builder put(final String key, final TimeValue timeValue) {
+            return put(key, timeValue.getStringRep());
         }
 
         /**
@@ -861,8 +861,8 @@ public final class Settings implements ToXContentFragment {
          * @param byteSizeValue The setting value
          * @return The builder
          */
-        public Builder put(String key, ByteSizeValue byteSizeValue) {
-            return put(key, byteSizeValue.toString());
+        public Builder put(final String key, final ByteSizeValue byteSizeValue) {
+            return put(key, byteSizeValue.getStringRep());
         }
 
         /**

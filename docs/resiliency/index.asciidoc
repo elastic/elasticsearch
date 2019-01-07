@@ -607,7 +607,7 @@ Currently, the circuit breaker protects against loading too much field data by e
 
 Elasticsearch has moved from an object-based cache to a page-based cache recycler as described in issue {GIT}4557[#4557]. This change makes garbage collection easier by limiting fragmentation, since all pages have the same size and are recycled. It also allows managing the size of the cache not based on the number of objects it contains, but on the memory that it uses.
 
-These pages are used for two main purposes: implementing higher level data structures such as hash tables that are used internally by aggregations to eg. map terms to counts, as well as reusing memory in the translog/transport layer as detailed in issue {GIT}5691[#5691].
+These pages are used for two main purposes: implementing higher level data structures such as hash tables that are used internally by aggregations to e.g. map terms to counts, as well as reusing memory in the translog/transport layer as detailed in issue {GIT}5691[#5691].
 
 [float]
 === Dedicated Master Nodes Resiliency (STATUS: DONE, v1.0.0)

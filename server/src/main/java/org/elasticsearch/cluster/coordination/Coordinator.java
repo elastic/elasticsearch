@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -168,7 +167,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
         this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService,
-            this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::unsafelySetConfigurationForUpgrade);
+            this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::setInitialConfiguration);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
@@ -497,7 +496,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private PreVoteResponse getPreVoteResponse() {
         return new PreVoteResponse(getCurrentTerm(), coordinationState.get().getLastAcceptedTerm(),
-            coordinationState.get().getLastAcceptedVersion());
+            coordinationState.get().getLastAcceptedState().getVersionOrMetaDataVersion());
     }
 
     // package-visible for testing
@@ -576,7 +575,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
             assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
-            assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID);
+            assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID);
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse())
                 : preVoteCollector + " vs " + getPreVoteResponse();
 
@@ -705,7 +704,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             }
 
             logger.info("setting initial configuration to {}", votingConfiguration);
-            final Builder builder = masterService.incrementVersion(currentState);
             final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(currentState.coordinationMetaData())
                 .lastAcceptedConfiguration(votingConfiguration)
                 .lastCommittedConfiguration(votingConfiguration)
@@ -715,54 +713,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // automatically generate a UID for the metadata if we need to
             metaDataBuilder.generateClusterUuidIfNeeded(); // TODO generate UUID in bootstrapping tool?
             metaDataBuilder.coordinationMetaData(coordinationMetaData);
-            builder.metaData(metaDataBuilder);
-            coordinationState.get().setInitialState(builder.build());
+
+            coordinationState.get().setInitialState(ClusterState.builder(currentState).metaData(metaDataBuilder).build());
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
             return true;
-        }
-    }
-
-    private void unsafelySetConfigurationForUpgrade(VotingConfiguration votingConfiguration) {
-        assert Version.CURRENT.major == Version.V_6_6_0.major + 1 : "remove this method once unsafe upgrades are no longer needed";
-        synchronized (mutex) {
-            if (mode != Mode.CANDIDATE) {
-                throw new IllegalStateException("Cannot overwrite configuration in mode " + mode);
-            }
-
-            if (isInitialConfigurationSet()) {
-                throw new IllegalStateException("Cannot overwrite configuration: configuration is already set to "
-                    + getLastAcceptedState().getLastAcceptedConfiguration());
-            }
-
-            if (lastKnownLeader.map(Coordinator::isZen1Node).orElse(false) == false) {
-                throw new IllegalStateException("Cannot upgrade from last-known leader: " + lastKnownLeader);
-            }
-
-            if (getCurrentTerm() != ZEN1_BWC_TERM) {
-                throw new IllegalStateException("Cannot upgrade, term is " + getCurrentTerm());
-            }
-
-            logger.info("automatically bootstrapping during rolling upgrade, using initial configuration {}", votingConfiguration);
-
-            final ClusterState currentState = getStateForMasterService();
-            final Builder builder = masterService.incrementVersion(currentState);
-            builder.metaData(MetaData.builder(currentState.metaData()).coordinationMetaData(
-                CoordinationMetaData.builder(currentState.metaData().coordinationMetaData())
-                    .term(1)
-                    .lastAcceptedConfiguration(votingConfiguration)
-                    .lastCommittedConfiguration(votingConfiguration)
-                    .build()));
-            final ClusterState newClusterState = builder.build();
-
-            coordinationState.get().handleStartJoin(new StartJoinRequest(getLocalNode(), newClusterState.term()));
-            coordinationState.get().handlePublishRequest(new PublishRequest(newClusterState));
-
-            followersChecker.clearCurrentNodes();
-            followersChecker.updateFastResponseState(getCurrentTerm(), mode);
-
-            peerFinder.deactivate(getLocalNode());
-            peerFinder.activate(newClusterState.nodes());
         }
     }
 
@@ -884,7 +839,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private ClusterState clusterStateWithNoMasterBlock(ClusterState clusterState) {
         if (clusterState.nodes().getMasterNodeId() != null) {
             // remove block if it already exists before adding new one
-            assert clusterState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID) == false :
+            assert clusterState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID) == false :
                 "NO_MASTER_BLOCK should only be added by Coordinator";
             final ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(clusterState.blocks()).addGlobalBlock(
                 discoverySettings.getNoMasterBlock()).build();

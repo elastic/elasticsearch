@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.Objects;
@@ -21,8 +21,8 @@ public class BinaryMathPipe extends BinaryPipe {
 
     private final BinaryMathOperation operation;
 
-    public BinaryMathPipe(Location location, Expression expression, Pipe left, Pipe right, BinaryMathOperation operation) {
-        super(location, expression, left, right);
+    public BinaryMathPipe(Source source, Expression expression, Pipe left, Pipe right, BinaryMathOperation operation) {
+        super(source, expression, left, right);
         this.operation = operation;
     }
 
@@ -37,7 +37,7 @@ public class BinaryMathPipe extends BinaryPipe {
 
     @Override
     protected BinaryPipe replaceChildren(Pipe left, Pipe right) {
-        return new BinaryMathPipe(location(), expression(), left, right, operation);
+        return new BinaryMathPipe(source(), expression(), left, right, operation);
     }
 
     @Override

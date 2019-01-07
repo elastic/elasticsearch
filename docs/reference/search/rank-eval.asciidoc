@@ -126,7 +126,7 @@ GET /my_index/_rank_eval
 
 <1> the template id 
 <2> the template definition to use
-<3> a reference to a previously defined temlate
+<3> a reference to a previously defined template
 <4> the parameters to use to fill the template
 
 [float]

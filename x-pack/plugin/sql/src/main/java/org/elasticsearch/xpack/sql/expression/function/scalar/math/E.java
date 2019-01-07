@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.script.Params;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -20,8 +20,8 @@ public class E extends MathFunction {
 
     private static final ScriptTemplate TEMPLATE = new ScriptTemplate("Math.E", Params.EMPTY, DataType.DOUBLE);
 
-    public E(Location location) {
-        super(location, new Literal(location, "E", Math.E, DataType.DOUBLE));
+    public E(Source source) {
+        super(source, new Literal(source, "E", Math.E, DataType.DOUBLE));
     }
 
     @Override

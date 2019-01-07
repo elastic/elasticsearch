@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -165,11 +166,15 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         try {
             future.get();
         } catch (Exception ex) {
-            logger.info("--> got exception from hanged master", ex);
             Throwable cause = ex.getCause();
-            assertThat(cause, instanceOf(MasterNotDiscoveredException.class));
-            cause = cause.getCause();
-            assertThat(cause, instanceOf(FailedToCommitClusterStateException.class));
+            if (cause.getCause() instanceof ConcurrentSnapshotExecutionException) {
+                logger.info("--> got exception from race in master operation retries");
+            } else {
+                logger.info("--> got exception from hanged master", ex);
+                assertThat(cause, instanceOf(MasterNotDiscoveredException.class));
+                cause = cause.getCause();
+                assertThat(cause, instanceOf(FailedToCommitClusterStateException.class));
+            }
         }
 
         logger.info("--> verify that snapshot eventually will be created due to retries");

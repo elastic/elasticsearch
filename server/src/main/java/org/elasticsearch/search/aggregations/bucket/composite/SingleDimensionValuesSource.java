@@ -100,6 +100,16 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     abstract int compareCurrentWithAfter();
 
     /**
+     * Returns a hash code value for the provided <code>slot</code>.
+     */
+    abstract int hashCode(int slot);
+
+    /**
+     * Returns a hash code value for the current value.
+     */
+    abstract int hashCodeCurrent();
+
+    /**
      * Sets the after value for this source. Values that compares smaller are filtered.
      */
     abstract void setAfter(Comparable value);

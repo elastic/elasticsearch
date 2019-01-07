@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Arrays;
@@ -35,10 +35,10 @@ public class Locate extends ScalarFunction {
 
     private final Expression pattern, source, start;
     
-    public Locate(Location location, Expression pattern, Expression source, Expression start) {
-        super(location, start != null ? Arrays.asList(pattern, source, start) : Arrays.asList(pattern, source));
+    public Locate(Source source, Expression pattern, Expression src, Expression start) {
+        super(source, start != null ? Arrays.asList(pattern, src, start) : Arrays.asList(pattern, src));
         this.pattern = pattern;
-        this.source = source;
+        this.source = src;
         this.start = start;
     }
     
@@ -65,7 +65,7 @@ public class Locate extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new LocateFunctionPipe(location(), this,
+        return new LocateFunctionPipe(source(), this,
             Expressions.pipe(pattern),
             Expressions.pipe(source),
             start == null ? null : Expressions.pipe(start));
@@ -137,6 +137,6 @@ public class Locate extends ScalarFunction {
             throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
         }
 
-        return new Locate(location(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Locate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }

@@ -99,6 +99,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     private TermsLookup randomTermsLookup() {
+        // Randomly choose between a typeless terms lookup and one with an explicit type to make sure we are
+        // testing both cases.
         TermsLookup lookup = randomBoolean()
             ? new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath)
             : new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);

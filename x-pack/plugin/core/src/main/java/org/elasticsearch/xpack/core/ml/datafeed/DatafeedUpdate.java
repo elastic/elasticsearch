@@ -48,7 +48,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         PARSER.declareString(Builder::setJobId, Job.ID);
         PARSER.declareStringArray(Builder::setIndices, DatafeedConfig.INDEXES);
         PARSER.declareStringArray(Builder::setIndices, DatafeedConfig.INDICES);
-        PARSER.declareStringArray(Builder::setTypes, DatafeedConfig.TYPES);
         PARSER.declareString((builder, val) -> builder.setQueryDelay(
                 TimeValue.parseTimeValue(val, DatafeedConfig.QUERY_DELAY.getPreferredName())), DatafeedConfig.QUERY_DELAY);
         PARSER.declareString((builder, val) -> builder.setFrequency(
@@ -79,7 +78,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     private final TimeValue queryDelay;
     private final TimeValue frequency;
     private final List<String> indices;
-    private final List<String> types;
     private final QueryBuilder query;
     private final AggregatorFactories.Builder aggregations;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -87,15 +85,14 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     private final ChunkingConfig chunkingConfig;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
 
-    private DatafeedUpdate(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, List<String> types,
-                           QueryBuilder query, AggregatorFactories.Builder aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
-                           Integer scrollSize, ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig) {
+    private DatafeedUpdate(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, QueryBuilder query,
+                           AggregatorFactories.Builder aggregations, List<SearchSourceBuilder.ScriptField> scriptFields, Integer scrollSize,
+                           ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
         this.frequency = frequency;
         this.indices = indices;
-        this.types = types;
         this.query = query;
         this.aggregations = aggregations;
         this.scriptFields = scriptFields;
@@ -114,10 +111,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         } else {
             this.indices = null;
         }
-        if (in.readBoolean()) {
-            this.types = in.readList(StreamInput::readString);
-        } else {
-            this.types = null;
+        // This consumes the list of types if there was one.
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            if (in.readBoolean()) {
+                in.readList(StreamInput::readString);
+            }
         }
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
@@ -154,11 +152,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-        if (types != null) {
+        // Write the now removed types to prior versions.
+        // An empty list is expected
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(true);
-            out.writeStringList(types);
-        } else {
-            out.writeBoolean(false);
+            out.writeStringList(Collections.emptyList());
         }
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalWriteable(aggregations);
@@ -187,7 +185,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.field(DatafeedConfig.FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
         addOptionalField(builder, DatafeedConfig.INDICES, indices);
-        addOptionalField(builder, DatafeedConfig.TYPES, types);
         addOptionalField(builder, DatafeedConfig.QUERY, query);
         addOptionalField(builder, DatafeedConfig.AGGREGATIONS, aggregations);
         if (scriptFields != null) {
@@ -224,10 +221,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
     List<String> getIndices() {
         return indices;
-    }
-
-    List<String> getTypes() {
-        return types;
     }
 
     Integer getScrollSize() {
@@ -291,9 +284,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (indices != null) {
             builder.setIndices(indices);
         }
-        if (types != null) {
-            builder.setTypes(types);
-        }
         if (query != null) {
             builder.setParsedQuery(query);
         }
@@ -347,7 +337,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 && Objects.equals(this.frequency, that.frequency)
                 && Objects.equals(this.queryDelay, that.queryDelay)
                 && Objects.equals(this.indices, that.indices)
-                && Objects.equals(this.types, that.types)
                 && Objects.equals(this.query, that.query)
                 && Objects.equals(this.scrollSize, that.scrollSize)
                 && Objects.equals(this.aggregations, that.aggregations)
@@ -358,8 +347,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, jobId, frequency, queryDelay, indices, types, query, scrollSize, aggregations, scriptFields,
-                chunkingConfig, delayedDataCheckConfig);
+        return Objects.hash(id, jobId, frequency, queryDelay, indices, query, scrollSize, aggregations, scriptFields, chunkingConfig,
+                delayedDataCheckConfig);
     }
 
     @Override
@@ -371,7 +360,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return (frequency == null || Objects.equals(frequency, datafeed.getFrequency()))
                 && (queryDelay == null || Objects.equals(queryDelay, datafeed.getQueryDelay()))
                 && (indices == null || Objects.equals(indices, datafeed.getIndices()))
-                && (types == null || Objects.equals(types, datafeed.getTypes()))
                 && (query == null || Objects.equals(query, datafeed.getParsedQuery()))
                 && (scrollSize == null || Objects.equals(scrollSize, datafeed.getQueryDelay()))
                 && (aggregations == null || Objects.equals(aggregations, datafeed.getParsedAggregations()))
@@ -387,7 +375,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         private TimeValue queryDelay;
         private TimeValue frequency;
         private List<String> indices;
-        private List<String> types;
         private QueryBuilder query;
         private AggregatorFactories.Builder aggregations;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -408,7 +395,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.queryDelay = config.queryDelay;
             this.frequency = config.frequency;
             this.indices = config.indices;
-            this.types = config.types;
             this.query = config.query;
             this.aggregations = config.aggregations;
             this.scriptFields = config.scriptFields;
@@ -427,10 +413,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         public void setIndices(List<String> indices) {
             this.indices = indices;
-        }
-
-        public void setTypes(List<String> types) {
-            this.types = types;
         }
 
         public void setQueryDelay(TimeValue queryDelay) {
@@ -468,7 +450,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
 
         public DatafeedUpdate build() {
-            return new DatafeedUpdate(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
+            return new DatafeedUpdate(id, jobId, queryDelay, frequency, indices, query, aggregations, scriptFields, scrollSize,
                     chunkingConfig, delayedDataCheckConfig);
         }
     }

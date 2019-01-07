@@ -41,6 +41,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -335,6 +336,8 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("memory.total", "sibling:pri;alias:tm,memoryTotal;default:false;text-align:right;desc:total used memory");
         table.addCell("pri.memory.total", "default:false;text-align:right;desc:total user memory");
 
+        table.addCell("search.throttled", "alias:sth;default:false;desc:indicates if the index is search throttled");
+
         table.endHeaders();
         return table;
     }
@@ -357,6 +360,7 @@ public class RestIndicesAction extends AbstractCatAction {
             IndexStats indexStats = stats.getIndices().get(indexName);
             IndexMetaData indexMetaData = indexMetaDatas.getIndices().get(indexName);
             IndexMetaData.State state = indexMetaData.getState();
+            boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(indexMetaData.getSettings());
 
             if (status != null) {
                 if (state == IndexMetaData.State.CLOSE ||
@@ -557,6 +561,8 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getTotalMemory());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getTotalMemory());
+
+            table.addCell(searchThrottled);
 
             table.endRow();
         }

@@ -279,7 +279,7 @@ the operating system:
     `os.cgroup.memory.limit_in_bytes`.
 
 NOTE: For the cgroup stats to be visible, cgroups must be compiled into
-the kernal, the `cpu` and `cpuacct` cgroup subsystems must be
+the kernel, the `cpu` and `cpuacct` cgroup subsystems must be
 configured and stats must be readable from `/sys/fs/cgroup/cpu`
 and `/sys/fs/cgroup/cpuacct`.
 

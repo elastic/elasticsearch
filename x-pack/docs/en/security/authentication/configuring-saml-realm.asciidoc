@@ -218,12 +218,12 @@ When a user authenticates using SAML, they are identified to the {stack},
 but this does not automatically grant them access to perform any actions or
 access any data.
 
-Your SAML users cannot do anything until they are mapped to roles. See
-{stack-ov}/saml-role-mapping.html[Configuring role mappings]. 
+Your SAML users cannot do anything until they are assigned roles. This can be done
+through either the {stack-ov}/saml-role-mapping.html[role mapping API], or with
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms].
 
-NOTE: The SAML realm supports
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
-alternative to role mapping.
+NOTE: You cannot use {stack-ov}/defining-roles.html#roles-management-file[role mapping files]
+to grant roles to users authenticating via SAML.
 
 --
 

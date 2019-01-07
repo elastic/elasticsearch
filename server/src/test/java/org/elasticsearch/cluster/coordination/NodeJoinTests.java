@@ -157,6 +157,8 @@ public class NodeJoinTests extends ESTestCase {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
                     handleResponse(requestId, new TransportService.HandshakeResponse(destination, initialState.getClusterName(),
                         destination.getVersion()));
+                } else if (action.equals(JoinHelper.VALIDATE_JOIN_ACTION_NAME)) {
+                    handleResponse(requestId, new TransportResponse.Empty());
                 } else {
                     super.onSendRequest(requestId, action, request, destination);
                 }

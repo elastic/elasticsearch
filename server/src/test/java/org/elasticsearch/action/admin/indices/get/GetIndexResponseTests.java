@@ -31,11 +31,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.junit.Assert;
@@ -49,11 +45,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.action.admin.indices.get.GetIndexResponse.fromXContent;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<GetIndexResponse> {
 
@@ -202,24 +196,4 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
 
         Assert.assertEquals(TEST_6_3_0_RESPONSE_BYTES, base64OfResponse);
     }
-
-    /**
-     * test that the old response format with types can still be parsed with the special parser method
-     * when output is rendered with types
-     */
-    public void testFromXContentWithTypes() throws IOException {
-        GetIndexResponse testInstance = this.createTestInstance(true);
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            // this renders the response in the "old" format with types
-            testInstance.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true")));
-            BytesReference bytes = BytesReference.bytes(builder);
-            XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
-            // this parses the output expecting the "old" format with types
-            GetIndexResponse parsedInstance = fromXContent(parser, true);
-            assertNotSame(parsedInstance, testInstance);
-            assertEquals(testInstance, parsedInstance);
-            assertEquals(testInstance.hashCode(), parsedInstance.hashCode());
-        }
-    }
-
 }

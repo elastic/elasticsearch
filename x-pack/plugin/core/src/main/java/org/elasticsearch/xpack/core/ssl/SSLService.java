@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.HostnameVerifier;
@@ -469,16 +470,15 @@ public class SSLService extends AbstractComponent {
             // only check the types we know use ssl. custom realms may but we don't want to cause confusion
             if (LdapRealmSettings.LDAP_TYPE.equals(type) || LdapRealmSettings.AD_TYPE.equals(type)) {
                 List<String> urls = realm.getAsList("url");
-                if (urls.isEmpty() == false && urls.stream().anyMatch(s -> s.startsWith("ldaps://"))) {
-                    return true;
-                }
+                return urls.isEmpty() == false && urls.stream().anyMatch(s -> s.startsWith("ldaps://"));
+            } else if (SamlRealmSettings.TYPE.equals(type)) {
+                final String idpMetadataPath = SamlRealmSettings.IDP_METADATA_PATH.get(realm);
+                return Strings.hasText(idpMetadataPath) && idpMetadataPath.startsWith("https://");
             }
         } else if (name.startsWith("xpack.monitoring.exporters.")) {
             Settings exporterSettings = settings.getByPrefix(name.substring(0, name.indexOf(".ssl")));
             List<String> hosts = exporterSettings.getAsList("host");
-            if (hosts.stream().anyMatch(s -> s.startsWith("https"))) {
-                return true;
-            }
+            return hosts.stream().anyMatch(s -> s.startsWith("https"));
         } else if (name.equals(XPackSettings.HTTP_SSL_PREFIX) && XPackSettings.HTTP_SSL_ENABLED.get(settings)) {
             return true;
         } else if (name.equals("xpack.http.ssl") && XPackSettings.WATCHER_ENABLED.get(settings)) {

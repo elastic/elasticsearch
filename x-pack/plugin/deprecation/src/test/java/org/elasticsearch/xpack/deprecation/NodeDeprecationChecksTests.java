@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -228,5 +229,17 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "#_file_based_discovery_plugin",
             "nodes with discovery-file installed: [node_check]");
         assertSettingsAndIssue("foo", "bar", expected);
+    }
+
+    public void testDefaultSSLSettingsCheck() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "Default TLS/SSL settings have been removed",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#tls-setting-fallback",
+            "Nodes with default TLS/SSL settings: [node_check]");
+        assertSettingsAndIssue("xpack.ssl.keystore.path", randomAlphaOfLength(8), expected);
+        assertSettingsAndIssue("xpack.ssl.truststore.password", randomAlphaOfLengthBetween(2, 12), expected);
+        assertSettingsAndIssue("xpack.ssl.certificate_authorities",
+            Strings.arrayToCommaDelimitedString(randomArray(1, 4, String[]::new, () -> randomAlphaOfLengthBetween(4, 16))), expected);
     }
 }

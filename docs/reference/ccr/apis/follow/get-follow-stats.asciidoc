@@ -47,7 +47,7 @@ GET /<index>/_ccr/stats
 // CONSOLE
 // TEST[s/<index>/follower_index/]
 
-==== Path Parmeters
+==== Path Parameters
 `index` ::
   (string) a comma-delimited list of index patterns
 

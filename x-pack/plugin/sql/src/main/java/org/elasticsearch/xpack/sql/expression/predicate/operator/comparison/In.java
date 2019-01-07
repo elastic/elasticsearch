@@ -8,10 +8,11 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
@@ -31,8 +32,8 @@ public class In extends ScalarFunction {
     private final Expression value;
     private final List<Expression> list;
 
-    public In(Location location, Expression value, List<Expression> list) {
-        super(location, CollectionUtils.combine(list, value));
+    public In(Source source, Expression value, List<Expression> list) {
+        super(source, CollectionUtils.combine(list, value));
         this.value = value;
         this.list = new ArrayList<>(new LinkedHashSet<>(list));
     }
@@ -47,7 +48,7 @@ public class In extends ScalarFunction {
         if (newChildren.size() < 2) {
             throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
         }
-        return new In(location(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1));
+        return new In(source(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1));
     }
 
     public Expression value() {
@@ -64,8 +65,8 @@ public class In extends ScalarFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullability nullable() {
+        return Nullability.UNKNOWN;
     }
 
     @Override
@@ -109,7 +110,7 @@ public class In extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new InPipe(location(), this, children().stream().map(Expressions::pipe).collect(Collectors.toList()));
+        return new InPipe(source(), this, children().stream().map(Expressions::pipe).collect(Collectors.toList()));
     }
 
     @Override

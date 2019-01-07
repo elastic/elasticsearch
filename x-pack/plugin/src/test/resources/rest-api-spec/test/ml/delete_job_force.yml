@@ -65,8 +65,7 @@ setup:
         body:  >
           {
             "job_id":"force-delete-job",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
   - match: { datafeed_id: force-delete-job-datafeed }
 

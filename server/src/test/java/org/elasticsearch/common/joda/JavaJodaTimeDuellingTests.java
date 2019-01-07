@@ -75,13 +75,9 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("1522332219.0", "epoch_second");
         assertSameDate("0", "epoch_second");
         assertSameDate("1", "epoch_second");
-        assertSameDate("-1", "epoch_second");
-        assertSameDate("-1522332219", "epoch_second");
         assertSameDate("1522332219321", "epoch_millis");
         assertSameDate("0", "epoch_millis");
         assertSameDate("1", "epoch_millis");
-        assertSameDate("-1", "epoch_millis");
-        assertSameDate("-1522332219321", "epoch_millis");
 
         assertSameDate("20181126", "basic_date");
         assertSameDate("20181126T121212.123Z", "basic_date_time");
@@ -471,7 +467,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     public void testSeveralTimeFormats() {
         DateFormatter jodaFormatter = DateFormatter.forPattern("year_month_day||ordinal_date");
-        DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||8ordinal_date");
+        DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||ordinal_date");
         assertSameDate("2018-12-12", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
         assertSameDate("2018-128", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
     }

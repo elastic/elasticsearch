@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,12 +52,9 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
 
     private ShardSearchLocalRequest shardSearchLocalRequest;
 
-    public ShardSearchTransportRequest(){
-    }
-
     public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int numberOfShards,
                                        AliasFilter aliasFilter, float indexBoost, long nowInMillis,
-                                       String clusterAlias, String[] indexRoutings) {
+                                       @Nullable String clusterAlias, String[] indexRoutings) {
         this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, numberOfShards, aliasFilter, indexBoost,
             nowInMillis, clusterAlias, indexRoutings);
         this.originalIndices = originalIndices;

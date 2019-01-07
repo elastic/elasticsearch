@@ -49,10 +49,12 @@ public class RestExplainAction extends BaseRestHandler {
 
     public RestExplainAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
         controller.registerHandler(GET, "/{index}/_explain/{id}", this);
         controller.registerHandler(POST, "/{index}/_explain/{id}", this);
+
+        // Deprecated typed endpoints.
+        controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }
 
     @Override

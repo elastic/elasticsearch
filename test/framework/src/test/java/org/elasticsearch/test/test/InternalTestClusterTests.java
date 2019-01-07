@@ -19,7 +19,6 @@
  */
 package org.elasticsearch.test.test;
 
-import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -57,6 +56,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
@@ -268,17 +268,15 @@ public class InternalTestClusterTests extends ESTestCase {
 
     private static List<Settings> addBootstrapConfiguration(Random random, List<Settings> allNodesSettings) {
         final List<Settings> updatedSettings = new ArrayList<>(allNodesSettings);
-        while (true) {
-            final int bootstrapIndex = RandomNumbers.randomIntBetween(random, 0, updatedSettings.size() - 1);
-            final Settings settings = updatedSettings.get(bootstrapIndex);
-            assertFalse(INITIAL_MASTER_NODES_SETTING.exists(settings));
-            if (NODE_MASTER_SETTING.get(settings)) {
-                updatedSettings.set(bootstrapIndex,
-                    Settings.builder().put(settings).putList(INITIAL_MASTER_NODES_SETTING.getKey(), allNodesSettings.stream()
-                        .filter(NODE_MASTER_SETTING::get).map(NODE_NAME_SETTING::get).collect(Collectors.toList())).build());
-                return updatedSettings;
-            }
-        }
+        final int bootstrapIndex = randomFrom(random, IntStream.range(0, updatedSettings.size())
+            .filter(i -> NODE_MASTER_SETTING.get(allNodesSettings.get(i))).boxed().collect(Collectors.toList()));
+        final Settings settings = updatedSettings.get(bootstrapIndex);
+        assertFalse(INITIAL_MASTER_NODES_SETTING.exists(settings));
+        assertTrue(NODE_MASTER_SETTING.get(settings));
+        updatedSettings.set(bootstrapIndex,
+            Settings.builder().put(settings).putList(INITIAL_MASTER_NODES_SETTING.getKey(), allNodesSettings.stream()
+                .filter(NODE_MASTER_SETTING::get).map(NODE_NAME_SETTING::get).collect(Collectors.toList())).build());
+        return updatedSettings;
     }
 
     public void testDataFolderAssignmentAndCleaning() throws IOException, InterruptedException {

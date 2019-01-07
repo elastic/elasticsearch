@@ -1345,7 +1345,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"), SnapshotMissingException.class);
+        assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo")
+                                             .addSnapshots("test-snap-1"), SnapshotMissingException.class);
 
         for (String index : indices) {
             assertTrue(Files.notExists(indicesPath.resolve(indexIds.get(index).getId())));
@@ -1384,7 +1385,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"), SnapshotMissingException.class);
+        assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo")
+                                             .addSnapshots("test-snap-1"), SnapshotMissingException.class);
     }
 
     public void testDeleteSnapshotWithCorruptedSnapshotFile() throws Exception {
@@ -2014,7 +2016,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> waiting for block to kick in");
         waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
 
-        logger.info("--> execution was blocked on node [{}], checking snapshot status with specified repository and snapshot", blockedNode);
+        logger.info("--> execution was blocked on node [{}], checking snapshot status with specified repository and snapshot",
+            blockedNode);
         SnapshotsStatusResponse response = client.admin().cluster().prepareSnapshotStatus("test-repo").execute().actionGet();
         assertThat(response.getSnapshots().size(), equalTo(1));
         SnapshotStatus snapshotStatus = response.getSnapshots().get(0);
@@ -3176,6 +3179,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
      *
      * See https://github.com/elastic/elasticsearch/issues/20876
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37005")
     public void testSnapshotCanceledOnRemovedShard() throws Exception {
         final int numPrimaries = 1;
         final int numReplicas = 1;

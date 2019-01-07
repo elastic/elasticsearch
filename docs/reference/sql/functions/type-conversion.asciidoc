@@ -10,10 +10,10 @@ Functions for converting an expression of one data type to another.
 [[sql-functions-type-conversion-cast]]
 ==== `CAST`
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-CAST ( expression<1> AS data_type<2> )
+CAST(expression<1> AS data_type<2>)
 ----
 
 <1> Expression to cast
@@ -44,10 +44,10 @@ include-tagged::{sql-specs}/docs.csv-spec[conversionStringToDateCast]
 [[sql-functions-type-conversion-convert]]
 ==== `CONVERT`
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-CONVERT ( expression<1>, data_type<2> )
+CONVERT(expression<1>, data_type<2>)
 ----
 
 <1> Expression to convert

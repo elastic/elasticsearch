@@ -167,4 +167,10 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
         }
     }
 
+    public void testStatePersistence() throws Exception {
+        createIndex("test");
+        internalCluster().fullRestart();
+        assertTrue(client().admin().indices().prepareExists("test").get().isExists());
+    }
+
 }

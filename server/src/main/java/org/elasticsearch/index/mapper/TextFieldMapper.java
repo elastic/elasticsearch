@@ -32,6 +32,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -40,6 +43,9 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
@@ -152,7 +158,7 @@ public class TextFieldMapper extends FieldMapper {
             if (maxChars >= 20) {
                 throw new IllegalArgumentException("max_chars [" + maxChars + "] must be less than 20");
             }
-            this.prefixFieldType = new PrefixFieldType(name() + "._index_prefix", minChars, maxChars);
+            this.prefixFieldType = new PrefixFieldType(name(), name() + "._index_prefix", minChars, maxChars);
             fieldType().setPrefixFieldType(this.prefixFieldType);
             return this;
         }
@@ -343,14 +349,16 @@ public class TextFieldMapper extends FieldMapper {
 
         final int minChars;
         final int maxChars;
+        final String parentField;
 
-        PrefixFieldType(String name, int minChars, int maxChars) {
+        PrefixFieldType(String parentField, String name, int minChars, int maxChars) {
             setTokenized(true);
             setOmitNorms(true);
             setIndexOptions(IndexOptions.DOCS);
             setName(name);
             this.minChars = minChars;
             this.maxChars = maxChars;
+            this.parentField = parentField;
         }
 
         PrefixFieldType setAnalyzer(NamedAnalyzer delegate) {
@@ -360,7 +368,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         boolean accept(int length) {
-            return length >= minChars && length <= maxChars;
+            return length >= minChars - 1 && length <= maxChars;
         }
 
         void doXContent(XContentBuilder builder) throws IOException {
@@ -371,8 +379,27 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            if (value.length() >= minChars) {
+                return super.termQuery(value, context);
+            }
+            List<Automaton> automata = new ArrayList<>();
+            automata.add(Automata.makeString(value));
+            for (int i = value.length(); i < minChars; i++) {
+                automata.add(Automata.makeAnyChar());
+            }
+            Automaton automaton = Operations.concatenate(automata);
+            AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
+            query.setRewriteMethod(method);
+            return new BooleanQuery.Builder()
+                .add(query, BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term(parentField, value)), BooleanClause.Occur.SHOULD)
+                .build();
+        }
+
+        @Override
         public PrefixFieldType clone() {
-            return new PrefixFieldType(name(), minChars, maxChars);
+            return new PrefixFieldType(parentField, name(), minChars, maxChars);
         }
 
         @Override
@@ -402,7 +429,6 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public int hashCode() {
-
             return Objects.hash(super.hashCode(), minChars, maxChars);
         }
     }
@@ -564,7 +590,7 @@ public class TextFieldMapper extends FieldMapper {
             if (prefixFieldType == null || prefixFieldType.accept(value.length()) == false) {
                 return super.prefixQuery(value, method, context);
             }
-            Query tq = prefixFieldType.termQuery(value, context);
+            Query tq = prefixFieldType.prefixQuery(value, method, context);
             if (method == null || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
                 || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
                 return new ConstantScoreQuery(tq);

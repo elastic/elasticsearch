@@ -64,7 +64,7 @@ public class IndexResolver {
         INDEX("BASE TABLE"),
         ALIAS("ALIAS"),
         // value for user types unrecognized
-        UNKNOWN("UKNOWN");
+        UNKNOWN("UNKNOWN");
 
         public static final EnumSet<IndexType> VALID = EnumSet.of(INDEX, ALIAS);
 

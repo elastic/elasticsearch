@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.ccr.ESCCRRestTestCase;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -115,7 +114,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
             // Set up an auto-follow pattern
             Request createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/my_auto_follow_pattern");
-            createAutoFollowRequest.setJsonEntity("{\"leader_index_patterns\": [\"metrics-*\"], \"remote_cluster\": \"leader_cluster\"}");
+            createAutoFollowRequest.setJsonEntity("{\"leader_index_patterns\": [\"metrics-*\"], " +
+                "\"remote_cluster\": \"leader_cluster\", \"read_poll_timeout\": \"1000ms\"}");
             assertOK(client().performRequest(createAutoFollowRequest));
 
             try (RestClient leaderClient = buildLeaderClient()) {
@@ -166,9 +166,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 assertBusy(() -> {
                     // Wait for the setting to get replicated to the follower
                     assertThat(getIndexSetting(client(), indexName, "index.lifecycle.indexing_complete"), equalTo("true"));
-                }, 2, TimeUnit.MINUTES);
-                // TODO: ^^ I don't know why but this takes like 70 seconds to happen. It doesn't seem like it should and this should
-                // definitely be fixed before merging.
+                });
 
                 assertBusy(() -> {
                     // ILM should have unfollowed the follower index, so the following_index setting should have been removed:

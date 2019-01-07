@@ -21,14 +21,18 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testLocalClusterAlias() {
+        long nowInMillis = System.currentTimeMillis();
         IndexRequest indexRequest = new IndexRequest("test", "type", "1");
         indexRequest.source("field", "value");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
@@ -36,7 +40,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         {
-            SearchRequest searchRequest = new SearchRequest("local");
+            SearchRequest searchRequest = new SearchRequest("local", nowInMillis);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits());
             SearchHit[] hits = searchResponse.getHits().getHits();
@@ -47,7 +51,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals("1", hit.getId());
         }
         {
-            SearchRequest searchRequest = new SearchRequest("");
+            SearchRequest searchRequest = new SearchRequest("", nowInMillis);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits());
             SearchHit[] hits = searchResponse.getHits().getHits();
@@ -56,6 +60,58 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals("", hit.getClusterAlias());
             assertEquals("test", hit.getIndex());
             assertEquals("1", hit.getId());
+        }
+    }
+
+    public void testAbsoluteStartMillis() {
+        {
+            IndexRequest indexRequest = new IndexRequest("test-1970.01.01", "type", "1");
+            indexRequest.source("date", "1970-01-01");
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+            IndexResponse indexResponse = client().index(indexRequest).actionGet();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+        }
+        {
+            IndexRequest indexRequest = new IndexRequest("test-1982.01.01", "type", "1");
+            indexRequest.source("date", "1982-01-01");
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+            IndexResponse indexResponse = client().index(indexRequest).actionGet();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            assertEquals(2, searchResponse.getHits().getTotalHits());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest("<test-{now/d}>");
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(true, true, true, true));
+            SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            assertEquals(0, searchResponse.getTotalShards());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest("", 0);
+            SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            assertEquals(2, searchResponse.getHits().getTotalHits());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest("", 0);
+            searchRequest.indices("<test-{now/d}>");
+            SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            assertEquals(1, searchResponse.getHits().getTotalHits());
+            assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest("", 0);
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+            RangeQueryBuilder rangeQuery = new RangeQueryBuilder("date");
+            rangeQuery.gte("1970-01-01");
+            rangeQuery.lt("1982-01-01");
+            sourceBuilder.query(rangeQuery);
+            searchRequest.source(sourceBuilder);
+            SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            assertEquals(1, searchResponse.getHits().getTotalHits());
+            assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
         }
     }
 }

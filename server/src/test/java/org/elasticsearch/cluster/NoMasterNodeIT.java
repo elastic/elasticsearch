@@ -93,7 +93,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true)
                 .execute().actionGet().getState();
-            assertTrue(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID));
         });
 
         assertThrows(clientToMasterlessNode.prepareGet("test", "type1", "1"),
@@ -223,7 +223,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         assertTrue(awaitBusy(() -> {
                 ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
-                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+                return state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         ));
 

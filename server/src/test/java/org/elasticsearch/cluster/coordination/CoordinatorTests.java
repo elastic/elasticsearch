@@ -1246,12 +1246,12 @@ public class CoordinatorTests extends ESTestCase {
                     assertThat(nodeId + " has correct master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
                         equalTo(leader.getLocalNode()));
                     assertThat(nodeId + " has no NO_MASTER_BLOCK",
-                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID), equalTo(false));
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(false));
                 } else {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertThat(nodeId + " has no master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(), nullValue());
                     assertThat(nodeId + " has NO_MASTER_BLOCK",
-                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID), equalTo(true));
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(true));
                     assertFalse(nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
                 }

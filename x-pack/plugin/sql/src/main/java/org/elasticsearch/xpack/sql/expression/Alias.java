@@ -76,7 +76,7 @@ public class Alias extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         return child.nullable();
     }
 

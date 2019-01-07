@@ -7,11 +7,14 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.ScorePipe;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import static org.elasticsearch.xpack.sql.expression.Nullability.FALSE;
 
 /**
  * {@link Attribute} that represents Elasticsearch's {@code _score}.
@@ -21,15 +24,15 @@ public class ScoreAttribute extends FunctionAttribute {
      * Constructor for normal use.
      */
     public ScoreAttribute(Source source) {
-        this(source, "SCORE()", DataType.FLOAT, null, false, null, false);
+        this(source, "SCORE()", DataType.FLOAT, null, FALSE, null, false);
     }
 
     /**
      * Constructor for {@link #clone()}
      */
-    private ScoreAttribute(Source source, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id,
+    private ScoreAttribute(Source source, String name, DataType dataType, String qualifier, Nullability nullability, ExpressionId id,
                            boolean synthetic) {
-        super(source, name, dataType, qualifier, nullable, id, synthetic, "SCORE");
+        super(source, name, dataType, qualifier, nullability, id, synthetic, "SCORE");
     }
 
     @Override
@@ -38,8 +41,9 @@ public class ScoreAttribute extends FunctionAttribute {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
-        return new ScoreAttribute(source, name, dataType(), qualifier, nullable, id, synthetic);
+    protected Attribute clone(Source source, String name, String qualifier, Nullability nullability,
+                              ExpressionId id, boolean synthetic) {
+        return new ScoreAttribute(source, name, dataType(), qualifier, nullability, id, synthetic);
     }
 
     @Override

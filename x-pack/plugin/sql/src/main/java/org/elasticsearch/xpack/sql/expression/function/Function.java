@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -45,7 +46,7 @@ public abstract class Function extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         return Expressions.nullable(children());
     }
 

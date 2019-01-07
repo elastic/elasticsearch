@@ -26,25 +26,25 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestUpgradeResultsAction extends BaseRestHandler {
+public class RestUpgradeMlAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestUpgradeResultsAction.class));
+        new DeprecationLogger(LogManager.getLogger(RestUpgradeMlAction.class));
 
-    public RestUpgradeResultsAction(Settings settings, RestController controller) {
+    public RestUpgradeMlAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerWithDeprecatedHandler(
             POST,
-            MachineLearning.BASE_PATH + "anomaly_detectors/results/_upgrade",
+            MachineLearning.BASE_PATH + "_upgrade",
             this,
             POST,
-            MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/results/_upgrade",
+            MachineLearning.PRE_V7_BASE_PATH + "_upgrade",
             deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_upgrade_results_indices_action";
+        return "xpack_ml_upgrade_action";
     }
 
     @Override

@@ -43,7 +43,7 @@ setup:
 ---
 "Upgrade results when there is nothing to upgrade":
   - do:
-      ml.upgrade_job_results:
+      ml.upgrade:
         wait_for_completion: true
 
   - match: { acknowledged: true }
@@ -56,7 +56,7 @@ setup:
 ---
 "Upgrade results when there is nothing to upgrade not waiting for results":
   - do:
-      ml.upgrade_job_results:
+      ml.upgrade:
         wait_for_completion: false
 
   - match: {task: '/.+:\d+/'}

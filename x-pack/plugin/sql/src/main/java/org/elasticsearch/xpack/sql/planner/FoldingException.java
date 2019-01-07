@@ -21,8 +21,8 @@ public class FoldingException extends ClientSqlException {
         super(message, args);
 
         Location loc = Location.EMPTY;
-        if (source != null && source.location() != null) {
-            loc = source.location();
+        if (source != null && source.source() != null) {
+            loc = source.source().source();
         }
         this.line = loc.getLineNumber();
         this.column = loc.getColumnNumber();
@@ -32,8 +32,8 @@ public class FoldingException extends ClientSqlException {
         super(message, cause);
 
         Location loc = Location.EMPTY;
-        if (source != null && source.location() != null) {
-            loc = source.location();
+        if (source != null && source.source() != null) {
+            loc = source.source().source();
         }
         this.line = loc.getLineNumber();
         this.column = loc.getColumnNumber();

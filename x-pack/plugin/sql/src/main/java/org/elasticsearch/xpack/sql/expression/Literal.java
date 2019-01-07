@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.script.Params;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -24,19 +24,19 @@ import static java.util.Collections.emptyList;
  */
 public class Literal extends NamedExpression {
 
-    public static final Literal TRUE = Literal.of(Location.EMPTY, Boolean.TRUE);
-    public static final Literal FALSE = Literal.of(Location.EMPTY, Boolean.FALSE);
-    public static final Literal NULL = Literal.of(Location.EMPTY, null);
+    public static final Literal TRUE = Literal.of(Source.EMPTY, Boolean.TRUE);
+    public static final Literal FALSE = Literal.of(Source.EMPTY, Boolean.FALSE);
+    public static final Literal NULL = Literal.of(Source.EMPTY, null);
 
     private final Object value;
     private final DataType dataType;
 
-    public Literal(Location location, Object value, DataType dataType) {
-        this(location, null, value, dataType);
+    public Literal(Source source, Object value, DataType dataType) {
+        this(source, null, value, dataType);
     }
 
-    public Literal(Location location, String name, Object value, DataType dataType) {
-        super(location, name == null ? String.valueOf(value) : name, emptyList(), null);
+    public Literal(Source source, String name, Object value, DataType dataType) {
+        super(source, name == null ? String.valueOf(value) : name, emptyList(), null);
         this.dataType = dataType;
         this.value = DataTypeConversion.convert(value, dataType);
     }
@@ -56,8 +56,8 @@ public class Literal extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
-        return value == null;
+    public Nullability nullable() {
+        return value == null ? Nullability.TRUE : Nullability.FALSE;
     }
 
     @Override
@@ -77,7 +77,7 @@ public class Literal extends NamedExpression {
 
     @Override
     public Attribute toAttribute() {
-        return new LiteralAttribute(location(), name(), null, false, id(), false, dataType, this);
+        return new LiteralAttribute(source(), name(), null, Nullability.FALSE, id(), false, dataType, this);
     }
 
     @Override
@@ -98,7 +98,7 @@ public class Literal extends NamedExpression {
     @Override
     protected Expression canonicalize() {
         String s = String.valueOf(value);
-        return name().equals(s) ? this : Literal.of(location(), value);
+        return name().equals(s) ? this : Literal.of(source(), value);
     }
 
     @Override
@@ -129,11 +129,11 @@ public class Literal extends NamedExpression {
     /**
      * Utility method for creating 'in-line' Literals (out of values instead of expressions).
      */
-    public static Literal of(Location loc, Object value) {
+    public static Literal of(Source source, Object value) {
         if (value instanceof Literal) {
             return (Literal) value;
         }
-        return new Literal(loc, value, DataTypes.fromJava(value));
+        return new Literal(source, value, DataTypes.fromJava(value));
     }
 
     /**
@@ -161,11 +161,11 @@ public class Literal extends NamedExpression {
         if (name == null) {
             name = foldable instanceof NamedExpression ? ((NamedExpression) foldable).name() : String.valueOf(fold);
         }
-        return new Literal(foldable.location(), name, fold, foldable.dataType());
+        return new Literal(foldable.source(), name, fold, foldable.dataType());
     }
 
     public static Literal of(Expression source, Object value) {
         String name = source instanceof NamedExpression ? ((NamedExpression) source).name() : String.valueOf(value);
-        return new Literal(source.location(), name, value, source.dataType());
+        return new Literal(source.source(), name, value, source.dataType());
     }
 }

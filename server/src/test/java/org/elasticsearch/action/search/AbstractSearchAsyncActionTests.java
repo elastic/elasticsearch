@@ -116,7 +116,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     public void testBuildShardSearchTransportRequest() {
         final AtomicLong expected = new AtomicLong();
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(false, expected);
-        SearchShardIterator iterator = new SearchShardIterator("test-cluster", new ShardId(new Index("name", "foo"), 1),
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
+        SearchShardIterator iterator = new SearchShardIterator(clusterAlias, new ShardId(new Index("name", "foo"), 1),
             Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
         ShardSearchTransportRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
         assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
@@ -126,5 +127,6 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
         assertArrayEquals(new String[] {"bar", "baz"}, shardSearchTransportRequest.indexRoutings());
         assertEquals("_shards:1,3", shardSearchTransportRequest.preference());
+        assertEquals(clusterAlias, shardSearchTransportRequest.getClusterAlias());
     }
 }

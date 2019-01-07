@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import java.nio.file.Files
 import org.gradle.util.GradleVersion
 
 plugins {

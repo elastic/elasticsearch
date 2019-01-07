@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Arrays;
@@ -32,9 +32,9 @@ public class Substring extends ScalarFunction {
 
     private final Expression source, start, length;
 
-    public Substring(Location location, Expression source, Expression start, Expression length) {
-        super(location, Arrays.asList(source, start, length));
-        this.source = source;
+    public Substring(Source source, Expression src, Expression start, Expression length) {
+        super(source, Arrays.asList(src, start, length));
+        this.source = src;
         this.start = start;
         this.length = length;
     }
@@ -60,7 +60,7 @@ public class Substring extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new SubstringFunctionPipe(location(), this,
+        return new SubstringFunctionPipe(source(), this,
                 Expressions.pipe(source),
                 Expressions.pipe(start),
                 Expressions.pipe(length));
@@ -122,6 +122,6 @@ public class Substring extends ScalarFunction {
             throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
         }
 
-        return new Substring(location(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Substring(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }

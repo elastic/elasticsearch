@@ -3,7 +3,6 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.Paths
 import java.util.regex.Matcher
 
 // Apply the java plugin to this project so the sources can be edited in an IDE

@@ -21,7 +21,12 @@ package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -29,13 +34,26 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
+import org.elasticsearch.cluster.routing.allocation.command.AbstractAllocateAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenIntMap;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
@@ -79,8 +97,74 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             listener::onFailure
         );
 
-        clusterService.submitStateUpdateTask("cluster_reroute (api)", new ClusterRerouteResponseAckedClusterStateUpdateTask(logger,
-            allocationService, request, logWrapper));
+        // Gather all stale primary allocation commands into a map indexed by the index name they correspond to
+        // so we can check if the nodes they correspond to actually have any data for the shard
+        Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations = request.getCommands().commands().stream()
+            .filter(cmd -> cmd instanceof AllocateStalePrimaryAllocationCommand).collect(
+                Collectors.toMap(
+                    cmd -> ((AbstractAllocateAllocationCommand) cmd).index(),
+                    cmd -> Collections.singletonList((AbstractAllocateAllocationCommand) cmd),
+                    (existing, added) -> {
+                        List<AbstractAllocateAllocationCommand> res = new ArrayList<>(existing.size() + added.size());
+                        res.addAll(existing);
+                        res.addAll(added);
+                        return res;
+                    }
+                )
+            );
+        if (stalePrimaryAllocations.isEmpty()) {
+            // We don't have any stale primary allocations, we simply execute the state update task for the requested allocations
+            submitStateUpdate(request, logWrapper);
+        } else {
+            // We get the index shard store status for indices that we want to allocate stale primaries on first to fail requests
+            // where there's no data for a given shard on a given node.
+            transportService.sendRequest(transportService.getLocalNode(), IndicesShardStoresAction.NAME,
+                new IndicesShardStoresRequest().indices(stalePrimaryAllocations.keySet().toArray(Strings.EMPTY_ARRAY)),
+                new ActionListenerResponseHandler<>(
+                    ActionListener.wrap(
+                        response -> {
+                            ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> status =
+                                response.getStoreStatuses();
+                            Exception e = null;
+                            for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
+                                final String index = entry.getKey();
+                                final ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> indexStatus = status.get(index);
+                                if (indexStatus == null) {
+                                    e = ExceptionsHelper.useOrSuppress(e, new IndexNotFoundException(index));
+                                } else {
+                                    for (AbstractAllocateAllocationCommand command : entry.getValue()) {
+                                        final List<IndicesShardStoresResponse.StoreStatus> shardStatus =
+                                            indexStatus.get(command.shardId());
+                                        if (shardStatus == null) {
+                                            e = ExceptionsHelper.useOrSuppress(e, new IllegalArgumentException(
+                                                "No data for shard [" + command.shardId() + "] of index [" + index + "] found on any node")
+                                            );
+                                        } else if (shardStatus.stream()
+                                            .noneMatch(storeStatus -> {
+                                                final DiscoveryNode node = storeStatus.getNode();
+                                                final String nodeInCommand = command.node();
+                                                return nodeInCommand.equals(node.getName()) || nodeInCommand.equals(node.getId());
+                                            })) {
+                                            e = ExceptionsHelper.useOrSuppress(e, new IllegalArgumentException(
+                                                "No data for shard [" + command.shardId() + "] of index [" + index + "] found on node ["
+                                                    + command.node() + ']'));
+                                        }
+                                    }
+                                }
+                            }
+                            if (e == null) {
+                                submitStateUpdate(request, logWrapper);
+                            } else {
+                                logWrapper.onFailure(e);
+                            }
+                        }, logWrapper::onFailure
+                    ), IndicesShardStoresResponse::new));
+        }
+    }
+
+    private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> logWrapper) {
+        clusterService.submitStateUpdateTask("cluster_reroute (api)",
+            new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request, logWrapper));
     }
 
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask<ClusterRerouteResponse> {

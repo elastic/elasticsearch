@@ -52,7 +52,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -135,7 +134,7 @@ public class AllocationIdIT extends ESIntegTestCase {
             assertThat(shardRouting.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
         });
 
-        try(Store store = new Store(shardId, indexSettings, new SimpleFSDirectory(indexPath), new DummyShardLock(shardId))) {
+        try (Store store = new Store(shardId, indexSettings, new SimpleFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.removeCorruptionMarker();
         }
 
@@ -172,7 +171,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         assertThat(indexHealthStatus, is(healthStatus));
     }
 
-    private int indexDocs(String indexName, Object ... source) throws InterruptedException, ExecutionException {
+    private int indexDocs(String indexName, Object ... source) throws InterruptedException {
         // index some docs in several segments
         int numDocs = 0;
         for (int k = 0, attempts = randomIntBetween(5, 10); k < attempts; k++) {

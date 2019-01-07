@@ -106,6 +106,11 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+    }
+
+    @Override
     public void deleteBlob(String blobName) throws IOException {
         if (blobExists(blobName) == false) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");

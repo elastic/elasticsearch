@@ -21,32 +21,32 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.ResultsIndexUpgradeAction;
+import org.elasticsearch.xpack.core.ml.action.MlUpgradeAction;
 import org.elasticsearch.xpack.ml.ResultsIndexUpgradeService;
 
-import static org.elasticsearch.xpack.ml.ResultsIndexUpgradeService.checkInternalIndexVersion;
+import static org.elasticsearch.xpack.ml.ResultsIndexUpgradeService.wasIndexCreatedInCurrentMajorVersion;
 
-public class TransportResultsIndexUpgradeAction
-    extends TransportMasterNodeReadAction<ResultsIndexUpgradeAction.Request, AcknowledgedResponse> {
+public class TransportMlUpgradeAction
+    extends TransportMasterNodeReadAction<MlUpgradeAction.Request, AcknowledgedResponse> {
 
     private final Client client;
     private final ResultsIndexUpgradeService resultsIndexUpgradeService;
 
     @Inject
-    public TransportResultsIndexUpgradeAction(TransportService transportService, ClusterService clusterService,
-                                              ThreadPool threadPool, ActionFilters actionFilters, Client client,
-                                              IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ResultsIndexUpgradeAction.NAME, transportService, clusterService, threadPool,
-            actionFilters, ResultsIndexUpgradeAction.Request::new, indexNameExpressionResolver);
+    public TransportMlUpgradeAction(TransportService transportService, ClusterService clusterService,
+                                    ThreadPool threadPool, ActionFilters actionFilters, Client client,
+                                    IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(MlUpgradeAction.NAME, transportService, clusterService, threadPool,
+            actionFilters, MlUpgradeAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.resultsIndexUpgradeService = new ResultsIndexUpgradeService(indexNameExpressionResolver,
             logger,
             executor(),
-            indexMetadata -> checkInternalIndexVersion(indexMetadata) == false);
+            indexMetadata -> wasIndexCreatedInCurrentMajorVersion(indexMetadata) == false);
     }
 
     @Override
-    protected void masterOperation(Task task, ResultsIndexUpgradeAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, MlUpgradeAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ParentTaskAssigningClient parentAwareClient = new ParentTaskAssigningClient(client, taskId);
@@ -58,7 +58,7 @@ public class TransportResultsIndexUpgradeAction
     }
 
     @Override
-    protected final void masterOperation(ResultsIndexUpgradeAction.Request request, ClusterState state,
+    protected final void masterOperation(MlUpgradeAction.Request request, ClusterState state,
                                          ActionListener<AcknowledgedResponse> listener) {
         throw new UnsupportedOperationException("the task parameter is required");
     }
@@ -74,7 +74,7 @@ public class TransportResultsIndexUpgradeAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ResultsIndexUpgradeAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(MlUpgradeAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

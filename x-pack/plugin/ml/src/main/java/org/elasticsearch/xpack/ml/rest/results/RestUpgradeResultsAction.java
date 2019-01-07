@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.action.ResultsIndexUpgradeAction;
+import org.elasticsearch.xpack.core.ml.action.MlUpgradeAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -49,19 +49,19 @@ public class RestUpgradeResultsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        ResultsIndexUpgradeAction.Request parsedRequest = new ResultsIndexUpgradeAction.Request();
+        MlUpgradeAction.Request parsedRequest = new MlUpgradeAction.Request();
         if (restRequest.hasContent()) {
             XContentParser parser = restRequest.contentParser();
-            parsedRequest = ResultsIndexUpgradeAction.Request.PARSER.apply(parser, null);
+            parsedRequest = MlUpgradeAction.Request.PARSER.apply(parser, null);
         }
-        final ResultsIndexUpgradeAction.Request upgradeRequest = parsedRequest;
+        final MlUpgradeAction.Request upgradeRequest = parsedRequest;
 
         if (restRequest.paramAsBoolean("wait_for_completion", false)) {
-            return channel -> client.execute(ResultsIndexUpgradeAction.INSTANCE, upgradeRequest, new RestToXContentListener<>(channel));
+            return channel -> client.execute(MlUpgradeAction.INSTANCE, upgradeRequest, new RestToXContentListener<>(channel));
         } else {
             upgradeRequest.setShouldStoreResult(true);
 
-            Task task = client.executeLocally(ResultsIndexUpgradeAction.INSTANCE, upgradeRequest,  LoggingTaskListener.instance());
+            Task task = client.executeLocally(MlUpgradeAction.INSTANCE, upgradeRequest,  LoggingTaskListener.instance());
             // Send task description id instead of waiting for the message
             return channel -> {
                 try (XContentBuilder builder = channel.newBuilder()) {

@@ -96,7 +96,7 @@ import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.action.ResultsIndexUpgradeAction;
+import org.elasticsearch.xpack.core.ml.action.MlUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
@@ -151,7 +151,7 @@ import org.elasticsearch.xpack.ml.action.TransportPutCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportPutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportPutFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportPutJobAction;
-import org.elasticsearch.xpack.ml.action.TransportResultsIndexUpgradeAction;
+import org.elasticsearch.xpack.ml.action.TransportMlUpgradeAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
@@ -604,7 +604,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class),
                 new ActionHandler<>(PersistJobAction.INSTANCE, TransportPersistJobAction.class),
                 new ActionHandler<>(FindFileStructureAction.INSTANCE, TransportFindFileStructureAction.class),
-                new ActionHandler<>(ResultsIndexUpgradeAction.INSTANCE, TransportResultsIndexUpgradeAction.class)
+                new ActionHandler<>(MlUpgradeAction.INSTANCE, TransportMlUpgradeAction.class)
         );
     }
     @Override

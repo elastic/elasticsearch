@@ -9,11 +9,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 
-public class ResultsIndexUpgradeRequestTests extends AbstractWireSerializingTestCase<ResultsIndexUpgradeAction.Request> {
+public class MlUpgradeRequestTests extends AbstractWireSerializingTestCase<MlUpgradeAction.Request> {
 
     @Override
-    protected ResultsIndexUpgradeAction.Request createTestInstance() {
-        ResultsIndexUpgradeAction.Request request = new ResultsIndexUpgradeAction.Request();
+    protected MlUpgradeAction.Request createTestInstance() {
+        MlUpgradeAction.Request request = new MlUpgradeAction.Request();
         if (randomBoolean()) {
             request.setReindexBatchSize(randomIntBetween(1, 10_000));
         }
@@ -21,8 +21,8 @@ public class ResultsIndexUpgradeRequestTests extends AbstractWireSerializingTest
     }
 
     @Override
-    protected Writeable.Reader<ResultsIndexUpgradeAction.Request> instanceReader() {
-        return ResultsIndexUpgradeAction.Request::new;
+    protected Writeable.Reader<MlUpgradeAction.Request> instanceReader() {
+        return MlUpgradeAction.Request::new;
     }
 
 }

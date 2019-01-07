@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
@@ -29,11 +28,11 @@ import java.util.Map;
 import java.util.Objects;
 
 
-public class ResultsIndexUpgradeAction extends Action<AcknowledgedResponse> {
-    public static final ResultsIndexUpgradeAction INSTANCE = new ResultsIndexUpgradeAction();
-    public static final String NAME = "cluster:admin/xpack/ml/results/upgrade";
+public class MlUpgradeAction extends Action<AcknowledgedResponse> {
+    public static final MlUpgradeAction INSTANCE = new MlUpgradeAction();
+    public static final String NAME = "cluster:admin/xpack/ml/upgrade";
 
-    private ResultsIndexUpgradeAction() {
+    private MlUpgradeAction() {
         super(NAME);
     }
 
@@ -42,13 +41,11 @@ public class ResultsIndexUpgradeAction extends Action<AcknowledgedResponse> {
         return new AcknowledgedResponse();
     }
 
-    public static class Request
-        extends MasterNodeReadRequest<ResultsIndexUpgradeAction.Request>
-        implements IndicesRequest, ToXContentObject {
+    public static class Request extends MasterNodeReadRequest<Request> implements ToXContentObject {
 
         private static final ParseField REINDEX_BATCH_SIZE = new ParseField("reindex_batch_size");
 
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>("ml_results_index_upgrade", true, Request::new);
+        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>("ml_results_upgrade", true, Request::new);
         static {
             PARSER.declareInt(Request::setReindexBatchSize, REINDEX_BATCH_SIZE);
         }
@@ -76,21 +73,18 @@ public class ResultsIndexUpgradeAction extends Action<AcknowledgedResponse> {
             out.writeInt(reindexBatchSize);
         }
 
-        @Override
         public String[] indices() {
             return new String[]{INDEX};
         }
 
-        @Override
         public IndicesOptions indicesOptions() {
-            //TODO consider lenientExpandOpen() ?
             return IndicesOptions.strictExpandOpenAndForbidClosed();
         }
 
         /**
          * Should this task store its result after it has finished?
          */
-        public ResultsIndexUpgradeAction.Request setShouldStoreResult(boolean shouldStoreResult) {
+        public Request setShouldStoreResult(boolean shouldStoreResult) {
             this.shouldStoreResult = shouldStoreResult;
             return this;
         }
@@ -100,7 +94,7 @@ public class ResultsIndexUpgradeAction extends Action<AcknowledgedResponse> {
             return shouldStoreResult;
         }
 
-        public ResultsIndexUpgradeAction.Request setReindexBatchSize(int reindexBatchSize) {
+        public Request setReindexBatchSize(int reindexBatchSize) {
             this.reindexBatchSize = reindexBatchSize;
             return this;
         }
@@ -111,7 +105,12 @@ public class ResultsIndexUpgradeAction extends Action<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-           return null;
+            if (reindexBatchSize <= 0) {
+                ActionRequestValidationException validationException = new ActionRequestValidationException();
+                validationException.addValidationError("["+ REINDEX_BATCH_SIZE.getPreferredName()+"] must be greater than 0.");
+                return validationException;
+            }
+            return null;
         }
 
         @Override
@@ -123,7 +122,7 @@ public class ResultsIndexUpgradeAction extends Action<AcknowledgedResponse> {
                 return false;
             }
 
-            ResultsIndexUpgradeAction.Request request = (ResultsIndexUpgradeAction.Request) o;
+            Request request = (Request) o;
             return Objects.equals(reindexBatchSize, request.reindexBatchSize);
         }
 
@@ -151,12 +150,10 @@ public class ResultsIndexUpgradeAction extends Action<AcknowledgedResponse> {
         }
     }
 
-    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<ResultsIndexUpgradeAction.Request,
-        AcknowledgedResponse,
-        ResultsIndexUpgradeAction.RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new ResultsIndexUpgradeAction.Request());
+            super(client, INSTANCE, new Request());
         }
     }
 

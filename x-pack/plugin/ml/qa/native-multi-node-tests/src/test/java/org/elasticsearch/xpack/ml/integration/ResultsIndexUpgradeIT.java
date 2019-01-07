@@ -22,7 +22,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.action.ResultsIndexUpgradeAction;
+import org.elasticsearch.xpack.core.ml.action.MlUpgradeAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -74,8 +74,8 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         long job2Total = getTotalDocCount(job2Index);
         long job3Total = getTotalDocCount(job3Index);
 
-        AcknowledgedResponse resp = ESIntegTestCase.client().execute(ResultsIndexUpgradeAction.INSTANCE,
-            new ResultsIndexUpgradeAction.Request()).actionGet();
+        AcknowledgedResponse resp = ESIntegTestCase.client().execute(MlUpgradeAction.INSTANCE,
+            new MlUpgradeAction.Request()).actionGet();
         assertThat(resp.isAcknowledged(), is(true));
 
         // Migration should have done nothing
@@ -130,7 +130,7 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
 
         resultsIndexUpgradeService.upgrade(ESIntegTestCase.client(),
-            new ResultsIndexUpgradeAction.Request(),
+            new MlUpgradeAction.Request(),
             ESIntegTestCase.client().admin().cluster().prepareState().get().getState(),
             future);
 
@@ -212,7 +212,7 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
             indexMetaData -> true); //indicates that this manually created index needs migrated
 
         resultsIndexUpgradeService.upgrade(ESIntegTestCase.client(),
-            new ResultsIndexUpgradeAction.Request(),
+            new MlUpgradeAction.Request(),
             ESIntegTestCase.client().admin().cluster().prepareState().get().getState(),
             ActionListener.wrap(
                 resp -> fail(),
@@ -271,7 +271,7 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
 
         resultsIndexUpgradeService.upgrade(ESIntegTestCase.client(),
-            new ResultsIndexUpgradeAction.Request(),
+            new MlUpgradeAction.Request(),
             ESIntegTestCase.client().admin().cluster().prepareState().get().getState(),
             future);
 
@@ -315,6 +315,7 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
     private long getTotalDocCount(String indexName) {
         SearchResponse searchResponse = ESIntegTestCase.client().prepareSearch(indexName)
             .setSize(10_000)
+            .setTrackTotalHits(true)
             .setQuery(QueryBuilders.matchAllQuery())
             .execute().actionGet();
         return searchResponse.getHits().getTotalHits().value;

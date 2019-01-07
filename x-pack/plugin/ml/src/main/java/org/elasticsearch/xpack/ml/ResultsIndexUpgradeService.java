@@ -35,7 +35,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.action.ResultsIndexUpgradeAction;
+import org.elasticsearch.xpack.core.ml.action.MlUpgradeAction;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
@@ -60,7 +60,7 @@ public class ResultsIndexUpgradeService {
 
     // Adjust the following constants as necessary for various versions and backports.
     private static final int INDEX_VERSION = Version.CURRENT.major;
-    private static final Version UPGRADE_INTRODUCED = Version.CURRENT.minimumCompatibilityVersion();
+    private static final Version MIN_REQUIRED_VERSION = Version.CURRENT.minimumCompatibilityVersion();
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Predicate<IndexMetaData> shouldUpgrade;
@@ -86,8 +86,7 @@ public class ResultsIndexUpgradeService {
         this.logger = logger;
     }
 
-    //Was the index created in the current major version
-    public static boolean checkInternalIndexVersion(IndexMetaData indexMetaData) {
+    public static boolean wasIndexCreatedInCurrentMajorVersion(IndexMetaData indexMetaData) {
         return indexMetaData.getCreationVersion().major == INDEX_VERSION;
     }
 
@@ -96,8 +95,8 @@ public class ResultsIndexUpgradeService {
      * 1. The upgrade process has ran before and either failed for some reason, or the end user is simply running it again.
      * Either way, it should be ok to proceed as this action SHOULD be idempotent,
      * unless the shouldUpgrade predicate is poorly formed
-     * 2. This index was created manually by the user. If the index was created manually and actually needs upgraded, then
-     * we consider the "new index" to be invalid as it is not the upgraded.
+     * 2. This index was created manually by the user. If the index was created manually and actually needs upgrading, then
+     * we consider the "new index" to be invalid as the passed predicate indicates that it still needs upgrading.
      *
      * @param metaData      Cluster metadata
      * @param newIndexName  The index to check
@@ -108,14 +107,13 @@ public class ResultsIndexUpgradeService {
         return metaData.hasIndex(newIndexName) && shouldUpgrade.test(metaData.index(newIndexName));
     }
 
-    // Are all the nodes the appropriate version for us to do the upgrade?
-    private static void checkMasterAndDataNodeVersion(ClusterState clusterState) {
-        if (clusterState.nodes().getMinNodeVersion().before(UPGRADE_INTRODUCED)) {
-            throw new IllegalStateException("All nodes should have at least version [" + UPGRADE_INTRODUCED + "] to upgrade");
+    private static void validateMinNodeVersion(ClusterState clusterState) {
+        if (clusterState.nodes().getMinNodeVersion().before(MIN_REQUIRED_VERSION)) {
+            throw new IllegalStateException("All nodes should have at least version [" + MIN_REQUIRED_VERSION + "] to upgrade");
         }
     }
 
-    //This method copies the behavior of the normal {index}/_upgrade rest response handler
+    // This method copies the behavior of the normal {index}/_upgrade rest response handler
     private static Tuple<RestStatus, Throwable> getStatusAndCause(BulkByScrollResponse response) {
         /*
          * Return the highest numbered rest status under the assumption that higher numbered statuses are "more error"
@@ -151,10 +149,10 @@ public class ResultsIndexUpgradeService {
      * @param state    The current cluster state
      * @param listener The listener to alert when actions have completed
      */
-    public void upgrade(Client client, ResultsIndexUpgradeAction.Request request, ClusterState state,
+    public void upgrade(Client client, MlUpgradeAction.Request request, ClusterState state,
                         ActionListener<AcknowledgedResponse> listener) {
         try {
-            checkMasterAndDataNodeVersion(state);
+            validateMinNodeVersion(state);
             String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), request.indices());
             MetaData metaData = state.getMetaData();
 
@@ -179,9 +177,9 @@ public class ResultsIndexUpgradeService {
             ActionListener<AcknowledgedResponse> deleteIndicesListener = ActionListener.wrap(
                 listener::onResponse,
                 error -> {
-                    logger.error("Failed to delete old indices: " + Strings.collectionToCommaDelimitedString(indicesToUpgrade),
-                        error);
-                    listener.onResponse(new AcknowledgedResponse(true));
+                    String msg = "Failed to delete old indices: " + Strings.collectionToCommaDelimitedString(indicesToUpgrade);
+                    logger.error(msg, error);
+                    listener.onFailure(new ElasticsearchException(msg, error));
                 }
             );
 
@@ -189,7 +187,7 @@ public class ResultsIndexUpgradeService {
             ActionListener<AcknowledgedResponse> readAliasListener = ActionListener.wrap(
                 resp -> deleteOldIndices(client, indicesToUpgrade, deleteIndicesListener),
                 error -> {
-                    String msg = "Failed adjusting aliases from old indices to new " + error.getMessage();
+                    String msg = "Failed adjusting aliases from old indices to new.";
                     logger.error(msg, error);
                     listener.onFailure(new ElasticsearchException(msg, error));
                 }
@@ -206,8 +204,7 @@ public class ResultsIndexUpgradeService {
                                 indexNameAndAliasProvider.newReadIndicesWithReadAliases(),
                                 readAliasListener),
                             rrobFailure -> {
-                                String msg = "Failed making old indices writable again so that aliases can be moved. "
-                                    + rrobFailure.getMessage();
+                                String msg = "Failed making old indices writable again so that aliases can be moved.";
                                 logger.error(msg, rrobFailure);
                                 listener.onFailure(new ElasticsearchException(msg, rrobFailure));
                             })
@@ -324,7 +321,7 @@ public class ResultsIndexUpgradeService {
 
     private void reindexOldReadIndicesToNewIndices(Client client,
                                                    Map<String, String> reindexIndices,
-                                                   ResultsIndexUpgradeAction.Request request,
+                                                   MlUpgradeAction.Request request,
                                                    ActionListener<Boolean> listener) {
         TypedChainTaskExecutor<BulkByScrollResponse> chainTaskExecutor =
             new TypedChainTaskExecutor<>(
@@ -368,7 +365,6 @@ public class ResultsIndexUpgradeService {
                 }
             },
             failure -> {
-                logger.error("Failed to re-index documents");
                 List<String> createdIndices = newIndices.subList(0, chainTaskExecutor.getCollectedResponses().size());
                 logger.error(
                     "Failed to reindex all old read indices. Successfully reindexed: [" +
@@ -457,11 +453,6 @@ public class ResultsIndexUpgradeService {
 
         private Exception validate(MetaData metaData, Predicate<IndexMetaData> shouldUpgrade) {
             for (String index : oldIndices) {
-                IndexMetaData indexMetaData = metaData.index(index);
-
-                if (indexMetaData.getState() != IndexMetaData.State.OPEN) {
-                    return new IllegalStateException("unable to upgrade a closed index[" + index + "]");
-                }
                 String newWriteName = newWriteName(index);
                 // If the "new" indices exist, either they were created from a previous run of the upgrade process or the end user
                 if (invalidIndexForUpgrade(metaData, newWriteName, shouldUpgrade)) {

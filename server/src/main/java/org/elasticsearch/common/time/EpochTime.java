@@ -158,7 +158,7 @@ class EpochTime {
     static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter("epoch_millis", MILLISECONDS_FORMATTER3,
         MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2, MILLISECONDS_FORMATTER3);
 
-    private static abstract class EpochField implements TemporalField {
+    private abstract static class EpochField implements TemporalField {
 
         private final TemporalUnit baseUnit;
         private final TemporalUnit rangeUnit;

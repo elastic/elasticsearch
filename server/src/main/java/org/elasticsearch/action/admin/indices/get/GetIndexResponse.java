@@ -310,7 +310,6 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     private static ImmutableOpenMap<String, MappingMetaData> parseMappings(XContentParser parser) throws IOException {
         ImmutableOpenMap.Builder<String, MappingMetaData> indexMappings = ImmutableOpenMap.builder();
-        // We start at START_OBJECT since parseIndexEntry ensures that
         Map<String, Object> map = parser.map();
         if (map.isEmpty() == false) {
             indexMappings.put(MapperService.SINGLE_MAPPING_NAME, new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, map));
@@ -334,7 +333,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         return indexMappings.build();
     }
 
-    private static IndexEntry parseIndexEntry(XContentParser parser, boolean legacyWithTypes) throws IOException {
+    private static IndexEntry parseIndexEntry(XContentParser parser, boolean includeTypeName) throws IOException {
         List<AliasMetaData> indexAliases = null;
         ImmutableOpenMap<String, MappingMetaData> indexMappings = null;
         Settings indexSettings = null;
@@ -349,7 +348,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                         indexAliases = parseAliases(parser);
                         break;
                     case "mappings":
-                        if (legacyWithTypes) {
+                        if (includeTypeName) {
                             indexMappings = parseMappingsWithTypes(parser);
                         } else {
                             indexMappings = parseMappings(parser);

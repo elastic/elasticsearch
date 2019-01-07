@@ -51,7 +51,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
             + "The parameter will be removed in the next major version.";
 
     private static final Set<String> allowedResponseParameters = Collections.unmodifiableSet(Stream
-            .concat(Collections.singleton("include_type_name").stream(), Settings.FORMAT_PARAMS.stream()).collect(Collectors.toSet()));
+            .concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream()).collect(Collectors.toSet()));
 
     public RestGetIndicesAction(
             final Settings settings,

@@ -96,7 +96,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         } else {
             indexedShapeToReturn = shape;
             indexedShapeId = randomAlphaOfLengthBetween(3, 20);
-            indexedShapeType = randomAlphaOfLengthBetween(3, 20);
+            indexedShapeType = randomBoolean() ? randomAlphaOfLengthBetween(3, 20) : null;
             builder = new GeoShapeQueryBuilder(fieldName(), indexedShapeId, indexedShapeType);
             if (randomBoolean()) {
                 indexedShapeIndex = randomAlphaOfLengthBetween(3, 20);
@@ -138,6 +138,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         String expectedShapeIndex = indexedShapeIndex == null ? GeoShapeQueryBuilder.DEFAULT_SHAPE_INDEX_NAME : indexedShapeIndex;
         assertThat(getRequest.index(), equalTo(expectedShapeIndex));
         String expectedShapePath = indexedShapePath == null ? GeoShapeQueryBuilder.DEFAULT_SHAPE_FIELD_NAME : indexedShapePath;
+
         String json;
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();

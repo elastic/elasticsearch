@@ -152,22 +152,11 @@ public class MetaDataIndexStateService {
                                         @Override
                                         public ClusterState execute(final ClusterState currentState) throws Exception {
                                             final ClusterState updatedState = closeRoutingTable(currentState, blockedIndices, results);
-                                            // Combine the results of the verify shards before close actions with the cluster state changes
-                                            // to determine if the current close action effectively closed all indices.
                                             for (Map.Entry<Index, AcknowledgedResponse> result : results.entrySet()) {
                                                 IndexMetaData updatedMetaData = updatedState.metaData().index(result.getKey());
-                                                if (updatedMetaData != null) {
-                                                    if (result.getValue().isAcknowledged()) {
-                                                        if (updatedMetaData.getState() == IndexMetaData.State.CLOSE) {
-                                                            IndexMetaData previousMetaData = currentState.metaData().index(result.getKey());
-                                                            if (previousMetaData != null) {
-                                                                acknowledged = (previousMetaData.getState() == IndexMetaData.State.OPEN);
-                                                            }
-                                                        }
-                                                    } else {
-                                                        acknowledged = false;
-                                                        break;
-                                                    }
+                                                if (updatedMetaData != null && updatedMetaData.getState() != IndexMetaData.State.CLOSE) {
+                                                    acknowledged = false;
+                                                    break;
                                                 }
                                             }
                                             return allocationService.reroute(updatedState, "indices closed");
@@ -261,9 +250,11 @@ public class MetaDataIndexStateService {
                 blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
                 routingTable.remove(index.getName());
                 indexBlock = INDEX_CLOSED_BLOCK;
-            } else if (indexBlock == null) {
-                // Create a new index closed block
-                indexBlock = createIndexClosingBlock();
+            } else {
+                if (indexBlock == null) {
+                    // Create a new index closed block
+                    indexBlock = createIndexClosingBlock();
+                }
                 assert Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
             }
             blocks.addIndexBlock(index.getName(), indexBlock);

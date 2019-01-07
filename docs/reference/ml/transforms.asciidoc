@@ -569,7 +569,7 @@ GET _ml/datafeeds/datafeed-test4/_preview
 // TEST[skip:needs-licence]
 
 In {es}, location data can be stored in `geo_point` fields but this data type is
-not supported natively in {xpackml} analytics. This example of a script field
+not supported natively in {ml} analytics. This example of a script field
 transforms the data into an appropriate format. For more information,
 see <<ml-geo-functions>>.
 

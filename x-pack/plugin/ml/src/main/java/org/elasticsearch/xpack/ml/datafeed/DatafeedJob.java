@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -225,12 +225,12 @@ class DatafeedJob {
        Date currentTime = new Date(currentTimeSupplier.get());
        return new Annotation(msg,
            currentTime,
-           SystemUser.NAME,
+           XPackUser.NAME,
            startTime,
            endTime,
            jobId,
            currentTime,
-           SystemUser.NAME,
+           XPackUser.NAME,
            "annotation");
     }
 
@@ -238,9 +238,11 @@ class DatafeedJob {
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             request.source(xContentBuilder);
-            IndexResponse response = client.index(request).actionGet();
-            lastDataCheckAnnotation = annotation;
-            return response.getId();
+            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+                IndexResponse response = client.index(request).actionGet();
+                lastDataCheckAnnotation = annotation;
+                return response.getId();
+            }
         } catch (IOException ex) {
             String errorMessage = "[" + jobId + "] failed to create annotation for delayed data checker.";
             LOGGER.error(errorMessage, ex);
@@ -251,7 +253,7 @@ class DatafeedJob {
 
     private void updateAnnotation(Annotation annotation) {
         Annotation updatedAnnotation = new Annotation(lastDataCheckAnnotation);
-        updatedAnnotation.setModifiedUsername(SystemUser.NAME);
+        updatedAnnotation.setModifiedUsername(XPackUser.NAME);
         updatedAnnotation.setModifiedTime(new Date(currentTimeSupplier.get()));
         updatedAnnotation.setAnnotation(annotation.getAnnotation());
         updatedAnnotation.setTimestamp(annotation.getTimestamp());
@@ -260,8 +262,10 @@ class DatafeedJob {
             IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             indexRequest.id(lastDataCheckAnnotationId);
             indexRequest.source(xContentBuilder);
-            client.index(indexRequest).actionGet();
-            lastDataCheckAnnotation = updatedAnnotation;
+            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+                client.index(indexRequest).actionGet();
+                lastDataCheckAnnotation = updatedAnnotation;
+            }
         } catch (IOException ex) {
             String errorMessage = "[" + jobId + "] failed to update annotation for delayed data checker.";
             LOGGER.error(errorMessage, ex);

@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -269,8 +268,8 @@ public class CCRIT extends AbstractUpgradeTestCase {
         statsRequest.addParameter("level", "shards");
         Map<?, ?> response = toMap(client().performRequest(statsRequest));
         LOGGER.info("INDEX STATS={}", response);
-        assertThat(((List) response.get("indices")).size(), equalTo(1));
-        Integer actualFollowerCheckpoint = ObjectPath.eval("indices." + followerIndex + ".shards.0.seq_no.global_checkpoint", response);
+        assertThat(((Map) response.get("indices")).size(), equalTo(1));
+        Integer actualFollowerCheckpoint = ObjectPath.eval("indices." + followerIndex + ".shards.0.0.seq_no.global_checkpoint", response);
         assertThat(actualFollowerCheckpoint, equalTo(expectedFollowerCheckpoint));
     }
 

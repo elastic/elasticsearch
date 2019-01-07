@@ -363,10 +363,9 @@ public class AuthenticationService {
                     if (index > 0) {
                         final List<Realm> smartOrder = new ArrayList<>(defaultOrderedRealms.size());
                         smartOrder.add(lastSuccess);
-                        int smartListIndex = 1;
                         for (int i = 1; i < defaultOrderedRealms.size(); i++) {
                             if (i != index) {
-                                smartOrder.add(smartListIndex++, defaultOrderedRealms.get(i));
+                                smartOrder.add(defaultOrderedRealms.get(i));
                             }
                         }
                         return Collections.unmodifiableList(smartOrder);
@@ -375,6 +374,7 @@ public class AuthenticationService {
             }
             return defaultOrderedRealms;
         }
+
         /**
          * Handles failed extraction of an authentication token. This can happen in a few different scenarios:
          *

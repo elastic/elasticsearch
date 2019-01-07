@@ -851,7 +851,7 @@ public final class Settings implements ToXContentFragment {
          * @return The builder
          */
         public Builder put(String key, TimeValue timeValue) {
-            return put(key, timeValue.toString());
+            return put(key, timeValue.getStringRep());
         }
 
         /**

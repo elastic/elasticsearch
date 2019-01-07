@@ -171,7 +171,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 .collect(Collectors.toList());
         retentionLeases.clear();
         retentionLeases.putAll(nonExpiredRetentionLeases.stream().collect(Collectors.toMap(RetentionLease::id, lease -> lease)));
-        return Collections.unmodifiableCollection(new ArrayList<>(retentionLeases.values()));
+        return Collections.unmodifiableCollection(nonExpiredRetentionLeases);
     }
 
     /**

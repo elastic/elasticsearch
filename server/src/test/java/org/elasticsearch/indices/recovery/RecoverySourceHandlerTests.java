@@ -32,6 +32,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -46,7 +48,9 @@ import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -57,6 +61,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -79,6 +84,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -86,8 +92,12 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -107,8 +117,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         Store store = newStore(createTempDir());
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-            recoverySettings.getChunkSize().bytesAsInt());
+
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -127,19 +136,29 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             metas.add(md);
         }
         Store targetStore = newStore(createTempDir());
-        handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), (md) -> {
-            try {
-                return new IndexOutputOutputStream(targetStore.createVerifyingOutput(md.name(), md, IOContext.DEFAULT)) {
-                    @Override
-                    public void close() throws IOException {
-                        super.close();
-                        targetStore.directory().sync(Collections.singleton(md.name())); // sync otherwise MDW will mess with it
-                    }
-                };
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+        RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
+            IndexOutputOutputStream out;
+            @Override
+            public BaseFuture<Void> writeFileChunk(StoreFileMetaData md, long position, BytesReference content,
+                                                   boolean lastChunk, int totalTranslogOps) throws IOException {
+                if (position == 0) {
+                    out = new IndexOutputOutputStream(targetStore.createVerifyingOutput(md.name(), md, IOContext.DEFAULT));
+                }
+                BytesRefIterator iterator = content.iterator();
+                BytesRef scratch;
+                while((scratch = iterator.next()) != null) { // we iterate over all pages - this is a 0-copy for all core impls
+                    out.write(scratch.bytes, scratch.offset, scratch.length);
+                }
+                if (lastChunk) {
+                    out.close();
+                    targetStore.directory().sync(Collections.singleton(md.name())); // sync otherwise MDW will mess with it
+                }
+                return BaseFuture.completedFuture(null);
             }
-        });
+        };
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, target, () -> 1, request,
+            recoverySettings.getChunkSize().bytesAsInt());
+        handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), () -> 1);
         Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata(null);
         Store.RecoveryDiff recoveryDiff = targetStoreMetadata.recoveryDiff(metadata);
         assertEquals(metas.size(), recoveryDiff.identical.size());
@@ -166,15 +185,17 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
     }
 
-    public void testSendSnapshotSendsOps() throws IOException {
+    public void testSendSnapshotSendsOps() throws Exception {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final int fileChunkSizeInBytes = recoverySettings.getChunkSize().bytesAsInt();
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         final RecoveryTargetHandler recoveryTarget = mock(RecoveryTargetHandler.class);
+        when(recoveryTarget.indexTranslogOperations(anyList(), anyInt(), anyLong(), anyLong()))
+            .thenReturn(BaseFuture.completedFuture(randomNonNegativeLong()));
         final RecoverySourceHandler handler =
-            new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes);
+            new RecoverySourceHandler(shard, recoveryTarget, () -> 1, request, fileChunkSizeInBytes);
         final List<Translog.Operation> operations = new ArrayList<>();
         final int initialNumberOfDocs = randomIntBetween(16, 64);
         for (int i = 0; i < initialNumberOfDocs; i++) {
@@ -190,7 +211,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
         final long requiredStartingSeqNo = randomIntBetween((int) startingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
         final long endingSeqNo = randomIntBetween((int) requiredStartingSeqNo - 1, numberOfDocsWithValidSequenceNumbers - 1);
-        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, requiredStartingSeqNo,
+        BaseFuture<RecoverySourceHandler.SendSnapshotResult> result = handler.phase2(startingSeqNo, requiredStartingSeqNo,
             endingSeqNo, new Translog.Snapshot() {
                 @Override
                 public void close() {
@@ -206,11 +227,14 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
                 @Override
                 public Translog.Operation next() throws IOException {
-                    return operations.get(counter++);
+                    if (counter < operations.size()) {
+                        return operations.get(counter++);
+                    }
+                    return null;
                 }
             }, randomNonNegativeLong(), randomNonNegativeLong());
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
-        assertThat(result.totalOperations, equalTo(expectedOps));
+        assertThat(result.get().totalOperations, equalTo(expectedOps));
         final ArgumentCaptor<List> shippedOpsCaptor = ArgumentCaptor.forClass(List.class);
         verify(recoveryTarget).indexTranslogOperations(shippedOpsCaptor.capture(), ArgumentCaptor.forClass(Integer.class).capture(),
             ArgumentCaptor.forClass(Long.class).capture(), ArgumentCaptor.forClass(Long.class).capture());
@@ -228,8 +252,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             List<Translog.Operation> requiredOps = operations.subList(0, operations.size() - 1).stream() // remove last null marker
                 .filter(o -> o.seqNo() >= requiredStartingSeqNo && o.seqNo() <= endingSeqNo).collect(Collectors.toList());
             List<Translog.Operation> opsToSkip = randomSubsetOf(randomIntBetween(1, requiredOps.size()), requiredOps);
-            expectThrows(IllegalStateException.class, () ->
-                handler.sendSnapshot(startingSeqNo, requiredStartingSeqNo,
+            expectThrows(ExecutionException.class, IllegalStateException.class, () ->
+                handler.phase2(startingSeqNo, requiredStartingSeqNo,
                     endingSeqNo, new Translog.Snapshot() {
                         @Override
                         public void close() {
@@ -247,11 +271,15 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                         public Translog.Operation next() throws IOException {
                             Translog.Operation op;
                             do {
-                                op = operations.get(counter++);
+                                if (counter < operations.size()) {
+                                    op = operations.get(counter++);
+                                } else {
+                                    op = null;
+                                }
                             } while (op != null && opsToSkip.contains(op));
                             return op;
                         }
-                    }, randomNonNegativeLong(), randomNonNegativeLong()));
+                    }, randomNonNegativeLong(), randomNonNegativeLong()).get());
         }
     }
 
@@ -281,14 +309,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-                recoverySettings.getChunkSize().bytesAsInt()) {
-            @Override
-            protected void failEngine(IOException cause) {
-                assertFalse(failedEngine.get());
-                failedEngine.set(true);
-            }
-        };
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -311,22 +331,44 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             (p.getFileName().toString().equals("write.lock") ||
                 p.getFileName().toString().startsWith("extra")) == false));
         Store targetStore = newStore(createTempDir(), false);
-        try {
-            handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), (md) -> {
+        RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
+            IndexOutputOutputStream out;
+            @Override
+            public BaseFuture<Void> writeFileChunk(StoreFileMetaData md, long position, BytesReference content,
+                                                   boolean lastChunk, int totalTranslogOps) {
                 try {
-                    return new IndexOutputOutputStream(targetStore.createVerifyingOutput(md.name(), md, IOContext.DEFAULT)) {
-                        @Override
-                        public void close() throws IOException {
-                            super.close();
-                            store.directory().sync(Collections.singleton(md.name())); // sync otherwise MDW will mess with it
-                        }
-                    };
+                    if (position == 0) {
+                        out = new IndexOutputOutputStream(targetStore.createVerifyingOutput(md.name(), md, IOContext.DEFAULT));
+                    }
+                    BytesRefIterator iterator = content.iterator();
+                    BytesRef scratch;
+                    while ((scratch = iterator.next()) != null) { // we iterate over all pages - this is a 0-copy for all core impls
+                        out.write(scratch.bytes, scratch.offset, scratch.length);
+                    }
+                    if (lastChunk) {
+                        out.close();
+                        out = null;
+                        targetStore.directory().sync(Collections.singleton(md.name())); // sync otherwise MDW will mess with it
+                    }
+                    return BaseFuture.completedFuture(null);
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    IOUtils.closeWhileHandlingException(out);
+                    return BaseFuture.failedFuture(e);
                 }
-            });
+            }
+        };
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, target, () -> 1, request,
+            recoverySettings.getChunkSize().bytesAsInt()) {
+            @Override
+            protected void failEngine(IOException cause) {
+                assertFalse(failedEngine.get());
+                failedEngine.set(true);
+            }
+        };
+        try {
+            handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), () -> between(1, 1000)).get();
             fail("corrupted index");
-        } catch (IOException ex) {
+        } catch (Exception ex) {
             assertNotNull(ExceptionsHelper.unwrapCorruption(ex));
         }
         assertTrue(failedEngine.get());
@@ -340,14 +382,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-                recoverySettings.getChunkSize().bytesAsInt()) {
-            @Override
-            protected void failEngine(IOException cause) {
-                assertFalse(failedEngine.get());
-                failedEngine.set(true);
-            }
-        };
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -367,24 +401,35 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
         final boolean throwCorruptedIndexException = randomBoolean();
         Store targetStore = newStore(createTempDir(), false);
-        try {
-            handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), (md) -> {
+        RecoveryTargetHandler target = new TestRecoveryTargetHandler(){
+            @Override
+            public BaseFuture<Void> writeFileChunk(StoreFileMetaData fileMetaData, long position,
+                                                   BytesReference content, boolean lastChunk, int totalTranslogOps) {
                 if (throwCorruptedIndexException) {
-                    throw new RuntimeException(new CorruptIndexException("foo", "bar"));
+                    return BaseFuture.failedFuture(new RuntimeException(new CorruptIndexException("foo", "bar")));
                 } else {
-                    throw new RuntimeException("boom");
+                    return BaseFuture.failedFuture(new RuntimeException("boom"));
                 }
-            });
-            fail("exception index");
-        } catch (RuntimeException ex) {
-            assertNull(ExceptionsHelper.unwrapCorruption(ex));
-            if (throwCorruptedIndexException) {
-                assertEquals(ex.getMessage(), "[File corruption occurred on recovery but checksums are ok]");
-            } else {
-                assertEquals(ex.getMessage(), "boom");
             }
-        } catch (CorruptIndexException ex) {
-            fail("not expected here");
+        };
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, target, () -> 1, request,
+            recoverySettings.getChunkSize().bytesAsInt()) {
+            @Override
+            protected void failEngine(IOException cause) {
+                assertFalse(failedEngine.get());
+                failedEngine.set(true);
+            }
+        };
+        try {
+            handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), () -> 100).get();
+            fail("exception index");
+        } catch (ExecutionException ex) {
+            assertNull(ExceptionsHelper.unwrapCorruption(ex.getCause()));
+            if (throwCorruptedIndexException) {
+                assertEquals(ex.getCause().getMessage(), "[File corruption occurred on recovery but checksums are ok]");
+            } else {
+                assertEquals(ex.getCause().getMessage(), "boom");
+            }
         }
         assertFalse(failedEngine.get());
         IOUtils.close(store, targetStore);
@@ -408,28 +453,35 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySourceHandler handler = new RecoverySourceHandler(
                 shard,
                 mock(RecoveryTargetHandler.class),
+                () -> 1,
                 request,
                 recoverySettings.getChunkSize().bytesAsInt()) {
 
             @Override
-            public void phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
-                phase1Called.set(true);
+            public BaseFuture<Phase1Result> phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
+                return super.phase1(snapshot, translogOps).whenComplete((res, e) -> phase1Called.set(true));
             }
 
             @Override
-            void prepareTargetForTranslog(final boolean fileBasedRecovery, final int totalTranslogOps) throws IOException {
-                prepareTargetForTranslogCalled.set(true);
+            BaseFuture<TimeValue> prepareTargetForTranslog(final boolean fileBasedRecovery, final int totalTranslogOps) {
+                return super.prepareTargetForTranslog(fileBasedRecovery, totalTranslogOps)
+                    .whenComplete((res, e) -> prepareTargetForTranslogCalled.set(true));
             }
 
             @Override
-            long phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
-                        long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) {
-                phase2Called.set(true);
-                return SequenceNumbers.UNASSIGNED_SEQ_NO;
+            BaseFuture<SendSnapshotResult> phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo,
+                                                  Translog.Snapshot snapshot, long maxSeenAutoIdTimestamp,
+                                                  long maxSeqNoOfUpdatesOrDeletes) throws IOException {
+                return super.phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot,
+                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes).whenComplete((res, e) -> phase2Called.set(true));
             }
 
         };
-        expectThrows(IndexShardRelocatedException.class, handler::recoverToTarget);
+        try {
+            handler.recoverToTarget().get();
+        } catch (Exception e) {
+            assertThat(ExceptionsHelper.unwrap(e, IndexShardRelocatedException.class), notNullValue());
+        }
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
@@ -462,6 +514,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     private Store newStore(Path path) throws IOException {
         return newStore(path, true);
     }
+
     private Store newStore(Path path, boolean checkIndex) throws IOException {
         BaseDirectoryWrapper baseDirectoryWrapper = RecoverySourceHandlerTests.newFSDirectory(path);
         if (checkIndex == false) {
@@ -470,5 +523,51 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         return new Store(shardId,  INDEX_SETTINGS, baseDirectoryWrapper, new DummyShardLock(shardId));
     }
 
+    static class TestRecoveryTargetHandler implements RecoveryTargetHandler {
+        @Override
+        public BaseFuture<Void> prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+            return null;
+        }
+
+        @Override
+        public BaseFuture<Void> finalizeRecovery(long globalCheckpoint) throws IOException {
+            return null;
+        }
+
+        @Override
+        public void ensureClusterStateVersion(long clusterStateVersion) {
+
+        }
+
+        @Override
+        public void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext) {
+
+        }
+
+        @Override
+        public BaseFuture<Long> indexTranslogOperations(List<Translog.Operation> operations,
+                                                        int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary,
+                                                        long maxSeqNoOfUpdatesOrDeletesOnPrimary) throws IOException {
+            return null;
+        }
+
+        @Override
+        public BaseFuture<Void> receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes,
+                                                List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes,
+                                                int totalTranslogOps) {
+            return null;
+        }
+
+        @Override
+        public BaseFuture<Void> cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+            return null;
+        }
+
+        @Override
+        public BaseFuture<Void> writeFileChunk(StoreFileMetaData fileMetaData, long position,
+                                               BytesReference content, boolean lastChunk, int totalTranslogOps) throws IOException {
+            return null;
+        }
+    }
 
 }

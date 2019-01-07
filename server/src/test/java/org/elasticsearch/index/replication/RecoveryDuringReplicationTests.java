@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -502,10 +503,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 return new RecoveryTarget(indexShard, node, recoveryListener, l -> {
                 }) {
                     @Override
-                    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                                        long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdates) throws IOException {
+                    public BaseFuture<Long> indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                                    long maxSeenAutoIdTimestamp, long msu) throws IOException {
                         opsSent.set(true);
-                        return super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdates);
+                        return super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, msu);
                     }
                 };
             });
@@ -572,8 +573,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     replica,
                     (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
                         @Override
-                        public long indexTranslogOperations(final List<Translog.Operation> operations, final int totalTranslogOps,
-                                                            final long maxAutoIdTimestamp, long maxSeqNoOfUpdates)
+                        public BaseFuture<Long> indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                                        long maxAutoIdTimestamp, long maxSeqNoOfUpdates)
                              throws IOException {
                             // index a doc which is not part of the snapshot, but also does not complete on replica
                             replicaEngineFactory.latchIndexers(1);
@@ -832,8 +833,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                            long maxAutoIdTimestamp, long maxSeqNoOfUpdates) throws IOException {
+        public BaseFuture<Long> indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                        long maxAutoIdTimestamp, long maxSeqNoOfUpdates) throws IOException {
             if (hasBlocked() == false) {
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
@@ -841,19 +842,19 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+        public BaseFuture<Void> cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
             blockIfNeeded(RecoveryState.Stage.INDEX);
-            super.cleanFiles(totalTranslogOps, sourceMetaData);
+            return super.cleanFiles(totalTranslogOps, sourceMetaData);
         }
 
         @Override
-        public void finalizeRecovery(long globalCheckpoint) throws IOException {
+        public BaseFuture<Void> finalizeRecovery(long globalCheckpoint) throws IOException {
             if (hasBlocked() == false) {
                 // it maybe that not ops have been transferred, block now
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
             blockIfNeeded(RecoveryState.Stage.FINALIZE);
-            super.finalizeRecovery(globalCheckpoint);
+            return super.finalizeRecovery(globalCheckpoint);
         }
 
     }

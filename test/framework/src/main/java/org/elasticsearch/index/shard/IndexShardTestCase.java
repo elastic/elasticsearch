@@ -592,6 +592,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final RecoverySourceHandler recovery = new RecoverySourceHandler(
                 primary,
                 recoveryTarget,
+                threadPool::relativeTimeInMillis,
                 request,
                 (int) ByteSizeUnit.MB.toBytes(1));
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,

@@ -22,15 +22,13 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public class PlainTransportFuture<V extends TransportResponse> extends BaseFuture<V>
-    implements TransportFuture<V>, TransportResponseHandler<V> {
+public class PlainTransportFuture<V extends TransportResponse> extends TransportFuture<V> implements TransportResponseHandler<V> {
 
     private final TransportResponseHandler<V> handler;
 

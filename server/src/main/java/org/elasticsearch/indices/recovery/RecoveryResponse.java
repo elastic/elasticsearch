@@ -44,6 +44,7 @@ class RecoveryResponse extends TransportResponse {
     long phase2Time;
 
     RecoveryResponse() {
+        // TODO: make recovery response immutable
     }
 
     @Override

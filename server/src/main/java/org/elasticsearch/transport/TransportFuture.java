@@ -19,21 +19,22 @@
 
 package org.elasticsearch.transport;
 
-import java.util.concurrent.Future;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
+
 import java.util.concurrent.TimeUnit;
 
-public interface TransportFuture<V> extends Future<V> {
+public abstract class TransportFuture<V> extends BaseFuture<V> {
 
     /**
      * Waits if necessary for the computation to complete, and then
      * retrieves its result.
      */
-    V txGet();
+    public abstract V txGet();
 
     /**
      * Waits if necessary for at most the given time for the computation
      * to complete, and then retrieves its result, if available.
      */
-    V txGet(long timeout, TimeUnit unit);
+    public abstract V txGet(long timeout, TimeUnit unit);
 }
 

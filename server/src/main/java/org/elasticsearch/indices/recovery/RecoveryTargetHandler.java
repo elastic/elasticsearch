@@ -19,6 +19,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -35,7 +36,7 @@ public interface RecoveryTargetHandler {
      *  @param fileBasedRecovery whether or not this call is part of an file based recovery
      * @param totalTranslogOps    total translog operations expected to be sent
      */
-    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException;
+    BaseFuture<Void> prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException;
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
@@ -43,7 +44,7 @@ public interface RecoveryTargetHandler {
      *
      * @param globalCheckpoint the global checkpoint on the recovery source
      */
-    void finalizeRecovery(long globalCheckpoint) throws IOException;
+    BaseFuture<Void> finalizeRecovery(long globalCheckpoint) throws IOException;
 
     /**
      * Blockingly waits for cluster state with at least clusterStateVersion to be available
@@ -68,17 +69,18 @@ public interface RecoveryTargetHandler {
      *                                            max_seq_no_of_updates on the primary was when any of these ops were processed on it.
      * @return the local checkpoint on the target shard
      */
-    long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                 long maxSeenAutoIdTimestampOnPrimary, long maxSeqNoOfUpdatesOrDeletesOnPrimary) throws IOException;
+    BaseFuture<Long> indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                             long maxSeenAutoIdTimestampOnPrimary,
+                                             long maxSeqNoOfUpdatesOrDeletesOnPrimary) throws IOException;
 
     /**
      * Notifies the target of the files it is going to receive
      */
-    void receiveFileInfo(List<String> phase1FileNames,
-                         List<Long> phase1FileSizes,
-                         List<String> phase1ExistingFileNames,
-                         List<Long> phase1ExistingFileSizes,
-                         int totalTranslogOps);
+    BaseFuture<Void> receiveFileInfo(List<String> phase1FileNames,
+                                     List<Long> phase1FileSizes,
+                                     List<String> phase1ExistingFileNames,
+                                     List<Long> phase1ExistingFileSizes,
+                                     int totalTranslogOps);
 
     /**
      * After all source files has been sent over, this command is sent to the target so it can clean any local
@@ -86,10 +88,10 @@ public interface RecoveryTargetHandler {
      * @param totalTranslogOps an update number of translog operations that will be replayed later on
      * @param sourceMetaData meta data of the source store
      */
-    void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException;
+    BaseFuture<Void> cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException;
 
     /** writes a partial file chunk to the target store */
-    void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                        boolean lastChunk, int totalTranslogOps) throws IOException;
+    BaseFuture<Void> writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                                    boolean lastChunk, int totalTranslogOps) throws IOException;
 
 }

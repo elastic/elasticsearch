@@ -38,6 +38,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
@@ -361,18 +362,20 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+    public BaseFuture<Void> prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         indexShard().openEngineAndSkipTranslogRecovery();
+        return BaseFuture.completedFuture(null);
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint) throws IOException {
+    public BaseFuture<Void> finalizeRecovery(final long globalCheckpoint) throws IOException {
         final IndexShard indexShard = indexShard();
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
         // Persist the global checkpoint.
         indexShard.sync();
         indexShard.finalizeRecovery();
+        return BaseFuture.completedFuture(null);
     }
 
     @Override
@@ -386,8 +389,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary,
-                                        long maxSeqNoOfDeletesOrUpdatesOnPrimary) throws IOException {
+    public BaseFuture<Long> indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                    long maxSeenAutoIdTimestampOnPrimary,
+                                                    long maxSeqNoOfDeletesOrUpdatesOnPrimary) throws IOException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
@@ -419,11 +423,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         indexShard().sync();
         // roll over / flush / trim if needed
         indexShard().afterWriteOperation();
-        return indexShard().getLocalCheckpoint();
+        return BaseFuture.completedFuture(indexShard().getLocalCheckpoint());
     }
 
     @Override
-    public void receiveFileInfo(List<String> phase1FileNames,
+    public BaseFuture<Void> receiveFileInfo(List<String> phase1FileNames,
                                 List<Long> phase1FileSizes,
                                 List<String> phase1ExistingFileNames,
                                 List<Long> phase1ExistingFileSizes,
@@ -437,11 +441,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         }
         state().getTranslog().totalOperations(totalTranslogOps);
         state().getTranslog().totalOperationsOnStart(totalTranslogOps);
-
+        return BaseFuture.completedFuture(null);
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+    public BaseFuture<Void> cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         // first, we go and move files that were created with the recovery id suffix to
         // the actual names, its ok if we have a corrupted index here, since we have replicas
@@ -459,6 +463,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId,
                 indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);
+            return BaseFuture.completedFuture(null);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are
@@ -488,8 +493,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                               boolean lastChunk, int totalTranslogOps) throws IOException {
+    public BaseFuture<Void> writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                                           boolean lastChunk, int totalTranslogOps) throws IOException {
         final Store store = store();
         final String name = fileMetaData.name();
         state().getTranslog().totalOperations(totalTranslogOps);
@@ -520,6 +525,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             IndexOutput remove = removeOpenIndexOutputs(name);
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished
         }
+        return BaseFuture.completedFuture(null);
     }
 
     Path translogLocation() {

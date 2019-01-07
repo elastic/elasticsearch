@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -34,6 +35,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,6 +46,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
@@ -81,7 +84,7 @@ public class PeerRecoverySourceService implements IndexEventListener {
         }
     }
 
-    private RecoveryResponse recover(final StartRecoveryRequest request) throws IOException {
+    private BaseFuture<RecoveryResponse> recover(final StartRecoveryRequest request) {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
@@ -101,18 +104,33 @@ public class PeerRecoverySourceService implements IndexEventListener {
         RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);
         logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(),
             request.targetNode());
-        try {
-            return handler.recoverToTarget();
-        } finally {
-            ongoingRecoveries.remove(shard, handler);
-        }
+        return handler.recoverToTarget().whenComplete((r, e) -> ongoingRecoveries.remove(shard, handler));
     }
 
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
         @Override
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
-            RecoveryResponse response = recover(request);
-            channel.sendResponse(response);
+            recover(request).whenComplete((r, e) -> {
+                try {
+                    if (e != null) {
+                        final Throwable cause;
+                        if (e instanceof CompletionException && e.getCause() != null) {
+                            cause = e.getCause();
+                        } else {
+                            cause = e;
+                        }
+                        channel.sendResponse((Exception) cause);
+                    } else {
+                        channel.sendResponse(r);
+                    }
+                } catch (IOException transportExp) {
+                    logger.warn("failed to send recovery response", transportExp);
+                    if (e != null) {
+                        transportExp.addSuppressed(e);
+                    }
+                    throw new TransportException(transportExp);
+                }
+            });
         }
     }
 
@@ -179,7 +197,8 @@ public class PeerRecoverySourceService implements IndexEventListener {
                 final RemoteRecoveryTargetHandler recoveryTarget =
                     new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService,
                         request.targetNode(), recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
-                handler = new RecoverySourceHandler(shard, recoveryTarget, request, recoverySettings.getChunkSize().bytesAsInt());
+                handler = new RecoverySourceHandler(shard, recoveryTarget, transportService.getThreadPool()::relativeTimeInMillis,
+                    request, Math.toIntExact(recoverySettings.getChunkSize().getBytes()));
                 return handler;
             }
         }

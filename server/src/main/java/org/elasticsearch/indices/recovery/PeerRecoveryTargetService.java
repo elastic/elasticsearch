@@ -482,14 +482,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(final RecoveryTranslogOperationsRequest request, final TransportChannel channel,
-                                    Task task) throws IOException {
+                                    Task task) throws Exception {
             try (RecoveryRef recoveryRef =
                          onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
                 try {
                     recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps(),
-                        request.maxSeenAutoIdTimestampOnPrimary(), request.maxSeqNoOfUpdatesOrDeletesOnPrimary());
+                        request.maxSeenAutoIdTimestampOnPrimary(), request.maxSeqNoOfUpdatesOrDeletesOnPrimary()).get();
                     channel.sendResponse(new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint()));
                 } catch (MapperException exception) {
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node

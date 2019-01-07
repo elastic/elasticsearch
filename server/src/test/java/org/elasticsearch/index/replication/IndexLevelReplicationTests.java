@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
@@ -123,14 +124,15 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     -> new RecoveryTarget(indexShard, node, recoveryListener, version -> {
             }) {
                 @Override
-                public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
-                    super.cleanFiles(totalTranslogOps, sourceMetaData);
-                    latch.countDown();
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                public BaseFuture<Void> cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+                    return super.cleanFiles(totalTranslogOps, sourceMetaData).thenRun(() -> {
+                        latch.countDown();
+                        try {
+                            latch.await();
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                    });
                 }
             });
             future.get();
@@ -198,13 +200,14 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             Future<Void> fut = shards.asyncRecoverReplica(replica,
                 (shard, node) -> new RecoveryTarget(shard, node, recoveryListener, v -> {}){
                     @Override
-                    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+                    public BaseFuture<Void> prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps)
+                        throws IOException {
                         try {
                             indexedOnPrimary.await();
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
-                        super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
+                        return super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
                     }
                 });
             fut.get();

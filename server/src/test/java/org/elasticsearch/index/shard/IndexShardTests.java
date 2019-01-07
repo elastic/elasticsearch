@@ -73,6 +73,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -2357,12 +2358,12 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestamp,
-                                                    long maxSeqNoOfUpdatesOrDeletes) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(
-                        operations, totalTranslogOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
-                    assertFalse(replica.isSyncNeeded());
-                    return localCheckpoint;
+                public BaseFuture<Long> indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                                long maxSeenAutoIdTimestamp,
+                                                                long maxSeqNoOfUpdatesOrDeletes) throws IOException {
+                    return super.indexTranslogOperations(
+                        operations, totalTranslogOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes)
+                        .whenComplete((r, e) ->   assertFalse(replica.isSyncNeeded()));
                 }
             }, true, true);
 
@@ -2466,13 +2467,13 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                public BaseFuture<Long> indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
                                                     long maxAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(
-                        operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
-                    // Shard should now be active since we did recover:
-                    assertTrue(replica.isActive());
-                    return localCheckpoint;
+                    return super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes)
+                        .whenComplete((r, e) -> {
+                            // Shard should now be active since we did recover:
+                            assertTrue(replica.isActive());
+                        });
                 }
             }, false, true);
 
@@ -2509,24 +2510,24 @@ public class IndexShardTests extends IndexShardTestCase {
             }) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
-                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
+                public BaseFuture<Void> prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+                    BaseFuture<Void> future = super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
                     assertListenerCalled.accept(replica);
+                    return future;
                 }
 
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                public BaseFuture<Long> indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
                                                     long maxAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(
-                        operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
-                    assertListenerCalled.accept(replica);
-                    return localCheckpoint;
+                    return super.indexTranslogOperations(
+                        operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes)
+                        .whenComplete((r, e) -> assertListenerCalled.accept(replica));
                 }
 
                 @Override
-                public void finalizeRecovery(long globalCheckpoint) throws IOException {
-                    super.finalizeRecovery(globalCheckpoint);
-                    assertListenerCalled.accept(replica);
+                public BaseFuture<Void> finalizeRecovery(long globalCheckpoint) throws IOException {
+                    return super.finalizeRecovery(globalCheckpoint)
+                        .thenRun(() -> assertListenerCalled.accept(replica));
                 }
             }, false, true);
 

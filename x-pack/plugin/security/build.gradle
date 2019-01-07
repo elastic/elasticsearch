@@ -164,7 +164,8 @@ forbiddenApisMain {
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
-thirdPartyAudit.excludes = [
+thirdPartyAudit {
+    ignoreMissingClasses (
         // SAML dependencies
         // [missing classes] Some cli utilities that we don't use depend on these missing JCommander classes
         'com.beust.jcommander.JCommander',
@@ -256,7 +257,10 @@ thirdPartyAudit.excludes = [
         'net.sf.ehcache.Ehcache',
         'net.sf.ehcache.Element',
         // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
-        'org.slf4j.ext.EventData',
+        'org.slf4j.ext.EventData'
+    )
+
+    ignoreViolations (
         // Guava uses internal java api: sun.misc.Unsafe
         'com.google.common.cache.Striped64',
         'com.google.common.cache.Striped64$1',
@@ -265,16 +269,17 @@ thirdPartyAudit.excludes = [
         'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
         'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
         'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-]
+    )
+}
 
 if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.excludes += [
+    thirdPartyAudit.ignoreMissingClasses(
         'javax.xml.bind.JAXBContext',
         'javax.xml.bind.JAXBElement',
         'javax.xml.bind.JAXBException',
         'javax.xml.bind.Unmarshaller',
-        'javax.xml.bind.UnmarshallerHandler',
-    ];
+        'javax.xml.bind.UnmarshallerHandler'
+    )
 }
 
 run {

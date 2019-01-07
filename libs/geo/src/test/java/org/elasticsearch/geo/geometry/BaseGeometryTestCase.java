@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTestCase<T> {
@@ -48,6 +49,74 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
         } catch (ParseException e) {
             throw new ElasticsearchException(e);
         }
+    }
+
+    public void testVisitor() {
+        testVisitor(createTestInstance());
+    }
+
+    public static void testVisitor(Geometry geom) {
+        AtomicBoolean called = new AtomicBoolean(false);
+        Object result = geom.visit(new GeometryVisitor<Object>() {
+            private Object verify(Geometry geometry, String expectedClass) {
+                assertFalse("Visitor should be called only once", called.getAndSet(true));
+                assertSame(geom, geometry);
+                assertEquals(geometry.getClass().getName(), "org.elasticsearch.geo.geometry." + expectedClass);
+                return "result";
+            }
+
+            @Override
+            public Object visit(Circle circle) {
+                return verify(circle, "Circle");
+            }
+
+            @Override
+            public Object visit(GeometryCollection<?> collection) {
+                return verify(collection, "GeometryCollection");            }
+
+            @Override
+            public Object visit(Line line) {
+                return verify(line, "Line");
+            }
+
+            @Override
+            public Object visit(LinearRing ring) {
+                return verify(ring, "LinearRing");
+            }
+
+            @Override
+            public Object visit(MultiLine multiLine) {
+                return verify(multiLine, "MultiLine");
+            }
+
+            @Override
+            public Object visit(MultiPoint multiPoint) {
+                return verify(multiPoint, "MultiPoint");
+            }
+
+            @Override
+            public Object visit(MultiPolygon multiPolygon) {
+                return verify(multiPolygon, "MultiPolygon");
+            }
+
+            @Override
+            public Object visit(Point point) {
+                return verify(point, "Point");
+            }
+
+            @Override
+            public Object visit(Polygon polygon) {
+                return verify(polygon, "Polygon");
+            }
+
+            @Override
+            public Object visit(Rectangle rectangle) {
+                return verify(rectangle, "Rectangle");
+            }
+        });
+
+        assertTrue("visitor wasn't called", called.get());
+        assertEquals("result", result);
     }
 
     public static double randomLat() {

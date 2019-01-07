@@ -45,4 +45,8 @@ public class LinearRingTests extends ESTestCase {
         ex = expectThrows(IllegalArgumentException.class, () -> new LinearRing(new double[]{1, 100, 3, 1}, new double[]{3, 4, 5, 3}));
         assertEquals("invalid latitude 100.0; must be between -90.0 and 90.0", ex.getMessage());
     }
+
+    public void testVisitor() {
+        BaseGeometryTestCase.testVisitor(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}));
+    }
 }

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.geo.geometry;
 
-import org.elasticsearch.geo.GeoUtils;
-
 /**
  * Represents a Point on the earth's surface in decimal degrees.
  */
@@ -38,8 +36,8 @@ public class Point implements Geometry {
     }
 
     public Point(double lat, double lon) {
-        GeoUtils.checkLatitude(lat);
-        GeoUtils.checkLongitude(lon);
+        GeometryUtils.checkLatitude(lat);
+        GeometryUtils.checkLongitude(lon);
         this.lat = lat;
         this.lon = lon;
         this.empty = false;

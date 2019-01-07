@@ -19,8 +19,6 @@
 
 package org.elasticsearch.geo.geometry;
 
-import org.elasticsearch.geo.GeoUtils;
-
 /**
  * Circle geometry (not part of WKT standard, but used in elasticsearch)
  */
@@ -43,8 +41,8 @@ public class Circle implements Geometry {
         if (radiusMeters < 0 ) {
             throw new IllegalArgumentException("Circle radius [" + radiusMeters + "] cannot be negative");
         }
-        GeoUtils.checkLatitude(lat);
-        GeoUtils.checkLongitude(lon);
+        GeometryUtils.checkLatitude(lat);
+        GeometryUtils.checkLongitude(lon);
     }
 
     @Override

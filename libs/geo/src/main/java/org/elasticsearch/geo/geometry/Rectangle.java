@@ -19,8 +19,6 @@
 
 package org.elasticsearch.geo.geometry;
 
-import org.elasticsearch.geo.GeoUtils;
-
 /**
  * Represents a lat/lon rectangle in decimal degrees.
  */
@@ -57,10 +55,10 @@ public class Rectangle implements Geometry {
      * Constructs a bounding box by first validating the provided latitude and longitude coordinates
      */
     public Rectangle(double minLat, double maxLat, double minLon, double maxLon) {
-        GeoUtils.checkLatitude(minLat);
-        GeoUtils.checkLatitude(maxLat);
-        GeoUtils.checkLongitude(minLon);
-        GeoUtils.checkLongitude(maxLon);
+        GeometryUtils.checkLatitude(minLat);
+        GeometryUtils.checkLatitude(maxLat);
+        GeometryUtils.checkLongitude(minLon);
+        GeometryUtils.checkLongitude(maxLon);
         this.minLon = minLon;
         this.maxLon = maxLon;
         this.minLat = minLat;
@@ -73,7 +71,7 @@ public class Rectangle implements Geometry {
 
     public double getWidth() {
         if (crossesDateline()) {
-            return GeoUtils.MAX_LON_INCL - minLon + maxLon - GeoUtils.MIN_LON_INCL;
+            return GeometryUtils.MAX_LON_INCL - minLon + maxLon - GeometryUtils.MIN_LON_INCL;
         }
         return maxLon - minLon;
     }

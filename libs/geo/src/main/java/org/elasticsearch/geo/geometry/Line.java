@@ -19,8 +19,6 @@
 
 package org.elasticsearch.geo.geometry;
 
-import org.elasticsearch.geo.GeoUtils;
-
 import java.util.Arrays;
 
 /**
@@ -52,8 +50,8 @@ public class Line implements Geometry {
             throw new IllegalArgumentException("at least two points in the line is required");
         }
         for (int i = 0; i < lats.length; i++) {
-            GeoUtils.checkLatitude(lats[i]);
-            GeoUtils.checkLongitude(lons[i]);
+            GeometryUtils.checkLatitude(lats[i]);
+            GeometryUtils.checkLongitude(lons[i]);
         }
     }
 

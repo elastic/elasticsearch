@@ -72,9 +72,11 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
 
                 @Override
                 protected void doRun() throws Exception {
-                    try (CcrRestoreSourceService.FileReader fileReader = restoreSourceService.getSession(request.getSessionUUID())) {
+                    String fileName = request.getFileName();
+                    String sessionUUID = request.getSessionUUID();
+                    try (CcrRestoreSourceService.FileReader fileReader = restoreSourceService.getSessionReader(sessionUUID, fileName)) {
                         byte[] chunk = new byte[request.getSize()];
-                        fileReader.readFileBytes(request.getFileName(), chunk, request.getOffset(), request.getSize());
+                        fileReader.readFileBytes(chunk, request.getOffset(), request.getSize());
                         listener.onResponse(new GetCcrRestoreFileChunkResponse(new BytesArray(chunk)));
                     }
                 }

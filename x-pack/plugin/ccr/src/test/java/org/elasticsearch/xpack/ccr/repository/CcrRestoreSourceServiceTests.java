@@ -6,14 +6,19 @@
 
 package org.elasticsearch.xpack.ccr.repository;
 
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 
 public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
@@ -121,5 +126,52 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         restoreSourceService.closeSession(sessionUUID3);
         closeShards(indexShard1, indexShard2);
+    }
+
+    public void testGetSessionReader() throws IOException {
+        IndexShard indexShard1 = newStartedShard(true);
+        final String sessionUUID1 = UUIDs.randomBase64UUID();
+
+        restoreSourceService.openSession(sessionUUID1, indexShard1);
+
+        ArrayList<StoreFileMetaData> files = new ArrayList<>();
+        indexShard1.snapshotStoreMetadata().forEach(files::add);
+
+        StoreFileMetaData fileMetaData = files.get(0);
+        String fileName = fileMetaData.name();
+
+        byte[] expectedBytes = new byte[(int) fileMetaData.length()];
+        byte[] actualBytes = new byte[(int) fileMetaData.length()];
+        Engine.IndexCommitRef indexCommitRef = indexShard1.acquireSafeIndexCommit();
+        try (IndexInput indexInput = indexCommitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE)) {
+            indexInput.seek(0);
+            indexInput.readBytes(expectedBytes, 0, (int) fileMetaData.length());
+        }
+
+        try (CcrRestoreSourceService.FileReader reader = restoreSourceService.getSessionReader(sessionUUID1, fileName)) {
+            reader.readFileBytes(actualBytes, 0, (int) fileMetaData.length());
+        }
+
+        assertArrayEquals(expectedBytes, actualBytes);
+        restoreSourceService.closeSession(sessionUUID1);
+        closeShards(indexShard1);
+    }
+
+    public void testGetSessionDoesNotLeakFileIfClosed() throws IOException {
+        IndexShard indexShard1 = newStartedShard(true);
+        final String sessionUUID1 = UUIDs.randomBase64UUID();
+
+        restoreSourceService.openSession(sessionUUID1, indexShard1);
+
+        ArrayList<StoreFileMetaData> files = new ArrayList<>();
+        indexShard1.snapshotStoreMetadata().forEach(files::add);
+        try (CcrRestoreSourceService.FileReader reader = restoreSourceService.getSessionReader(sessionUUID1, files.get(0).name())) {
+            // Using try with close to ensure that reader is closed.
+            assertNotNull(reader);
+        }
+
+        restoreSourceService.closeSession(sessionUUID1);
+        closeShards(indexShard1);
+        // Exception will be thrown if file is not closed.
     }
 }

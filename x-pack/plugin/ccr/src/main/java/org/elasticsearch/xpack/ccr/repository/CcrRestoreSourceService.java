@@ -136,33 +136,50 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         IOUtils.closeWhileHandlingException(restore);
     }
 
-    public synchronized FileReader getSession(String sessionUUID) {
+    public synchronized FileReader getSessionReader(String sessionUUID, String fileName) throws IOException {
         RestoreContext restore = onGoingRestores.get(sessionUUID);
         if (restore == null) {
             logger.info("could not get session [{}] because session not found", sessionUUID);
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
-        return new FileReader(restore.session);
+        return restore.getFileReader(fileName);
     }
 
     private class RestoreContext implements Closeable {
 
         private final String sessionUUID;
         private final IndexShard indexShard;
-        private final RefCountedCommit session;
+        private final RefCountedCloseable<Engine.IndexCommitRef> session;
+        private RefCountedCloseable<IndexInput> cachedInput;
 
         private RestoreContext(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef) {
             this.sessionUUID = sessionUUID;
             this.indexShard = indexShard;
-            this.session = new RefCountedCommit(commitRef);
+            this.session = new RefCountedCloseable<>("commit-ref", commitRef);
         }
 
         Store.MetadataSnapshot getMetaData() throws IOException {
             indexShard.store().incRef();
             try {
-                return indexShard.store().getMetadata(session.commitRef.getIndexCommit());
+                return indexShard.store().getMetadata(session.object.getIndexCommit());
             } finally {
                 indexShard.store().decRef();
+            }
+        }
+
+        FileReader getFileReader(String fileName) throws IOException {
+            if (cachedInput != null) {
+                if (fileName.equals(cachedInput.name)) {
+                    return new FileReader(session, cachedInput);
+                } else {
+                    cachedInput.decRef();
+                    openNewIndexInput(fileName);
+                    return new FileReader(session, cachedInput);
+                }
+            } else {
+                openNewIndexInput(fileName);
+                return new FileReader(session, cachedInput);
+
             }
         }
 
@@ -170,7 +187,16 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         public void close() {
             assert Thread.holdsLock(CcrRestoreSourceService.this);
             removeSessionForShard(sessionUUID, indexShard);
+            if (cachedInput != null) {
+                cachedInput.decRef();
+            }
             session.decRef();
+        }
+
+        private void openNewIndexInput(String fileName) throws IOException {
+            Engine.IndexCommitRef commitRef = session.object;
+            IndexInput indexInput = commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE);
+            cachedInput = new RefCountedCloseable<>(fileName, indexInput);
         }
 
         private void removeSessionForShard(String sessionUUID, IndexShard indexShard) {
@@ -185,34 +211,40 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
     }
 
-    private static class RefCountedCommit extends AbstractRefCounted {
+    private static class RefCountedCloseable<T extends Closeable> extends AbstractRefCounted {
 
-        private static final String NAME = "ref-counted-session";
-        private final Engine.IndexCommitRef commitRef;
+        private static final String NAME = "ref-counted-session-object";
 
-        private RefCountedCommit(Engine.IndexCommitRef commitRef) {
+        private final String name;
+        private final T object;
+
+        private RefCountedCloseable(String name, T object) {
             super(NAME);
-            this.commitRef = commitRef;
+            this.name = name;
+            this.object = object;
         }
 
         @Override
         protected void closeInternal() {
-            IOUtils.closeWhileHandlingException(commitRef);
+            IOUtils.closeWhileHandlingException(object);
         }
     }
 
     public static class FileReader implements Closeable {
 
-        private final RefCountedCommit session;
+        private final RefCountedCloseable<Engine.IndexCommitRef> session;
+        private final RefCountedCloseable<IndexInput> input;
 
-        private FileReader(RefCountedCommit session) {
+        private FileReader(RefCountedCloseable<Engine.IndexCommitRef> session, RefCountedCloseable<IndexInput> input) {
             this.session = session;
+            this.input = input;
+            input.incRef();
             session.incRef();
         }
 
-        public void readFileBytes(String fileName, byte[] chunk, long offset, int length) throws IOException {
-            Engine.IndexCommitRef commitRef = session.commitRef;
-            try (IndexInput in = commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE)) {
+        public void readFileBytes(byte[] chunk, long offset, int length) throws IOException {
+            synchronized (input.object) {
+                IndexInput in = input.object;
                 in.seek(offset);
                 in.readBytes(chunk, 0, length);
             }
@@ -220,6 +252,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
         @Override
         public void close() {
+            input.decRef();
             session.decRef();
         }
     }

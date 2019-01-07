@@ -49,9 +49,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.action.admin.indices.get.GetIndexResponse.fromXContent;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<GetIndexResponse> {
 
@@ -209,11 +211,11 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         GetIndexResponse testInstance = this.createTestInstance(true);
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             // this renders the response in the "old" format with types
-            testInstance.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_type_name", "true")));
+            testInstance.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true")));
             BytesReference bytes = BytesReference.bytes(builder);
             XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
             // this parses the output expecting the "old" format with types
-            GetIndexResponse parsedInstance = GetIndexResponse.fromXContent(parser, true);
+            GetIndexResponse parsedInstance = fromXContent(parser, true);
             assertNotSame(parsedInstance, testInstance);
             assertEquals(testInstance, parsedInstance);
             assertEquals(testInstance.hashCode(), parsedInstance.hashCode());

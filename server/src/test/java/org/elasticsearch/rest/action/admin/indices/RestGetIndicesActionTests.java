@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.mockito.Mockito.mock;
 
 public class RestGetIndicesActionTests extends ESTestCase {
@@ -39,7 +40,7 @@ public class RestGetIndicesActionTests extends ESTestCase {
      */
     public void testIncludeTypeNamesWarning() throws IOException {
         Map<String, String> params = new HashMap<>();
-        params.put("include_type_name", randomFrom("true", "false"));
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.GET)
             .withPath("/some_index")

@@ -85,7 +85,7 @@ public class HttpClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(HttpClient.class);
 
     private static final List<String> ALWAYS_WHITELISTED_HOSTS =
-        Arrays.asList("events.pagerduty.com", "hooks.slack.com", "api.hipchat.com");
+        Arrays.asList("https://events.pagerduty.com*", "https://hooks.slack.com*", "https://api.hipchat.com*");
 
     private final AtomicReference<CharacterRunAutomaton> whitelistAutomaton = new AtomicReference<>();
     private final CloseableHttpClient client;
@@ -128,14 +128,10 @@ public class HttpClient implements Closeable {
                                         HttpContext context) throws ProtocolException {
                 boolean isRedirected = super.isRedirected(request, response, context);
                 if (isRedirected) {
-                    try {
-                        String host = new URI(response.getHeaders("Location")[0].getValue()).getHost();
-                        if (whitelistAutomaton.get().run(host) == false) {
-                            throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
-                                HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
-                        }
-                    } catch (URISyntaxException e) {
-                        return false;
+                    String host = response.getHeaders("Location")[0].getValue();
+                    if (whitelistAutomaton.get().run(host) == false) {
+                        throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
+                            HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
                     }
                 }
 
@@ -150,18 +146,14 @@ public class HttpClient implements Closeable {
                 HttpRequestWrapper wrapper = ((HttpRequestWrapper) request);
                 final String host;
                 if (wrapper.getTarget() != null) {
-                    host = ((HttpRequestWrapper) request).getTarget().getHostName();
+                    host = ((HttpRequestWrapper) request).getTarget().toURI();
                 } else {
-                    try {
-                        host = new URI(((HttpRequestWrapper) request).getOriginal().getRequestLine().getUri()).getHost();
-                    } catch (URISyntaxException e) {
-                        throw new IOException(e);
-                    }
+                    host = ((HttpRequestWrapper) request).getOriginal().getRequestLine().getUri();
                 }
 
                 if (whitelistAutomaton.get().run(host) == false) {
                     throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
-                        HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
+                        HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect");
                 }
             }
         });

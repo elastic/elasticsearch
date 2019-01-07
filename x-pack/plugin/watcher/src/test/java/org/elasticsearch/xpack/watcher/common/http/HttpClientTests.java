@@ -632,7 +632,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testThatWhiteListingWorks() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
-        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), webServer.getHostName()).build();
+        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri()).build();
 
         try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null,
             mockClusterService())) {
@@ -643,7 +643,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testThatWhiteListBlocksRequests() throws Exception {
         Settings settings = Settings.builder()
-            .put(HttpSettings.HOSTS_WHITELIST.getKey(), webServer.getHostName())
+            .put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri())
             .build();
 
         try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null,
@@ -652,8 +652,8 @@ public class HttpClientTests extends ESTestCase {
                 .path("foo")
                 .build();
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
-            assertThat(e.getMessage(), is("host [blocked.domain.org] is not whitelisted in setting [xpack.http.hosts.whitelist]" +
-                ", will not redirect"));
+            assertThat(e.getMessage(), is("host [http://blocked.domain.org:" + webServer.getPort() +
+                "] is not whitelisted in setting [xpack.http.hosts.whitelist], will not connect"));
         }
     }
 
@@ -668,7 +668,7 @@ public class HttpClientTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200));
         }
 
-        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), webServer.getHostName()).build();
+        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri()).build();
 
         try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null,
             mockClusterService())) {
@@ -676,7 +676,7 @@ public class HttpClientTests extends ESTestCase {
                 .method(method)
                 .build();
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
-            assertThat(e.getMessage(), is("host [blocked.domain.org] is not whitelisted in setting [xpack.http.hosts.whitelist], " +
+            assertThat(e.getMessage(), is("host [" + redirectUrl + "] is not whitelisted in setting [xpack.http.hosts.whitelist], " +
                 "will not redirect"));
         }
     }
@@ -692,7 +692,7 @@ public class HttpClientTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200));
         }
 
-        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), webServer.getHostName()).build();
+        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri() + "*").build();
 
         try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null,
             mockClusterService())) {
@@ -727,7 +727,7 @@ public class HttpClientTests extends ESTestCase {
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
             assertThat(e.getMessage(), containsString("is not whitelisted"));
 
-            Settings newSettings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), webServer.getHostName()).build();
+            Settings newSettings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri()).build();
             clusterSettings.applySettings(newSettings);
 
             HttpResponse response = client.execute(request);
@@ -736,19 +736,19 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testThatStandardWebHooksAreAlwaysWhiteListed() {
-        CharacterRunAutomaton automaton = HttpClient.createAutomaton(Collections.singletonList("example*"));
-        assertThat(automaton.run("example.org"), is(true));
-        assertThat(automaton.run("example.com"), is(true));
-        assertThat(automaton.run("noexample.com"), is(false));
+        CharacterRunAutomaton automaton = HttpClient.createAutomaton(Collections.singletonList("https://example*"));
+        assertThat(automaton.run("https://example.org"), is(true));
+        assertThat(automaton.run("https://example.com"), is(true));
+        assertThat(automaton.run("https://noexample.com"), is(false));
 
-        assertThat(automaton.run("events.pagerduty.com"), is(true));
-        assertThat(automaton.run("www.events.pagerduty.com"), is(false));
-        assertThat(automaton.run("events2.pagerduty.com"), is(false));
-        assertThat(automaton.run("pagerduty.com"), is(false));
+        assertThat(automaton.run("https://events.pagerduty.com"), is(true));
+        assertThat(automaton.run("https://www.events.pagerduty.com"), is(false));
+        assertThat(automaton.run("https://events2.pagerduty.com"), is(false));
+        assertThat(automaton.run("https://pagerduty.com"), is(false));
 
-        assertThat(automaton.run("api.hipchat.com"), is(true));
-        assertThat(automaton.run("hooks.slack.com"), is(true));
-        assertThat(automaton.run("www.slack.com"), is(false));
+        assertThat(automaton.run("https://api.hipchat.com"), is(true));
+        assertThat(automaton.run("https://hooks.slack.com/foo/bar"), is(true));
+        assertThat(automaton.run("https://www.slack.com"), is(false));
     }
 
     public void testWhitelistEverythingByDefault() {
@@ -761,5 +761,9 @@ public class HttpClientTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(HttpSettings.getSettings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
+    }
+
+    private String getWebserverUri() {
+        return String.format(Locale.ROOT, "http://%s:%s", webServer.getHostName(), webServer.getPort());
     }
 }

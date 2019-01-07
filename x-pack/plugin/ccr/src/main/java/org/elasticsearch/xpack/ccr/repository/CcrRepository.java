@@ -8,12 +8,7 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.Version;
@@ -34,7 +29,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
@@ -51,7 +45,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.blobstore.BlobRestoreContext;
+import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
@@ -297,7 +291,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
     }
 
-    private static class RestoreSession extends BlobRestoreContext implements Closeable {
+    private static class RestoreSession extends FileRestoreContext implements Closeable {
 
         private static final int BUFFER_SIZE = 1 << 16;
 
@@ -339,98 +333,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             restore(snapshotFiles);
         }
 
-//        void restoreFiles() {
-//            Store.MetadataSnapshot recoveryMetadata;
-//            try {
-//                recoveryMetadata = indexShard.snapshotStoreMetadata();
-//            } catch (IOException e) {
-//                throw new IndexShardRecoveryException(shardId, "failed access store metadata", e);
-//            }
-//
-//            final StoreFileMetaData restoredSegmentsFile = sourceMetaData.getSegmentsFile();
-//            if (restoredSegmentsFile == null) {
-//                throw new IndexShardRestoreFailedException(shardId, "Ccr leader index has no segments file");
-//            }
-//
-//            final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryMetadata);
-//            for (StoreFileMetaData fileMetaData : diff.identical) {
-//                recoveryState.getIndex().addFileDetail(fileMetaData.name(), fileMetaData.length(), true);
-//                logger.trace("shard [{}] not recovering file [{}], exists in local store and is identical", shardId, fileMetaData.name());
-//            }
-//
-//            List<StoreFileMetaData> filesToRecover = new ArrayList<>();
-//            for (StoreFileMetaData fileMetaData : concat(diff)) {
-//                filesToRecover.add(fileMetaData);
-//                recoveryState.getIndex().addFileDetail(fileMetaData.name(), fileMetaData.length(), false);
-//                logger.trace("shard [{}] recovering file [{}]", shardId, fileMetaData.name());
-//            }
-//
-//            if (filesToRecover.isEmpty()) {
-//                logger.trace("shard [{}] no files to recover, all exist within the local store", shardId);
-//            }
-//
-//            final List<String> deleteIfExistFiles = Arrays.asList(getDirectoryFiles());
-//            for (final StoreFileMetaData fileToRecover : filesToRecover) {
-//                // if a file with a same physical name already exist in the store we need to delete it
-//                // before restoring it from the snapshot. We could be lenient and try to reuse the existing
-//                // store files (and compare their names/length/checksum again with the snapshot files) but to
-//                // avoid extra complexity we simply delete them and restore them again like StoreRecovery
-//                // does with dangling indices. Any existing store file that is not restored from the snapshot
-//                // will be clean up by RecoveryTarget.cleanFiles().
-//                final String name = fileToRecover.name();
-//                if (deleteIfExistFiles.contains(name)) {
-//                    logger.trace("shard [{}] deleting pre-existing file [{}]", shardId, name);
-//                    deleteFile(name);
-//                }
-//
-//                logger.trace("[{}] restoring file [{}]", shardId, name);
-//                try {
-//                    restoreFile(fileToRecover, store);
-//                } catch (Exception e) {
-//                    logger.info(() -> new ParameterizedMessage("shard [{}] failed to restore file [{}]", shardId, name), e);
-//                    throw new IndexShardRecoveryException(shardId, "failed to restore file", e);
-//                }
-//            }
-//
-//            final SegmentInfos segmentCommitInfos;
-//            try {
-//                segmentCommitInfos = Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
-//            } catch (IOException e) {
-//                throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
-//            }
-//            recoveryState.getIndex().updateVersion(segmentCommitInfos.getVersion());
-//
-//            try {
-//                store.cleanupAndVerify("restore complete from remote", sourceMetaData);
-//            } catch (IOException e) {
-//                throw new IndexShardRecoveryException(shardId, "failed to cleanup and verify the store", e);
-//            }
-//        }
-
         @Override
         protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
             return new RestoreFileInputStream(remoteClient, sessionUUID, node, fileInfo.metadata());
-        }
-
-        @SuppressWarnings("unchecked")
-        private static Iterable<StoreFileMetaData> concat(Store.RecoveryDiff diff) {
-            return Iterables.concat(diff.different, diff.missing);
-        }
-
-        private String[] getDirectoryFiles() {
-            try {
-                return store.directory().listAll();
-            } catch (IOException e) {
-                throw new IndexShardRecoveryException(shardId, "failed to list directory files", e);
-            }
-        }
-
-        private void deleteFile(String name) {
-            try {
-                store.directory().deleteFile(name);
-            } catch (IOException e) {
-                throw new IndexShardRecoveryException(shardId, "failed to delete file", e);
-            }
         }
 
         @Override

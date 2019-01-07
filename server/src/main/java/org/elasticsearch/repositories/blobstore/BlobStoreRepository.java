@@ -1442,7 +1442,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Context for restore operations
      */
-    private class RestoreContext extends BlobRestoreContext {
+    private class RestoreContext extends FileRestoreContext {
 
         /**
          * Constructs new restore context

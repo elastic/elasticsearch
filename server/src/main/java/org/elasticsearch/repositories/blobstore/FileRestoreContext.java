@@ -54,9 +54,9 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
-public abstract class BlobRestoreContext {
+public abstract class FileRestoreContext {
 
-    private static final Logger logger = LogManager.getLogger(BlobRestoreContext.class);
+    private static final Logger logger = LogManager.getLogger(FileRestoreContext.class);
 
     private final String repositoryName;
     private final IndexShard indexShard;
@@ -73,7 +73,7 @@ public abstract class BlobRestoreContext {
      * @param recoveryState recovery state to report progress
      * @param bufferSize    buffer size for restore
      */
-    protected BlobRestoreContext(String repositoryName, IndexShard indexShard, SnapshotId snapshotId, RecoveryState recoveryState,
+    protected FileRestoreContext(String repositoryName, IndexShard indexShard, SnapshotId snapshotId, RecoveryState recoveryState,
                                  int bufferSize) {
         this.repositoryName = repositoryName;
         this.recoveryState = recoveryState;
@@ -118,7 +118,8 @@ public abstract class BlobRestoreContext {
                 logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
                 recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
             } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("{} Can't read metadata from store, will not reuse any local file while restoring", shardId), e);
+                logger.warn(new ParameterizedMessage("[{}] [{}] Can't read metadata from store, will not reuse local files during restore",
+                    shardId, snapshotId), e);
                 recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
             }
 
@@ -134,7 +135,8 @@ public abstract class BlobRestoreContext {
                     maybeRecalculateMetadataHash(fileInfo, recoveryTargetMetadata);
                 } catch (Exception e) {
                     // if the index is broken we might not be able to read it
-                    logger.warn(() -> new ParameterizedMessage("{} Can't calculate hash from blog for file [{}] [{}]", shardId, fileInfo.physicalName(), fileInfo.metadata()), e);
+                    logger.warn(new ParameterizedMessage("[{}] Can't calculate hash from blog for file [{}] [{}]", shardId,
+                        fileInfo.physicalName(), fileInfo.metadata()), e);
                 }
                 snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
                 fileInfos.put(fileInfo.metadata().name(), fileInfo);
@@ -152,7 +154,8 @@ public abstract class BlobRestoreContext {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                 recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), true);
                 if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                    logger.trace("[{}] [{}] not_recovering file [{}] from [{}], exists in local store and is same", shardId, snapshotId,
+                        fileInfo.physicalName(), fileInfo.name());
                 }
             }
 
@@ -161,13 +164,13 @@ public abstract class BlobRestoreContext {
                 filesToRecover.add(fileInfo);
                 recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), false);
                 if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId,
+                    logger.trace("[{}] [{}] recovering [{}] from [{}]", shardId, snapshotId,
                         fileInfo.physicalName(), fileInfo.name());
                 }
             }
 
             if (filesToRecover.isEmpty()) {
-                logger.trace("no files to recover, all exists within the local store");
+                logger.trace("[{}] [{}] no files to recover, all exist within the local store", shardId, snapshotId);
             }
 
             try {
@@ -214,11 +217,11 @@ public abstract class BlobRestoreContext {
                         store.deleteQuiet("restore", storeFile);
                         store.directory().deleteFile(storeFile);
                     } catch (IOException e) {
-                        logger.warn("[{}] failed to delete file [{}] during snapshot cleanup", snapshotId, storeFile);
+                        logger.warn("[{}] [{}] failed to delete file [{}] during snapshot cleanup", shardId, snapshotId, storeFile);
                     }
                 }
             } catch (IOException e) {
-                logger.warn("[{}] failed to list directory - some of files might not be deleted", snapshotId);
+                logger.warn("[{}] [{}] failed to list directory - some of files might not be deleted", shardId, snapshotId);
             }
         } finally {
             store.decRef();

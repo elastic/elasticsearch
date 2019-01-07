@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 
 public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<BinaryMathProcessor> {
     public static BinaryMathProcessor randomProcessor() {

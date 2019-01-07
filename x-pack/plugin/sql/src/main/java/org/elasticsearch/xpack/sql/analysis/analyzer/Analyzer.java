@@ -173,7 +173,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                              // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
                              || Objects.equals(u.name(), attribute.qualifiedName()));
                 if (match) {
-                    matches.add(attribute.withLocation(u.location()));
+                    matches.add(attribute.withLocation(u.source()));
                 }
             }
         }
@@ -251,7 +251,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 SubQueryAlias subQueryAlias = subQueries.get(ur.table().index());
                 if (subQueryAlias != null) {
                     if (ur.alias() != null) {
-                        return new SubQueryAlias(ur.location(), subQueryAlias, ur.alias());
+                        return new SubQueryAlias(ur.source(), subQueryAlias, ur.alias());
                     }
                     return subQueryAlias;
                 }
@@ -282,15 +282,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
             if (indexResolution.isValid() == false) {
-                return plan.unresolvedMessage().equals(indexResolution.toString()) ? plan : new UnresolvedRelation(plan.location(),
+                return plan.unresolvedMessage().equals(indexResolution.toString()) ? plan : new UnresolvedRelation(plan.source(),
                         plan.table(), plan.alias(), indexResolution.toString());
             }
             assert indexResolution.matches(table.index());
-            LogicalPlan logicalPlan = new EsRelation(plan.location(), indexResolution.get());
-            SubQueryAlias sa = new SubQueryAlias(plan.location(), logicalPlan, table.index());
+            LogicalPlan logicalPlan = new EsRelation(plan.source(), indexResolution.get());
+            SubQueryAlias sa = new SubQueryAlias(plan.source(), logicalPlan, table.index());
 
             if (plan.alias() != null) {
-                sa = new SubQueryAlias(plan.location(), sa, plan.alias());
+                sa = new SubQueryAlias(plan.source(), sa, plan.alias());
             }
 
             return sa;
@@ -311,13 +311,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 if (hasStar(p.projections())) {
-                    return new Project(p.location(), p.child(), expandProjections(p.projections(), p.child()));
+                    return new Project(p.source(), p.child(), expandProjections(p.projections(), p.child()));
                 }
             }
             else if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
                 if (hasStar(a.aggregates())) {
-                    return new Aggregate(a.location(), a.child(), a.groupings(),
+                    return new Aggregate(a.source(), a.child(), a.groupings(),
                             expandProjections(a.aggregates(), a.child()));
                 }
                 // if the grouping is unresolved but the aggs are, use the latter to resolve the former
@@ -339,7 +339,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         newGroupings.add(grouping);
                     }
 
-                    return changed ? new Aggregate(a.location(), a.child(), newGroupings, a.aggregates()) : a;
+                    return changed ? new Aggregate(a.source(), a.child(), newGroupings, a.aggregates()) : a;
                 }
             }
 
@@ -347,7 +347,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 Join j = (Join) plan;
                 if (!j.duplicatesResolved()) {
                     LogicalPlan deduped = dedupRight(j.left(), j.right());
-                    return new Join(j.location(), j.left(), deduped, j.type(), j.condition());
+                    return new Join(j.source(), j.left(), deduped, j.type(), j.condition());
                 }
             }
             // try resolving the order expression (the children are resolved as this point)
@@ -357,7 +357,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     List<Order> resolvedOrder = o.order().stream()
                             .map(or -> resolveExpression(or, o.child()))
                             .collect(toList());
-                    return new OrderBy(o.location(), o.child(), resolvedOrder);
+                    return new OrderBy(o.source(), o.child(), resolvedOrder);
                 }
             }
 
@@ -442,12 +442,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         }
                         if (q.qualifier() != null) {
                             if (Objects.equals(q.qualifiedName(), fa.qualifiedPath())) {
-                                expanded.add(fa.withLocation(attr.location()));
+                                expanded.add(fa.withLocation(attr.source()));
                             }
                         } else {
                             // use the path only to match non-compound types
                             if (Objects.equals(q.name(), fa.path())) {
-                                expanded.add(fa.withLocation(attr.location()));
+                                expanded.add(fa.withLocation(attr.source()));
                             }
                         }
                     }
@@ -516,7 +516,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (ordinal != null) {
                         changed = true;
                         if (ordinal > 0 && ordinal <= max) {
-                            newOrder.add(new Order(order.location(), orderBy.child().output().get(ordinal - 1), order.direction(),
+                            newOrder.add(new Order(order.source(), orderBy.child().output().get(ordinal - 1), order.direction(),
                                     order.nullsPosition()));
                         }
                         else {
@@ -528,7 +528,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                 }
 
-                return changed ? new OrderBy(orderBy.location(), orderBy.child(), newOrder) : orderBy;
+                return changed ? new OrderBy(orderBy.source(), orderBy.child(), newOrder) : orderBy;
             }
 
             if (plan instanceof Aggregate) {
@@ -565,7 +565,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                 }
 
-                return changed ? new Aggregate(agg.location(), agg.child(), newGroupings, aggregates) : agg;
+                return changed ? new Aggregate(agg.source(), agg.child(), newGroupings, aggregates) : agg;
             }
 
             return plan;
@@ -629,15 +629,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             newOrders.add(order.equals(transformed) ? order : transformed);
                         }
 
-                        return o.order().equals(newOrders) ? o : new OrderBy(o.location(), o.child(), newOrders);
+                        return o.order().equals(newOrders) ? o : new OrderBy(o.source(), o.child(), newOrders);
                     }
 
                     // everything worked
-                    return new Project(o.location(), new OrderBy(o.location(), newChild, maybeResolved), o.child().output());
+                    return new Project(o.source(), new OrderBy(o.source(), newChild, maybeResolved), o.child().output());
                 }
 
                 if (!maybeResolved.equals(o.order())) {
-                    return new OrderBy(o.location(), o.child(), maybeResolved);
+                    return new OrderBy(o.source(), o.child(), maybeResolved);
                 }
             }
 
@@ -661,14 +661,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         Expression transformed = f.condition().transformUp(ua -> resolveMetadataToMessage(ua, failedAttrs, "filter"),
                                 UnresolvedAttribute.class);
 
-                        return f.condition().equals(transformed) ? f : new Filter(f.location(), f.child(), transformed);
+                        return f.condition().equals(transformed) ? f : new Filter(f.source(), f.child(), transformed);
                     }
 
-                    return new Project(f.location(), new Filter(f.location(), newChild, maybeResolved), f.child().output());
+                    return new Project(f.source(), new Filter(f.source(), newChild, maybeResolved), f.child().output());
                 }
 
                 if (!maybeResolved.equals(f.condition())) {
-                    return new Filter(f.location(), f.child(), maybeResolved);
+                    return new Filter(f.source(), f.child(), maybeResolved);
                 }
             }
 
@@ -696,7 +696,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 AttributeSet diff = missing.subtract(p.child().outputSet());
-                return new Project(p.location(), propagateMissing(p.child(), diff, failed), combine(p.projections(), missing));
+                return new Project(p.source(), propagateMissing(p.child(), diff, failed), combine(p.projections(), missing));
             }
 
             if (plan instanceof Aggregate) {
@@ -707,7 +707,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (!Expressions.anyMatch(a.groupings(), m::semanticEquals)) {
                         if (m instanceof Attribute) {
                             // pass failure information to help the verifier
-                            m = new UnresolvedAttribute(m.location(), m.name(), m.qualifier(), null, null,
+                            m = new UnresolvedAttribute(m.source(), m.name(), m.qualifier(), null, null,
                                     new AggGroupingFailure(Expressions.names(a.groupings())));
                         }
                         failed.add(m);
@@ -717,7 +717,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (!failed.isEmpty()) {
                     return plan;
                 }
-                return new Aggregate(a.location(), a.child(), a.groupings(), combine(a.aggregates(), missing));
+                return new Aggregate(a.source(), a.child(), a.groupings(), combine(a.aggregates(), missing));
             }
 
             // LeafPlans are tables and BinaryPlans are joins so pushing can only happen on unary
@@ -845,14 +845,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 if (p.childrenResolved() && hasUnresolvedAliases(p.projections())) {
-                    return new Project(p.location(), p.child(), assignAliases(p.projections()));
+                    return new Project(p.source(), p.child(), assignAliases(p.projections()));
                 }
                 return p;
             }
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
                 if (a.childrenResolved() && hasUnresolvedAliases(a.aggregates())) {
-                    return new Aggregate(a.location(), a.child(), a.groupings(), assignAliases(a.aggregates()));
+                    return new Aggregate(a.source(), a.child(), a.groupings(), assignAliases(a.aggregates()));
                 }
                 return a;
             }
@@ -879,11 +879,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (child instanceof Cast) {
                         Cast c = (Cast) child;
                         if (c.field() instanceof NamedExpression) {
-                            return new Alias(c.location(), ((NamedExpression) c.field()).name(), c);
+                            return new Alias(c.source(), ((NamedExpression) c.field()).name(), c);
                         }
                     }
                     //TODO: maybe add something closer to SQL
-                    return new Alias(child.location(), child.toString(), child);
+                    return new Alias(child.source(), child.toString(), child);
                 }, UnresolvedAlias.class);
                 newExpr.add(expr.equals(transformed) ? expr : transformed);
             }
@@ -900,7 +900,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Project p) {
             if (containsAggregate(p.projections())) {
-                return new Aggregate(p.location(), p.child(), emptyList(), p.projections());
+                return new Aggregate(p.source(), p.child(), emptyList(), p.projections());
             }
             return p;
         }
@@ -934,8 +934,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     // so try resolving the condition in one go through a 'dummy' aggregate
                     if (!condition.resolved()) {
                         // that's why try to resolve the condition
-                        Aggregate tryResolvingCondition = new Aggregate(agg.location(), agg.child(), agg.groupings(),
-                                combine(agg.aggregates(), new Alias(f.location(), ".having", condition)));
+                        Aggregate tryResolvingCondition = new Aggregate(agg.source(), agg.child(), agg.groupings(),
+                                combine(agg.aggregates(), new Alias(f.source(), ".having", condition)));
 
                         tryResolvingCondition = (Aggregate) analyze(tryResolvingCondition, false);
 
@@ -953,14 +953,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     missing = findMissingAggregate(agg, condition);
 
                     if (!missing.isEmpty()) {
-                        Aggregate newAgg = new Aggregate(agg.location(), agg.child(), agg.groupings(),
+                        Aggregate newAgg = new Aggregate(agg.source(), agg.child(), agg.groupings(),
                                 combine(agg.aggregates(), missing));
-                        Filter newFilter = new Filter(f.location(), newAgg, condition);
+                        Filter newFilter = new Filter(f.source(), newAgg, condition);
                         // preserve old output
-                        return new Project(f.location(), newFilter, f.output());
+                        return new Project(f.source(), newFilter, f.output());
                     }
 
-                    return new Filter(f.location(), f.child(), condition);
+                    return new Filter(f.source(), f.child(), condition);
                 }
                 return plan;
             }
@@ -1054,8 +1054,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (common == null) {
                         return e;
                     }
-                    left = l == common ? left : new Cast(left.location(), left, common);
-                    right = r == common ? right : new Cast(right.location(), right, common);
+                    left = l == common ? left : new Cast(left.source(), left, common);
+                    right = r == common ? right : new Cast(right.source(), right, common);
                     return e.replaceChildren(Arrays.asList(left, right));
                 }
             }
@@ -1086,14 +1086,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(LogicalPlan plan) {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
-                return new Project(p.location(), p.child(), cleanExpressions(p.projections()));
+                return new Project(p.source(), p.child(), cleanExpressions(p.projections()));
             }
 
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
                 // clean group expressions
                 List<Expression> cleanedGroups = a.groupings().stream().map(CleanAliases::trimAliases).collect(toList());
-                return new Aggregate(a.location(), a.child(), cleanedGroups, cleanExpressions(a.aggregates()));
+                return new Aggregate(a.source(), a.child(), cleanedGroups, cleanExpressions(a.aggregates()));
             }
 
             return plan.transformExpressionsOnly(e -> {
@@ -1111,7 +1111,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         public static Expression trimNonTopLevelAliases(Expression e) {
             if (e instanceof Alias) {
                 Alias a = (Alias) e;
-                return new Alias(a.location(), a.name(), a.qualifier(), trimAliases(a.child()), a.id());
+                return new Alias(a.source(), a.name(), a.qualifier(), trimAliases(a.child()), a.id());
             }
             return trimAliases(e);
         }

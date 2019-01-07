@@ -19,7 +19,6 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
@@ -93,8 +92,8 @@ public class IndexStoreTests extends ESTestCase {
     }
 
     private void assertHybridDirectory(Directory directory) {
-        assertTrue(directory.toString(), directory instanceof FileSwitchDirectory);
-        Directory primaryDirectory = ((FileSwitchDirectory) directory).getPrimaryDir();
-        assertTrue("primary directory " +  primaryDirectory.toString(), primaryDirectory instanceof MMapDirectory);
+        assertTrue(directory.toString(), directory instanceof FsDirectoryService.HybridDirectory);
+        Directory randomAccessDirectory = ((FsDirectoryService.HybridDirectory) directory).getRandomAccessDirectory();
+        assertTrue("randomAccessDirectory:  " +  randomAccessDirectory.toString(), randomAccessDirectory instanceof MMapDirectory);
     }
 }

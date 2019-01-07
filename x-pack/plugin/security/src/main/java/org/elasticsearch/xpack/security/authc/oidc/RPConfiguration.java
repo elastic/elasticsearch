@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authc.oidc;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.opensaml.xmlsec.signature.P;
 
 import java.util.Collections;
 import java.util.List;
@@ -23,7 +22,8 @@ public class RPConfiguration {
     private final List<String> requestedScopes;
     private final List<String> allowedScopes;
 
-    public RPConfiguration(String clientId, String redirectUri, String responseType, @Nullable List<String> requestedScopes,
+    public RPConfiguration(String clientId, String redirectUri, String responseType,
+                           @Nullable List<String> requestedScopes,
                            @Nullable List<String> allowedScopes) {
         this.clientId = Objects.requireNonNull(clientId, "RP Client ID must be provided");
         this.redirectUri = Objects.requireNonNull(redirectUri, "RP Redirect URI must be provided");

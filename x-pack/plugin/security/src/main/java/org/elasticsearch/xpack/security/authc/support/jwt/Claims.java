@@ -31,50 +31,63 @@ public class Claims {
 
     public enum StandardClaims {
 
-        ISSUER("iss"),
-        SUBJECT("sub"),
-        AUDIENCE("aud"),
-        EXPIRATION_TIME("exp"),
-        NOT_BEFORE("nbf"),
-        ISSUED_AT("iat"),
-        NONCE("nonce"),
-        AUTHN_CONTEXT_CLASS_REF("acr"),
-        AUTHN_METHODS_REF("amr"),
-        AUTHORIZED_PARTY("azp"),
-        AUTH_TIME("auth_time"),
-        JWTID("jti"),
-        NAME("name"),
-        GIVEN_NAME("given_name"),
-        MIDDLE_NAME("middle_name"),
-        FAMILY_NAME("family_name"),
-        NICKNAME("nickname"),
-        PREFERRED_USERNAME("preferred_username"),
-        PROFILE("profile"),
-        PICTURE("picture"),
-        WEBSITE("website"),
-        EMAIL("email"),
-        EMAIL_VERIFIED("email_verified"),
-        GENDER("gender"),
-        BIRTHDATE("birthdate"),
-        ZONEINFO("zoneinfo"),
-        LOCALE("locale"),
-        PHONE_NUMBER("phone_number"),
-        PHONE_NUMBER_VERIFIED("phone_number_verified"),
-        ADDRESS("address"),
-        UPDATED_AT("updated_at");
+        ISSUER("iss", "string"),
+        SUBJECT("sub", "string"),
+        AUDIENCE("aud", "array"),
+        EXPIRATION_TIME("exp", "long"),
+        NOT_BEFORE("nbf", "long"),
+        ISSUED_AT("iat", "long"),
+        NONCE("nonce", "string"),
+        AUTHN_CONTEXT_CLASS_REF("acr", "array"),
+        AUTHN_METHODS_REF("amr", "string"),
+        AUTHORIZED_PARTY("azp", "string"),
+        AUTH_TIME("auth_time", "long"),
+        JWTID("jti", "string"),
+        NAME("name", "string"),
+        GIVEN_NAME("given_name", "string"),
+        MIDDLE_NAME("middle_name", "string"),
+        FAMILY_NAME("family_name", "string"),
+        NICKNAME("nickname", "string"),
+        PREFERRED_USERNAME("preferred_username", "string"),
+        PROFILE("profile", "string"),
+        PICTURE("picture", "string"),
+        WEBSITE("website", "string"),
+        EMAIL("email", "string"),
+        EMAIL_VERIFIED("email_verified", "boolean"),
+        GENDER("gender", "string"),
+        BIRTHDATE("birthdate", "string"),
+        ZONEINFO("zoneinfo", "string"),
+        LOCALE("locale", "string"),
+        PHONE_NUMBER("phone_number", "string"),
+        PHONE_NUMBER_VERIFIED("phone_number_verified", "boolean"),
+        ADDRESS("address", "object"),
+        UPDATED_AT("updated_at", "long");
 
         private String name;
+        private String type;
 
-        StandardClaims(String name) {
+        StandardClaims(String name, String type) {
             this.name = name;
+            this.type = type;
+        }
+
+        public String getType() {
+            return type;
         }
 
         public String getClaimName() {
             return name;
         }
 
-        public static List<String> getKnownClaims() {
+        public static List<String> getStandardClaims() {
             return Stream.of(StandardClaims.values()).map(StandardClaims::getClaimName).collect(Collectors.toList());
+        }
+
+        public static List<String> getClaimsOfType(String type) {
+            return Stream.of(StandardClaims.values())
+                .filter(claim -> claim.getType().equals(type))
+                .map(StandardClaims::getClaimName)
+                .collect(Collectors.toList());
         }
     }
 }

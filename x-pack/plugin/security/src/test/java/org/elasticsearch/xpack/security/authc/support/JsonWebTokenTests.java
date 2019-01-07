@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.support.jwt.JsonWebToken;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,7 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class JsonWebTokenTests extends ESTestCase {
 
-    public void testUnsignedJwtEncoding() {
+    public void testUnsignedJwtEncoding() throws IOException {
         Map<String, Object> header = new HashMap<>();
         Map<String, Object> payload = new HashMap<>();
         header.put("alg", "none");

@@ -5,5 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.support.jwt;
 
-public class JsonWebTokenUtils {
+public interface JwtSigner {
+
+    public byte[] sign(byte[] data);
 }

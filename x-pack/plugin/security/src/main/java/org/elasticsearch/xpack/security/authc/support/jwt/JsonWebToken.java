@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authc.support.jwt;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.security.Key;
 import java.util.Base64;
 import java.util.Map;
 
@@ -28,6 +28,7 @@ public class JsonWebToken {
     public JsonWebToken(Map<String, Object> header, Map<String, Object> payload) {
         this.header = header;
         this.payload = payload;
+        this.signature = "";
     }
 
     public Map<String, Object> getHeader() {
@@ -43,18 +44,25 @@ public class JsonWebToken {
      *
      * @return The serialized JWT
      */
-    public String encode() {
-        try {
-            // Base64 url encoding is defined in https://tools.ietf.org/html/rfc7515#appendix-C
-            String headerString = Base64.getUrlEncoder().withoutPadding().encodeToString(mapToJsonBytes(header));
-            String payloadString = Base64.getUrlEncoder().withoutPadding().encodeToString(mapToJsonBytes(payload));
-            String signatureString = Strings.hasText(signature) ?
-                Base64.getUrlEncoder().withoutPadding().encodeToString(signature.getBytes(StandardCharsets.UTF_8.name())) :
-                "";
-            return headerString + "." + payloadString + "." + signatureString;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+    public String encode() throws IOException {
+        // Base64 url encoding is defined in https://tools.ietf.org/html/rfc7515#appendix-C
+        String headerString = Base64.getUrlEncoder().withoutPadding().encodeToString(mapToJsonBytes(header));
+        String payloadString = Base64.getUrlEncoder().withoutPadding().encodeToString(mapToJsonBytes(payload));
+        return headerString + "." + payloadString + "." + signature;
+    }
+
+    public void sign(Key key) throws IOException {
+        SignatureAlgorithm algorithm = getAlgorithm(header);
+        JwtSigner signer = getSigner(algorithm, key);
+        if (null == signer) {
+            //TODO what kind of Exception?
+            throw new IllegalStateException("Wrong algorithm");
         }
+        String headerString = Base64.getUrlEncoder().withoutPadding().encodeToString(mapToJsonBytes(header));
+        String payloadString = Base64.getUrlEncoder().withoutPadding().encodeToString(mapToJsonBytes(payload));
+        final byte[] data = (headerString + "." + payloadString).getBytes(StandardCharsets.UTF_8);
+        final byte[] signatureBytes = signer.sign(data);
+        signature = Base64.getUrlEncoder().withoutPadding().encodeToString(signatureBytes);
     }
 
     /**
@@ -63,7 +71,7 @@ public class JsonWebToken {
      * @return a string representation of the JWT
      */
     public String toString() {
-        return "{header=" + header + ", payload=" + payload + ", signature=" + signature + "}";
+        return "{header=" + header + ", payload=" + payload + "}";
     }
 
     private String mapToJsonString(Map<String, Object> map) throws IOException {
@@ -85,6 +93,31 @@ public class JsonWebToken {
             }
             builder.endObject();
             return BytesReference.toBytes(BytesReference.bytes(builder));
+        }
+    }
+
+    private JwtSigner getSigner(SignatureAlgorithm algorithm, Key key) {
+        if (SignatureAlgorithm.getHmacAlgorithms().contains(algorithm)) {
+            return new HmacSigner(algorithm, key);
+        } else if (SignatureAlgorithm.getRsaAlgorithms().contains(algorithm)) {
+            return new RsaSigner(algorithm, key);
+        } else if (SignatureAlgorithm.getEcAlgorithms().contains(algorithm)) {
+            return new EcSigner(algorithm, key);
+        }
+        return null;
+    }
+
+    /**
+     * Returns the {@link SignatureAlgorithm} that corresponds to the value of the alg claim
+     *
+     * @param header The {@link Map} containing the parsed header claims
+     * @return the SignatureAlgorithm that corresponds to alg
+     */
+    private SignatureAlgorithm getAlgorithm(Map<String, Object> header) {
+        if (header.containsKey("alg")) {
+            return SignatureAlgorithm.fromName((String) header.get("alg"));
+        } else {
+            return null;
         }
     }
 }

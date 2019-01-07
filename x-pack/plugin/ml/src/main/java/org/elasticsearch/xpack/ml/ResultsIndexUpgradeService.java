@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -58,6 +59,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class ResultsIndexUpgradeService {
 
+    private static final Logger logger = LogManager.getLogger(ResultsIndexUpgradeService.class);
+
     // Adjust the following constants as necessary for various versions and backports.
     private static final int INDEX_VERSION = Version.CURRENT.major;
     private static final Version MIN_REQUIRED_VERSION = Version.CURRENT.minimumCompatibilityVersion();
@@ -65,25 +68,21 @@ public class ResultsIndexUpgradeService {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Predicate<IndexMetaData> shouldUpgrade;
     private final String executor;
-    private final Logger logger;
 
     /**
      * Construct a new upgrade service
      *
      * @param indexNameExpressionResolver Index expression resolver for the request
-     * @param logger                      The logger of the creating object
      * @param executor                    Where to execute client calls
      * @param shouldUpgrade               Given IndexMetadata indicate if it should be upgraded or not
      *                                    {@code true} indicates that it SHOULD upgrade
      */
     public ResultsIndexUpgradeService(IndexNameExpressionResolver indexNameExpressionResolver,
-                                      Logger logger,
                                       String executor,
                                       Predicate<IndexMetaData> shouldUpgrade) {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.shouldUpgrade = shouldUpgrade;
         this.executor = executor;
-        this.logger = logger;
     }
 
     public static boolean wasIndexCreatedInCurrentMajorVersion(IndexMetaData indexMetaData) {

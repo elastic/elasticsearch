@@ -40,7 +40,6 @@ public class TransportMlUpgradeAction
             actionFilters, MlUpgradeAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.resultsIndexUpgradeService = new ResultsIndexUpgradeService(indexNameExpressionResolver,
-            logger,
             executor(),
             indexMetadata -> wasIndexCreatedInCurrentMajorVersion(indexMetadata) == false);
     }

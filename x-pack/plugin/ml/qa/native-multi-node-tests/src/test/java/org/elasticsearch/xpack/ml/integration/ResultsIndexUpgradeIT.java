@@ -123,7 +123,6 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         ResultsIndexUpgradeService resultsIndexUpgradeService = new ResultsIndexUpgradeService(indexNameExpressionResolver,
-            logger,
             ThreadPool.Names.SAME,
             indexMetaData -> true);
 
@@ -207,7 +206,6 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         ResultsIndexUpgradeService resultsIndexUpgradeService = new ResultsIndexUpgradeService(indexNameExpressionResolver,
-            logger,
             ThreadPool.Names.SAME,
             indexMetaData -> true); //indicates that this manually created index needs migrated
 
@@ -262,7 +260,6 @@ public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         ResultsIndexUpgradeService resultsIndexUpgradeService = new ResultsIndexUpgradeService(indexNameExpressionResolver,
-            logger,
             ThreadPool.Names.SAME,
             //indicates that this manually created index is already migrated and should not be included in our migration steps
             indexMetaData -> !(indexMetaData.getIndex().getName().equals(alreadyMigratedIndex) ||

@@ -10,12 +10,9 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.junit.AfterClass;
 import org.junit.Before;
 import java.io.IOException;
@@ -26,9 +23,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataframePivotRestIT extends ESRestTestCase {
+public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
-    private static final String DATAFRAME_ENDPOINT = DataFrameField.REST_BASE_PATH + "jobs/";
     private boolean indicesCreated = false;
 
     // preserve indices in order to reuse source indices in several test cases
@@ -180,13 +176,6 @@ public class DataframePivotRestIT extends ESRestTestCase {
         return (int) XContentMapValues.extractValue("state.generation", jobStatsAsMap);
     }
 
-    private static String getDataFrameIndexerState(String jobId) throws IOException {
-        Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + jobId + "/_stats"));
-
-        Map<?, ?> jobStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("jobs")).get(0);
-        return (String) XContentMapValues.extractValue("state.job_state", jobStatsAsMap);
-    }
-
     private void refreshIndex(String index) throws IOException {
         assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
     }
@@ -197,49 +186,5 @@ public class DataframePivotRestIT extends ESRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         double actual = (double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
         assertEquals(expected, actual, 0.000001);
-    }
-
-    private static void wipeDataFrameJobs() throws IOException, InterruptedException {
-        Response response = adminClient().performRequest(new Request("GET", DATAFRAME_ENDPOINT + "_all"));
-        Map<String, Object> jobs = entityAsMap(response);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> jobConfigs =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
-
-        if (jobConfigs == null) {
-            return;
-        }
-
-        for (Map<String, Object> jobConfig : jobConfigs) {
-            String jobId = (String) jobConfig.get("id");
-            Request request = new Request("POST", DATAFRAME_ENDPOINT + jobId + "/_stop");
-            request.addParameter("wait_for_completion", "true");
-            request.addParameter("timeout", "10s");
-            request.addParameter("ignore", "404");
-            adminClient().performRequest(request);
-            assertEquals("stopped", getDataFrameIndexerState(jobId));
-        }
-
-        for (Map<String, Object> jobConfig : jobConfigs) {
-            String jobId = (String) jobConfig.get("id");
-            Request request = new Request("DELETE", DATAFRAME_ENDPOINT + jobId);
-            request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
-            adminClient().performRequest(request);
-        }
-    }
-
-    private static void waitForPendingDataFrameTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(DataFrameField.TASK_NAME) == false);
-    }
-
-    private static void wipeIndices() throws IOException {
-        try {
-            adminClient().performRequest(new Request("DELETE", "*"));
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
     }
 }

@@ -46,6 +46,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -366,7 +367,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             // we can disable the tracking of total hits after the initial scroll query
             // since the total hits is preserved in the scroll context.
             int trackTotalHitsUpTo = searchContext.scrollContext().totalHits != null ?
-                SearchContext.TRACK_TOTAL_HITS_DISABLED : searchContext.trackTotalHitsUpTo();
+                SearchContext.TRACK_TOTAL_HITS_DISABLED : SearchContext.TRACK_TOTAL_HITS_ACCURATE;
             // no matter what the value of from is
             int numDocs = Math.min(searchContext.size(), totalNumDocs);
             return new ScrollingTopDocsCollectorContext(reader, query, searchContext.scrollContext(),

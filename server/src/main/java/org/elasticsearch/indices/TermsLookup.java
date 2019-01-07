@@ -43,10 +43,14 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     private final String path;
     private String routing;
 
+
     public TermsLookup(String index, String id, String path) {
         this(index, null, id, path);
     }
 
+    /**
+     * @deprecated Types are in the process of being removed, use {@link TermsLookup(String, String, String)} instead.
+     */
     @Deprecated
     public TermsLookup(String index, String type, String id, String path) {
         if (id == null) {
@@ -107,6 +111,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return index;
     }
 
+    /**
+     * @deprecated Types are in the process of being removed.
+     */
     @Deprecated
     public String type() {
         return type;

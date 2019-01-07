@@ -221,6 +221,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * @param index the index where the document is located
          * @param type the type of the document
          * @param id and its id
+         *
+         * @deprecated Types are in the process of being removed, use {@link Item(String, String)} instead.
          */
         @Deprecated
         public Item(@Nullable String index, @Nullable String type, String id) {
@@ -238,6 +240,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * @param index the index to be used for parsing the doc
          * @param type the type to be used for parsing the doc
          * @param doc the document specification
+         *
+         * @deprecated Types are in the process of being removed, use {@link Item(String, XContentBuilder)} instead.
          */
         @Deprecated
         public Item(@Nullable String index, @Nullable String type, XContentBuilder doc) {

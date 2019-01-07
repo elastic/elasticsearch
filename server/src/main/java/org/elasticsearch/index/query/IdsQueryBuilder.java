@@ -88,6 +88,8 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     /**
      * Add types to query
+     *
+     * @deprecated Types are in the process of being removed, prefer to filter on a field instead.
      */
     @Deprecated
     public IdsQueryBuilder types(String... types) {
@@ -100,6 +102,8 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     /**
      * Returns the types used in this query
+     *
+     * @deprecated Types are in the process of being removed, prefer to filter on a field instead.
      */
     @Deprecated
     public String[] types() {

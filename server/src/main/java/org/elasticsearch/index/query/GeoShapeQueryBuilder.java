@@ -258,6 +258,8 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     /**
      * @return the document type of the indexed Shape that will be used in the
      *         Query
+     *
+     * @deprecated Types are in the process of being removed.
      */
     @Deprecated
     public String indexedShapeType() {

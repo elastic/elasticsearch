@@ -43,6 +43,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -130,7 +131,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     private void executeOnPrimaryOrReplica() throws Exception {
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId());
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), new TaskId("_node_id", randomNonNegativeLong()));
         if (randomBoolean()) {
             assertNotNull(action.shardOperationOnPrimary(request, indexShard));
         } else {
@@ -204,7 +205,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         assertThat(replicationGroup.getUnavailableInSyncShards().size(), greaterThan(0));
 
         final PlainActionFuture<PrimaryResult> listener = new PlainActionFuture<>();
-        TransportVerifyShardBeforeCloseAction.ShardRequest request = new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId);
+        TransportVerifyShardBeforeCloseAction.ShardRequest request =
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, new TaskId(clusterService.localNode().getId(), 0L));
         ReplicationOperation.Replicas<TransportVerifyShardBeforeCloseAction.ShardRequest> proxy = action.newReplicasProxy(primaryTerm);
         ReplicationOperation<TransportVerifyShardBeforeCloseAction.ShardRequest,
             TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult> operation =

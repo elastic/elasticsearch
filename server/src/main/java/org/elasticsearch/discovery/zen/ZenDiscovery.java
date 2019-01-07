@@ -910,7 +910,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         if (clusterState.nodes().getMasterNodeId() != null) {
             // remove block if it already exists before adding new one
-            assert clusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock().id()) == false :
+            assert clusterState.blocks().hasGlobalBlockWithId(discoverySettings.getNoMasterBlock().id()) == false :
                 "NO_MASTER_BLOCK should only be added by ZenDiscovery";
             ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(clusterState.blocks())
                 .addGlobalBlock(discoverySettings.getNoMasterBlock())

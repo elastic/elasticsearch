@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -708,4 +709,21 @@ public class SettingsTests extends ESTestCase {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Settings.builder().copy("not_there", settings));
         assertEquals("source key not found in the source settings", iae.getMessage());
     }
+
+    public void testFractionalTimeValue() {
+        final Setting<TimeValue> setting =
+                Setting.timeSetting("key", TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"), TimeValue.ZERO);
+        final TimeValue expected = TimeValue.timeValueMillis(randomNonNegativeLong());
+        final Settings settings = Settings.builder().put("key", expected).build();
+        /*
+         * Previously we would internally convert the time value to a string using a method that tries to be smart about the units (e.g.,
+         * 1000ms would be converted to 1s). However, this had a problem in that, for example, 1500ms would be converted to 1.5s. Then,
+         * 1.5s could not be converted back to a TimeValue because TimeValues do not support fractional components. Effectively this test
+         * is then asserting that we no longer make this mistake when doing the internal string conversion. Instead, we convert to a string
+         * using a method that does not lose the original unit.
+         */
+        final TimeValue actual = setting.get(settings);
+        assertThat(actual, equalTo(expected));
+    }
+
 }

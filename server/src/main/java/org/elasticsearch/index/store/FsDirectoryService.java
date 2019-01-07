@@ -22,6 +22,8 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
@@ -31,7 +33,7 @@ import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
@@ -39,17 +41,10 @@ import org.elasticsearch.index.shard.ShardPath;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
 public class FsDirectoryService extends DirectoryService {
-    /*
-     * We are mmapping norms, docvalues as well as term dictionaries, all other files are served through NIOFS
-     * this provides good random access performance and does not lead to page cache thrashing.
-     */
-    private static final Set<String> PRIMARY_EXTENSIONS = Collections.unmodifiableSet(Sets.newHashSet("nvd", "dvd", "tim"));
-
     protected final IndexStore indexStore;
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         switch (s) {
@@ -97,13 +92,7 @@ public class FsDirectoryService extends DirectoryService {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory) {
-                    return new FileSwitchDirectory(PRIMARY_EXTENSIONS, primaryDirectory, new NIOFSDirectory(location, lockFactory), true) {
-                        @Override
-                        public String[] listAll() throws IOException {
-                            // Avoid doing listAll twice:
-                            return primaryDirectory.listAll();
-                        }
-                    };
+                    return new HybridDirectory(location, lockFactory, primaryDirectory);
                 } else {
                     return primaryDirectory;
                 }
@@ -138,5 +127,45 @@ public class FsDirectoryService extends DirectoryService {
             };
         }
         return directory;
+    }
+
+    static final class HybridDirectory extends NIOFSDirectory {
+        private final FSDirectory randomAccessDirectory;
+
+        HybridDirectory(Path location, LockFactory lockFactory, FSDirectory randomAccessDirectory) throws IOException {
+            super(location, lockFactory);
+            this.randomAccessDirectory = randomAccessDirectory;
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            String extension = FileSwitchDirectory.getExtension(name);
+            switch(extension) {
+                // We are mmapping norms, docvalues as well as term dictionaries, all other files are served through NIOFS
+                // this provides good random access performance and does not lead to page cache thrashing.
+                case "nvd":
+                case "dvd":
+                case "tim":
+                    // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+                    ensureOpen();
+                    ensureCanRead(name);
+                    // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
+                    // we might run into trouble with files that are pendingDelete in one directory but still
+                    // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
+                    // and intersect for perf reasons.
+                    return randomAccessDirectory.openInput(name, context);
+                default:
+                    return super.openInput(name, context);
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(super::close, randomAccessDirectory);
+        }
+
+        Directory getRandomAccessDirectory() {
+            return randomAccessDirectory;
+        }
     }
 }

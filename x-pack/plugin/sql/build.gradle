@@ -15,6 +15,9 @@ configurations {
 
 archivesBaseName = 'x-pack-sql'
 
+// All integration tests live in qa modules
+integTest.enabled = false
+
 dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     compileOnly project(path: xpackModule('core'), configuration: 'default')

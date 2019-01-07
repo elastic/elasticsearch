@@ -1450,10 +1450,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         /**
          * Constructs new restore context
-         *  @param indexShard      shard to restore into
-         * @param snapshotId      snapshot id
-         * @param recoveryState   recovery state to report progress
-         * @param blobContainer
+         * @param indexShard   shard to restore into
+         * @param snapshotId    snapshot id
+         * @param recoveryState recovery state to report progress
+         * @param blobContainer the blob container to read the files from
          */
         RestoreContext(IndexShard indexShard, SnapshotId snapshotId, RecoveryState recoveryState, BlobContainer blobContainer) {
             super(metadata.name(), indexShard, snapshotId, recoveryState, BUFFER_SIZE);

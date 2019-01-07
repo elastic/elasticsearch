@@ -18,7 +18,7 @@ resource usage.
 You control when the rollover action is triggered by specifying one or more
 rollover parameters. The rollover is performed once any of the criteria are
 met. Because the criteria are checked periodically, the index might grow
-slightly beyond the specified threshold. To control how often the critera are
+slightly beyond the specified threshold. To control how often the criteria are
 checked, specify the `indices.lifecycle.poll_interval` cluster setting.
 
 IMPORTANT: New indices created via rollover will not automatically inherit the

@@ -39,7 +39,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -172,31 +171,11 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 "[cluster.initial_master_nodes] is empty on this node: have discovered [" + otherNode + "]; " +
                 "discovery will continue using [] from hosts providers and [" + localNode + "] from last-known cluster state"));
 
-        assertThat(new ClusterFormationState(Settings.builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 2).build(),
-                clusterState, emptyList(), emptyList()).getDescription(),
-            is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
-                "this node must discover at least [2] master-eligible nodes to bootstrap a cluster: have discovered []; " +
-                "discovery will continue using [] from hosts providers and [" + localNode + "] from last-known cluster state"));
-
         assertThat(new ClusterFormationState(Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "other").build(),
                 clusterState, emptyList(), emptyList()).getDescription(),
             is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
                 "this node must discover master-eligible nodes [other] to bootstrap a cluster: have discovered []; " +
                 "discovery will continue using [] from hosts providers and [" + localNode + "] from last-known cluster state"));
-
-        assertThat(new ClusterFormationState(Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "other")
-                .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1).build(),
-                clusterState, emptyList(), emptyList()).getDescription(),
-            is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
-                "this node must discover master-eligible nodes [other] to bootstrap a cluster: have discovered []; " +
-                "discovery will continue using [] from hosts providers and [" + localNode + "] from last-known cluster state"));
-
-        assertThat(new ClusterFormationState(Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "other")
-                .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 2).build(),
-                clusterState, emptyList(), emptyList()).getDescription(),
-            is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
-                "this node must discover at least [2] master-eligible nodes, including [other], to bootstrap a cluster: have discovered " +
-                "[]; discovery will continue using [] from hosts providers and [" + localNode + "] from last-known cluster state"));
     }
 
     private static VotingConfiguration config(String[] nodeIds) {

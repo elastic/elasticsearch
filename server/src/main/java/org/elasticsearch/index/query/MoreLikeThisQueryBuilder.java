@@ -55,6 +55,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
@@ -300,10 +301,18 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             return this;
         }
 
+        /**
+         * @deprecated Types are in the process of being removed.
+         */
+        @Deprecated
         public String type() {
             return type;
         }
 
+        /**
+         * @deprecated Types are in the process of being removed.
+         */
+        @Deprecated
         public Item type(String type) {
             this.type = type;
             return this;
@@ -1117,12 +1126,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             item.index(context.index().getName());
         }
         if (item.type() == null) {
-            if (context.queryTypes().size() > 1) {
-                throw new QueryShardException(context,
-                        "ambiguous type for item with id: " + item.id() + " and index: " + item.index());
-            } else {
-                item.type(context.queryTypes().iterator().next());
-            }
+            item.type(MapperService.SINGLE_MAPPING_NAME);
         }
         // default fields if not present but don't override for artificial docs
         if ((item.fields() == null || item.fields().length == 0) && item.doc() == null) {

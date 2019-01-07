@@ -753,7 +753,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
             Throwable cause = exception.getCause();
             assertThat(cause, instanceOf(RoutingMissingException.class));
-            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[_doc]/[1]"));
         }
 
         {

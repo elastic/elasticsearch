@@ -81,8 +81,7 @@ setup:
         body: >
           {
             "job_id":"get-datafeed-stats-1",
-            "indexes":["index-1"],
-            "types":["type-1"]
+            "indexes":["index-1"]
           }
 
   - do:
@@ -93,8 +92,7 @@ setup:
         body: >
           {
             "job_id":"get-datafeed-stats-2",
-            "indexes":["index-2"],
-            "types":["type-2"]
+            "indexes":["index-2"]
           }
 
 ---
@@ -160,7 +158,7 @@ setup:
   - match: { datafeeds.0.state: "started"}
   - is_true: datafeeds.0.node.name
   - is_true: datafeeds.0.node.transport_address
-  - match: { datafeeds.0.node.attributes.ml\.enabled: "true"}
+  - match: { datafeeds.0.node.attributes.ml\.max_open_jobs: "20"}
 
 ---
 "Test implicit get all datafeed stats given started datafeeds":

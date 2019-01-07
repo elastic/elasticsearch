@@ -697,8 +697,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source, XContentType xContentType,
                                           String routing)
         throws IOException {
-        SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source), xContentType);
-        sourceToParse.routing(routing);
+        SourceToParse sourceToParse = new SourceToParse(
+            shard.shardId().getIndexName(), type, id, new BytesArray(source), xContentType, routing);
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,

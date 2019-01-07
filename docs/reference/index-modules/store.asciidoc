@@ -40,7 +40,7 @@ The following sections lists all the different storage types supported.
 `fs`::
 
 Default file system implementation. This will pick the best implementation
-depending on the operating environment, which is currently `mmapfs` on all
+depending on the operating environment, which is currently `hybridfs` on all
 supported systems but is subject to change.
 
 [[simplefs]]`simplefs`::
@@ -67,12 +67,22 @@ process equal to the size of the file being mapped. Before using this
 class, be sure you have allowed plenty of
 <<vm-max-map-count,virtual address space>>.
 
-[[allow-mmapfs]]
-You can restrict the use of the `mmapfs` store type via the setting
-`node.store.allow_mmapfs`. This is a boolean setting indicating whether or not
-`mmapfs` is allowed. The default is to allow `mmapfs`. This setting is useful,
-for example, if you are in an environment where you can not control the ability
-to create a lot of memory maps so you need disable the ability to use `mmapfs`.
+[[hybridfs]]`hybridfs`::
+
+The `hybridfs` type is a hybrid of `niofs` and `mmapfs`, which chooses the best
+file system type for each type of file based on the read access pattern.
+Currently only the Lucene term dictionary, norms and doc values files are
+memory mapped. All other files are opened using Lucene `NIOFSDirectory`.
+Similarly to `mmapfs` be sure you have allowed plenty of
+<<vm-max-map-count,virtual address space>>.
+
+[[allow-mmap]]
+You can restrict the use of the `mmapfs` and the related `hybridfs` store type
+via the setting `node.store.allow_mmap`. This is a boolean setting indicating
+whether or not memory-mapping is allowed. The default is to allow it. This
+setting is useful, for example, if you are in an environment where you can not
+control the ability to create a lot of memory maps so you need disable the
+ability to use memory-mapping.
 
 === Pre-loading data into the file system cache
 

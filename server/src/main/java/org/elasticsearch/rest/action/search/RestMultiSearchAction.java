@@ -59,7 +59,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     static {
         final Set<String> responseParams = new HashSet<>(
-            Arrays.asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HIT_AS_INT_PARAM)
+            Arrays.asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM)
         );
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
@@ -118,6 +118,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
                 deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
             }
             searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
+            RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();

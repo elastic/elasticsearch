@@ -832,7 +832,8 @@ public class Setting<T> implements ToXContentObject {
         void validate(T value);
 
         /**
-         * Validate this setting against its dependencies, specified by {@link #settings()}. Default implementation is a no operation.
+         * Validate this setting against its dependencies, specified by {@link #settings()}. The default implementation does nothing,
+         * accepting any value as valid as long as it passes the validation in {@link #validate(Object)}.
          *
          * @param value    the value of this setting
          * @param settings a map from the settings specified by {@link #settings()}} to their values
@@ -841,9 +842,11 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
-         * The settings needed by this validator. Default value is an empty iterator.
+         * The settings on which the validity of this setting depends. The values of the specified settings are passed to
+         * {@link #validate(Object, Map)}. By default this returns an empty iterator, indicating that this setting does not depend on any
+         * other settings.
          *
-         * @return the settings needed to validate; these can be used for cross-settings validation
+         * @return the settings on which the validity of this setting depends.
          */
         default Iterator<Setting<T>> settings() {
             return Collections.emptyIterator();

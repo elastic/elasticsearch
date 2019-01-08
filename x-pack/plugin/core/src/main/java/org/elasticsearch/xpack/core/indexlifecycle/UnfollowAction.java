@@ -18,6 +18,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Converts a CCR following index into a normal, standalone index, once the index is ready to be safely separated.
+ *
+ * "Readiness" is composed of two conditions:
+ * 1) The index must have {@link LifecycleSettings#LIFECYCLE_INDEXING_COMPLETE} set to {@code true}, which is
+ *      done automatically by {@link RolloverAction} (or manually).
+ * 2) The index must be up to date with the leader, defined as the follower checkpoint being
+ *      equal to the global checkpoint for all shards.
+ */
 public final class UnfollowAction implements LifecycleAction {
 
     public static final String NAME = "unfollow";

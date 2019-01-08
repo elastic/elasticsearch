@@ -77,6 +77,15 @@ namingConventions {
   skipIntegTestInDisguise = true
 }
 
+testingConventions {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'org.elasticsearch.client.RestClientTestCase'
+    }
+  }
+}
+
 thirdPartyAudit.ignoreMissingClasses (
   //commons-logging optional dependencies
   'org.apache.avalon.framework.logger.Logger',

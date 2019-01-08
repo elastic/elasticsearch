@@ -55,7 +55,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
                 () -> {
                     final Set<RetentionLease> leases = new HashSet<>(retainingSequenceNumbers.length);
                     for (int i = 0; i < retainingSequenceNumbers.length; i++) {
-                        leases.add(new RetentionLease(Integer.toString(i), retainingSequenceNumbers[i].get(), "test"));
+                        leases.add(new RetentionLease(Integer.toString(i), retainingSequenceNumbers[i].get(), 0L, "test"));
                     }
                     return leases;
                 };

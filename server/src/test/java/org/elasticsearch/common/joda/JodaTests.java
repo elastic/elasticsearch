@@ -29,7 +29,6 @@ import java.time.ZoneOffset;
 
 public class JodaTests extends ESTestCase {
 
-
     public void testBasicTTimePattern() {
         DateFormatter formatter1 = DateFormatter.forPattern("basic_t_time");
         assertEquals(formatter1.pattern(), "basic_t_time");

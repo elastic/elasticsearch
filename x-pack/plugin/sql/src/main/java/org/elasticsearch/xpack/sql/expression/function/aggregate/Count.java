@@ -61,6 +61,9 @@ public class Count extends AggregateFunction {
 
     @Override
     public AggregateFunctionAttribute toAttribute() {
-        return new AggregateFunctionAttribute(location(), name(), dataType(), id(), functionId(), "_count");
+        if (!distinct()) {
+            return new AggregateFunctionAttribute(location(), name(), dataType(), id(), functionId(), "_count");
+        }
+        return super.toAttribute();
     }
 }

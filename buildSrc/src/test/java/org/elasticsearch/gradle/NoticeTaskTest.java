@@ -136,7 +136,6 @@ public class NoticeTaskTest extends GradleUnitTestCase {
     public void EnsureDirectoriesAreLoaded() throws IOException{
         project = createProject();
         noticeTask = createTask(project);
-//        noticeTask.addLicenseDir(new File(project.getProjectDir(),"NOTICE.txt"));
         noticeTask.licensesDir(new File(project.getProjectDir(),"NOTICE.txt"));
 
         var list = noticeTask.getLicensesDirs();

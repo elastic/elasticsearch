@@ -565,11 +565,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     checkpoint = i;
                 }
             }
-            int chunksToSend = Collections.min(Arrays.asList(
-                totalChunks - sentChunks.get(),                                // limited by the remaining chunks
-                maxConcurrentChunks - unrepliedChunks.size(),                  // limited by the sending tickets
-                2 * maxConcurrentChunks - (sentChunks.get() - 1 - checkpoint)) // limited by the buffering chunks
-            );
+            int chunksToSend = Math.min(
+                totalChunks - sentChunks.get(),                             // limited by the remaining chunks
+                maxConcurrentChunks - (sentChunks.get() - 1 - checkpoint)); // limited by the buffering chunks
+
             int expectedSentChunks = sentChunks.get() + chunksToSend;
             int expectedUnrepliedChunks = unrepliedChunks.size() + chunksToSend;
             chunksToAck.forEach(c -> c.onComplete.accept(null));

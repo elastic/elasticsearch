@@ -67,7 +67,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -368,7 +367,7 @@ public class RecoverySourceHandler {
                 cancellableThreads.execute(() ->
                         recoveryTarget.receiveFileInfo(response.phase1FileNames, response.phase1FileSizes, response.phase1ExistingFileNames,
                                 response.phase1ExistingFileSizes, translogOps.get()));
-                cancellableThreads.executeIO(() -> sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps));
+                sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps);
                 // Send the CLEAN_FILES request, which takes all of the files that
                 // were transferred and renames them from their temporary file
                 // names to the actual file names. It also writes checksums for
@@ -635,66 +634,50 @@ public class RecoverySourceHandler {
                 '}';
     }
 
-    void sendFiles(Store store, StoreFileMetaData[] files, Supplier<Integer> translogOps) throws IOException, InterruptedException {
+    void sendFiles(Store store, StoreFileMetaData[] files, Supplier<Integer> translogOps) throws Exception {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetaData::length)); // send smallest first
-        final Semaphore sendingTickets = new Semaphore(maxConcurrentFileChunks);
         final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         final AtomicReference<Tuple<StoreFileMetaData, Exception>> error = new AtomicReference<>();
-        long seqIdGenerator = NO_OPS_PERFORMED;
-        try {
-            final byte[] buffer = new byte[chunkSizeInBytes];
-            for (StoreFileMetaData md : files) {
-                try (IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
-                    long position = 0;
-                    int bytesRead;
-                    final InputStream in = new InputStreamIndexInput(indexInput, md.length());
-                    while ((bytesRead = in.read(buffer, 0, buffer.length)) != -1) {
-                        final BytesArray content = new BytesArray(buffer, 0, bytesRead);
-                        final boolean lastChunk = position + content.length() == md.length();
-                        final long seqId = ++seqIdGenerator;
-                        // allow up to 2*maxConcurrentFileChunks buffering requests on the target
-                        requestSeqIdTracker.waitForOpsToComplete(seqId - (2 * maxConcurrentFileChunks));
-                        sendingTickets.acquire();
-                        boolean submitted = false;
-                        try {
-                            if (error.get() != null) {
-                                return; // abort and error will be handled in the finally block
-                            }
-                            cancellableThreads.checkForCancel();
-                            recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogOps.get(), e -> {
-                                if (e != null) {
-                                    error.compareAndSet(null, Tuple.tuple(md, e));
-                                }
-                                requestSeqIdTracker.markSeqNoAsCompleted(seqId);
-                                sendingTickets.release();
-                            });
-                            position += content.length();
-                            submitted = true;
-                        } finally {
-                            if (submitted == false) {
-                                requestSeqIdTracker.markSeqNoAsCompleted(seqId);
-                                sendingTickets.release();
-                            }
-                        }
+        final byte[] buffer = new byte[chunkSizeInBytes];
+        for (final StoreFileMetaData md : files) {
+            if (error.get() != null) {
+                break;
+            }
+            try (IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
+                long position = 0;
+                int bytesRead;
+                final InputStream in = new InputStreamIndexInput(indexInput, md.length());
+                while ((bytesRead = in.read(buffer, 0, buffer.length)) != -1) {
+                    final BytesArray content = new BytesArray(buffer, 0, bytesRead);
+                    final boolean lastChunk = position + content.length() == md.length();
+                    final long requestSeqId = requestSeqIdTracker.generateSeqNo();
+                    cancellableThreads.execute(() -> requestSeqIdTracker.waitForOpsToComplete(requestSeqId - maxConcurrentFileChunks));
+                    cancellableThreads.checkForCancel();
+                    if (error.get() != null) {
+                        break;
                     }
-                } catch (IOException e) {
-                    handleErrorOnSendFiles(store, md, e);
+                    recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogOps.get(), e -> {
+                        if (e != null) {
+                            error.compareAndSet(null, Tuple.tuple(md, e));
+                        }
+                        requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                    });
+                    position += content.length();
                 }
+            } catch (IOException e) {
+                error.compareAndSet(null, Tuple.tuple(md, e));
+                break;
             }
-        } finally {
-            try {
-                sendingTickets.acquire(maxConcurrentFileChunks);
-                assert requestSeqIdTracker.getCheckpoint() == seqIdGenerator : "not all requests completed; " +
-                    "completed_requests=" + requestSeqIdTracker.getCheckpoint() + " total_requests=" + seqIdGenerator;
-            } finally {
-                if (error.get() != null) {
-                    handleErrorOnSendFiles(store, error.get().v1(), error.get().v2());
-                }
-            }
+        }
+        if (error.get() == null) {
+            cancellableThreads.execute(() -> requestSeqIdTracker.waitForOpsToComplete(requestSeqIdTracker.getMaxSeqNo()));
+        }
+        if (error.get() != null) {
+            handleErrorOnSendFiles(store, error.get().v1(), error.get().v2());
         }
     }
 
-    private void handleErrorOnSendFiles(Store store, StoreFileMetaData md, Exception e) throws IOException {
+    private void handleErrorOnSendFiles(Store store, StoreFileMetaData md, Exception e) throws Exception {
         final IOException corruptIndexException;
         if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(e)) != null) {
             if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
@@ -710,7 +693,7 @@ public class RecoverySourceHandler {
                 throw exception;
             }
         } else {
-            throw ExceptionsHelper.convertToRuntime(e);
+            throw e;
         }
     }
 

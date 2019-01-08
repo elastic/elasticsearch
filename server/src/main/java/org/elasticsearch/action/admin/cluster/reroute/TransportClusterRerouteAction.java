@@ -139,8 +139,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                                             e = ExceptionsHelper.useOrSuppress(e, new IllegalArgumentException(
                                                 "No data for shard [" + command.shardId() + "] of index [" + index + "] found on any node")
                                             );
-                                        } else if (shardStatus.stream()
-                                            .noneMatch(storeStatus -> {
+                                        } else if (shardStatus.stream().noneMatch(storeStatus -> {
                                                 final DiscoveryNode node = storeStatus.getNode();
                                                 final String nodeInCommand = command.node();
                                                 return nodeInCommand.equals(node.getName()) || nodeInCommand.equals(node.getId());

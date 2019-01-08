@@ -94,7 +94,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                 stalePrimaryAllocations.computeIfAbsent(cmd.index(), k -> new ArrayList<>()).add(cmd);
             }
         }
-        if (stalePrimaryAllocations == null) {
+        if (stalePrimaryAllocations.isEmpty()) {
             submitStateUpdate(request, listener);
         } else {
             verifyThenSubmitUpdate(request, listener, stalePrimaryAllocations);

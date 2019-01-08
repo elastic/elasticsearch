@@ -92,7 +92,7 @@ setup:
   - is_true: test_index.aliases
   - is_true: test_index.settings
   - is_true: test_index_2.settings
-  - is_false: test_index_2.mappings
+  - is_true: test_index_2.mappings
   - is_true: test_index_2.aliases
 
 ---

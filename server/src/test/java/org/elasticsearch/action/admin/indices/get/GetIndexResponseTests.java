@@ -72,10 +72,6 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
 
     @Override
     protected GetIndexResponse createTestInstance() {
-        return createTestInstance(false);
-    }
-
-    private GetIndexResponse createTestInstance(boolean randomTypeName) {
         String[] indices = generateRandomStringArray(5, 5, false, false);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
@@ -86,7 +82,7 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         for (String index: indices) {
             // rarely have no types
             int typeCount = rarely() ? 0 : 1;
-            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, randomTypeName));
+            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, false));
 
             List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);

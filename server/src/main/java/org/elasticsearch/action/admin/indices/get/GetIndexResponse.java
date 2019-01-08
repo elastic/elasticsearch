@@ -265,17 +265,22 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                         }
                         builder.endObject();
                     } else {
-                        MappingMetaData mappings = null;
-                        for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
-                            if (typeEntry.key.equals(MapperService.DEFAULT_MAPPING) == false) {
-                                assert mappings == null;
-                                mappings = typeEntry.value;
-                            }
-                            if (mappings == null) {
-                                // no mappings yet
-                                builder.startObject("mappings").endObject();
-                            } else {
-                                builder.field("mappings", mappings.sourceAsMap());
+                        if (indexMappings.size() == 0) {
+                            // special case where there are no index mappings at all, we still want to output an empty object
+                            builder.startObject("mappings").endObject();
+                        } else {
+                            MappingMetaData mappings = null;
+                            for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
+                                if (typeEntry.key.equals(MapperService.DEFAULT_MAPPING) == false) {
+                                    assert mappings == null;
+                                    mappings = typeEntry.value;
+                                }
+                                if (mappings == null) {
+                                    // no mappings yet
+                                    builder.startObject("mappings").endObject();
+                                } else {
+                                    builder.field("mappings", mappings.sourceAsMap());
+                                }
                             }
                         }
                     }

@@ -684,8 +684,8 @@ public class RecoverySourceHandler {
         } finally {
             try {
                 sendingTickets.acquire(maxConcurrentFileChunks);
-                assert requestSeqIdTracker.getCheckpoint() == seqIdGenerator :
-                    "not all requests completed; checkpoint=" + requestSeqIdTracker.getCheckpoint() + " max_seq_no=" + seqIdGenerator;
+                assert requestSeqIdTracker.getCheckpoint() == seqIdGenerator : "not all requests completed; " +
+                    "completed_requests=" + requestSeqIdTracker.getCheckpoint() + " total_requests=" + seqIdGenerator;
             } finally {
                 if (error.get() != null) {
                     handleErrorOnSendFiles(store, error.get().v1(), error.get().v2());

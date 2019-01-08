@@ -21,9 +21,11 @@ package org.elasticsearch.search.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.lucene.geo.GeoTestUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Rectangle;
@@ -75,11 +78,16 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE
     };
 
-    private XContentBuilder createMapping() throws Exception {
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
+    private XContentBuilder createMapping(boolean prefixTreeSupported) throws Exception {
         XContentBuilder xcb = XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape");
-        if (randomBoolean()) {
+        if (prefixTreeSupported && randomBoolean()) {
             xcb = xcb.field("tree", randomFrom(PREFIX_TREES))
             .field("strategy", randomFrom(SpatialStrategy.RECURSIVE, SpatialStrategy.TERM));
         }
@@ -89,8 +97,12 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testNullShape() throws Exception {
-        String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+
+        String mapping = Strings.toString(createMapping(version.before(Version.V_7_0_0)));
+        client().admin().indices().prepareCreate("test").setSettings(indexSettings)
+            .addMapping("type1", mapping, XContentType.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test", "type1", "aNullshape").setSource("{\"location\": null}", XContentType.JSON)
@@ -100,8 +112,12 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexPointsFilterRectangle() throws Exception {
-        String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+
+        String mapping = Strings.toString(createMapping(version.before(Version.V_7_0_0)));
+        client().admin().indices().prepareCreate("test").setSettings(indexSettings)
+            .addMapping("type1", mapping, XContentType.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -178,8 +194,12 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexedShapeReference() throws Exception {
-        String mapping = Strings.toString(createMapping());
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+
+        String mapping = Strings.toString(createMapping(version.before(Version.V_7_0_0)));
+        client().admin().indices().prepareCreate("test").setSettings(indexSettings)
+            .addMapping("type1", mapping, XContentType.JSON).get();
         createIndex("shapes");
         ensureGreen();
 
@@ -215,8 +235,11 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
-        XContentBuilder mapping = createMapping();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).get();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+
+        XContentBuilder mapping = createMapping(version.before(Version.V_7_0_0));
+        client().admin().indices().prepareCreate("test").setSettings(mapping).addMapping("type1", mapping).get();
         createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
         ensureGreen();
 

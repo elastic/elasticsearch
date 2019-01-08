@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -281,7 +280,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             containsString("line 1:12: [SCORE()] cannot be an argument to a function"));
     }
 
-    private void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
+    protected void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
         try {
             Map<String, Object> result = code.get();
             fail("expected ResponseException but got " + result);
@@ -310,7 +309,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         return runSql(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON), suffix);
     }
 
-    private Map<String, Object> runSql(HttpEntity sql, String suffix) throws IOException {
+    protected Map<String, Object> runSql(HttpEntity sql, String suffix) throws IOException {
         Request request = new Request("POST", "/_sql" + suffix);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
@@ -719,7 +718,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         return Strings.isEmpty(mode) ? StringUtils.EMPTY : ",\"mode\":\"" + mode + "\"";
     }
 
-    private void index(String... docs) throws IOException {
+    protected void index(String... docs) throws IOException {
         Request request = new Request("POST", "/test/_doc/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();

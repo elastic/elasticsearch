@@ -169,7 +169,7 @@ public final class Verifier {
                                 if (!ua.customMessage()) {
                                     boolean useQualifier = ua.qualifier() != null;
                                     List<String> potentialMatches = new ArrayList<>();
-                                    for (Attribute a : p.intputSet()) {
+                                    for (Attribute a : p.inputSet()) {
                                         String nameCandidate = useQualifier ? a.qualifiedName() : a.name();
                                         // add only primitives (object types would only result in another error)
                                         if ((a.dataType() != DataType.UNSUPPORTED) && a.dataType().isPrimitive()) {

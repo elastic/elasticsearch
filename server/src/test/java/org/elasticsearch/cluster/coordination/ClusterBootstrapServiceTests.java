@@ -51,7 +51,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
@@ -83,17 +82,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         transportService = transport.createTransportService(Settings.EMPTY, deterministicTaskQueue.getThreadPool(),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
 
-        clusterBootstrapService = new ClusterBootstrapService(builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 3).build(),
+        clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(),
+            localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
             transportService);
-
-        final Settings settings;
-        if (randomBoolean()) {
-            settings = Settings.builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 3).build();
-        } else {
-            settings = Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build();
-        }
-        clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeName) {
@@ -124,10 +115,6 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
     public void testDoesNothingByDefaultIfUnicastHostsConfigured() {
         testConfiguredIfSettingSet(builder().putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()));
-    }
-
-    public void testDoesNothingByDefaultIfMasterNodeCountConfigured() {
-        testConfiguredIfSettingSet(builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 0));
     }
 
     public void testDoesNothingByDefaultIfMasterNodesConfigured() {

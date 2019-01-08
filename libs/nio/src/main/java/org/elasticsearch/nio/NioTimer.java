@@ -21,41 +21,65 @@ package org.elasticsearch.nio;
 
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.PriorityQueue;
 
-public class NioTimer {
+class NioTimer {
 
     private final PriorityQueue<DelayedTask> tasks;
 
-    public NioTimer() {
-        tasks = new PriorityQueue<>(Comparator.comparingLong(value -> value.deadline));
+    NioTimer() {
+        tasks = new PriorityQueue<>(Comparator.comparingLong(DelayedTask::getDeadline));
     }
 
-    public void schedule(Runnable task, TimeValue timeValue) {
-        long nanos = timeValue.getNanos();
-        long currentTime = System.nanoTime();
-
-
+    Runnable schedule(Runnable task, TimeValue timeValue) {
+        return scheduleAtRelativeTime(task, System.nanoTime() + timeValue.nanos());
     }
 
-    public void scheduleAtRelativeTime(Runnable task, long relativeTime) {
-        tasks.offer(new DelayedTask(relativeTime, task));
+    Runnable scheduleAtRelativeTime(Runnable task, long relativeNanos) {
+        DelayedTask delayedTask = new DelayedTask(relativeNanos, task);
+        tasks.offer(delayedTask);
+        return delayedTask;
     }
 
-    public void pollTasks() {
-        long currentNanos = System.nanoTime();
-
+    Runnable pollTask() {
+        return pollTask(System.nanoTime());
     }
 
-    private static class DelayedTask {
+    Runnable pollTask(long relativeNanos) {
+        DelayedTask task;
+        while ((task = tasks.peek()) != null) {
+            if (relativeNanos - task.deadline >= 0) {
+                tasks.remove();
+                if (task.cancelled == false) {
+                    return task.runnable;
+                }
+            } else {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static class DelayedTask implements Runnable {
 
         private final long deadline;
         private final Runnable runnable;
+        private boolean cancelled = false;
 
         private DelayedTask(long deadline, Runnable runnable) {
             this.deadline = deadline;
             this.runnable = runnable;
+        }
+
+        private long getDeadline() {
+            return deadline;
+        }
+
+        @Override
+        public void run() {
+            cancelled = true;
         }
     }
 }

@@ -5,12 +5,7 @@ Filter documents indexed using the `geo_shape` type.
 
 Requires the <<geo-shape,`geo_shape` Mapping>>.
 
-The `geo_shape` query uses the same grid square representation as the
-`geo_shape` mapping to find documents that have a shape that intersects
-with the query shape. It will also use the same Prefix Tree configuration
-as defined for the field mapping.
-
-The query supports two ways of defining the query shape, either by
+The `geo_shape` query supports two ways of defining the query shape, either by
 providing a whole shape definition, or by referencing the name of a shape
 pre-indexed in another index. Both formats are defined below with
 examples.
@@ -156,9 +151,6 @@ intersects the query geometry.
 has nothing in common with the query geometry.
 * `WITHIN` - Return all documents whose `geo_shape` field
 is within the query geometry.
-* `CONTAINS` - Return all documents whose `geo_shape` field
-contains the query geometry. Note: this is only supported using the
-`recursive` Prefix Tree Strategy deprecated[6.6]
 
 [float]
 ==== Ignore Unmapped

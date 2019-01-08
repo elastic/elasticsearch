@@ -204,12 +204,18 @@ public class SettingTests extends ESTestCase {
 
     static class FooBarValidator implements Setting.Validator<String> {
 
-        public static boolean invoked;
+        public static boolean invokedInIsolation;
+        public static boolean invokedWithDependencies;
+
+        @Override
+        public void validate(String value) {
+            invokedInIsolation = true;
+            assertThat(value, equalTo("foo.bar value"));
+        }
 
         @Override
         public void validate(String value, Map<Setting<String>, String> settings) {
-            invoked = true;
-            assertThat(value, equalTo("foo.bar value"));
+            invokedWithDependencies = true;
             assertTrue(settings.keySet().contains(BAZ_QUX_SETTING));
             assertThat(settings.get(BAZ_QUX_SETTING), equalTo("baz.qux value"));
             assertTrue(settings.keySet().contains(QUUX_QUUZ_SETTING));
@@ -230,7 +236,8 @@ public class SettingTests extends ESTestCase {
                 .put("quux.quuz", "quux.quuz value")
                 .build();
         FOO_BAR_SETTING.get(settings);
-        assertTrue(FooBarValidator.invoked);
+        assertTrue(FooBarValidator.invokedInIsolation);
+        assertTrue(FooBarValidator.invokedWithDependencies);
     }
 
     public void testUpdateNotDynamic() {
@@ -934,7 +941,7 @@ public class SettingTests extends ESTestCase {
 
         final Setting.AffixSetting<String> affixSetting =
             Setting.prefixKeySetting("prefix" + ".",
-                (key) -> Setting.simpleString(key, (value, map) -> {}, Property.Dynamic, Property.NodeScope));
+                key -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
 
         final Consumer<Map<String, String>> consumer = (map) -> {};
         final BiConsumer<String, String> validator = (s1, s2) -> {};

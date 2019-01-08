@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.junit.Assert;
@@ -72,6 +73,10 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
 
     @Override
     protected GetIndexResponse createTestInstance() {
+        return createTestInstance(randomBoolean());
+    }
+
+    private GetIndexResponse createTestInstance(boolean randomTypeName) {
         String[] indices = generateRandomStringArray(5, 5, false, false);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
@@ -82,7 +87,7 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         for (String index: indices) {
             // rarely have no types
             int typeCount = rarely() ? 0 : 1;
-            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, false));
+            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, randomTypeName));
 
             List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
@@ -103,6 +108,12 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         return new GetIndexResponse(
             indices, mappings.build(), aliases.build(), settings.build(), defaultSettings.build()
         );
+    }
+
+    @Override
+    protected GetIndexResponse createXContextTestInstance(XContentType xContentType) {
+        // don't use random type names for XContent roundtrip tests because we cannot parse them back anymore
+        return createTestInstance(false);
     }
 
     @Override

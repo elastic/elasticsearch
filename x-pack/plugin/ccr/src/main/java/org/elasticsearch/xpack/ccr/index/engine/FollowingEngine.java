@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.VersionType;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
@@ -63,7 +65,8 @@ public final class FollowingEngine extends InternalEngine {
          */
         assert operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
         if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            throw new IllegalStateException("a following engine does not accept operations without an assigned sequence number");
+            throw new ElasticsearchStatusException("a following engine does not accept operations without an assigned sequence number",
+                RestStatus.FORBIDDEN);
         }
         assert (operation.origin() == Operation.Origin.PRIMARY) == (operation.versionType() == VersionType.EXTERNAL) :
             "invalid version_type in a following engine; version_type=" + operation.versionType() + "origin=" + operation.origin();

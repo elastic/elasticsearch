@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.util.Collections;
@@ -107,5 +108,16 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         WaitForIndexingCompleteStep.Info info = (WaitForIndexingCompleteStep.Info) result.getInfomationContext();
         assertThat(info.getMessage(), equalTo("the [index.lifecycle.indexing_complete] setting has not been set to " +
             "true on the leader index"));
+    }
+
+    public void testIndexDeleted() {
+        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
+            .metaData(MetaData.builder().build())
+            .build();
+
+        WaitForIndexingCompleteStep step = createRandomInstance();
+        ClusterStateWaitStep.Result result = step.isConditionMet(new Index("this-index-doesnt-exist", "uuid"), clusterState);
+        assertThat(result.isComplete(), is(false));
+        assertThat(result.getInfomationContext(), nullValue());
     }
 }

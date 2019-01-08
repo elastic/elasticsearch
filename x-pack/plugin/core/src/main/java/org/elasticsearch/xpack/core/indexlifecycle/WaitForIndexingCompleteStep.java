@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
@@ -19,6 +21,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction.CCR_METADATA_KEY;
 
 final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
+    private static final Logger logger = LogManager.getLogger(WaitForIndexingCompleteStep.class);
 
     static final String NAME = "wait-for-indexing-complete";
 
@@ -28,7 +31,12 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetaData followerIndex = clusterState.metaData().getIndexSafe(index);
+        IndexMetaData followerIndex = clusterState.metaData().index(index);
+        if (followerIndex == null) {
+            // Index must have been since deleted, ignore it
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            return new Result(false, null);
+        }
         Map<String, String> customIndexMetadata = followerIndex.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
             return new Result(true, null);

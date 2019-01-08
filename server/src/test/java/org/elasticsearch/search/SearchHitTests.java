@@ -210,7 +210,6 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
         assertEquals("{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":1.5}", Strings.toString(builder));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37214")
     public void testSerializeShardTarget() throws Exception {
         String clusterAlias = randomBoolean() ? null : "cluster_alias";
         SearchShardTarget target = new SearchShardTarget("_node_id", new ShardId(new Index("_index", "_na_"), 0),
@@ -240,7 +239,7 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
 
         SearchHits hits = new SearchHits(new SearchHit[]{hit1, hit2}, 2, 1f);
 
-        Version version = VersionUtils.randomVersion(random());
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.CURRENT);
         SearchHits results = copyStreamable(hits, getNamedWriteableRegistry(), SearchHits::new, version);
         SearchShardTarget deserializedTarget = results.getAt(0).getShard();
         assertThat(deserializedTarget, equalTo(target));

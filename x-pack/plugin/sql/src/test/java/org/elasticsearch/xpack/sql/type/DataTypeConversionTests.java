@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.BYTE;
 import static org.elasticsearch.xpack.sql.type.DataType.DATE;

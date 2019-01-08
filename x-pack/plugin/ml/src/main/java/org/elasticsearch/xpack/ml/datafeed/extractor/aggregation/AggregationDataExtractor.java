@@ -24,11 +24,8 @@ class AggregationDataExtractor extends AbstractAggregationDataExtractor<SearchRe
 
     @Override
     protected SearchRequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
-
         return new SearchRequestBuilder(client, SearchAction.INSTANCE)
             .setSource(searchSourceBuilder)
-            .setIndices(context.indices)
-            .setTypes(context.types);
+            .setIndices(context.indices);
     }
-
 }

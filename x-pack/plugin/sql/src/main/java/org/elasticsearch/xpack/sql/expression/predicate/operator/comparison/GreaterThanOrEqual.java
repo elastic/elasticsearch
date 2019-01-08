@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class GreaterThanOrEqual extends BinaryComparison implements Negatable<BinaryComparison> {
 
-    public GreaterThanOrEqual(Location location, Expression left, Expression right) {
-        super(location, left, right, BinaryComparisonOperation.GTE);
+    public GreaterThanOrEqual(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryComparisonOperation.GTE);
     }
 
     @Override
@@ -24,16 +24,16 @@ public class GreaterThanOrEqual extends BinaryComparison implements Negatable<Bi
 
     @Override
     protected GreaterThanOrEqual replaceChildren(Expression newLeft, Expression newRight) {
-        return new GreaterThanOrEqual(location(), newLeft, newRight);
+        return new GreaterThanOrEqual(source(), newLeft, newRight);
     }
 
     @Override
     public LessThanOrEqual swapLeftAndRight() {
-        return new LessThanOrEqual(location(), right(), left());
+        return new LessThanOrEqual(source(), right(), left());
     }
 
     @Override
     public LessThan negate() {
-        return new LessThan(location(), left(), right());
+        return new LessThan(source(), left(), right());
     }
 }

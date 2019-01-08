@@ -115,11 +115,45 @@ setup:
           - query:
               match: {foo: foo}
 
-  - match:  { responses.0.hits.total.value:     2  }
+  - match:  { responses.0.hits.total.value:     2   }
   - match:  { responses.0.hits.total.relation:  eq  }
-  - match:  { responses.1.hits.total.value:     1  }
+  - match:  { responses.1.hits.total.value:     1   }
   - match:  { responses.1.hits.total.relation:  eq  }
-  - match:  { responses.2.hits.total.value:     1  }
+  - match:  { responses.2.hits.total.value:     1   }
   - match:  { responses.2.hits.total.relation:  eq  }
+
+  - do:
+      msearch:
+        body:
+        - index: index_*
+        - { query: { match: {foo: foo}}, track_total_hits: 1 }
+        - index: index_2
+        - query:
+            match_all: {}
+        - index: index_1
+        - query:
+            match: {foo: foo}
+
+  - match:  { responses.0.hits.total.value:     1    }
+  - match:  { responses.0.hits.total.relation:  gte  }
+  - match:  { responses.1.hits.total.value:     1    }
+  - match:  { responses.1.hits.total.relation:  eq   }
+  - match:  { responses.2.hits.total.value:     1    }
+  - match:  { responses.2.hits.total.relation:  eq   }
+
+  - do:
+      catch: /\[rest_total_hits_as_int\] cannot be used if the tracking of total hits is not accurate, got 10/
+      msearch:
+        rest_total_hits_as_int: true
+        body:
+          - index: index_*
+          - { query: { match_all: {}}, track_total_hits: 10}
+          - index: index_2
+          - query:
+              match_all: {}
+          - index: index_1
+          - query:
+              match: {foo: foo}
+
 
 

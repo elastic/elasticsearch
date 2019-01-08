@@ -53,3 +53,9 @@ dependencyLicenses {
 run {
     plugin xpackModule('core')
 }
+
+testingConventions.naming {
+    IT {
+        baseClass "org.elasticsearch.xpack.CcrIntegTestCase"
+    }
+}

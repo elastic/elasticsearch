@@ -85,7 +85,12 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(SHARD_FOLLOW_TASKS.getPreferredName(), shardFollowTaskInfos);
-            String message = "Waiting for [" + shardFollowTaskInfos.size() + "] shard follow tasks to be in sync";
+            String message;
+            if (shardFollowTaskInfos.size() > 0) {
+                message = "Waiting for [" + shardFollowTaskInfos.size() + "] shard follow tasks to be in sync";
+            } else {
+                message = "Waiting for following to be unpaused and all shard follow tasks to be up to date";
+            }
             builder.field(MESSAGE.getPreferredName(), message);
             builder.endObject();
             return builder;

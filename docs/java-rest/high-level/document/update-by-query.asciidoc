@@ -125,7 +125,7 @@ include::../execution.asciidoc[]
 [id="{upid}-{api}-response"]
 ==== Update By Query Response
 
-The returned +{resposne}+ contains information about the executed operations and
+The returned +{response}+ contains information about the executed operations and
 allows to iterate over each result as follows:
 
 ["source","java",subs="attributes,callouts,macros"]

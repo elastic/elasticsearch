@@ -5,20 +5,30 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
+import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
@@ -28,14 +38,16 @@ import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
-import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -49,6 +61,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private static SqlParser parser;
     private static Analyzer analyzer;
+    private static Optimizer optimizer;
+    private static Planner planner;
 
     @BeforeClass
     public static void init() {
@@ -57,7 +71,9 @@ public class QueryTranslatorTests extends ESTestCase {
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(Configuration.DEFAULT, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        optimizer = new Optimizer();
+        planner = new Planner();
     }
 
     @AfterClass
@@ -68,6 +84,10 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private LogicalPlan plan(String sql) {
         return analyzer.analyze(parser.createStatement(sql), true);
+    }
+    
+    private PhysicalPlan optimizeAndPlan(String sql) {
+        return  planner.plan(optimizer.optimize(plan(sql)), true);
     }
 
     public void testTermEqualityAnalyzer() {
@@ -246,9 +266,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testTranslateIsNullExpression_HavingClause_Painless() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IS NULL");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
@@ -260,9 +279,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testTranslateIsNotNullExpression_HavingClause_Painless() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IS NOT NULL");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
@@ -329,9 +347,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testTranslateInExpression_HavingClause_Painless() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IN (10, 20, 30 - 10)");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
@@ -344,9 +361,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testTranslateInExpression_HavingClause_PainlessOneArg() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IN (10, 30 - 20)");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
@@ -360,9 +376,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testTranslateInExpression_HavingClause_PainlessAndNullHandling() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IN (10, null, 20, 30, null, 30 - 10)");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
@@ -379,9 +394,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING " +
             operation.name() + "(max(int)) > 10");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
@@ -391,5 +405,95 @@ public class QueryTranslatorTests extends ESTestCase {
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
+    }
+
+    public void testGroupByAndHavingWithFunctionOnTopOfAggregation() {
+        LogicalPlan p = plan("SELECT keyword, MAX(int) FROM test GROUP BY 1 HAVING ABS(MAX(int)) > 10");
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.abs" +
+                "(params.a0),params.v0))",
+            aggFilter.scriptTemplate().toString());
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
+    }
+
+    public void testTranslateCoalesce_GroupBy_Painless() {
+        LogicalPlan p = plan("SELECT COALESCE(int, 10) FROM test GROUP BY 1");
+        assertTrue(p instanceof Aggregate);
+        Expression condition = ((Aggregate) p).groupings().get(0);
+        assertFalse(condition.foldable());
+        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0),params.v1])",
+            scriptTemplate.toString());
+        assertEquals("[{v=int}, {v=10}]", scriptTemplate.params().toString());
+    }
+
+    public void testTranslateNullIf_GroupBy_Painless() {
+        LogicalPlan p = plan("SELECT NULLIF(int, 10) FROM test GROUP BY 1");
+        assertTrue(p instanceof Aggregate);
+        Expression condition = ((Aggregate) p).groupings().get(0);
+        assertFalse(condition.foldable());
+        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils.nullif(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)",
+            scriptTemplate.toString());
+        assertEquals("[{v=int}, {v=10}]", scriptTemplate.params().toString());
+    }
+
+    public void testGroupByDateHistogram() {
+        LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(int, 1000)");
+        assertTrue(p instanceof Aggregate);
+        Aggregate a = (Aggregate) p;
+        List<Expression> groupings = a.groupings();
+        assertEquals(1, groupings.size());
+        Expression exp = groupings.get(0);
+        assertEquals(Histogram.class, exp.getClass());
+        Histogram h = (Histogram) exp;
+        assertEquals(1000, h.interval().fold());
+        Expression field = h.field();
+        assertEquals(FieldAttribute.class, field.getClass());
+        assertEquals(DataType.INTEGER, field.dataType());
+    }
+
+    public void testGroupByHistogram() {
+        LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(date, INTERVAL 2 YEARS)");
+        assertTrue(p instanceof Aggregate);
+        Aggregate a = (Aggregate) p;
+        List<Expression> groupings = a.groupings();
+        assertEquals(1, groupings.size());
+        Expression exp = groupings.get(0);
+        assertEquals(Histogram.class, exp.getClass());
+        Histogram h = (Histogram) exp;
+        assertEquals("+2-0", h.interval().fold().toString());
+        Expression field = h.field();
+        assertEquals(FieldAttribute.class, field.getClass());
+        assertEquals(DataType.DATE, field.dataType());
+    }
+    
+    public void testCountDistinctCardinalityFolder() {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT keyword) cnt FROM test GROUP BY bool HAVING cnt = 0");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("cnt{a->"));
+        
+        Collection<AggregationBuilder> subAggs = ee.queryContainer().aggs().asAggBuilder().getSubAggregations();
+        assertEquals(1, subAggs.size());
+        assertTrue(subAggs.toArray()[0] instanceof CardinalityAggregationBuilder);
+        
+        CardinalityAggregationBuilder cardinalityAgg = (CardinalityAggregationBuilder) subAggs.toArray()[0];
+        assertEquals("keyword", cardinalityAgg.field());
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("{\"buckets_path\":{\"a0\":\"" + cardinalityAgg.getName() +"\"},\"script\":{"
+                        + "\"source\":\"InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(params.a0,params.v0))\","
+                        + "\"lang\":\"painless\",\"params\":{\"v0\":0}},\"gap_policy\":\"skip\"}}}}}"));
     }
 }

@@ -89,7 +89,6 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
     private DatafeedConfig createDatafeed(boolean shouldDetectDelayedData, TimeValue delayedDatacheckWindow) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("id", "jobId");
         builder.setIndices(Collections.singletonList("index1"));
-        builder.setTypes(Collections.singletonList("doc"));
 
         if (shouldDetectDelayedData) {
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(delayedDatacheckWindow));

@@ -139,7 +139,7 @@ public class XPackSettings {
      * Do not allow insecure hashing algorithms to be used for password hashing
      */
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
-        "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), (v, s) -> {
+        "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), v -> {
         if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
             throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
                 Hasher.getAvailableAlgoStoredHash().toString());

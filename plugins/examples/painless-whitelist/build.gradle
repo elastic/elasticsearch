@@ -35,4 +35,4 @@ if (System.getProperty('tests.distribution') == null) {
   integTestCluster.distribution = 'oss-zip'
 }
 
-test.enabled = false
+unitTest.enabled = false

@@ -373,18 +373,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected final void beforeInternal() throws Exception {
         final Scope currentClusterScope = getCurrentClusterScope();
+        Callable<Void> setup = () -> {
+            cluster().beforeTest(random(), getPerTestTransportClientRatio());
+            cluster().wipe(excludeTemplates());
+            randomIndexTemplate();
+            return null;
+        };
         switch (currentClusterScope) {
             case SUITE:
                 assert SUITE_SEED != null : "Suite seed was not initialized";
                 currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED);
+                RandomizedContext.current().runWithPrivateRandomness(SUITE_SEED, setup);
                 break;
             case TEST:
                 currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
+                setup.call();
                 break;
         }
-        cluster().beforeTest(random(), getPerTestTransportClientRatio());
-        cluster().wipe(excludeTemplates());
-        randomIndexTemplate();
+
     }
 
     private void printTestMessage(String message) {
@@ -1948,6 +1954,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             @Override
+            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+                return ESIntegTestCase.this.addExtraClusterBootstrapSettings(allNodesSettings);
+            }
+
+            @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return ESIntegTestCase.this.nodeConfigPath(nodeOrdinal);
             }
@@ -1973,6 +1984,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 return Collections.unmodifiableCollection(plugins);
             }
         };
+    }
+
+    /**
+     * This method is called before starting a collection of nodes.
+     * At this point the test has a holistic view on all nodes settings and might perform settings adjustments as needed.
+     * For instance, the test could retrieve master node names and fill in
+     * {@link org.elasticsearch.cluster.coordination.ClusterBootstrapService#INITIAL_MASTER_NODES_SETTING} setting.
+     *
+     * @param allNodesSettings list of node settings before update
+     * @return list of node settings after update
+     */
+    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+        return allNodesSettings;
     }
 
     /**

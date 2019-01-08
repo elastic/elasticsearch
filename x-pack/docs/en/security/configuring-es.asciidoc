@@ -2,25 +2,25 @@
 [[configuring-security]]
 == Configuring security in {es}
 ++++
-<titleabbrev>Configuring Security</titleabbrev>
+<titleabbrev>Configuring security</titleabbrev>
 ++++
 
-{security} enables you to easily secure a cluster. With {security}, you can
+The {es} {security-features} enable you to easily secure a cluster. You can
 password-protect your data as well as implement more advanced security measures
 such as encrypting communications, role-based access control, IP filtering, and
 auditing. For more information, see
-{xpack-ref}/elasticsearch-security.html[Securing the Elastic Stack].
+{stack-ov}/elasticsearch-security.html[Securing the {stack}].
 
-To use {security} in {es}:
+To use {es} {security-features}:
 
-. Verify that you are using a license that includes the {security} feature.
+. Verify that you are using a license that includes the {security-features}.
 +
 --
-If you want to try all of the {xpack} features, you can start a 30-day trial. At
-the end of the trial period, you can purchase a subscription to keep using the
-full functionality of the {xpack} components. For more information, see
+If you want to try all of the platinum features, you can start a 30-day trial.
+At the end of the trial period, you can purchase a subscription to keep using
+the full functionality. For more information, see
 https://www.elastic.co/subscriptions and
-{xpack-ref}/license-management.html[License Management].
+{stack-ov}/license-management.html[License Management].
 --
 
 . Verify that the `xpack.security.enabled` setting is `true` on each node in
@@ -37,7 +37,7 @@ NOTE: This requirement applies to clusters with more than one node and to
 clusters with a single node that listens on an external interface. Single-node
 clusters that use a loopback interface do not have this requirement.  For more
 information, see
-{xpack-ref}/encrypting-communications.html[Encrypting Communications].
+{stack-ov}/encrypting-communications.html[Encrypting Communications].
 
 --
 .. <<node-certificates,Generate node certificates for each of your {es} nodes>>.
@@ -49,7 +49,7 @@ information, see
 . Set the passwords for all built-in users.
 +
 --
-{security} provides
+The {es} {security-features} provide
 {stack-ov}/built-in-users.html[built-in users] to
 help you get up and running. The +elasticsearch-setup-passwords+ command is the
 simplest method to set the built-in users' passwords for the first time.
@@ -126,7 +126,7 @@ curl -XPOST -u elastic 'localhost:9200/_security/user/johndoe' -H "Content-Type:
 xpack.security.audit.enabled: true
 ----------------------------
 +
-For more information, see {xpack-ref}/auditing.html[Auditing Security Events] 
+For more information, see {stack-ov}/auditing.html[Auditing Security Events] 
 and <<auditing-settings>>. 
 
 .. Restart {es}.

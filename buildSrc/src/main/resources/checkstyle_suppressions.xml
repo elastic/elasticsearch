@@ -49,16 +49,6 @@
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]monitor[/\\]jvm[/\\]HotThreads.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]node[/\\]Node.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]PluginsService.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]RepositoriesService.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]Repository.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]VerifyNodeRepositoryAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]blobstore[/\\]BlobStoreRepository.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]blobstore[/\\]ChecksumBlobStoreFormat.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]fs[/\\]FsRepository.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]RestController.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]action[/\\]cat[/\\]RestIndicesAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]action[/\\]cat[/\\]RestShardsAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]action[/\\]cat[/\\]RestThreadPoolAction.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]ScriptService.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]search[/\\]MultiValueMode.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]search[/\\]aggregations[/\\]AggregatorFactories.java" checks="LineLength" />
@@ -111,7 +101,6 @@
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]deps[/\\]joda[/\\]SimpleJodaTests.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]env[/\\]EnvironmentTests.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]env[/\\]NodeEnvironmentTests.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]explain[/\\]ExplainActionIT.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]get[/\\]GetActionIT.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]indexing[/\\]IndexActionIT.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]monitor[/\\]jvm[/\\]JvmGcMonitorServiceSettingsTests.java" checks="LineLength" />
@@ -120,7 +109,8 @@
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]recovery[/\\]RecoveryWhileUnderLoadIT.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]recovery[/\\]RelocationIT.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]recovery[/\\]TruncatedRecoveryIT.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]BytesRestResponseTests.java" checks="LineLength" />
+  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]indexing[/\\]IndexActionIT.java" checks="LineLength" />
+  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]monitor[/\\]jvm[/\\]JvmGcMonitorServiceSettingsTests.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]routing[/\\]AliasRoutingIT.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]routing[/\\]SimpleRoutingIT.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]ScriptServiceTests.java" checks="LineLength" />

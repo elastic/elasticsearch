@@ -59,11 +59,13 @@ public class VerifyNodeRepositoryAction {
 
     private final RepositoriesService repositoriesService;
 
-    public VerifyNodeRepositoryAction(TransportService transportService, ClusterService clusterService, RepositoriesService repositoriesService) {
+    public VerifyNodeRepositoryAction(TransportService transportService, ClusterService clusterService,
+                                      RepositoriesService repositoriesService) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SNAPSHOT, new VerifyNodeRepositoryRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SNAPSHOT,
+            new VerifyNodeRepositoryRequestHandler());
     }
 
     public void verify(String repository, boolean readOnly, String verificationToken, final ActionListener<VerifyResponse> listener) {
@@ -93,28 +95,31 @@ public class VerifyNodeRepositoryAction {
                     finishVerification(listener, nodes, errors);
                 }
             } else {
-                transportService.sendRequest(node, ACTION_NAME, new VerifyNodeRepositoryRequest(repository, verificationToken), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                    @Override
-                    public void handleResponse(TransportResponse.Empty response) {
-                        if (counter.decrementAndGet() == 0) {
-                            finishVerification(listener, nodes, errors);
+                transportService.sendRequest(node, ACTION_NAME, new VerifyNodeRepositoryRequest(repository, verificationToken),
+                    new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                        @Override
+                        public void handleResponse(TransportResponse.Empty response) {
+                            if (counter.decrementAndGet() == 0) {
+                                finishVerification(listener, nodes, errors);
+                            }
                         }
-                    }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        errors.add(new VerificationFailure(node.getId(), exp));
-                        if (counter.decrementAndGet() == 0) {
-                            finishVerification(listener, nodes, errors);
+                        @Override
+                        public void handleException(TransportException exp) {
+                            errors.add(new VerificationFailure(node.getId(), exp));
+                            if (counter.decrementAndGet() == 0) {
+                                finishVerification(listener, nodes, errors);
+                            }
                         }
-                    }
-                });
+                    });
             }
         }
     }
 
-    public void finishVerification(ActionListener<VerifyResponse> listener, List<DiscoveryNode> nodes, CopyOnWriteArrayList<VerificationFailure> errors) {
-        listener.onResponse(new RepositoriesService.VerifyResponse(nodes.toArray(new DiscoveryNode[nodes.size()]), errors.toArray(new VerificationFailure[errors.size()])));
+    public void finishVerification(ActionListener<VerifyResponse> listener, List<DiscoveryNode> nodes,
+                                   CopyOnWriteArrayList<VerificationFailure> errors) {
+        listener.onResponse(new RepositoriesService.VerifyResponse(nodes.toArray(new DiscoveryNode[nodes.size()]),
+            errors.toArray(new VerificationFailure[errors.size()])));
     }
 
     private void doVerify(String repositoryName, String verificationToken, DiscoveryNode localNode) {

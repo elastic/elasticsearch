@@ -111,62 +111,63 @@ public class RepositoriesService implements ClusterStateApplier {
             return;
         }
 
-        clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                ensureRepositoryNotInUse(currentState, request.name);
-                MetaData metaData = currentState.metaData();
-                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
-                if (repositories == null) {
-                    logger.info("put repository [{}]", request.name);
-                    repositories = new RepositoriesMetaData(
-                        Collections.singletonList(new RepositoryMetaData(request.name, request.type, request.settings)));
-                } else {
-                    boolean found = false;
-                    List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(repositories.repositories().size() + 1);
-
-                    for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
-                        if (repositoryMetaData.name().equals(newRepositoryMetaData.name())) {
-                            if (newRepositoryMetaData.equals(repositoryMetaData)) {
-                                // Previous version is the same as this one no update is needed.
-                                return currentState;
-                            }
-                            found = true;
-                            repositoriesMetaData.add(newRepositoryMetaData);
-                        } else {
-                            repositoriesMetaData.add(repositoryMetaData);
-                        }
-                    }
-                    if (!found) {
-                        logger.info("put repository [{}]", request.name);
-                        repositoriesMetaData.add(new RepositoryMetaData(request.name, request.type, request.settings));
-                    } else {
-                        logger.info("update repository [{}]", request.name);
-                    }
-                    repositories = new RepositoriesMetaData(repositoriesMetaData);
+        clusterService.submitStateUpdateTask(request.cause,
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
+                @Override
+                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                    return new ClusterStateUpdateResponse(acknowledged);
                 }
-                mdBuilder.putCustom(RepositoriesMetaData.TYPE, repositories);
-                return ClusterState.builder(currentState).metaData(mdBuilder).build();
-            }
 
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", request.name), e);
-                super.onFailure(source, e);
-            }
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    ensureRepositoryNotInUse(currentState, request.name);
+                    MetaData metaData = currentState.metaData();
+                    MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+                    RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
+                    if (repositories == null) {
+                        logger.info("put repository [{}]", request.name);
+                        repositories = new RepositoriesMetaData(
+                            Collections.singletonList(new RepositoryMetaData(request.name, request.type, request.settings)));
+                    } else {
+                        boolean found = false;
+                        List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(repositories.repositories().size() + 1);
 
-            @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                // repository is created on both master and data nodes
-                return discoveryNode.isMasterNode() || discoveryNode.isDataNode();
-            }
-        });
+                        for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
+                            if (repositoryMetaData.name().equals(newRepositoryMetaData.name())) {
+                                if (newRepositoryMetaData.equals(repositoryMetaData)) {
+                                    // Previous version is the same as this one no update is needed.
+                                    return currentState;
+                                }
+                                found = true;
+                                repositoriesMetaData.add(newRepositoryMetaData);
+                            } else {
+                                repositoriesMetaData.add(repositoryMetaData);
+                            }
+                        }
+                        if (!found) {
+                            logger.info("put repository [{}]", request.name);
+                            repositoriesMetaData.add(new RepositoryMetaData(request.name, request.type, request.settings));
+                        } else {
+                            logger.info("update repository [{}]", request.name);
+                        }
+                        repositories = new RepositoriesMetaData(repositoriesMetaData);
+                    }
+                    mdBuilder.putCustom(RepositoriesMetaData.TYPE, repositories);
+                    return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", request.name), e);
+                    super.onFailure(source, e);
+                }
+
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    // repository is created on both master and data nodes
+                    return discoveryNode.isMasterNode() || discoveryNode.isDataNode();
+                }
+            });
     }
     /**
      * Unregisters repository in the cluster
@@ -323,7 +324,8 @@ public class RepositoriesService implements ClusterStateApplier {
                             } catch (RepositoryException ex) {
                                 // TODO: this catch is bogus, it means the old repo is already closed,
                                 // but we have nothing to replace it
-                                logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]", repositoryMetaData.name()), ex);
+                                logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]",
+                                    repositoryMetaData.name()), ex);
                             }
                         }
                     } else {
@@ -411,7 +413,8 @@ public class RepositoriesService implements ClusterStateApplier {
             repository.start();
             return repository;
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("failed to create repository [{}][{}]", repositoryMetaData.type(), repositoryMetaData.name()), e);
+            logger.warn(new ParameterizedMessage("failed to create repository [{}][{}]",
+                repositoryMetaData.type(), repositoryMetaData.name()), e);
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", e);
         }
     }

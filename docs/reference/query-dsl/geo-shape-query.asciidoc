@@ -140,9 +140,6 @@ GET /example/_search
 
 ==== Spatial Relations
 
-The <<spatial-strategy, geo_shape strategy>> mapping parameter determines
-which spatial relation operators may be used at search time.
-
 The following is a complete list of spatial relation operators available:
 
 * `INTERSECTS` - (default) Return all documents whose `geo_shape` field

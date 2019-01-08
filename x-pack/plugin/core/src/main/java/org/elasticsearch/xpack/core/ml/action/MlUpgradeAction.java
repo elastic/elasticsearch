@@ -45,7 +45,7 @@ public class MlUpgradeAction extends Action<AcknowledgedResponse> {
 
         private static final ParseField REINDEX_BATCH_SIZE = new ParseField("reindex_batch_size");
 
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>("ml_results_upgrade", true, Request::new);
+        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>("ml_upgrade", true, Request::new);
         static {
             PARSER.declareInt(Request::setReindexBatchSize, REINDEX_BATCH_SIZE);
         }
@@ -133,7 +133,7 @@ public class MlUpgradeAction extends Action<AcknowledgedResponse> {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
+            return new CancellableTask(id, type, action, "ml-upgrade", parentTaskId, headers) {
                 @Override
                 public boolean shouldCancelChildrenOnCancellation() {
                     return true;

@@ -36,7 +36,7 @@ public class TypedChainTaskExecutor<T> {
      * Creates a new TypedChainTaskExecutor.
      * Each chainedTask is executed in order serially and after each execution the continuationPredicate is tested.
      *
-     * On failures teh failureShortCircuitPredicate is tested.
+     * On failures the failureShortCircuitPredicate is tested.
      *
      * @param executorService The service where to execute the tasks
      * @param continuationPredicate The predicate to test on whether to execute the next task or not.

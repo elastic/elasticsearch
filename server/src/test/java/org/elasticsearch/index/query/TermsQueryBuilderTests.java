@@ -330,7 +330,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
 
         TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
-        if (termsQuery.termsLookup() != null && termsQuery.termsLookup().type() != null) {
+        if (termsQuery.isTypeless() == false) {
             assertWarnings(TermsQueryBuilder.TYPES_DEPRECATION_MESSAGE);
         }
         return query;

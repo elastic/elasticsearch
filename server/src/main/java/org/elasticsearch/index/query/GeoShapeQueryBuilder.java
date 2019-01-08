@@ -162,7 +162,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             throw new IllegalArgumentException("fieldName is required");
         }
         if (shape == null && indexedShapeId == null) {
-            throw new IllegalArgumentException("either shapeBytes or indexedShapeId is required");
+            throw new IllegalArgumentException("either shape or indexedShapeId is required");
         }
         this.fieldName = fieldName;
         this.shape = shape;

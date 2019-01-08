@@ -218,6 +218,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return this.termsLookup;
     }
 
+    public boolean isTypeless() {
+        return termsLookup == null || termsLookup.type() == null;
+    }
+
     private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
             Arrays.asList(Byte.class, Short.class, Integer.class, Long.class));
     private static final Set<Class<?>> STRING_TYPES = new HashSet<>(
@@ -399,13 +403,15 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     "followed by array of terms or a document lookup specification");
         }
 
-        if (termsLookup != null && termsLookup.type() != null) {
+        TermsQueryBuilder builder = new TermsQueryBuilder(fieldName, values, termsLookup)
+            .boost(boost)
+            .queryName(queryName);
+
+        if (builder.isTypeless() == false) {
             deprecationLogger.deprecatedAndMaybeLog("terms_lookup_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
-        return new TermsQueryBuilder(fieldName, values, termsLookup)
-                .boost(boost)
-                .queryName(queryName);
+        return builder;
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {

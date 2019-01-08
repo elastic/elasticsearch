@@ -38,13 +38,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class ClusterService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(ClusterService.class);
@@ -73,18 +71,12 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final String nodeName;
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
-        MasterService masterService, Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorFactory) {
-        this(settings, clusterSettings, masterService,
-            new ClusterApplierService(settings, clusterSettings, threadPool, threadPoolExecutorFactory));
-    }
-
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this(settings, clusterSettings, new MasterService(Node.NODE_NAME_SETTING.get(settings), settings, threadPool),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool));
     }
 
-    private ClusterService(Settings settings, ClusterSettings clusterSettings, MasterService masterService,
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, MasterService masterService,
         ClusterApplierService clusterApplierService) {
         super(settings);
         this.settings = settings;

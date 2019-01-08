@@ -60,6 +60,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -384,28 +385,30 @@ public class SnapshotsServiceTests extends ESTestCase {
             final Settings settings = environment.settings();
             final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool = deterministicTaskQueue.getThreadPool();
-            final Deque<Runnable> orderedTasks = new ArrayDeque<>();
-            clusterService = new ClusterService(settings, clusterSettings, threadPool, masterService,
-                () -> new PrioritizedEsThreadPoolExecutor(node.getName(), 1, 1, 1, TimeUnit.SECONDS,
-                    r -> new Thread() {
-                        @Override
-                        public void start() {
-                            throw new UnsupportedOperationException();
-                        }
-                    },
-                    null, null) {
-
+            clusterService = new ClusterService(settings, clusterSettings, masterService,
+                new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                     @Override
-                    public void execute(Runnable command, TimeValue timeout, Runnable timeoutCallback) {
-                        throw new UnsupportedOperationException();
-                    }
+                    protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                        return new PrioritizedEsThreadPoolExecutor(node.getName(), 1, 1, 1, TimeUnit.SECONDS,
+                            r -> {
+                                throw new UnsupportedOperationException();
+                            }, null, null) {
 
-                    @Override
-                    public void execute(Runnable command) {
-                        // Ensure ordered execution of the tasks here since the threadpool we're
-                        // mocking out is single threaded
-                        orderedTasks.addLast(command);
-                        deterministicTaskQueue.scheduleNow(() -> orderedTasks.pollFirst().run());
+                            private final Deque<Runnable> orderedTasks = new ArrayDeque<>();
+
+                            @Override
+                            public void execute(Runnable command, TimeValue timeout, Runnable timeoutCallback) {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public void execute(Runnable command) {
+                                // Ensure ordered execution of the tasks here since the threadpool we're
+                                // mocking out is single threaded
+                                orderedTasks.addLast(command);
+                                deterministicTaskQueue.scheduleNow(() -> orderedTasks.pollFirst().run());
+                            }
+                        };
                     }
                 });
             mockTransport = new DisruptableMockTransport(logger) {

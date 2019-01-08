@@ -406,7 +406,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                 // Ensure ordered execution of the tasks here since the threadpool we're
                                 // mocking out is single threaded
                                 orderedTasks.addLast(command);
-                                deterministicTaskQueue.scheduleNow(() -> orderedTasks.pollFirst().run());
+                                deterministicTaskQueue.scheduleNow(() -> orderedTasks.removeFirst().run());
                             }
                         };
                     }

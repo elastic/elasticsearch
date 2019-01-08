@@ -68,19 +68,19 @@ public class CCRIT extends AbstractUpgradeTestCase {
                     });
                 } else {
                     index(leaderIndex, "3");
-                    assertDocumentExists(leaderIndex, "3");
+                    assertDocumentExists(leaderIndex, "1", "2", "3");
                     assertBusy(() -> {
                         assertFollowerGlobalCheckpoint(followerIndex, 2);
-                        assertDocumentExists(followerIndex, "3");
+                        assertDocumentExists(followerIndex, "1", "2", "3");
                     });
                 }
                 break;
             case UPGRADED:
                 index(leaderIndex, "4");
-                assertDocumentExists(leaderIndex, "4");
+                assertDocumentExists(leaderIndex, "1", "2", "3", "4");
                 assertBusy(() -> {
                     assertFollowerGlobalCheckpoint(followerIndex, 3);
-                    assertDocumentExists(followerIndex, "4");
+                    assertDocumentExists(followerIndex, "1", "2", "3", "4");
                 });
                 stopIndexFollowing(followerIndex);
                 break;

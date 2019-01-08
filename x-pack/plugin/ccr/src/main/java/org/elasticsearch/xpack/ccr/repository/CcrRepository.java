@@ -265,7 +265,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         String name = metadata.name();
         try (RestoreSession restoreSession = RestoreSession.openSession(name, remoteClient, leaderShardId, indexShard, recoveryState)) {
             restoreSession.restoreFiles();
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new IndexShardRestoreFailedException(indexShard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
         }
 
@@ -298,7 +298,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         private final Client remoteClient;
         private final String sessionUUID;
         private final DiscoveryNode node;
-        private final Store store;
         private final Store.MetadataSnapshot sourceMetaData;
 
         RestoreSession(String repositoryName, Client remoteClient, String sessionUUID, DiscoveryNode node, IndexShard indexShard,
@@ -307,8 +306,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;
-            this.store = indexShard.store();
-            this.store.incRef();
             this.sourceMetaData = sourceMetaData;
         }
 
@@ -338,7 +335,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         @Override
         public void close() {
-            this.store.decRef();
             ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(sessionUUID, node);
             ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse response =
                 remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet();
@@ -383,7 +379,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             if (bytesReceived > bytesRequested) {
                 throw new IOException("More bytes [" + bytesReceived + "] received than requested [" + bytesRequested + "]");
             }
-
+            
             BytesRefIterator iterator = fileChunk.iterator();
             BytesRef ref;
             int bytesWritten = 0;

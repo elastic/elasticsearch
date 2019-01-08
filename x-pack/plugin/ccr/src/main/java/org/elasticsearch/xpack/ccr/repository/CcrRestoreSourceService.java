@@ -238,15 +238,16 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         private Reader(RefCountedCloseable<Engine.IndexCommitRef> session, RefCountedCloseable<IndexInput> input) {
             this.session = session;
             this.input = input;
-            input.incRef();
             session.incRef();
+            input.incRef();
         }
 
         public void readFileBytes(byte[] chunk, long offset, int length) throws IOException {
             synchronized (input.object) {
-                IndexInput in = input.object;
-                in.seek(offset);
-                in.readBytes(chunk, 0, length);
+                try (IndexInput in = input.object.clone()) {
+                    in.seek(offset);
+                    in.readBytes(chunk, 0, length);
+                }
             }
         }
 

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -89,7 +90,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     private final boolean enabled;
     private final Settings settings;
     private final boolean transportClientMode;
-    private DataFrameJobConfigManager dataFrameJobConfigManager;
+    private final SetOnce<DataFrameJobConfigManager> dataFrameJobConfigManager = new SetOnce<>();
 
     public DataFrame(Settings settings) {
         this.settings = settings;
@@ -169,7 +170,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
         DataFrameInitializationService dataFrameInitializationService = new DataFrameInitializationService(clusterService, threadPool,
                 client);
-        dataFrameJobConfigManager = new DataFrameJobConfigManager(client, xContentRegistry);
+        dataFrameJobConfigManager.set(new DataFrameJobConfigManager(client, xContentRegistry));
 
         return Arrays.asList(dataFrameInitializationService, dataFrameJobConfigManager);
     }
@@ -185,8 +186,8 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
         // the job config manager should have been created
         assert dataFrameJobConfigManager != null;
-        return Collections
-                .singletonList(new DataFrameJobPersistentTasksExecutor(client, dataFrameJobConfigManager, schedulerEngine, threadPool));
+        return Collections.singletonList(
+                new DataFrameJobPersistentTasksExecutor(client, dataFrameJobConfigManager.get(), schedulerEngine, threadPool));
     }
 
     @Override

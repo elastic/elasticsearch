@@ -20,14 +20,14 @@ package org.elasticsearch.gradle;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
+import static org.apache.commons.io.FileUtils.readFileToString;
+
 import java.io.IOException;
 import java.io.File;
-import java.io.FileReader;
-import java.io.BufferedReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -67,10 +67,12 @@ public class NoticeTask extends DefaultTask {
         licensesDirs.add(licensesDir);
     }
 
+    @InputFiles
     public List<File> getLicensesDirs() {
         return Collections.unmodifiableList(this.licensesDirs.stream()
-                .map(file -> new File(file.toString())).collect(Collectors.toList()));
+            .map(file -> new File(file.toString())).collect(Collectors.toList()));
     }
+
     /**
      * Add notices from the specified directory.
      */
@@ -89,13 +91,7 @@ public class NoticeTask extends DefaultTask {
     public void generateNotice() throws IOException {
         final StringBuilder output = new StringBuilder();
 
-
-        try (Stream<String> lines = Files.lines(this.inputFile.toPath(), StandardCharsets.UTF_8)) {
-            lines.forEach(s -> {
-                output.append(s.trim());
-                output.append("\n");
-            });
-        }
+        output.append(readFileToString(this.inputFile,"UTF-8"));
         output.append("\n\n");
 
         // This is a map rather than a set so that the sort order is the 3rd
@@ -105,19 +101,23 @@ public class NoticeTask extends DefaultTask {
         licensesDirs.forEach(file -> {
             try (Stream<Path> pathStream = Files.walk(file.toPath())) {
                 pathStream
-//                    .filter(path -> path.endsWith("-NOTICE.txt"))
                     .filter(path -> path.toString().endsWith("-NOTICE.txt"))
                     .map(Path::toFile)
                     .forEach(licenseFile -> {
-                        // Here we remove the "-NOTICE.txt" so the name can be used later for the -LICENSE.txt file
+                        // Here we remove the "-NOTICE.txt" to be used as the base name for the -LICENSE.txt file
                         final String name =
                             licenseFile.getName().substring(0, licenseFile.getName().length() - "-NOTICE.txt".length());
 
                         if (seen.containsKey(name)) {
                             File prevLicenseFile = seen.get(name);
-                            if (getText(prevLicenseFile).equals(getText(licenseFile)) == false) {
-                                throw new RuntimeException("Two different notices exist for dependency '" +
-                                    name + "': " + prevLicenseFile + " and " + licenseFile);
+                            try {
+                                if (readFileToString(prevLicenseFile,"UTF-8")
+                                            .equals(readFileToString(licenseFile,"UTF-8")) == false) {
+                                    throw new RuntimeException("Two different notices exist for dependency '" +
+                                        name + "': " + prevLicenseFile + " and " + licenseFile);
+                                }
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
                             }
                         } else {
                             seen.put(name, licenseFile);
@@ -140,9 +140,9 @@ public class NoticeTask extends DefaultTask {
         Files.write(outputFile.toPath(), output.toString().getBytes());
     }
 
-    private static void appendFileToOutput(File file, final String name, final String type, StringBuilder output) {
-        String text = getText(file);
-
+    private static void appendFileToOutput(File file, final String name, final String type,
+                                           StringBuilder output) throws IOException {
+        String text = readFileToString(file,"UTF-8");
         if (text.trim().isEmpty() == false) {
             output.append("================================================================================\n");
             output.append(name + " " + type + "\n");
@@ -150,24 +150,5 @@ public class NoticeTask extends DefaultTask {
             output.append(text);
             output.append("\n\n");
         }
-    }
-
-
-    private static String getText(File file) {
-        final StringBuilder builder = new StringBuilder();
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            char[] buffer = new char[8192];
-            int read;
-
-            while ((read = reader.read(buffer)) != -1) {
-                builder.append(buffer, 0, read);
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
-            throw new RuntimeException("Unable to read file " + file.toString());
-        }
-        return builder.toString();
     }
 }

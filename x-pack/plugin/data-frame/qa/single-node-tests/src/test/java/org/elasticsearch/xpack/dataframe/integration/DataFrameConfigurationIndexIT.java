@@ -49,7 +49,7 @@ public class DataFrameConfigurationIndexIT extends DataFrameRestTestCase {
         Request deleteRequest = new Request("DELETE", DATAFRAME_ENDPOINT + fakeJobName);
         Response deleteResponse = client().performRequest(deleteRequest);
         assertOK(deleteResponse);
-        assertEquals(true, XContentMapValues.extractValue("acknowledged", entityAsMap(deleteResponse)));
+        assertTrue((boolean)XContentMapValues.extractValue("acknowledged", entityAsMap(deleteResponse)));
 
         // delete again, should fail
         expectThrows(ResponseException.class,() -> client().performRequest(deleteRequest));

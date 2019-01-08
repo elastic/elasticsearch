@@ -23,10 +23,6 @@ abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     protected static final String DATAFRAME_ENDPOINT = DataFrameField.REST_BASE_PATH + "jobs/";
 
-    DataFrameRestTestCase() {
-        super();
-    }
-
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> getDataFrameJobs() throws IOException {
         Response response = adminClient().performRequest(new Request("GET", DATAFRAME_ENDPOINT + "_all"));

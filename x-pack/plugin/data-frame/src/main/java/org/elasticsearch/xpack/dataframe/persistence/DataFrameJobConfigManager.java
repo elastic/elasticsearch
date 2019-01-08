@@ -74,7 +74,8 @@ public class DataFrameJobConfigManager {
                 listener.onResponse(true);
             }, listener::onFailure));
         } catch (IOException e) {
-            listener.onFailure(new ElasticsearchParseException("Failed to serialise job with id [" + jobConfig.getId() + "]", e));
+            listener.onFailure(new ElasticsearchParseException(
+                    DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_FAILED_TO_SERIALIZE_JOB, jobConfig.getId()), e));
         }
     }
 
@@ -83,7 +84,8 @@ public class DataFrameJobConfigManager {
         executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
 
             if (getResponse.isExists() == false) {
-                resultListener.onFailure(new RuntimeException("not found"));
+                resultListener.onFailure(new ResourceNotFoundException(
+                        DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_JOB, jobId)));
                 return;
             }
             BytesReference source = getResponse.getSourceAsBytesRef();
@@ -99,7 +101,7 @@ public class DataFrameJobConfigManager {
 
             if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
                 listener.onFailure(new ResourceNotFoundException(
-                        DataFrameMessages.getMessage(DataFrameMessages.REST_DELETE_DATA_FRAME_UNKNOWN_JOB, jobId)));
+                        DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_JOB, jobId)));
                 return;
             }
             listener.onResponse(true);

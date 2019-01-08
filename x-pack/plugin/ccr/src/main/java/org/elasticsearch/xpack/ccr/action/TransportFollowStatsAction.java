@@ -10,8 +10,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.LicenseUtils;
@@ -37,13 +39,15 @@ public class TransportFollowStatsAction extends TransportTasksAction<
         FollowStatsAction.StatsResponses, FollowStatsAction.StatsResponse> {
 
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final IndexNameExpressionResolver resolver;
 
     @Inject
     public TransportFollowStatsAction(
             final ClusterService clusterService,
             final TransportService transportService,
             final ActionFilters actionFilters,
-            final CcrLicenseChecker ccrLicenseChecker) {
+            final CcrLicenseChecker ccrLicenseChecker,
+            final IndexNameExpressionResolver resolver) {
         super(
                 FollowStatsAction.NAME,
                 clusterService,
@@ -54,6 +58,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
                 FollowStatsAction.StatsResponse::new,
                 Ccr.CCR_THREAD_POOL_NAME);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
+        this.resolver = resolver;
     }
 
     @Override
@@ -65,6 +70,10 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
+
+        String[] concreteIndices =
+            resolver.concreteIndexNames(clusterService.state(), IndicesOptions.strictExpandOpenAndForbidClosed(), request.indices());
+        request.setIndices(concreteIndices);
         super.doExecute(task, request, listener);
     }
 

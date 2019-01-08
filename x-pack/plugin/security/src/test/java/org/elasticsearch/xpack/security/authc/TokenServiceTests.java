@@ -147,7 +147,6 @@ public class TokenServiceTests extends ESTestCase {
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token, false);
-        mockCheckTokenInvalidationFromId(token);
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
@@ -195,7 +194,6 @@ public class TokenServiceTests extends ESTestCase {
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token, false);
-        mockCheckTokenInvalidationFromId(token);
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
@@ -256,7 +254,6 @@ public class TokenServiceTests extends ESTestCase {
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token, false);
-        mockCheckTokenInvalidationFromId(token);
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
@@ -288,7 +285,6 @@ public class TokenServiceTests extends ESTestCase {
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token, false);
-        mockCheckTokenInvalidationFromId(token);
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
@@ -351,7 +347,6 @@ public class TokenServiceTests extends ESTestCase {
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token, false);
-        mockCheckTokenInvalidationFromId(token);
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
@@ -427,7 +422,6 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         mockGetTokenFromId(token, false);
-        mockCheckTokenInvalidationFromId(token);
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);

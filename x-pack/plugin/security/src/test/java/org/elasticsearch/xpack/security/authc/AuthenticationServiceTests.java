@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.index.IndexAction;
@@ -27,7 +28,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -1060,8 +1060,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             threadContext.putHeader("Authorization", invalidHeader);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
                 () -> authenticateBlocking("_action", message, null));
-            assertThat(e.getMessage(), containsString("missing authentication token"));
             assertEquals(RestStatus.UNAUTHORIZED, e.status());
+            assertThat(e.getMessage(), containsString("missing authentication credentials"));
         }
     }
 

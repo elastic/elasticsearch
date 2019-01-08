@@ -91,7 +91,17 @@ class PrecommitTasks {
     }
 
     static Task configureTestingConventions(Project project) {
-        project.getTasks().create("testingConventions", TestingConventionsTasks.class)
+        TestingConventionsTasks task = project.getTasks().create("testingConventions", TestingConventionsTasks.class)
+        task.naming {
+            Tests {
+                baseClass "org.apache.lucene.util.LuceneTestCase"
+            }
+            IT {
+                baseClass "org.elasticsearch.test.ESIntegTestCase"
+                baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+            }
+        }
+        return task
     }
 
     private static Task configureJarHell(Project project) {

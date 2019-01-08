@@ -385,6 +385,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         nonReplicatedSettings.add(IndexSettings.ALLOW_UNMAPPED);
         nonReplicatedSettings.add(IndexSettings.INDEX_SEARCH_IDLE_AFTER);
         nonReplicatedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
+        nonReplicatedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING);
         nonReplicatedSettings.add(IndexSettings.MAX_SCRIPT_FIELDS_SETTING);
         nonReplicatedSettings.add(IndexSettings.MAX_REGEX_LENGTH_SETTING);
         nonReplicatedSettings.add(IndexSettings.MAX_TERMS_COUNT_SETTING);

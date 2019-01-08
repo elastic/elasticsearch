@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -22,6 +21,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class QuotingTests extends ESTestCase {
 
@@ -48,7 +48,7 @@ public class QuotingTests extends ESTestCase {
     public void testMultiSingleQuotedLiteral() {
         String first = "bucket";
         String second = "head";
-        Expression exp = new SqlParser().createExpression(LoggerMessageFormat.format(null, "'{}' '{}'", first, second));
+        Expression exp = new SqlParser().createExpression(format(null, "'{}' '{}'", first, second));
         assertThat(exp, instanceOf(Literal.class));
         Literal l = (Literal) exp;
         assertThat(l.value(), equalTo(first + second));

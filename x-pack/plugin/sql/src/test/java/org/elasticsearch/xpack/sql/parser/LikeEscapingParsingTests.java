@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
@@ -17,13 +16,15 @@ import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+
 public class LikeEscapingParsingTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
 
     private String error(String pattern) {
         ParsingException ex = expectThrows(ParsingException.class,
-                () -> parser.createExpression(LoggerMessageFormat.format(null, "exp LIKE {}", pattern)));
+                () -> parser.createExpression(format(null, "exp LIKE {}", pattern)));
 
         return ex.getMessage();
     }
@@ -34,7 +35,7 @@ public class LikeEscapingParsingTests extends ESTestCase {
         if (parameterized) {
             exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(DataType.KEYWORD.esType, pattern)));
         } else {
-            exp = parser.createExpression(LoggerMessageFormat.format(null, "exp LIKE '{}'", pattern));
+            exp = parser.createExpression(format(null, "exp LIKE '{}'", pattern));
         }
         assertThat(exp, instanceOf(Like.class));
         Like l = (Like) exp;

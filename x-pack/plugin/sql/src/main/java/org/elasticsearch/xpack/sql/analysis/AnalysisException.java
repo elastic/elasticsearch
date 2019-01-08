@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.analysis;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.sql.ClientSqlException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class AnalysisException extends ClientSqlException {
 
@@ -53,6 +54,6 @@ public class AnalysisException extends ClientSqlException {
 
     @Override
     public String getMessage() {
-        return LoggerMessageFormat.format("line {}:{}: {}", getLineNumber(), getColumnNumber(), super.getMessage());
+        return format("line {}:{}: {}", getLineNumber(), getColumnNumber(), super.getMessage());
     }
 }

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.analysis.index;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
@@ -18,6 +17,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class IndexResolverTests extends ESTestCase {
 
@@ -218,14 +219,14 @@ public class IndexResolverTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return LoggerMessageFormat.format("{},{}->{}", getName(), getType(), indices);
+            return format("{},{}->{}", getName(), getType(), indices);
         }
     }
 
     private static <K, V> void assertEqualsMaps(Map<K, V> left, Map<K, V> right) {
         for (Entry<K, V> entry : left.entrySet()) {
             V rv = right.get(entry.getKey());
-            assertEquals(LoggerMessageFormat.format("Key [{}] has different values", entry.getKey()), entry.getValue(), rv);
+            assertEquals(format("Key [{}] has different values", entry.getKey()), entry.getValue(), rv);
         }
     }
     

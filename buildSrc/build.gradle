@@ -223,6 +223,18 @@ if (project != rootProject) {
     integTestClass = 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
   }
 
+  testingConventions {
+    naming.clear()
+    naming {
+      Tests {
+        baseClass 'org.elasticsearch.gradle.test.GradleUnitTestCase'
+      }
+      IT {
+        baseClass 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
+      }
+    }
+  }
+
   /*
    * We alread configure publication and we don't need or want this one that
    * comes from the java-gradle-plugin.

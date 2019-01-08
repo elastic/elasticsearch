@@ -182,9 +182,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertThat(iae.getMessage(), equalTo("No data for shard [0] of index [test] found on node [" + dataNodeWithNoShardCopy + ']'));
 
         logger.info("--> wait until shard is failed and becomes unassigned again");
-        assertBusy(() ->
-            assertTrue(client().admin().cluster().prepareState().get().getState().toString(),
-                client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()));
+        assertTrue(client().admin().cluster().prepareState().get().getState().toString(),
+            client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned());
         assertThat(client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test")
             .getShards().get(0).primaryShard().unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.NODE_LEFT));
     }

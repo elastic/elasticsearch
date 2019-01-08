@@ -87,24 +87,16 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     @Override
     protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state,
                                    final ActionListener<ClusterRerouteResponse> listener) {
-        // Gather all stale primary allocation commands into a map indexed by the index name they correspond to
-        // so we can check if the nodes they correspond to actually have any data for the shard
-        Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations = null;
+        Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations = new HashMap<>();
         for (AllocationCommand command : request.getCommands().commands()) {
             if (command instanceof AllocateStalePrimaryAllocationCommand) {
-                if (stalePrimaryAllocations == null) {
-                    stalePrimaryAllocations = new HashMap<>();
-                }
                 final AllocateStalePrimaryAllocationCommand cmd = (AllocateStalePrimaryAllocationCommand) command;
                 stalePrimaryAllocations.computeIfAbsent(cmd.index(), k -> new ArrayList<>()).add(cmd);
             }
         }
         if (stalePrimaryAllocations == null) {
-            // We don't have any stale primary allocations, we simply execute the state update task for the requested allocations
             submitStateUpdate(request, listener);
         } else {
-            // We get the index shard store status for indices that we want to allocate stale primaries on first to fail requests
-            // where there's no data for a given shard on a given node.
             verifyThenSubmitUpdate(request, listener, stalePrimaryAllocations);
         }
     }

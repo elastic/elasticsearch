@@ -8,6 +8,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -21,6 +22,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37231")
 public class CCRIT extends AbstractUpgradeTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CCRIT.class);

@@ -187,7 +187,7 @@ public class RestShardsAction extends AbstractCatAction {
             "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
         table.addCell("segments.fixed_bitset_memory",
             "alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object" +
-                " field types and type filters for types referred in _parent fields");
+            " field types and type filters for types referred in _parent fields");
 
         table.addCell("seq_no.max", "alias:sqm,maxSeqNo;default:false;text-align:right;desc:max sequence number");
         table.addCell("seq_no.local_checkpoint", "alias:sql,localCheckpoint;default:false;text-align:right;desc:local checkpoint");

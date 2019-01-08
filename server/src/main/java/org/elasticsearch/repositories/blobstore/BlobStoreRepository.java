@@ -905,9 +905,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             } else {
                 throw new RepositoryVerificationException(metadata.name(), "a file written by master to the store [" + blobStore() +
-                    "] cannot be accessed on the node [" + localNode + "]. "
-                    + "This might indicate that the store [" + blobStore() + "] is not shared between this node and the master node or "
-                    + "that permissions on the store don't allow reading files written by the master node");
+                    "] cannot be accessed on the node [" + localNode + "]. " +
+                    "This might indicate that the store [" + blobStore() + "] is not shared between this node and the master node or " +
+                    "that permissions on the store don't allow reading files written by the master node");
             }
         }
     }
@@ -1517,8 +1517,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
                     recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("{} Can't read metadata from store, will not reuse any local" +
-                        " file while restoring", shardId), e);
+                    logger.warn(() -> new ParameterizedMessage("{} Can't read metadata from store, will not reuse any " +
+                        "local file while restoring", shardId), e);
                     recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 }
 

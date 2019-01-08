@@ -352,10 +352,10 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("segments.fixed_bitset_memory",
             "sibling:pri;alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for" +
-                " nested object field types and type filters for types referred in _parent fields");
+            " nested object field types and type filters for types referred in _parent fields");
         table.addCell("pri.segments.fixed_bitset_memory",
             "default:false;text-align:right;desc:memory used by fixed bit sets for nested object" +
-                " field types and type filters for types referred in _parent fields");
+            " field types and type filters for types referred in _parent fields");
 
         table.addCell("warmer.current", "sibling:pri;alias:wc,warmerCurrent;default:false;text-align:right;desc:current warmer ops");
         table.addCell("pri.warmer.current", "default:false;text-align:right;desc:current warmer ops");

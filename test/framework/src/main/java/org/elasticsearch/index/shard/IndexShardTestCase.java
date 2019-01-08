@@ -133,18 +133,26 @@ public abstract class IndexShardTestCase extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool(getClass().getName(), threadPoolSettings());
+        threadPool = setUpThreadPool();
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
         failOnShardFailures();
+    }
+
+    protected ThreadPool setUpThreadPool() {
+        return new TestThreadPool(getClass().getName(), threadPoolSettings());
     }
 
     @Override
     public void tearDown() throws Exception {
         try {
-            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+            tearDownThreadPool();
         } finally {
             super.tearDown();
         }
+    }
+
+    protected void tearDownThreadPool() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
     /**
@@ -697,8 +705,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source, XContentType xContentType,
                                           String routing)
         throws IOException {
-        SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source), xContentType);
-        sourceToParse.routing(routing);
+        SourceToParse sourceToParse = new SourceToParse(
+            shard.shardId().getIndexName(), type, id, new BytesArray(source), xContentType, routing);
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,

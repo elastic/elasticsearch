@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class Sinh extends MathFunction {
-    public Sinh(Location location, Expression field) {
-        super(location, field);
+    public Sinh(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -26,7 +26,7 @@ public class Sinh extends MathFunction {
 
     @Override
     protected Sinh replaceChild(Expression newChild) {
-        return new Sinh(location(), newChild);
+        return new Sinh(source(), newChild);
     }
 
     @Override

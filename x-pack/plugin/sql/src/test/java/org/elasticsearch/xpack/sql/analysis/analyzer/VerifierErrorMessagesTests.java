@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -26,12 +27,13 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 import java.util.Map;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
+
     private SqlParser parser = new SqlParser();
+    private IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
+        TypesTests.loadMapping("mapping-multi-field-with-nested.json")));
 
     private String error(String sql) {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
-        EsIndex test = new EsIndex("test", mapping);
-        return error(IndexResolution.valid(test), sql);
+        return error(indexResolution, sql);
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
@@ -503,5 +505,21 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testAggsInHistogram() {
         assertEquals("1:47: Cannot use an aggregate [MAX] for grouping",
                 error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
+    }
+
+    public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
+            "SELECT PERCENTILE(int, ABS(int)) FROM test"), true));
+        assertEquals("2nd argument of PERCENTILE must be constant, received [ABS(int)]",
+            e.getMessage());
+    }
+
+    public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
+            "SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"), true));
+        assertEquals("2nd argument of PERCENTILE_RANK must be constant, received [ABS(int)]",
+            e.getMessage());
     }
 }

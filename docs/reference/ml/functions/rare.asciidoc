@@ -27,7 +27,7 @@ with shorter bucket spans typically being measured in minutes, not hours.
 for typical data.
 ====
 
-The {xpackml} features include the following rare functions:
+The {ml-features} include the following rare functions:
 
 * <<ml-rare,`rare`>>
 * <<ml-freq-rare,`freq_rare`>>
@@ -85,7 +85,7 @@ different rare status codes compared to the population is regarded as highly
 anomalous. This analysis is based on the number of different status code values,
 not the count of occurrences.
 
-NOTE: To define a status code as rare the {xpackml} features look at the number
+NOTE: To define a status code as rare the {ml-features} look at the number
 of distinct status codes that occur, not the number of times the status code
 occurs. If a single client IP experiences a single unique status code, this
 is rare, even if it occurs for that client IP in every bucket.

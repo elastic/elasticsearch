@@ -36,6 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -136,6 +137,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private final LongConsumer onGlobalCheckpointUpdated;
 
     /**
+     * A supplier of the current time. This supplier is used to add a timestamp to retention leases, and to determine retention lease
+     * expiration.
+     */
+    private final LongSupplier currentTimeMillisSupplier;
+
+    /**
      * This set contains allocation IDs for which there is a thread actively waiting for the local checkpoint to advance to at least the
      * current global checkpoint.
      */
@@ -145,6 +152,38 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * Cached value for the last replication group that was computed
      */
     volatile ReplicationGroup replicationGroup;
+
+    private final Map<String, RetentionLease> retentionLeases = new HashMap<>();
+
+    /**
+     * Get all non-expired retention leases tracker on this shard. An unmodifiable copy of the retention leases is returned.
+     *
+     * @return the retention leases
+     */
+    public synchronized Collection<RetentionLease> getRetentionLeases() {
+        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
+        final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
+        final Collection<RetentionLease> nonExpiredRetentionLeases = retentionLeases
+                .values()
+                .stream()
+                .filter(retentionLease -> currentTimeMillis - retentionLease.timestamp() <= retentionLeaseMillis)
+                .collect(Collectors.toList());
+        retentionLeases.clear();
+        retentionLeases.putAll(nonExpiredRetentionLeases.stream().collect(Collectors.toMap(RetentionLease::id, lease -> lease)));
+        return Collections.unmodifiableCollection(nonExpiredRetentionLeases);
+    }
+
+    /**
+     * Adds a new or updates an existing retention lease.
+     *
+     * @param id                      the identifier of the retention lease
+     * @param retainingSequenceNumber the retaining sequence number
+     * @param source                  the source of the retention lease
+     */
+    public synchronized void addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+        assert primaryMode;
+        retentionLeases.put(id, new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source));
+    }
 
     public static class CheckpointState implements Writeable {
 
@@ -400,7 +439,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final String allocationId,
             final IndexSettings indexSettings,
             final long globalCheckpoint,
-            final LongConsumer onGlobalCheckpointUpdated) {
+            final LongConsumer onGlobalCheckpointUpdated,
+            final LongSupplier currentTimeMillisSupplier) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
@@ -410,6 +450,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.checkpoints = new HashMap<>(1 + indexSettings.getNumberOfReplicas());
         checkpoints.put(allocationId, new CheckpointState(SequenceNumbers.UNASSIGNED_SEQ_NO, globalCheckpoint, false, false));
         this.onGlobalCheckpointUpdated = Objects.requireNonNull(onGlobalCheckpointUpdated);
+        this.currentTimeMillisSupplier = Objects.requireNonNull(currentTimeMillisSupplier);
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;

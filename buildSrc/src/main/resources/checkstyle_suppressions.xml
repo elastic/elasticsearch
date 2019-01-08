@@ -68,5 +68,4 @@
 
   <!-- Gradle requires inputs to be seriablizable -->
   <suppress files="buildSrc[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]precommit[/\\]TestingConventionRule.java" checks="RegexpSinglelineJava" />
->>>>>>> master
 </suppressions>

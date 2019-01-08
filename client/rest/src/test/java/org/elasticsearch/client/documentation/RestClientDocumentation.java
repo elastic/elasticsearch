@@ -91,7 +91,7 @@ public class RestClientDocumentation {
     // end::rest-client-options-singleton
 
     @SuppressWarnings("unused")
-    public void testUsage() throws IOException, InterruptedException {
+    public void usage() throws IOException, InterruptedException {
 
         //tag::rest-client-init
         RestClient restClient = RestClient.builder(
@@ -291,7 +291,7 @@ public class RestClientDocumentation {
     }
 
     @SuppressWarnings("unused")
-    public void testCommonConfiguration() throws Exception {
+    public void commonConfiguration() throws Exception {
         {
             //tag::rest-client-config-timeouts
             RestClientBuilder builder = RestClient.builder(

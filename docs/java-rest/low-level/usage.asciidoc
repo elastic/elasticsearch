@@ -328,7 +328,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-options-cus
 
 The client is quite happy to execute many actions in parallel. The following
 example indexes many documents in parallel. In a real world scenario you'd
-probably want to use the `_bulk` API instead, but the example is illustative.
+probably want to use the `_bulk` API instead, but the example is illustrative.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

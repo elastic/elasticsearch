@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchScrollAction extends BaseRestHandler {
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TOTAL_HIT_AS_INT_PARAM);
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     public RestSearchScrollAction(Settings settings, RestController controller) {
         super(settings);

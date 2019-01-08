@@ -262,7 +262,7 @@ public abstract class StringUtils {
         return -1;
     }
 
-    public static List<String> findSimiliar(CharSequence match, Collection<String> potential) {
+    public static List<String> findSimilar(CharSequence match, Collection<String> potential) {
         List<String> list = new ArrayList<String>(3);
 
         // 1 switches or 1 extra char

@@ -118,11 +118,10 @@ can be updated on an existing field.
 [float]
 === Skipping types
 
-Types are being removed from Elasticsearch: in 7.0, the `mappings` element will
-no longer take the type name as a top-level key. You can already opt in for this
-behavior by setting setting `include_type_name=false` and putting mappings
-directly under `mappings` in the put mapping call, without specifying a type
-name.
+Types are being removed from Elasticsearch: in 7.0, the `mappings` element will no
+longer take the type name as a top-level key by default. You can already opt in for
+this behavior by setting `include_type_name=false` and putting mappings directly under
+`mappings` in the index creation call, without specifying a type name.
 
 NOTE: On indices created on Elasticsearch 5.x, such calls will actually
 introduce or update mappings for the `_doc` type. It is recommended to avoid
@@ -132,7 +131,7 @@ Here is an example:
 
 [source,js]
 -----------------------------------
-PUT my_index?include_type_name=false <1>
+PUT my_index?include_type_name=false
 {
   "mappings": {
     "properties": {

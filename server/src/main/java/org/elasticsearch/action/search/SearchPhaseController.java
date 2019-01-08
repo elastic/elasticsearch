@@ -760,9 +760,7 @@ public final class SearchPhaseController {
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 return null;
             } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-                if (totalHitsRelation != Relation.EQUAL_TO) {
-                    throw new IllegalStateException("expected accurate total hits but got " + totalHitsRelation);
-                }
+                assert totalHitsRelation == Relation.EQUAL_TO;
                 return new TotalHits(totalHits, totalHitsRelation);
             } else {
                 if (totalHits < trackTotalHitsUpTo) {

@@ -217,8 +217,6 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             super(REASON_SEARCH_TOP_HITS, numHits);
             this.sortAndFormats = sortAndFormats;
 
-            // implicit total hit counts are valid only when there is no filter collector in the chain
-            final int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
             final TopDocsCollector<?> topDocsCollector;
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 // don't compute hit counts via the collector
@@ -226,6 +224,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
                 totalHitsSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
+                // implicit total hit counts are valid only when there is no filter collector in the chain
+                final int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
                 if (hitCount == -1) {
                     topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, trackTotalHitsUpTo);
                     topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);

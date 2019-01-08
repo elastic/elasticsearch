@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.gradle;
 
 import org.gradle.api.DefaultTask;
@@ -28,27 +27,25 @@ import java.io.IOException;
 import java.io.File;
 import java.io.FileReader;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
  * A task to create a notice file which includes dependencies' notices.
  */
 public class NoticeTask extends DefaultTask {
-
-    @InputFile
     private File inputFile = getProject().getRootProject().file("NOTICE.txt");
-    @OutputFile
     private File outputFile = new File(getProject().getBuildDir(), "notices/" + getName() + "/NOTICE.txt");
-
-    /** Directories to include notices from */
+    /**
+     * Directories to include notices from
+     */
     private List<File> licensesDirs = new ArrayList<>();
 
+    @InputFile
     public File getInputFile() {
         return inputFile;
     }
@@ -57,6 +54,7 @@ public class NoticeTask extends DefaultTask {
         this.inputFile = inputFile;
     }
 
+    @OutputFile
     public File getOutputFile() {
         return outputFile;
     }
@@ -69,17 +67,10 @@ public class NoticeTask extends DefaultTask {
         licensesDirs.add(licensesDir);
     }
 
-    public void addLicenseDir(File licenseDir){
-        this.licensesDir(licenseDir);
+    public List<File> getLicensesDirs() {
+        return Collections.unmodifiableList(this.licensesDirs.stream()
+                .map(file -> new File(file.toString())).collect(Collectors.toList()));
     }
-    public List<File> getLicensesDirs(){
-        return Collections.unmodifiableList(this.licensesDirs);
-    }
-
-//    public static String getText(File file){
-//        return getText(file, StandardCharsets.UTF_8);
-//    }
-
     /**
      * Add notices from the specified directory.
      */
@@ -88,110 +79,92 @@ public class NoticeTask extends DefaultTask {
         setDescription("Create a notice file from dependencies");
         // Default licenses directory is ${projectDir}/licenses (if it exists)
         File licensesDir = new File(getProject().getProjectDir(), "licenses");
+
         if (licensesDir.exists()) {
             licensesDirs.add(licensesDir);
         }
-
     }
 
     @TaskAction
-    public void generateNotice() {
+    public void generateNotice() throws IOException {
         final StringBuilder output = new StringBuilder();
 
-        try{
-            Files.lines(this.inputFile.toPath(), StandardCharsets.UTF_8)
-                .forEach(s -> {
-                    output.append(s.trim());
-                    output.append("\n");
-                });
-            output.append("\n\n");
 
-        } catch (IOException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
+        try (Stream<String> lines = Files.lines(this.inputFile.toPath(), StandardCharsets.UTF_8)) {
+            lines.forEach(s -> {
+                output.append(s.trim());
+                output.append("\n");
+            });
         }
+        output.append("\n\n");
 
         // This is a map rather than a set so that the sort order is the 3rd
         // party component names, unaffected by the full path to the various files
         final Map<String, File> seen = new TreeMap<>();
-        licensesDirs.stream()
-            .flatMap(file -> {
-                try {
-                    return Files.walk(file.toPath());
-                } catch (IOException e) {
-                    e.printStackTrace();
-//                    throw new RuntimeException("failed to walk for " + file.toString());
-                    return Stream.empty();
-                }
-            })
-            .filter(path -> path.toString().endsWith("-NOTICE.txt"))
-            .map(Path::toFile)
-            .forEach(licenseFile -> {
-                // Here we remove the "-NOTICE.txt" so the name can be used later for the -LICENSE.txt file
-                final String name =
-                    licenseFile.getName().substring(0,licenseFile.getName().length() - "-NOTICE.txt".length());
 
-                if (seen.containsKey(name)){
-                    File prevLicenseFile = seen.get(name);
-                    if (getText(prevLicenseFile).equals(getText(licenseFile)) == false){
-                        throw new RuntimeException("Two different notices exist for dependency '" +
-                            name + "': " + prevLicenseFile + " and " + licenseFile);
-                    }
-                }else {
-                    seen.put(name,licenseFile);
-                }
-            });
+        licensesDirs.forEach(file -> {
+            try (Stream<Path> pathStream = Files.walk(file.toPath())) {
+                pathStream
+//                    .filter(path -> path.endsWith("-NOTICE.txt"))
+                    .filter(path -> path.toString().endsWith("-NOTICE.txt"))
+                    .map(Path::toFile)
+                    .forEach(licenseFile -> {
+                        // Here we remove the "-NOTICE.txt" so the name can be used later for the -LICENSE.txt file
+                        final String name =
+                            licenseFile.getName().substring(0, licenseFile.getName().length() - "-NOTICE.txt".length());
 
+                        if (seen.containsKey(name)) {
+                            File prevLicenseFile = seen.get(name);
+                            if (getText(prevLicenseFile).equals(getText(licenseFile)) == false) {
+                                throw new RuntimeException("Two different notices exist for dependency '" +
+                                    name + "': " + prevLicenseFile + " and " + licenseFile);
+                            }
+                        } else {
+                            seen.put(name, licenseFile);
+                        }
+                    });
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
 
-        for (Map.Entry<String,File> entry : seen.entrySet()){
+        for (Map.Entry<String, File> entry : seen.entrySet()) {
             final String name = entry.getKey();
             final File file = entry.getValue();
-            final File licenseFile = new File(file.getParentFile(),name + "-LICENSE.txt");
+            final File licenseFile = new File(file.getParentFile(), name + "-LICENSE.txt");
 
             appendFileToOutput(file, name, "NOTICE", output);
-            appendFileToOutput(licenseFile,name, "LICENSE", output);
+            appendFileToOutput(licenseFile, name, "LICENSE", output);
         }
 
-        writeToFile(outputFile,output.toString(),StandardCharsets.UTF_8);
+        Files.write(outputFile.toPath(), output.toString().getBytes());
     }
 
-    public static void appendFileToOutput(File file, final String name, final String type, StringBuilder output) {
+    private static void appendFileToOutput(File file, final String name, final String type, StringBuilder output) {
         String text = getText(file);
 
-        if (text.trim().isEmpty()) {
-            return;
+        if (text.trim().isEmpty() == false) {
+            output.append("================================================================================\n");
+            output.append(name + " " + type + "\n");
+            output.append("================================================================================\n");
+            output.append(text);
+            output.append("\n\n");
         }
-
-        output.append("================================================================================\n");
-        output.append(name + " " + type + "\n");
-        output.append("================================================================================\n");
-        output.append(text);
-        output.append("\n\n");
     }
 
-    public static void writeToFile(File file, String output, Charset charset){
 
-        try(BufferedWriter out = Files.newBufferedWriter(file.toPath(),charset)){
-            out.write(output);
-            out.flush();
-        }catch (IOException exception){
-            exception.printStackTrace();
-            throw new RuntimeException("Unable to write to file " + file.getName());
-        }
-
-    }
-
-    public static String getText(File file){
+    private static String getText(File file) {
         final StringBuilder builder = new StringBuilder();
-        try(BufferedReader reader = new BufferedReader(new FileReader(file))){
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             char[] buffer = new char[8192];
             int read;
 
-            while ((read = reader.read(buffer)) != -1){
-                builder.append(buffer,0,read);
+            while ((read = reader.read(buffer)) != -1) {
+                builder.append(buffer, 0, read);
             }
 
-        }catch (IOException e){
+        } catch (IOException e) {
             e.printStackTrace();
             throw new RuntimeException("Unable to read file " + file.toString());
         }

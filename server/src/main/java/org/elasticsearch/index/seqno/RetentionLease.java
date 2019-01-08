@@ -23,9 +23,9 @@ package org.elasticsearch.index.seqno;
  * A "shard history retention lease" (or "retention lease" for short) is conceptually a marker containing a retaining sequence number such
  * that all operations with sequence number at least that retaining sequence number will be retained during merge operations (which could
  * otherwise merge away operations that have been soft deleted). Each retention lease contains a unique identifier, the retaining sequence
- * number, and the source of the retention lease (e.g., "ccr").
+ * number, the timestamp of when the lease was created or renewed, and the source of the retention lease (e.g., "ccr").
  */
-public class RetentionLease {
+public final class RetentionLease {
 
     private final String id;
 
@@ -50,6 +50,17 @@ public class RetentionLease {
         return retainingSequenceNumber;
     }
 
+    private final long timestamp;
+
+    /**
+     * The timestamp of when this retention lease was created or renewed.
+     *
+     * @return the timestamp used as a basis for determining lease expiration
+     */
+    public long timestamp() {
+        return timestamp;
+    }
+
     private final String source;
 
     /**
@@ -66,19 +77,22 @@ public class RetentionLease {
      *
      * @param id                      the identifier of the retention lease
      * @param retainingSequenceNumber the retaining sequence number
+     * @param timestamp               the timestamp of when the retention lease was created or renewed
      * @param source                  the source of the retention lease
      */
-    public RetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+    public RetentionLease(final String id, final long retainingSequenceNumber, final long timestamp, final String source) {
         this.id = id;
         this.retainingSequenceNumber = retainingSequenceNumber;
+        this.timestamp = timestamp;
         this.source = source;
     }
 
     @Override
     public String toString() {
-        return "ShardHistoryRetentionLease{" +
+        return "RetentionLease{" +
                 "id='" + id + '\'' +
                 ", retainingSequenceNumber=" + retainingSequenceNumber +
+                ", timestamp=" + timestamp +
                 ", source='" + source + '\'' +
                 '}';
     }

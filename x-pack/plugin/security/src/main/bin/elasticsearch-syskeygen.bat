@@ -9,7 +9,9 @@ setlocal enableextensions
 
 set ES_MAIN_CLASS=org.elasticsearch.xpack.security.crypto.tool.SystemKeyTool
 set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
-call "%~dp0elasticsearch-cli.bat" %%* || goto exit
+call "%~dp0elasticsearch-cli.bat" ^
+    %%* ^
+    || goto exit
 
 endlocal
 endlocal

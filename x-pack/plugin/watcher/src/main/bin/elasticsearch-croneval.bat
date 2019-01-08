@@ -9,7 +9,9 @@ setlocal enableextensions
 
 set ES_MAIN_CLASS=org.elasticsearch.xpack.watcher.trigger.schedule.tool.CronEvalTool
 set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-watcher-env
-call "%~dp0elasticsearch-cli.bat" %%* || goto exit
+call "%~dp0elasticsearch-cli.bat" ^
+    %%* ^
+    || goto exit
 
 endlocal
 endlocal

@@ -110,6 +110,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid2.InternalGeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
@@ -421,6 +422,11 @@ public class SearchModule {
                 GeoDistanceAggregationBuilder::parse).addResultReader(InternalGeoDistance::new));
         registerAggregation(new AggregationSpec(GeoGridAggregationBuilder.NAME, GeoGridAggregationBuilder::new,
                 GeoGridAggregationBuilder::parse).addResultReader(InternalGeoHashGrid::new));
+        registerAggregation(new AggregationSpec(
+            org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGridAggregationBuilder.NAME,
+            org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGridAggregationBuilder::new,
+            org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGridAggregationBuilder::parse
+        ).addResultReader(InternalGeoGrid::new));
         registerAggregation(new AggregationSpec(NestedAggregationBuilder.NAME, NestedAggregationBuilder::new,
                 NestedAggregationBuilder::parse).addResultReader(InternalNested::new));
         registerAggregation(new AggregationSpec(ReverseNestedAggregationBuilder.NAME, ReverseNestedAggregationBuilder::new,

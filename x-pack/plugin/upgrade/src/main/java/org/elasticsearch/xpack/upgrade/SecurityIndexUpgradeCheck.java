@@ -90,7 +90,7 @@ public class SecurityIndexUpgradeCheck implements UpgradeCheck {
         } else if (indexMetaData.getIndex().getName().equals(INTERNAL_SECURITY_TOKENS_INDEX)) {
             // no need to check the "index.format" setting value because the name encodes the format version
             return UpgradeActionRequired.UP_TO_DATE;
-        }else {
+        } else {
             return UpgradeActionRequired.NOT_APPLICABLE;
         }
     }
@@ -109,7 +109,7 @@ public class SecurityIndexUpgradeCheck implements UpgradeCheck {
         final BoolQueryBuilder tokensQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "token"));
         final BoolQueryBuilder nonTokensQuery = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("doc_type", "token")));
-        final Consumer<Exception> removeReadOnlyBlock = e -> 
+        final Consumer<Exception> removeReadOnlyBlock = e ->
             removeReadOnlyBlock(parentAwareClient, INTERNAL_SECURITY_INDEX, ActionListener.wrap(unsetReadOnlyResponse -> {
                 listener.onFailure(e);
             }, e1 -> {

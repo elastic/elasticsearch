@@ -105,7 +105,6 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         assertThat(result.isComplete(), is(false));
         assertThat(result.getInfomationContext(), notNullValue());
         WaitForIndexingCompleteStep.Info info = (WaitForIndexingCompleteStep.Info) result.getInfomationContext();
-        assertThat(info.getIndexSettings(), equalTo(indexMetadata.getSettings()));
         assertThat(info.getMessage(), equalTo("the [index.lifecycle.indexing_complete] setting has not been set to " +
             "true on the leader index"));
     }

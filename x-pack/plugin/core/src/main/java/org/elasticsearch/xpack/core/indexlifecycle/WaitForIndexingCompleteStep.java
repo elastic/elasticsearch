@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -39,39 +38,29 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
         if (indexingComplete) {
             return new Result(true, null);
         } else {
-            return new Result(false, new Info(followerIndex.getSettings()));
+            return new Result(false, new Info());
         }
     }
 
     static final class Info implements ToXContentObject {
 
         static final ParseField MESSAGE_FIELD = new ParseField("message");
-        static final ParseField INDEX_SETTINGS_FIELD = new ParseField("index_settings");
 
         private final String message;
-        private final Settings indexSettings;
 
-        Info(Settings indexSettings) {
+        Info() {
             this.message = "the [" + LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE +
                 "] setting has not been set to true on the leader index";
-            this.indexSettings = indexSettings;
         }
 
         String getMessage() {
             return message;
         }
 
-        Settings getIndexSettings() {
-            return indexSettings;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(MESSAGE_FIELD.getPreferredName(), message);
-            builder.startObject(INDEX_SETTINGS_FIELD.getPreferredName());
-            indexSettings.toXContent(builder, params);
-            builder.endObject();
             builder.endObject();
             return builder;
         }
@@ -81,12 +70,12 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Info info = (Info) o;
-            return Objects.equals(indexSettings, info.indexSettings);
+            return Objects.equals(getMessage(), info.getMessage());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexSettings);
+            return Objects.hash(getMessage());
         }
     }
 }

@@ -74,19 +74,14 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final String nodeName;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
-        MasterService masterService) {
-        this(settings, clusterSettings, masterService,
-            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool));
-    }
-
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
         MasterService masterService, Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorFactory) {
         this(settings, clusterSettings, masterService,
             new ClusterApplierService(settings, clusterSettings, threadPool, threadPoolExecutorFactory));
     }
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this(settings, clusterSettings, threadPool, new MasterService(Node.NODE_NAME_SETTING.get(settings), settings, threadPool));
+        this(settings, clusterSettings, new MasterService(Node.NODE_NAME_SETTING.get(settings), settings, threadPool),
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool));
     }
 
     private ClusterService(Settings settings, ClusterSettings clusterSettings, MasterService masterService,

@@ -213,7 +213,7 @@ exponent. Scores are computed as `S^exp^ / (S^exp^ + pivot^exp^)`. Like for the
 and scores are in +(0, 1)+.
 
 `exponent` must be positive, but is typically in +[0.5, 1]+. A good value should
-be computed via traning. If you don't have the opportunity to do so, we recommend
+be computed via training. If you don't have the opportunity to do so, we recommend
 that you stick to the `saturation` function instead.
 
 [source,js]

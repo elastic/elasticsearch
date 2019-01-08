@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
@@ -57,8 +58,8 @@ public class NullIf extends ConditionalFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return true;
+    public Nullability nullable() {
+        return Nullability.UNKNOWN;
     }
 
     @Override

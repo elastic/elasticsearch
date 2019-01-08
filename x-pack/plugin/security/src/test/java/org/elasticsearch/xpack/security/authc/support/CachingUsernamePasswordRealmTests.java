@@ -58,13 +58,13 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     @After
-    public void stop() throws InterruptedException {
+    public void stop() {
         if (threadPool != null) {
             terminate(threadPool);
         }
     }
 
-    public void testCacheSettings() throws Exception {
+    public void testCacheSettings() {
         String cachingHashAlgo = Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT);
         int maxUsers = randomIntBetween(10, 100);
         TimeValue ttl = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
@@ -352,7 +352,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         }
     }
 
-    public void testAuthenticateContract() throws Exception {
+    public void testAuthenticateContract() {
         Realm realm = new FailingAuthenticationRealm(globalSettings, threadPool);
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
@@ -366,7 +366,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("whatever exception"));
     }
 
-    public void testLookupContract() throws Exception {
+    public void testLookupContract() {
         Realm realm = new FailingAuthenticationRealm(globalSettings, threadPool);
         PlainActionFuture<User> future = new PlainActionFuture<>();
         realm.lookupUser("user", future);
@@ -380,7 +380,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("lookup exception"));
     }
 
-    public void testReturnDifferentObjectFromCache() throws Exception {
+    public void testReturnDifferentObjectFromCache() {
         final AtomicReference<User> userArg = new AtomicReference<>();
         final AtomicReference<AuthenticationResult> result = new AtomicReference<>();
         Realm realm = new AlwaysAuthenticateCachingRealm(globalSettings, threadPool) {
@@ -455,6 +455,71 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                             fail("unexpected exception - " + e);
                         }));
                     }
+
+                } catch (InterruptedException e) {
+                    logger.error("thread was interrupted", e);
+                    Thread.currentThread().interrupt();
+                }
+            }));
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        assertEquals(1, authCounter.get());
+    }
+
+    public void testUnauthenticatedResultPropagatesWithSameCreds() throws Exception {
+        final String username = "username";
+        final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
+        final AtomicInteger authCounter = new AtomicInteger(0);
+        final Hasher pwdHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final String passwordHash = new String(pwdHasher.hash(password));
+        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("caching", "test_realm"), globalSettings,
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+
+        final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
+        final int numberOfThreads = scaledRandomIntBetween((numberOfProcessors + 1) / 2, numberOfProcessors * 3);
+        final CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
+        List<Thread> threads = new ArrayList<>(numberOfThreads);
+        final SecureString credsToUse = new SecureString(randomAlphaOfLength(12).toCharArray());
+        final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
+            @Override
+            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+                authCounter.incrementAndGet();
+                // do something slow
+                if (pwdHasher.verify(token.credentials(), passwordHash.toCharArray())) {
+                    listener.onFailure(new IllegalStateException("password auth should never succeed"));
+                } else {
+                    listener.onResponse(AuthenticationResult.unsuccessful("password verification failed", null));
+                }
+            }
+
+            @Override
+            protected void doLookupUser(String username, ActionListener<User> listener) {
+                listener.onFailure(new UnsupportedOperationException("this method should not be called"));
+            }
+        };
+        for (int i = 0; i < numberOfThreads; i++) {
+            threads.add(new Thread(() -> {
+                try {
+                    latch.countDown();
+                    latch.await();
+                    final UsernamePasswordToken token = new UsernamePasswordToken(username, credsToUse);
+
+                    realm.authenticate(token, ActionListener.wrap((result) -> {
+                        if (result.isAuthenticated()) {
+                            throw new IllegalStateException("invalid password led to an authenticated result: " + result);
+                        }
+                        assertThat(result.getMessage(), containsString("password verification failed"));
+                    }, (e) -> {
+                        logger.error("caught exception", e);
+                        fail("unexpected exception - " + e);
+                    }));
 
                 } catch (InterruptedException e) {
                     logger.error("thread was interrupted", e);
@@ -702,29 +767,6 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         protected void doLookupUser(String username, ActionListener<User> listener) {
             lookupInvocationCounter.incrementAndGet();
             listener.onResponse(new User(username, new String[]{"lookupRole1", "lookupRole2"}));
-        }
-    }
-
-    static class LookupNotSupportedRealm extends CachingUsernamePasswordRealm {
-
-        public final AtomicInteger authInvocationCounter = new AtomicInteger(0);
-        public final AtomicInteger lookupInvocationCounter = new AtomicInteger(0);
-
-        LookupNotSupportedRealm(Settings globalSettings, ThreadPool threadPool) {
-            super(new RealmConfig(new RealmConfig.RealmIdentifier("caching", "lookup-notsupported-test"), globalSettings,
-                    TestEnvironment.newEnvironment(globalSettings), threadPool.getThreadContext()), threadPool);
-        }
-
-        @Override
-        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
-            authInvocationCounter.incrementAndGet();
-            listener.onResponse(AuthenticationResult.success(new User(token.principal(), new String[]{"testRole1", "testRole2"})));
-        }
-
-        @Override
-        protected void doLookupUser(String username, ActionListener<User> listener) {
-            lookupInvocationCounter.incrementAndGet();
-            listener.onFailure(new UnsupportedOperationException("don't call lookup if lookup isn't supported!!!"));
         }
     }
 }

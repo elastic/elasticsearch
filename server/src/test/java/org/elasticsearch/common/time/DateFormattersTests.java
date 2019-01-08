@@ -43,17 +43,7 @@ public class DateFormattersTests extends ESTestCase {
     public void testEpochMillisParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
         {
-            Instant instant = Instant.from(formatter.parse("12345.6789"));
-            assertThat(instant.getEpochSecond(), is(12L));
-            assertThat(instant.getNano(), is(345_678_900));
-        }
-        {
             Instant instant = Instant.from(formatter.parse("12345"));
-            assertThat(instant.getEpochSecond(), is(12L));
-            assertThat(instant.getNano(), is(345_000_000));
-        }
-        {
-            Instant instant = Instant.from(formatter.parse("12345."));
             assertThat(instant.getEpochSecond(), is(12L));
             assertThat(instant.getNano(), is(345_000_000));
         }
@@ -79,25 +69,12 @@ public class DateFormattersTests extends ESTestCase {
     public void testEpochSecondParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_second");
 
-        assertThat(Instant.from(formatter.parse("1234.567")).toEpochMilli(), is(1234567L));
-        assertThat(Instant.from(formatter.parse("1234.")).getNano(), is(0));
-        assertThat(Instant.from(formatter.parse("1234.")).getEpochSecond(), is(1234L));
-        assertThat(Instant.from(formatter.parse("1234.1")).getNano(), is(100_000_000));
-        assertThat(Instant.from(formatter.parse("1234.12")).getNano(), is(120_000_000));
-        assertThat(Instant.from(formatter.parse("1234.123")).getNano(), is(123_000_000));
-        assertThat(Instant.from(formatter.parse("1234.1234")).getNano(), is(123_400_000));
-        assertThat(Instant.from(formatter.parse("1234.12345")).getNano(), is(123_450_000));
-        assertThat(Instant.from(formatter.parse("1234.123456")).getNano(), is(123_456_000));
-        assertThat(Instant.from(formatter.parse("1234.1234567")).getNano(), is(123_456_700));
-        assertThat(Instant.from(formatter.parse("1234.12345678")).getNano(), is(123_456_780));
-        assertThat(Instant.from(formatter.parse("1234.123456789")).getNano(), is(123_456_789));
-
-        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.1234567890"));
-        assertThat(e.getMessage(), is("Text '1234.1234567890' could not be parsed, unparsed text found at index 4"));
-        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.123456789013221"));
-        assertThat(e.getMessage(), is("Text '1234.123456789013221' could not be parsed, unparsed text found at index 4"));
+        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.1"));
+        assertThat(e.getMessage(), is("Text '1234.1' could not be parsed, unparsed text found at index 4"));
+        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234."));
+        assertThat(e.getMessage(), is("Text '1234.' could not be parsed, unparsed text found at index 4"));
         e = expectThrows(DateTimeParseException.class, () -> formatter.parse("abc"));
-        assertThat(e.getMessage(), is("Text 'abc' could not be parsed at index 0"));
+        assertThat(e.getMessage(), is("Text 'abc' could not be parsed, unparsed text found at index 0"));
         e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.abc"));
         assertThat(e.getMessage(), is("Text '1234.abc' could not be parsed, unparsed text found at index 4"));
     }
@@ -157,9 +134,6 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(DateFormatter.forPattern("8date_optional_time"), instanceOf(JavaDateFormatter.class));
         // named formats too
         DateFormatter formatter = DateFormatter.forPattern("8date_optional_time||ww-MM-dd");
-        assertThat(formatter, instanceOf(DateFormatters.MergedDateFormatter.class));
-        DateFormatters.MergedDateFormatter mergedFormatter = (DateFormatters.MergedDateFormatter) formatter;
-        assertThat(mergedFormatter.formatters.get(0), instanceOf(JavaDateFormatter.class));
-        assertThat(mergedFormatter.formatters.get(1), instanceOf(JavaDateFormatter.class));
+        assertThat(formatter, instanceOf(JavaDateFormatter.class));
     }
 }

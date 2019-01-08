@@ -15,7 +15,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -135,7 +134,6 @@ public class SecurityIndexUpgradeCheck implements UpgradeCheck {
                                                     // move the .security alias to the new index, and remove the old .security-6 index
                                                     parentAwareClient.admin().indices().prepareAliases()
                                                             .addAlias(NEW_INTERNAL_SECURITY_INDEX, SECURITY_ALIAS_NAME)
-                                                            .removeAlias(INTERNAL_SECURITY_INDEX, SECURITY_ALIAS_NAME)
                                                             .removeIndex(INTERNAL_SECURITY_INDEX)
                                                             .execute(ActionListener.wrap(aliasResponse -> {
                                                                 // merge both reindex responses to return to the action listener
@@ -187,6 +185,7 @@ public class SecurityIndexUpgradeCheck implements UpgradeCheck {
         reindexRequest.setSourceIndices(sourceIndex);
         reindexRequest.setSourceDocTypes("doc");
         reindexRequest.setDestIndex(destIndex);
+        reindexRequest.setDestDocType("doc");
         reindexRequest.setSourceQuery(queryBuilder);
         reindexRequest.setRefresh(true);
         parentAwareClient.execute(ReindexAction.INSTANCE, reindexRequest, listener);
@@ -229,10 +228,7 @@ public class SecurityIndexUpgradeCheck implements UpgradeCheck {
 
                 MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData()).put(builder);
 
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
-                        .addIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
-
-                return ClusterState.builder(currentState).metaData(metaDataBuilder).blocks(blocks).build();
+                return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
             }
 
             @Override

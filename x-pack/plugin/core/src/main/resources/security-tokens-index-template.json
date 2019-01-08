@@ -18,6 +18,10 @@
         "doc_type" : {
           "type" : "keyword"
         },
+        "creation_time" : {
+          "type" : "date",
+          "format" : "epoch_millis"
+        },
         "refresh_token" : {
           "type" : "object",
           "properties" : {

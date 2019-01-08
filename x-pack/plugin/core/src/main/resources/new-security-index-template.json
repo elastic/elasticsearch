@@ -141,14 +141,6 @@
         "actions" : {
           "type" : "keyword"
         },
-        "expiration_time" : {
-          "type" : "date",
-          "format" : "epoch_millis"
-        },
-        "creation_time" : {
-          "type" : "date",
-          "format" : "epoch_millis"
-        },
         "rules" : {
           "type" : "object",
           "dynamic" : true

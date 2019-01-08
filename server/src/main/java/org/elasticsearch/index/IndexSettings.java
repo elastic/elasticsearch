@@ -328,7 +328,6 @@ public final class IndexSettings {
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
 
-
     private volatile long retentionLeaseMillis;
 
     /**

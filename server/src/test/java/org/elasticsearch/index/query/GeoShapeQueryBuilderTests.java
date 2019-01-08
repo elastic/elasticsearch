@@ -186,7 +186,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     public void testNoIndexedShape() throws IOException {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new GeoShapeQueryBuilder(fieldName(), null, "type"));
-        assertEquals("either shapeBytes or indexedShapeId is required", e.getMessage());
+        assertEquals("either shape or indexedShapeId is required", e.getMessage());
     }
 
     public void testNoRelation() throws IOException {

@@ -228,9 +228,10 @@ public class RecoverySourceHandler {
             }
 
             finalizeRecovery(sendSnapshotResult.targetLocalCheckpoint);
+            final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
             return new RecoveryResponse(sendFileResult.phase1FileNames, sendFileResult.phase1FileSizes,
                 sendFileResult.phase1ExistingFileNames, sendFileResult.phase1ExistingFileSizes, sendFileResult.totalSize,
-                sendFileResult.existingTotalSize, sendFileResult.took.millis(), prepareEngineTime.millis(),
+                sendFileResult.existingTotalSize, sendFileResult.took.millis(), phase1ThrottlingWaitTime, prepareEngineTime.millis(),
                 sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis());
         }
     }

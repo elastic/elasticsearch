@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportResponse;
@@ -36,7 +35,7 @@ final class RecoveryResponse extends TransportResponse {
     final long phase1TotalSize;
     final long phase1ExistingTotalSize;
     final long phase1Time;
-    final long phase1ThrottlingWaitTime = 0L; // not used
+    final long phase1ThrottlingWaitTime;
 
     final long startTime;
 
@@ -45,7 +44,7 @@ final class RecoveryResponse extends TransportResponse {
 
     RecoveryResponse(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
                      List<Long> phase1ExistingFileSizes, long phase1TotalSize, long phase1ExistingTotalSize,
-                     long phase1Time, long startTime, int phase2Operations, long phase2Time) {
+                     long phase1Time, long phase1ThrottlingWaitTime, long startTime, int phase2Operations, long phase2Time) {
         this.phase1FileNames = phase1FileNames;
         this.phase1FileSizes = phase1FileSizes;
         this.phase1ExistingFileNames = phase1ExistingFileNames;
@@ -53,13 +52,14 @@ final class RecoveryResponse extends TransportResponse {
         this.phase1TotalSize = phase1TotalSize;
         this.phase1ExistingTotalSize = phase1ExistingTotalSize;
         this.phase1Time = phase1Time;
+        this.phase1ThrottlingWaitTime = phase1ThrottlingWaitTime;
         this.startTime = startTime;
         this.phase2Operations = phase2Operations;
         this.phase2Time = phase2Time;
     }
 
     RecoveryResponse(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         phase1FileNames = in.readList(StreamInput::readString);
         phase1FileSizes = in.readList(StreamInput::readVLong);
         phase1ExistingFileNames = in.readList(StreamInput::readString);
@@ -67,9 +67,7 @@ final class RecoveryResponse extends TransportResponse {
         phase1TotalSize = in.readVLong();
         phase1ExistingTotalSize = in.readVLong();
         phase1Time = in.readVLong();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readVLong(); // phase1ThrottlingWaitTime - not used
-        }
+        phase1ThrottlingWaitTime = in.readVLong();
         startTime = in.readVLong();
         phase2Operations = in.readVInt();
         phase2Time = in.readVLong();
@@ -85,9 +83,7 @@ final class RecoveryResponse extends TransportResponse {
         out.writeVLong(phase1TotalSize);
         out.writeVLong(phase1ExistingTotalSize);
         out.writeVLong(phase1Time);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeVLong(0L); // phase1ThrottlingWaitTime - not used
-        }
+        out.writeVLong(phase1ThrottlingWaitTime);
         out.writeVLong(startTime);
         out.writeVInt(phase2Operations);
         out.writeVLong(phase2Time);

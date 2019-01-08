@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -271,12 +271,12 @@ public class DatafeedJobTests extends ESTestCase {
 
         Annotation expectedAnnotation = new Annotation(msg,
             new Date(currentTime),
-            SystemUser.NAME,
+            XPackUser.NAME,
             bucket.getTimestamp(),
             new Date((bucket.getEpoch() + bucket.getBucketSpan()) * 1000),
             jobId,
             new Date(currentTime),
-            SystemUser.NAME,
+            XPackUser.NAME,
             "annotation");
 
         IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
@@ -312,7 +312,7 @@ public class DatafeedJobTests extends ESTestCase {
         Annotation updatedAnnotation = new Annotation(expectedAnnotation);
         updatedAnnotation.setAnnotation(msg);
         updatedAnnotation.setModifiedTime(new Date(currentTime));
-        updatedAnnotation.setModifiedUsername(SystemUser.NAME);
+        updatedAnnotation.setModifiedUsername(XPackUser.NAME);
         updatedAnnotation.setEndTimestamp(new Date((bucket2.getEpoch() + bucket2.getBucketSpan()) * 1000));
         try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             indexRequest.source(xContentBuilder);

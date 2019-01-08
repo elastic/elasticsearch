@@ -974,7 +974,7 @@ public class DateRangeIT extends ESIntegTestCase {
                 .addAggregation(dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000)).get());
         Throwable cause = e.getCause();
         assertThat(cause.getMessage(),
-            containsString("could not parse input [1000000] with date formatter [strict_hour_minute_second]"));
+            containsString("failed to parse date field [1000000] with format [strict_hour_minute_second]"));
     }
 
     /**
@@ -1013,21 +1013,6 @@ public class DateRangeIT extends ESIntegTestCase {
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
-
-        // also e-notation and floats provided as string also be truncated (see: #14641)
-        searchResponse = client().prepareSearch(indexName).setSize(0)
-                .addAggregation(dateRange("date_range").field("date").addRange("1.0e3", "3.0e3").addRange("3.0e3", "4.0e3")).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
-        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
-
-        searchResponse = client().prepareSearch(indexName).setSize(0)
-                .addAggregation(dateRange("date_range").field("date").addRange("1000.123", "3000.8").addRange("3000.8", "4000.3")).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
-        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        assertBucket(buckets.get(0), 2L, "1000.123-3000.8", 1000123L, 3000800L);
-        assertBucket(buckets.get(1), 1L, "3000.8-4000.3", 3000800L, 4000300L);
 
         // using different format should work when to/from is compatible with
         // format in aggregation

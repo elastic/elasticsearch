@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.ElasticsearchParseException;
-
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -74,34 +72,21 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public TemporalAccessor parse(final String input) {
-        ElasticsearchParseException failure = null;
+        IllegalArgumentException failure = null;
         for (int i = 0; i < parsers.length; i++) {
             try {
                 return parsers[i].parse(input);
             } catch (DateTimeParseException e) {
-                String msg = createExceptionMessage(input, e);
                 if (failure == null) {
-                    failure = new ElasticsearchParseException(msg);
+                    failure = new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
+                } else {
+                    failure.addSuppressed(e);
                 }
-                failure.addSuppressed(new ElasticsearchParseException(msg, e));
             }
         }
 
         // ensure that all parsers exceptions are returned instead of only the last one
         throw failure;
-    }
-
-    private String createExceptionMessage(final String input ,final DateTimeParseException e) {
-        String msg = "could not parse input [" + input + "] with date formatter [" + format + "]";
-        if (locale().equals(Locale.ROOT) == false) {
-            msg += " and locale [" + locale() + "]";
-        }
-        if (e.getErrorIndex() > 0) {
-            msg += "at position [" + e.getErrorIndex() + "]";
-        }
-        msg += ": " + e.getMessage();
-
-        return msg;
     }
 
     @Override

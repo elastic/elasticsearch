@@ -31,6 +31,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.format.SignStyle;
 import java.time.temporal.ChronoField;
@@ -1416,9 +1417,9 @@ public class DateFormatters {
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             return YEAR_MONTH_DAY;
         } else if ("epoch_second".equals(input)) {
-            return EpochSecondsDateFormatter.INSTANCE;
+            return EpochTime.SECONDS_FORMATTER;
         } else if ("epoch_millis".equals(input)) {
-            return EpochMillisDateFormatter.INSTANCE;
+            return EpochTime.MILLIS_FORMATTER;
         // strict date formats here, must be at least 4 digits for year and two for months and two for day
         } else if ("strictBasicWeekDate".equals(input) || "strict_basic_week_date".equals(input)) {
             return STRICT_BASIC_WEEK_DATE;
@@ -1517,7 +1518,7 @@ public class DateFormatters {
             for (DateFormatter formatter : formatters) {
                 try {
                     return formatter.parse(input);
-                } catch (IllegalArgumentException | ElasticsearchParseException e) {
+                } catch (IllegalArgumentException | DateTimeParseException e) {
                     if (failure == null) {
                         // wrap so the entire multi format is in the message
                         failure = new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + pattern + "]",

@@ -265,8 +265,8 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     public void testIllegalDateFormat() {
-        assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "could not parse input");
-        assertParseException("Expected bad date format exception", "123bogus", "could not parse input [123bogus]");
+        assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "failed to parse date field");
+        assertParseException("Expected bad date format exception", "123bogus", "failed to parse date field [123bogus]");
     }
 
     public void testOnlyCallsNowIfNecessary() {
@@ -279,11 +279,6 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertFalse(called.get());
         parser.parse("now/d", now, false, (ZoneId) null);
         assertTrue(called.get());
-    }
-
-    public void testSupportsScientificNotation() {
-        long result = parser.parse("1.0e3", () -> 42).toEpochMilli();
-        assertThat(result, is(1000L));
     }
 
     private void assertDateMathEquals(String toTest, String expected) {

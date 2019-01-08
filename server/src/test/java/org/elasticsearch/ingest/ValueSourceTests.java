@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

@@ -161,6 +161,19 @@ forbiddenPatterns {
   exclude '**/*.st'
 }
 
+testingConventions {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass "org.apache.lucene.util.LuceneTestCase"
+    }
+    IT {
+      baseClass "org.elasticsearch.test.ESIntegTestCase"
+      baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
+    }
+  }
+}
+
 task generateModulesList {
   List<String> modules = project(':modules').subprojects.collect { it.name }
   modules.add('x-pack')

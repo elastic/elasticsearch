@@ -2130,3 +2130,30 @@ SELECT NOW() AS result;
 2018-12-12T14:48:52.448Z
 // end::nowFunction
 ;
+
+////////////
+// Next two queries need to have the same output, as they should be equivalent.
+// They are used in the "SQL Limitations" page.
+////////////
+limitationSubSelect
+// tag::limitationSubSelect
+SELECT * FROM (SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%') WHERE first_name LIKE 'A%';
+
+  first_name   |   last_name
+---------------+---------------
+Anneke         |Preusig
+Anoosh         |Peyn
+Arumugam       |Ossenbruggen
+// end::limitationSubSelect
+;
+
+limitationSubSelect
+// tag::limitationSubSelectRewritten
+SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%' AND first_name LIKE 'A%';
+// end::limitationSubSelectRewritten
+  first_name   |   last_name
+---------------+---------------
+Anneke         |Preusig
+Anoosh         |Peyn
+Arumugam       |Ossenbruggen
+;

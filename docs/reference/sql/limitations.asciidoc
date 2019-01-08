@@ -69,3 +69,24 @@ a field is an array (has multiple values) or not, so without reading all the dat
 When doing aggregations (`GROUP BY`) {es-sql} relies on {es}'s `composite` aggregation for its support for paginating results.
 But this type of aggregation does come with a limitation: sorting can only be applied on the key used for the aggregation's buckets. This
 means that queries like `SELECT * FROM test GROUP BY age ORDER BY COUNT(*)` are not possible.
+
+[float]
+=== Using a sub-select
+
+Using sub-selects (`SELECT X FROM (SELECT Y)`) is **supported to a small degree**: any sub-select that can be "flattened" into a single
+`SELECT` is possible with {es-sql}. For example:
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[limitationSubSelect]
+--------------------------------------------------
+
+The query above is possible because it is equivalent with:
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[limitationSubSelectRewritten]
+--------------------------------------------------
+
+But, if the sub-select would include a `GROUP BY` or `HAVING` or the enclosing `SELECT` would be more complex than `SELECT X
+FROM (SELECT ...) WHERE [simple_condition]`, this is currently **un-supported**.

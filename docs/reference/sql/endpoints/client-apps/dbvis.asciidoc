@@ -21,7 +21,7 @@ Add the {es} JDBC driver to DbVisualizer through *Tools* > *Driver Manager*:
 image:images/sql/client-apps/dbvis-1-driver-manager.png[]
 
 Create a new driver entry through *Driver* > *Create Driver* entry and add the JDBC driver in the files panel
-through the buttons on the right. Once specify, the driver class and its version should be automatically picked up - one can force the refresh through the *Find driver in liste locations* button, the second from the bottom on the right hand side:
+through the buttons on the right. Once specify, the driver class and its version should be automatically picked up - one can force the refresh through the *Find driver in listed locations* button, the second from the bottom on the right hand side:
  
 image:images/sql/client-apps/dbvis-2-driver.png[]
 

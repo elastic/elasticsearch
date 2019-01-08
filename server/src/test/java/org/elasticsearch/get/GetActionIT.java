@@ -617,7 +617,10 @@ public class GetActionIT extends ESIntegTestCase {
         FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").setForce(true).get();
         if (flushResponse.getSuccessfulShards() == 0) {
             StringBuilder sb = new StringBuilder("failed to flush at least one shard. total shards [")
-                    .append(flushResponse.getTotalShards()).append("], failed shards: [").append(flushResponse.getFailedShards()).append("]");
+                    .append(flushResponse.getTotalShards())
+                    .append("], failed shards: [")
+                    .append(flushResponse.getFailedShards())
+                    .append("]");
             for (DefaultShardOperationFailedException failure: flushResponse.getShardFailures()) {
                 sb.append("\nShard failure: ").append(failure);
             }

@@ -81,8 +81,7 @@ setup:
         body: >
           {
             "job_id":"get-datafeed-stats-1",
-            "indexes":["index-1"],
-            "types":["type-1"]
+            "indexes":["index-1"]
           }
 
   - do:
@@ -93,8 +92,7 @@ setup:
         body: >
           {
             "job_id":"get-datafeed-stats-2",
-            "indexes":["index-2"],
-            "types":["type-2"]
+            "indexes":["index-2"]
           }
 
 ---

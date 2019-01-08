@@ -29,7 +29,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.test.ESTestCase.frequently;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -46,14 +45,9 @@ public final class RandomCreateIndexGenerator {
         String index = randomAlphaOfLength(5);
         CreateIndexRequest request = new CreateIndexRequest(index);
         randomAliases(request);
-        if (frequently()) {
+        if (randomBoolean()) {
             String type = randomAlphaOfLength(5);
-            if (randomBoolean()) {
-                request.mapping(type, randomMapping());
-            } else {
-                request.mapping(type, randomMapping(type));
-
-            }
+            request.mapping(type, randomMapping(type));
         }
         if (randomBoolean()) {
             request.settings(randomIndexSettings());
@@ -80,16 +74,6 @@ public final class RandomCreateIndexGenerator {
         }
 
         return builder.build();
-    }
-
-    public static XContentBuilder randomMapping() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-
-        randomMappingFields(builder, true);
-
-        builder.endObject();
-        return builder;
     }
 
     public static XContentBuilder randomMapping(String type) throws IOException {

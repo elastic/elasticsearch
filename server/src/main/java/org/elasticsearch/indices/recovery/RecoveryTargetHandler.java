@@ -88,9 +88,7 @@ public interface RecoveryTargetHandler {
      */
     void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException;
 
-    /**
-     * Writes a partial file chunk to the target store.
-     */
+    /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                         boolean lastChunk, int totalTranslogOps, Consumer<Exception> onComplete) throws IOException;
 

@@ -59,7 +59,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
-import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -648,7 +647,7 @@ public class RecoverySourceHandler {
                 try (IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
                     long position = 0;
                     int bytesRead;
-                    final InputStream in = new BufferedInputStream(new InputStreamIndexInput(indexInput, md.length()), 8192);
+                    final InputStream in = new InputStreamIndexInput(indexInput, md.length());
                     while ((bytesRead = in.read(buffer, 0, buffer.length)) != -1) {
                         final BytesArray content = new BytesArray(buffer, 0, bytesRead);
                         final boolean lastChunk = position + content.length() == md.length();

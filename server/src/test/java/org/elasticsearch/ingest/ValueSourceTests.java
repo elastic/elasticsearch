@@ -93,7 +93,7 @@ public class ValueSourceTests extends ESTestCase {
         String compiledValue = randomAlphaOfLength(10);
         when(scriptService.compile(any(), any())).thenReturn(new TestTemplateService.MockTemplateScript.Factory(compiledValue));
         ValueSource result = ValueSource.wrap(propertyValue, scriptService);
-        assertThat(result.copyAndResolve(Collections.EMPTY_MAP), equalTo(compiledValue));
+        assertThat(result.copyAndResolve(Collections.emptyMap()), equalTo(compiledValue));
         verify(scriptService, times(1)).compile(any(), any());
     }
 }

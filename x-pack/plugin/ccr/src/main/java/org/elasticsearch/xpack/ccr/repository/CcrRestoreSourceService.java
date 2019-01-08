@@ -213,13 +213,11 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     private static class RefCountedCloseable<T extends Closeable> extends AbstractRefCounted {
 
-        private static final String NAME = "ref-counted-session-object";
-
         private final String name;
         private final T object;
 
         private RefCountedCloseable(String name, T object) {
-            super(NAME);
+            super(name);
             this.name = name;
             this.object = object;
         }

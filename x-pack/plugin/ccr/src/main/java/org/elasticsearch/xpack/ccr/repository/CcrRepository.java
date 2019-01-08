@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.ccr.repository;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -27,6 +25,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
@@ -379,14 +378,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             if (bytesReceived > bytesRequested) {
                 throw new IOException("More bytes [" + bytesReceived + "] received than requested [" + bytesRequested + "]");
             }
-            
-            BytesRefIterator iterator = fileChunk.iterator();
-            BytesRef ref;
-            int bytesWritten = 0;
-            while ((ref = iterator.next()) != null) {
-                byte[] refBytes = ref.bytes;
-                System.arraycopy(refBytes, 0, bytes, off + bytesWritten, refBytes.length);
-                bytesWritten += ref.length;
+
+            try (StreamInput streamInput = fileChunk.streamInput()) {
+                int bytesRead = streamInput.read(bytes, 0, bytesReceived);
+                assert bytesRead == bytesReceived : "Did not read the correct number of bytes";
             }
 
             pos += bytesReceived;

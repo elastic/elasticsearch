@@ -158,20 +158,31 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
     }
 
     public void testGetSessionDoesNotLeakFileIfClosed() throws IOException {
-        IndexShard indexShard1 = newStartedShard(true);
+        Settings settings = Settings.builder().put("index.merge.enabled", false).build();
+        IndexShard indexShard = newStartedShard(true, settings);
+        for (int i = 0; i < 5; i++) {
+            indexDoc(indexShard, "_doc", Integer.toString(i));
+            flushShard(indexShard, true);
+        }
         final String sessionUUID1 = UUIDs.randomBase64UUID();
 
-        restoreSourceService.openSession(sessionUUID1, indexShard1);
+        restoreSourceService.openSession(sessionUUID1, indexShard);
 
         ArrayList<StoreFileMetaData> files = new ArrayList<>();
-        indexShard1.snapshotStoreMetadata().forEach(files::add);
+        indexShard.snapshotStoreMetadata().forEach(files::add);
         try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID1, files.get(0).name())) {
             // Using try with close to ensure that reader is closed.
             assertNotNull(reader);
         }
 
+        // Request a second file to ensure that original file is not leaked
+        try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID1, files.get(1).name())) {
+            // Using try with close to ensure that reader is closed.
+            assertNotNull(reader);
+        }
+
         restoreSourceService.closeSession(sessionUUID1);
-        closeShards(indexShard1);
+        closeShards(indexShard);
         // Exception will be thrown if file is not closed.
     }
 }

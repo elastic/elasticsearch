@@ -67,5 +67,8 @@
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]ScriptServiceTests.java" checks="LineLength" />
 
  <!-- Temporarily contains extra-long lines as examples for tests to be written, see https://github.com/elastic/elasticsearch/issues/34829 -->
-  <suppress files="modules[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]ContextExampleTests.java" checks="LineLength" />
+ <suppress files="modules[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]ContextExampleTests.java" checks="LineLength" />
+
+ <!-- Gradle requires inputs to be seriablizable -->
+ <suppress files="buildSrc[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]precommit[/\\]TestingConventionRule.java" checks="RegexpSinglelineJava" />
 </suppressions>

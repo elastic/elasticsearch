@@ -185,18 +185,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * @param source
-     *            consisting of field/properties pairs (e.g. "field1",
-     *            "type=string,store=true")
-     * @throws IllegalArgumentException
-     *             if the number of the source arguments is not divisible by two
-     * @return the mappings definition
-     */
-    public static XContentBuilder buildFromSimplifiedDef(Object... source) {
-        return buildFromSimplifiedDef(null, source);
-    }
-
-    /**
      * @param type
      *            the mapping type
      * @param source

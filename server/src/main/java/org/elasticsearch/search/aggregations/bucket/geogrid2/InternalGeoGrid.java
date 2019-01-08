@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid2;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
@@ -89,17 +88,15 @@ public class InternalGeoGrid extends InternalMultiBucketAggregation<InternalGeoG
             throw new IllegalArgumentException(); // FIXME: better ex?  Also, any way to structure this better?
         }
 
-        public String getKeyAsString2(GeoGridType type) {
-            try { // for some reason breakpoints don't work for nested classes, hacking around that :)
-                throw new IOException("DELETEME");
-            } catch (IOException ex) {
-                // ignore
-            }
-            // FIXME!
-            // We either need to have one bucket type per provider, or this method could return hash as a string,
-            // and we can convert it to a user-facing string before sending it to the user
-            return type.hashAsString(hashAsLong);
-//            return type.getHandler().hashAsString(hashAsLong);
+        /**
+         * Serializing to XContent using a specific GeoGridType.
+         */
+        void toXContent2(XContentBuilder builder, Params params, GeoGridType type) throws IOException {
+            builder.startObject();
+            builder.field(CommonFields.KEY.getPreferredName(), type.hashAsString(hashAsLong));
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
         }
 
         @Override
@@ -132,21 +129,6 @@ public class InternalGeoGrid extends InternalMultiBucketAggregation<InternalGeoG
             }
             final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
             return new Bucket(hashAsLong, docCount, aggs);
-        }
-
-        public XContentBuilder toXContent2(XContentBuilder builder, Params params, GeoGridType type) throws IOException {
-            try { // for some reason breakpoints don't work for nested classes, hacking around that :)
-                throw new IOException("DELETEME");
-            } catch (IOException ex) {
-                // ignore
-            }
-
-            builder.startObject();
-            builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString2(type));
-            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
-            aggregations.toXContentInternal(builder, params);
-            builder.endObject();
-            return builder;
         }
 
         @Override

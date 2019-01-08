@@ -49,8 +49,9 @@ public class GeoGridAggregator extends BucketsAggregator {
     private final GeoGridType type;
 
     GeoGridAggregator(String name, AggregatorFactories factories, GeoGridAggregationBuilder.CellIdSource valuesSource,
-                      int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                      Map<String, Object> metaData, GeoGridType type) throws IOException {
+                      int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
+                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData, GeoGridType type
+    ) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;

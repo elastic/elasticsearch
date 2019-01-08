@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid2;
 
-import org.elasticsearch.common.geo.GeoPoint;
-
 /**
  * Instances implement different hashing algorithms for geo-grid aggregations
  */

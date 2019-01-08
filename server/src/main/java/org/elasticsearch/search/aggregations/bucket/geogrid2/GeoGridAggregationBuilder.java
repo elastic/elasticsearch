@@ -50,11 +50,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder>
     implements MultiBucketAggregationBuilder {
@@ -62,7 +61,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;
 
     /* recognized field names in JSON */
-    static final ParseField FIELD_TYPE = new ParseField("hash_type");
+    static final ParseField FIELD_TYPE = new ParseField("type");
     static final ParseField FIELD_PRECISION = new ParseField("precision");
     static final ParseField FIELD_SIZE = new ParseField("size");
     static final ParseField FIELD_SHARD_SIZE = new ParseField("shard_size");
@@ -77,9 +76,8 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         PARSER = new ConstructingObjectParser<>(GeoGridAggregationBuilder.NAME, false,
             (a, name) -> new GeoGridAggregationBuilder(name, (GeoGridType) a[0]));
 
-        // TODO: Should we require type param to be always present?
         PARSER.declareField(
-            optionalConstructorArg(),
+            constructorArg(),
             GeoGridAggregationBuilder::parseType,
             FIELD_TYPE,
             ObjectParser.ValueType.STRING);
@@ -126,9 +124,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     public GeoGridAggregationBuilder(String name, GeoGridType type) {
         super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
-
-        // TODO: FIXME: should there be a default?
-        this.type = type != null ? type : types.get(GeoHashType.NAME, name);
+        this.type = type;
         this.precision = this.type.getDefaultPrecision();
     }
 

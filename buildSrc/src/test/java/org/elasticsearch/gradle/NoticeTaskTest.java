@@ -15,7 +15,6 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.commons.io.FileUtils.write;
@@ -78,8 +77,6 @@ public class NoticeTaskTest extends GradleUnitTestCase {
         File inputFile = new File(project.getProjectDir(),"NOTICE.txt");
         File outputFile = new File(project.getProjectDir(),"OUTPUT.txt");
 
-//        NoticeTask.writeToFile(inputFile,this.outputHeader,StandardCharsets.UTF_8);
-
         Files.write(inputFile.toPath(),this.outputHeader.getBytes());
         // Set the input and output files on the NoticeTask so we can compare them later
         noticeTask.setInputFile(inputFile);
@@ -108,8 +105,6 @@ public class NoticeTaskTest extends GradleUnitTestCase {
         noticeTask.setOutputFile(outputFile);
 
         // Give us some dummy data to work with
-//        NoticeTask.writeToFile(inputFile,this.outputHeader,StandardCharsets.UTF_8);
-//        Files.write(inputFile.getPath(),this.outputHeader.getBytes());
         Files.write(inputFile.toPath(),this.outputHeader.getBytes());
         this.getListWithoutCopies()
             .forEach(noticeTask::licensesDir);
@@ -129,7 +124,6 @@ public class NoticeTaskTest extends GradleUnitTestCase {
             "================================================================================";
 
         // We shouldn't have any of the 'copy' notices
-
         final String d1NoticeCopy    = "d1 Copy Notice text file";
         final String d1LicenseCopy   = "d1 copy License text file";
 
@@ -154,7 +148,6 @@ public class NoticeTaskTest extends GradleUnitTestCase {
     }
 
     private NoticeTask createTask(Project project) {
-//        return (NoticeTask) project.task(singletonMap("type", NoticeTask.class), "NoticeTask");
         return project.getTasks().create("NoticeTask",NoticeTask.class);
     }
 

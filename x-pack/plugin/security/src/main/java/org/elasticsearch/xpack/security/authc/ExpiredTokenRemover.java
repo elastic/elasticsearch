@@ -43,15 +43,24 @@ final class ExpiredTokenRemover extends AbstractRunnable {
     private final Client client;
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
     private final TimeValue timeout;
+    private final SecurityIndexManager securityIndex;
+    private final SecurityIndexManager securityTokensIndex;
 
-    ExpiredTokenRemover(Settings settings, Client client) {
+    ExpiredTokenRemover(Settings settings, Client client, SecurityIndexManager securityIndex, SecurityIndexManager securityTokensIndex) {
         this.client = client;
         this.timeout = TokenService.DELETE_TIMEOUT.get(settings);
+        this.securityIndex = securityIndex;
+        this.securityTokensIndex = securityTokensIndex;
     }
 
     @Override
     public void doRun() {
-        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(SecurityIndexManager.SECURITY_ALIAS_NAME);
+        final DeleteByQueryRequest expiredDbq;
+        if (securityTokensIndex.exists()) {
+            expiredDbq = new DeleteByQueryRequest(securityTokensIndex.aliasName());
+        } else {
+            expiredDbq = new DeleteByQueryRequest(securityIndex.aliasName());
+        }
         if (timeout != TimeValue.MINUS_ONE) {
             expiredDbq.setTimeout(timeout);
             expiredDbq.getSearchRequest().source().timeout(timeout);

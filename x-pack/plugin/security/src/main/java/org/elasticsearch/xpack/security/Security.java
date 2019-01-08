@@ -429,9 +429,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         this.auditTrailService.set(auditTrailService);
 
         securityIndex.set(SecurityIndexManager.buildSecurityIndexManager(client, clusterService));
+        final SecurityIndexManager securityTokensIndex = SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService);
 
         final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(),
-                SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService), clusterService);
+                securityTokensIndex, clusterService);
         this.tokenService.set(tokenService);
         components.add(tokenService);
 

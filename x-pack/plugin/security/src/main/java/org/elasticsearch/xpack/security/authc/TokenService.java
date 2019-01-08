@@ -205,7 +205,7 @@ public final class TokenService {
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = isTokenServiceEnabled(settings);
-        this.expiredTokenRemover = new ExpiredTokenRemover(settings, client);
+        this.expiredTokenRemover = new ExpiredTokenRemover(settings, client, securityIndex, securityTokensIndex);
         ensureEncryptionCiphersSupported();
         KeyAndCache keyAndCache = new KeyAndCache(new KeyAndTimestamp(tokenPassphrase, createdTimeStamps.incrementAndGet()),
                 new BytesKey(saltArr));
@@ -279,10 +279,10 @@ public final class TokenService {
                                 .setSource(builder)
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                                 .request();
-                indexManager.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", documentId, ex)),
-                    () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, request,
-                        ActionListener.wrap(indexResponse -> listener.onResponse(new Tuple<>(userToken, refreshToken)),
-                            listener::onFailure))
+                indexManager.prepareIndexIfNeededThenExecute(
+                        ex -> listener.onFailure(traceLog("prepare alias [" + indexManager.aliasName() + "]", documentId, ex)),
+                        () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, request, ActionListener
+                                .wrap(indexResponse -> listener.onResponse(new Tuple<>(userToken, refreshToken)), listener::onFailure))
                 );
             }
         }

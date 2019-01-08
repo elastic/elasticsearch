@@ -122,7 +122,8 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     public static List<String> indexNames() {
-        return Collections.unmodifiableList(Arrays.asList(SECURITY_ALIAS_NAME, INTERNAL_SECURITY_INDEX));
+        return Collections.unmodifiableList(
+                Arrays.asList(SECURITY_ALIAS_NAME, INTERNAL_SECURITY_INDEX, SECURITY_TOKENS_ALIAS_NAME, INTERNAL_SECURITY_TOKENS_INDEX));
     }
 
     public boolean checkMappingVersion(Predicate<Version> requiredVersion) {
@@ -155,7 +156,7 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     /**
-     * Returns whether the index has the mapping Mapping can change at any version.
+     * Returns whether the index has the latest mapping. Mapping can change at any version.
      */
     public boolean isMappingUpToDate() {
         return this.indexState.mappingUpToDate;
@@ -196,7 +197,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         final IndexMetaData indexMetaData = resolveConcreteIndex(aliasName, event.state().metaData());
         final boolean indexExists = indexMetaData != null;
         // if index does not exist it will be created with an up to date version
-        // if the version is newer that the latest expected, then a manual upgrade has been issued 
+        // if the version is newer than the latest expected, then a manual upgrade has been issued 
         final boolean isIndexUpToDate = indexExists == false
                 || INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()).intValue() >= expectedIndexFormat;
         // all primary shards allocated

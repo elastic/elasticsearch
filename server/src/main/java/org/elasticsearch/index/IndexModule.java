@@ -84,7 +84,7 @@ import java.util.function.Function;
  */
 public final class IndexModule {
 
-    public static final Setting<Boolean> NODE_STORE_ALLOW_MMAPFS = Setting.boolSetting("node.store.allow_mmapfs", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP = Setting.boolSetting("node.store.allow_mmap", true, Property.NodeScope);
 
     public static final Setting<String> INDEX_STORE_TYPE_SETTING =
             new Setting<>("index.store.type", "", Function.identity(), Property.IndexScope, Property.NodeScope);
@@ -302,6 +302,7 @@ public final class IndexModule {
 
 
     public enum Type {
+        HYBRIDFS("hybridfs"),
         NIOFS("niofs"),
         MMAPFS("mmapfs"),
         SIMPLEFS("simplefs"),
@@ -330,7 +331,7 @@ public final class IndexModule {
         public static Type fromSettingsKey(final String key) {
             final Type type = TYPES.get(key);
             if (type == null) {
-                throw new IllegalArgumentException("no matching type for [" + key + "]");
+                throw new IllegalArgumentException("no matching store type for [" + key + "]");
             }
             return type;
         }
@@ -354,9 +355,9 @@ public final class IndexModule {
         IndexSearcherWrapper newWrapper(IndexService indexService);
     }
 
-    public static Type defaultStoreType(final boolean allowMmapfs) {
-        if (allowMmapfs && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-            return Type.MMAPFS;
+    public static Type defaultStoreType(final boolean allowMmap) {
+        if (allowMmap && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+            return Type.HYBRIDFS;
         } else if (Constants.WINDOWS) {
             return Type.SIMPLEFS;
         } else {
@@ -405,9 +406,9 @@ public final class IndexModule {
             final IndexSettings indexSettings, final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
         final String storeType = indexSettings.getValue(INDEX_STORE_TYPE_SETTING);
         final Type type;
-        final Boolean allowMmapfs = NODE_STORE_ALLOW_MMAPFS.get(indexSettings.getNodeSettings());
+        final Boolean allowMmap = NODE_STORE_ALLOW_MMAP.get(indexSettings.getNodeSettings());
         if (storeType.isEmpty() || Type.FS.getSettingsKey().equals(storeType)) {
-            type = defaultStoreType(allowMmapfs);
+            type = defaultStoreType(allowMmap);
         } else {
             if (isBuiltinType(storeType)) {
                 type = Type.fromSettingsKey(storeType);
@@ -415,8 +416,8 @@ public final class IndexModule {
                 type = null;
             }
         }
-        if (type != null && type == Type.MMAPFS && allowMmapfs == false) {
-            throw new IllegalArgumentException("store type [mmapfs] is not allowed");
+        if (allowMmap == false && (type == Type.MMAPFS || type == Type.HYBRIDFS)) {
+            throw new IllegalArgumentException("store type [" + storeType + "] is not allowed because mmap is disabled");
         }
         final IndexStore store;
         if (storeType.isEmpty() || isBuiltinType(storeType)) {

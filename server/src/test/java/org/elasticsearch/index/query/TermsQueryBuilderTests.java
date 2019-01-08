@@ -274,10 +274,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     @Override
-    protected boolean isCachable(TermsQueryBuilder queryBuilder) {
-        // even though we use a terms lookup here we do this during rewrite and that means we are cachable on toQuery
+    protected boolean isCacheable(TermsQueryBuilder queryBuilder) {
+        // even though we use a terms lookup here we do this during rewrite and that means we are cacheable on toQuery
         // that's why we return true here all the time
-        return super.isCachable(queryBuilder);
+        return super.isCacheable(queryBuilder);
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {
@@ -309,6 +309,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         list = Arrays.asList(5, 42d);
         assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convert(list));
         assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+    }
+
+    public void testTypeField() throws IOException {
+        TermsQueryBuilder builder = QueryBuilders.termsQuery("_type", "value1", "value2");
+        builder.doToQuery(createShardContext());
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
 }
 

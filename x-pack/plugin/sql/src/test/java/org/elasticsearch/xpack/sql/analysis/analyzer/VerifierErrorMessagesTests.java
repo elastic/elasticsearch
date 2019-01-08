@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -26,12 +27,13 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 import java.util.Map;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
+
     private SqlParser parser = new SqlParser();
+    private IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
+        TypesTests.loadMapping("mapping-multi-field-with-nested.json")));
 
     private String error(String sql) {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
-        EsIndex test = new EsIndex("test", mapping);
-        return error(IndexResolution.valid(test), sql);
+        return error(indexResolution, sql);
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
@@ -481,8 +483,43 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testHistogramInFilter() {
-        assertEquals("1:63: Cannot use WHERE filtering on grouping function [HISTOGRAM(date)], use HAVING instead",
+        assertEquals("1:63: Cannot filter on grouping function [HISTOGRAM(date)], use its argument instead",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test WHERE "
                         + "HISTOGRAM(date, INTERVAL 1 MONTH) > CAST('2000-01-01' AS DATE) GROUP BY h"));
+    }
+
+    // related https://github.com/elastic/elasticsearch/issues/36853
+    public void testHistogramInHaving() {
+        assertEquals("1:75: Cannot filter on grouping function [h], use its argument instead",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test GROUP BY h HAVING "
+                        + "h > CAST('2000-01-01' AS DATE)"));
+    }
+
+    public void testGroupByScalarOnTopOfGrouping() {
+        assertEquals(
+                "1:14: Cannot combine [HISTOGRAM(date)] grouping function inside GROUP BY, "
+                + "found [MONTH_OF_YEAR(HISTOGRAM(date) [Z])]; consider moving the expression inside the histogram",
+                error("SELECT MONTH(HISTOGRAM(date, INTERVAL 1 MONTH)) AS h FROM test GROUP BY h"));
+    }
+
+    public void testAggsInHistogram() {
+        assertEquals("1:47: Cannot use an aggregate [MAX] for grouping",
+                error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
+    }
+
+    public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
+            "SELECT PERCENTILE(int, ABS(int)) FROM test"), true));
+        assertEquals("2nd argument of PERCENTILE must be constant, received [ABS(int)]",
+            e.getMessage());
+    }
+
+    public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
+            "SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"), true));
+        assertEquals("2nd argument of PERCENTILE_RANK must be constant, received [ABS(int)]",
+            e.getMessage());
     }
 }

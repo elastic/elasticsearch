@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.util.CancellableThreads.IOInterruptable;
-import org.elasticsearch.common.util.CancellableThreads.Interruptable;
+import org.elasticsearch.common.util.CancellableThreads.IOInterruptible;
+import org.elasticsearch.common.util.CancellableThreads.Interruptible;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -62,7 +62,7 @@ public class CancellableThreadsTests extends ESTestCase {
         }
     }
 
-    static class TestRunnable implements Interruptable {
+    static class TestRunnable implements Interruptible {
         final TestPlan plan;
         final CountDownLatch readyForCancel;
 
@@ -95,7 +95,7 @@ public class CancellableThreadsTests extends ESTestCase {
         }
     }
 
-    static class TestIORunnable implements IOInterruptable {
+    static class TestIORunnable implements IOInterruptible {
         final TestPlan plan;
         final CountDownLatch readyForCancel;
 

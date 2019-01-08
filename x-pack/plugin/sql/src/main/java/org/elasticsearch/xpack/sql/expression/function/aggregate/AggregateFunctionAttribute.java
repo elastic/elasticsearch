@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Objects;
@@ -19,14 +20,14 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
 
     private final String propertyPath;
 
-    AggregateFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id,
+    AggregateFunctionAttribute(Source source, String name, DataType dataType, ExpressionId id,
             String functionId, String propertyPath) {
-        this(location, name, dataType, null, false, id, false, functionId, propertyPath);
+        this(source, name, dataType, null, Nullability.FALSE, id, false, functionId, propertyPath);
     }
 
-    public AggregateFunctionAttribute(Location location, String name, DataType dataType, String qualifier,
-            boolean nullable, ExpressionId id, boolean synthetic, String functionId, String propertyPath) {
-        super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
+    public AggregateFunctionAttribute(Source source, String name, DataType dataType, String qualifier,
+                                      Nullability nullability, ExpressionId id, boolean synthetic, String functionId, String propertyPath) {
+        super(source, name, dataType, qualifier, nullability, id, synthetic, functionId);
         this.propertyPath = propertyPath;
     }
 
@@ -42,18 +43,18 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
 
     @Override
     protected Expression canonicalize() {
-        return new AggregateFunctionAttribute(location(), "<none>", dataType(), null, true, id(), false, "<none>", null);
+        return new AggregateFunctionAttribute(source(), "<none>", dataType(), null, Nullability.TRUE, id(), false, "<none>", null);
     }
 
     @Override
-    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Source source, String name, String qualifier, Nullability nullability, ExpressionId id, boolean synthetic) {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
         // that is the functionId is actually derived from the expression id to easily track it across contexts
-        return new AggregateFunctionAttribute(location, name, dataType(), qualifier, nullable, id, synthetic, functionId(), propertyPath);
+        return new AggregateFunctionAttribute(source, name, dataType(), qualifier, nullability, id, synthetic, functionId(), propertyPath);
     }
 
     public AggregateFunctionAttribute withFunctionId(String functionId, String propertyPath) {
-        return new AggregateFunctionAttribute(location(), name(), dataType(), qualifier(), nullable(),
+        return new AggregateFunctionAttribute(source(), name(), dataType(), qualifier(), nullable(),
                 id(), synthetic(), functionId, propertyPath);
     }
 

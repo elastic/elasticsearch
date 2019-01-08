@@ -31,7 +31,7 @@ forbiddenApisMain {
   replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
     // jLine's optional dependencies
     'org.apache.sshd.client.SshClient',
     'org.apache.sshd.client.auth.keyboard.UserInteraction',
@@ -72,7 +72,7 @@ thirdPartyAudit.excludes = [
     'org.fusesource.jansi.internal.Kernel32',
     'org.fusesource.jansi.internal.WindowsSupport',
     'org.mozilla.universalchardet.UniversalDetector',
-]
+)
 
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'

@@ -65,7 +65,7 @@ are available in the script being tested.
 The following parameters may be specified in `context_setup` for a filter context:
 
 document:: Contains the document that will be temporarily indexed in-memory and is accessible from the script.
-index:: The name of an index containing a mapping that is compatable with the document being indexed.
+index:: The name of an index containing a mapping that is compatible with the document being indexed.
 
 *Example*
 
@@ -122,7 +122,7 @@ The `score` context executes scripts as if they were executed inside a `script_s
 The following parameters may be specified in `context_setup` for a score context:
 
 document:: Contains the document that will be temporarily indexed in-memory and is accessible from the script.
-index:: The name of an index containing a mapping that is compatable with the document being indexed.
+index:: The name of an index containing a mapping that is compatible with the document being indexed.
 query:: If `_score` is used in the script then a query can specified that will be used to compute a score.
 
 *Example*

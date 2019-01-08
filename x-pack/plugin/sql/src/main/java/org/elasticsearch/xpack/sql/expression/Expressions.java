@@ -79,13 +79,8 @@ public final class Expressions {
         return false;
     }
 
-    public static boolean nullable(List<? extends Expression> exps) {
-        for (Expression exp : exps) {
-            if (exp.nullable()) {
-                return true;
-            }
-        }
-        return false;
+    public static Nullability nullable(List<? extends Expression> exps) {
+       return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
     }
 
     public static boolean foldable(List<? extends Expression> exps) {

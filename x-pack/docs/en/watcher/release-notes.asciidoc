@@ -121,7 +121,7 @@ March 30, 2016
 .New Features
 * Added <<actions-pagerduty, PagerDuty action>>
 * Added support for adding <<configuring-email-attachments, attachments to emails>>
-  via HTTP requests and superceding and deprecating the usage of `attach_data`
+  via HTTP requests and superseding and deprecating the usage of `attach_data`
   in order to use this feature
 
 [float]
@@ -143,7 +143,7 @@ February 2, 2016
 February 2, 2016
 
 .Enhancements
-* Adds support for Elasticssearch 2.1.2
+* Adds support for Elasticsearch 2.1.2
 
 [float]
 ==== 2.1.1

@@ -48,7 +48,7 @@ pre-5.x indices forward to 6.x. Data in time-based indices
 generally becomes less useful as time passes and are
 deleted as they age past your retention period.
 
-Unless you have an unusally long retention period, you can just
+Unless you have an unusually long retention period, you can just
 wait to upgrade to 6.x until all of your pre-5.x indices have
 been deleted.
 

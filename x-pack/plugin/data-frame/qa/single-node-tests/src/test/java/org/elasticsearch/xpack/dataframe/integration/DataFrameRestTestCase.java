@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -65,6 +66,13 @@ abstract class DataFrameRestTestCase extends ESRestTestCase {
         // jobs should be all gone
         jobConfigs = getDataFrameJobs();
         assertTrue(jobConfigs.isEmpty());
+
+        // the configuration index should be empty
+        Request request = new Request("GET", DataFrameInternalIndex.INDEX_NAME + "/_search");
+        Response searchResponse = adminClient().performRequest(request);
+        Map<String, Object> searchResult = entityAsMap(searchResponse);
+
+        assertEquals(0, XContentMapValues.extractValue("hits.total.value", searchResult));
     }
 
     protected static void waitForPendingDataFrameTasks() throws Exception {

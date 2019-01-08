@@ -87,16 +87,6 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     @Override
     protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state,
                                    final ActionListener<ClusterRerouteResponse> listener) {
-        ActionListener<ClusterRerouteResponse> logWrapper = ActionListener.wrap(
-            response -> {
-                if (request.dryRun() == false) {
-                    response.getExplanations().getYesDecisionMessages().forEach(logger::info);
-                }
-                listener.onResponse(response);
-            },
-            listener::onFailure
-        );
-
         // Gather all stale primary allocation commands into a map indexed by the index name they correspond to
         // so we can check if the nodes they correspond to actually have any data for the shard
         Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations = request.getCommands().commands().stream()
@@ -114,7 +104,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             );
         if (stalePrimaryAllocations.isEmpty()) {
             // We don't have any stale primary allocations, we simply execute the state update task for the requested allocations
-            submitStateUpdate(request, logWrapper);
+            submitStateUpdate(request, listener);
         } else {
             // We get the index shard store status for indices that we want to allocate stale primaries on first to fail requests
             // where there's no data for a given shard on a given node.
@@ -152,18 +142,25 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                                 }
                             }
                             if (e == null) {
-                                submitStateUpdate(request, logWrapper);
+                                submitStateUpdate(request, listener);
                             } else {
-                                logWrapper.onFailure(e);
+                                listener.onFailure(e);
                             }
-                        }, logWrapper::onFailure
+                        }, listener::onFailure
                     ), IndicesShardStoresResponse::new));
         }
     }
 
-    private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> logWrapper) {
+    private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
         clusterService.submitStateUpdateTask("cluster_reroute (api)",
-            new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request, logWrapper));
+            new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request,
+                ActionListener.wrap(
+                    response -> {
+                        if (request.dryRun() == false) {
+                            response.getExplanations().getYesDecisionMessages().forEach(logger::info);
+                        }
+                        listener.onResponse(response);
+                    }, listener::onFailure)));
     }
 
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask<ClusterRerouteResponse> {

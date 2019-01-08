@@ -17,6 +17,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37191")
     public void testSqlTranslateAction() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test").get());
         client().prepareBulk()

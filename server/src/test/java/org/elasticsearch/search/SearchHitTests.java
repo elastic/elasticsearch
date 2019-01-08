@@ -239,7 +239,7 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
 
         SearchHits hits = new SearchHits(new SearchHit[]{hit1, hit2}, 2, 1f);
 
-        Version version = VersionUtils.randomVersion(random());
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.CURRENT);
         SearchHits results = copyStreamable(hits, getNamedWriteableRegistry(), SearchHits::new, version);
         SearchShardTarget deserializedTarget = results.getAt(0).getShard();
         assertThat(deserializedTarget, equalTo(target));

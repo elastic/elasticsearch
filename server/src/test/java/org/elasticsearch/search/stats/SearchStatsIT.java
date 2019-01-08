@@ -178,6 +178,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         return nodes;
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/37179")
     public void testOpenContexts() {
         String index = "test1";
         createIndex(index);

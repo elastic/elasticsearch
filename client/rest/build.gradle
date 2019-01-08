@@ -77,7 +77,7 @@ namingConventions {
   skipIntegTestInDisguise = true
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   //commons-logging optional dependencies
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
@@ -89,4 +89,4 @@ thirdPartyAudit.excludes = [
   //commons-logging provided dependencies
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'
-]
+)

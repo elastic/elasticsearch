@@ -63,7 +63,8 @@ integTestRunner {
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit {
+    ignoreMissingClasses (
         // classes are missing
 
         // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
@@ -143,7 +144,14 @@ thirdPartyAudit.excludes = [
         'org.eclipse.jetty.alpn.ALPN$ServerProvider',
         'org.eclipse.jetty.alpn.ALPN',
 
-        'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+
+        'org.conscrypt.AllocatedBuffer',
+        'org.conscrypt.BufferAllocator',
+        'org.conscrypt.Conscrypt',
+        'org.conscrypt.HandshakeListener'
+   )
+
+   ignoreViolations ( 
         'io.netty.util.internal.PlatformDependent0',
         'io.netty.util.internal.PlatformDependent0$1',
         'io.netty.util.internal.PlatformDependent0$2',
@@ -160,17 +168,14 @@ thirdPartyAudit.excludes = [
         'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-
-        'org.conscrypt.AllocatedBuffer',
-        'org.conscrypt.BufferAllocator',
-        'org.conscrypt.Conscrypt',
-        'org.conscrypt.HandshakeListener'
-]
+        'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
+    )
+}
 
 if (project.inFipsJvm == false) {
     // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
     // a FIPS JVM with BouncyCastleFIPS Provider
-    thirdPartyAudit.excludes += [
+    thirdPartyAudit.ignoreMissingClasses (
             'org.bouncycastle.asn1.x500.X500Name'
-    ]
+    )
 }

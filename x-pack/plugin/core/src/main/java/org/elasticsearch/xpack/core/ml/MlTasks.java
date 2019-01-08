@@ -57,7 +57,8 @@ public final class MlTasks {
 
     /**
      * Note that the return value of this method does NOT take node relocations into account.
-     * Use {@link #getJobStateModifiedForReassignments} to return a value
+     * Use {@link #getJobStateModifiedForReassignments} to return a value adjusted to the most
+     * appropriate value following relocations.
      */
     public static JobState getJobState(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTasksCustomMetaData.PersistentTask<?> task = getJobTask(jobId, tasks);
@@ -78,7 +79,7 @@ public final class MlTasks {
 
     public static JobState getJobStateModifiedForReassignments(@Nullable PersistentTasksCustomMetaData.PersistentTask<?> task) {
         if (task == null) {
-            // If we haven't opened a job than there will be no persistent task, which is the same as if the job was closed
+            // A closed job has no persistent task
             return JobState.CLOSED;
         }
         JobTaskState jobTaskState = (JobTaskState) task.getState();

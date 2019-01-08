@@ -19,10 +19,10 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.CharArraySet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -32,7 +32,7 @@ import org.elasticsearch.index.analysis.Analysis;
 public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardHtmlStripAnalyzer> {
 
     private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(StandardHtmlStripAnalyzerProvider.class));
+        new DeprecationLogger(LogManager.getLogger(StandardHtmlStripAnalyzerProvider.class));
 
     private final StandardHtmlStripAnalyzer analyzer;
 
@@ -46,7 +46,7 @@ public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProv
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
         analyzer = new StandardHtmlStripAnalyzer(stopWords);
         analyzer.setVersion(version);
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
                 "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
         } else {

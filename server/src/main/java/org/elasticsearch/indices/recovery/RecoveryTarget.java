@@ -39,7 +39,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -66,6 +65,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 /**
@@ -527,14 +527,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public ListenableFuture<Long> writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                                                 boolean lastChunk, int totalTranslogOps) throws IOException {
+    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                               boolean lastChunk, int totalTranslogOps, Consumer<Exception> onComplete) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetaData.name(), name -> new FileChunkWriter());
-        final long writtenPosition = writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
-        final ListenableFuture<Long> future = new ListenableFuture<>();
-        future.onResponse(writtenPosition);
-        return future;
+        writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
+        onComplete.accept(null);
     }
 
     private static final class FileChunk {
@@ -555,7 +553,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         final PriorityQueue<FileChunk> pendingChunks = new PriorityQueue<>(Comparator.comparing(fc -> fc.position));
         long lastPosition = 0;
 
-        long writeChunk(FileChunk newChunk) throws IOException {
+        void writeChunk(FileChunk newChunk) throws IOException {
             synchronized (this) {
                 pendingChunks.add(newChunk);
             }
@@ -564,7 +562,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 synchronized (this) {
                     chunk = pendingChunks.peek();
                     if (chunk == null || chunk.position != lastPosition) {
-                        return lastPosition;
+                        return;
                     }
                     pendingChunks.remove();
                 }

@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
@@ -173,7 +174,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     barrier.await();
                     RecoveryFileChunkRequest r;
                     while ((r = queue.poll()) != null) {
-                        recoveryTarget.writeFileChunk(r.metadata(), r.position(), r.content(), r.lastChunk(), r.totalTranslogOps()).get();
+                        recoveryTarget.writeFileChunk(r.metadata(), r.position(), r.content(), r.lastChunk(), r.totalTranslogOps(), e -> {
+                            assertThat(e, nullValue());
+                        });
                     }
                 } catch (Exception e) {
                     throw new AssertionError(e);

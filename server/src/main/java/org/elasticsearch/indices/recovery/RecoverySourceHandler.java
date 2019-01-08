@@ -36,17 +36,15 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -61,10 +59,10 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
-import java.io.BufferedOutputStream;
+import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -73,10 +71,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -99,7 +97,6 @@ public class RecoverySourceHandler {
     private final StartRecoveryRequest request;
     private final int chunkSizeInBytes;
     private final RecoveryTargetHandler recoveryTarget;
-    private final ThreadPool threadPool;
     private final int maxConcurrentFileChunks;
 
     protected final RecoveryResponse response;
@@ -121,13 +118,12 @@ public class RecoverySourceHandler {
     };
 
     public RecoverySourceHandler(final IndexShard shard, RecoveryTargetHandler recoveryTarget, final StartRecoveryRequest request,
-                                 final ThreadPool threadPool, final int fileChunkSizeInBytes, final int maxConcurrentFileChunks) {
+                                 final int fileChunkSizeInBytes, final int maxConcurrentFileChunks) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.request = request;
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
-        this.threadPool = threadPool;
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.response = new RecoveryResponse();
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
@@ -373,10 +369,7 @@ public class RecoverySourceHandler {
                 cancellableThreads.execute(() ->
                         recoveryTarget.receiveFileInfo(response.phase1FileNames, response.phase1FileSizes, response.phase1ExistingFileNames,
                                 response.phase1ExistingFileSizes, translogOps.get()));
-                // How many bytes we've copied since we last called RateLimiter.pause
-                final Function<StoreFileMetaData, OutputStream> outputStreamFactories =
-                        md -> new BufferedOutputStream(new RecoveryOutputStream(md, translogOps), chunkSizeInBytes);
-                sendFiles(store, phase1Files.toArray(new StoreFileMetaData[phase1Files.size()]), outputStreamFactories);
+                cancellableThreads.executeIO(() -> sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps));
                 // Send the CLEAN_FILES request, which takes all of the files that
                 // were transferred and renames them from their temporary file
                 // names to the actual file names. It also writes checksums for
@@ -643,132 +636,82 @@ public class RecoverySourceHandler {
                 '}';
     }
 
-
-    final class RecoveryOutputStream extends OutputStream {
-        private final StoreFileMetaData md;
-        private final Supplier<Integer> translogOps;
-        private long position = 0;
-        private final Semaphore sendingTickets;
-        private final AtomicLong writtenPositionOnTarget;
-        private final int maxAllowedBufferingRequestsOnTarget;
-        private final AtomicReference<Exception> error = new AtomicReference<>();
-
-        RecoveryOutputStream(StoreFileMetaData md, Supplier<Integer> translogOps) {
-            this.sendingTickets = new Semaphore(maxConcurrentFileChunks);
-            this.md = md;
-            this.translogOps = translogOps;
-            this.writtenPositionOnTarget = new AtomicLong();
-            this.maxAllowedBufferingRequestsOnTarget = 2 * maxConcurrentFileChunks;
-        }
-
-        @Override
-        public void write(int b) throws IOException {
-            throw new UnsupportedOperationException("we can't send single bytes over the wire");
-        }
-
-        @Override
-        public void write(byte[] b, int offset, int length) throws IOException {
-            sendNextChunk(position, new BytesArray(b, offset, length), md.length() == position + length);
-            position += length;
-            assert md.length() >= position : "length: " + md.length() + " but positions was: " + position;
-        }
-
-        private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {
-            // Actually send the file chunk to the target node.
-            cancellableThreads.executeIO(() -> {
-                acquireSendingTicket(position);
-                try {
-                    // clear the error so the "close" method won't rethrow the same exception which is not allowed in try-with-resource.
-                    ExceptionsHelper.reThrowIfNotNull(error.getAndSet(null));
-                    recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogOps.get())
-                        .addListener(new ActionListener<Long>() {
-                            @Override
-                            public void onResponse(Long respondedPosition) {
-                                releaseSendingTicket(respondedPosition);
+    void sendFiles(Store store, StoreFileMetaData[] files, Supplier<Integer> translogOps) throws IOException, InterruptedException {
+        ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetaData::length)); // send smallest first
+        final Semaphore sendingTickets = new Semaphore(maxConcurrentFileChunks);
+        final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
+        final AtomicReference<Tuple<StoreFileMetaData, Exception>> error = new AtomicReference<>();
+        long seqIdGenerator = NO_OPS_PERFORMED;
+        try {
+            final byte[] buffer = new byte[chunkSizeInBytes];
+            for (StoreFileMetaData md : files) {
+                try (IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
+                    long position = 0;
+                    int bytesRead;
+                    final InputStream in = new BufferedInputStream(new InputStreamIndexInput(indexInput, md.length()), 8192);
+                    while ((bytesRead = in.read(buffer, 0, buffer.length)) != -1) {
+                        final BytesArray content = new BytesArray(buffer, 0, bytesRead);
+                        final boolean lastChunk = position + content.length() == md.length();
+                        final long seqId = ++seqIdGenerator;
+                        // allow up to 2*maxConcurrentFileChunks buffering requests on the target
+                        requestSeqIdTracker.waitForOpsToComplete(seqId - (2 * maxConcurrentFileChunks));
+                        sendingTickets.acquire();
+                        boolean submitted = false;
+                        try {
+                            if (error.get() != null) {
+                                return; // abort and error will be handled in the finally block
                             }
-                            @Override
-                            public void onFailure(Exception e) {
-                                error.compareAndSet(null, e);
-                                releaseSendingTicket(md.length()); // use max_position so the sender can abort
+                            cancellableThreads.checkForCancel();
+                            recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogOps.get(), e -> {
+                                if (e != null) {
+                                    error.compareAndSet(null, Tuple.tuple(md, e));
+                                }
+                                requestSeqIdTracker.markSeqNoAsCompleted(seqId);
+                                sendingTickets.release();
+                            });
+                            position += content.length();
+                            submitted = true;
+                        } finally {
+                            if (submitted == false) {
+                                requestSeqIdTracker.markSeqNoAsCompleted(seqId);
+                                sendingTickets.release();
                             }
-                        }, EsExecutors.newDirectExecutorService(), threadPool.getThreadContext());
-                } catch (Exception e) {
-                    sendingTickets.release();
-                    throw e;
-                }
-            });
-            if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
-                throw new IndexShardClosedException(request.shardId());
-            }
-        }
-
-        @Override
-        public void close() {
-            // wait for the completion of all ongoing chunks then check for the existing error.
-            cancellableThreads.execute(() -> sendingTickets.acquire(maxConcurrentFileChunks));
-            try {
-                ExceptionsHelper.reThrowIfNotNull(error.get());
-            } finally {
-                sendingTickets.release(maxConcurrentFileChunks);
-            }
-        }
-
-        @SuppressForbidden(reason = "Object#wait")
-        private void acquireSendingTicket(long requestPosition) throws InterruptedException {
-            final LongSupplier unwrittenRequests = () -> (requestPosition - writtenPositionOnTarget.get()) / chunkSizeInBytes;
-            if (unwrittenRequests.getAsLong() >= maxAllowedBufferingRequestsOnTarget) {
-                synchronized (this) {
-                    while (unwrittenRequests.getAsLong() >= maxAllowedBufferingRequestsOnTarget) {
-                        this.wait(); // notified by #releaseSendingTicket
+                        }
                     }
+                } catch (IOException e) {
+                    handleErrorOnSendFiles(store, md, e);
                 }
             }
-            sendingTickets.acquire();
-        }
-
-        @SuppressForbidden(reason = "Object#notify")
-        private void releaseSendingTicket(long respondedPosition) {
-            writtenPositionOnTarget.updateAndGet(curr -> Math.max(curr, respondedPosition));
-            sendingTickets.release();
-            synchronized (this) {
-                this.notify(); // we have only one sender.
+        } finally {
+            try {
+                sendingTickets.acquire(maxConcurrentFileChunks);
+                assert requestSeqIdTracker.getCheckpoint() == seqIdGenerator :
+                    "not all requests completed; checkpoint=" + requestSeqIdTracker.getCheckpoint() + " max_seq_no=" + seqIdGenerator;
+            } finally {
+                if (error.get() != null) {
+                    handleErrorOnSendFiles(store, error.get().v1(), error.get().v2());
+                }
             }
         }
     }
 
-    void sendFiles(Store store, StoreFileMetaData[] files, Function<StoreFileMetaData, OutputStream> outputStreamFactory) throws Exception {
-        store.incRef();
-        try {
-            ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetaData::length)); // send smallest first
-            for (int i = 0; i < files.length; i++) {
-                final StoreFileMetaData md = files[i];
-                try (IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
-                    // it's fine that we are only having the indexInput in the try/with block. The copy methods handles
-                    // exceptions during close correctly and doesn't hide the original exception.
-                    Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStreamFactory.apply(md));
-                } catch (Exception e) {
-                    final IOException corruptIndexException;
-                    if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(e)) != null) {
-                        if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
-                            logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
-                            failEngine(corruptIndexException);
-                            throw corruptIndexException;
-                        } else { // corruption has happened on the way to replica
-                            RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
-                                    "checksums are ok", null);
-                            exception.addSuppressed(e);
-                            logger.warn(() -> new ParameterizedMessage(
-                                    "{} Remote file corruption on node {}, recovering {}. local checksum OK",
-                                    shardId, request.targetNode(), md), corruptIndexException);
-                            throw exception;
-                        }
-                    } else {
-                        throw e;
-                    }
-                }
+    private void handleErrorOnSendFiles(Store store, StoreFileMetaData md, Exception e) throws IOException {
+        final IOException corruptIndexException;
+        if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(e)) != null) {
+            if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
+                logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
+                failEngine(corruptIndexException);
+                throw corruptIndexException;
+            } else { // corruption has happened on the way to replica
+                RemoteTransportException exception = new RemoteTransportException(
+                    "File corruption occurred on recovery but checksums are ok", null);
+                exception.addSuppressed(e);
+                logger.warn(() -> new ParameterizedMessage("{} Remote file corruption on node {}, recovering {}. local checksum OK",
+                    shardId, request.targetNode(), md), corruptIndexException);
+                throw exception;
             }
-        } finally {
-            store.decRef();
+        } else {
+            throw ExceptionsHelper.convertToRuntime(e);
         }
     }
 

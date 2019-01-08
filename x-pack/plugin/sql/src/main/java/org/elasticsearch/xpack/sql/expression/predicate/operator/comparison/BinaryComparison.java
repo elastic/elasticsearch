@@ -10,14 +10,14 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 // marker class to indicate operations that rely on values
 public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation> {
 
-    protected BinaryComparison(Location location, Expression left, Expression right, BinaryComparisonOperation operation) {
-        super(location, left, right, operation);
+    protected BinaryComparison(Source source, Expression left, Expression right, BinaryComparisonOperation operation) {
+        super(source, left, right, operation);
     }
 
     @Override
@@ -37,7 +37,7 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
 
     @Override
     protected Pipe makePipe() {
-        return new BinaryComparisonPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
+        return new BinaryComparisonPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 
     @Override

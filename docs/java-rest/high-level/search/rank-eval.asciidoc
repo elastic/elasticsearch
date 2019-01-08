@@ -82,7 +82,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[rank-eval-response]
 <2> Partial results that are keyed by their query id
 <3> The metric score for each partial result
 <4> Rated search hits contain a fully fledged `SearchHit`
-<5> Rated search hits also contain an `Optional<Interger>` rating that 
+<5> Rated search hits also contain an `Optional<Integer>` rating that 
 is not present if the document did not get a rating in the request
 <6> Metric details are named after the metric used in the request
 <7> After casting to the metric used in the request, the

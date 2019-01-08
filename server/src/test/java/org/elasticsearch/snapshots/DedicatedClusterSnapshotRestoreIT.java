@@ -1179,7 +1179,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .setType("mock").setSettings(Settings.builder()
                 .put("location", randomRepoPath())
                 .put("compress", randomBoolean())
-                .put("max_snapshot_bytes_per_sec", "1000b")
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
         assertAcked(prepareCreate("test-idx", 0, Settings.builder()
             .put("number_of_shards", 5).put("number_of_replicas", 0)));
@@ -1195,10 +1194,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         flushAndRefresh();
         final String dataNode = blockNodeWithIndex("test-repo", "test-idx");
         logger.info("-->  snapshot");
-        client(internalCluster().getMasterName()).admin().cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
         ServiceDisruptionScheme disruption = new BusyMasterServiceDisruption(random(), Priority.HIGH);
         setDisruptionScheme(disruption);
+        client(internalCluster().getMasterName()).admin().cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
         internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);

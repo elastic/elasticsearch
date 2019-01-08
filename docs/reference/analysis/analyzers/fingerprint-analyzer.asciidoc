@@ -58,7 +58,7 @@ The `fingerprint` analyzer accepts the following parameters:
 [horizontal]
 `separator`::
 
-    The character to use to concate the terms.  Defaults to a space.
+    The character to use to concatenate the terms.  Defaults to a space.
 
 `max_output_size`::
 

@@ -59,7 +59,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
     public static void testDocValues(Function<String, IndexService> createIndex) throws IOException {
         MapperService mapperService = createIndex.apply("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(SourceToParse.source("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
 
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
@@ -84,7 +84,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         Settings indexSettings = Settings.EMPTY;
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(SourceToParse.source("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
         assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(TypeFieldMapper.NAME)));
     }
 }

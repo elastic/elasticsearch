@@ -85,7 +85,7 @@ public final class UnfollowAction implements LifecycleAction {
 
     @Override
     public int hashCode() {
-        return 1;
+        return 36970;
     }
 
     @Override

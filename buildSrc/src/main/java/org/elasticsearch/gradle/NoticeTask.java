@@ -95,7 +95,7 @@ public class NoticeTask extends DefaultTask {
 
         // This is a map rather than a set so that the sort order is the 3rd
         // party component names, unaffected by the full path to the various files
-        final Map<String, File> seen = this.getFilesTOAppend(licensesDirs);
+        final Map<String, File> seen = this.getFilesToAppend(licensesDirs);
 
         for (Map.Entry<String, File> entry : seen.entrySet()) {
             final String name = entry.getKey();
@@ -121,7 +121,7 @@ public class NoticeTask extends DefaultTask {
         }
     }
 
-    private Map<String,File> getFilesTOAppend(List<File> licensesDirectories) throws IOException{
+    private Map<String,File> getFilesToAppend(List<File> licensesDirectories) throws IOException{
         final Map<String,File> licensesSeen = new TreeMap<>();
 
         for (File directory: licensesDirectories) {

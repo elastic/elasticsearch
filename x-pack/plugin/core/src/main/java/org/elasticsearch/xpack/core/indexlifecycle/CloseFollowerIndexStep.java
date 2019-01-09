@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 
 final class CloseFollowerIndexStep extends AbstractUnfollowIndexStep {
 

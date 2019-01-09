@@ -13,7 +13,6 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.mockito.Mockito;
 
 import java.util.Collections;

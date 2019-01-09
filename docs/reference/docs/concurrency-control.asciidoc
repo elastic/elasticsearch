@@ -74,8 +74,8 @@ returns:
     "_primary_term" : 2,
     "found": true,
     "_source" : {
-	    "product" : "r2d2",
-    	"details" : "A resourceful astromech droid"
+        "product" : "r2d2",
+        "details" : "A resourceful astromech droid"
     }
 }
 --------------------------------------------------

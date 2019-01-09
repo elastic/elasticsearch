@@ -29,7 +29,7 @@ import java.io.IOException;
 
 public class SearchAsYouTypeIT extends ESRestTestCase {
 
-    public void testFoo() throws IOException {
+    public void testPut() throws IOException {
         createIndex("test",
             Settings.builder()
                 .put("number_of_shards", 1)

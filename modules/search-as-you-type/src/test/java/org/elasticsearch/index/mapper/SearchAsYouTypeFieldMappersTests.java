@@ -81,14 +81,14 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
         analyze("with_3_shingles", with3Shingles, text, analyzerToTerm, termToAnalyzers);
         analyze("with_3_shingles_and_edge_ngrams", with3ShinglesAndEdgeNGrams, text, analyzerToTerm, termToAnalyzers);
 
-        System.out.println("#############\nTokens by analyzer\n######################\n");
+        logger.error("#############\nTokens by analyzer\n######################\n");
         for (Map.Entry<String, List<String>> entry : analyzerToTerm.entrySet()) {
-            System.out.println("Tokens for analyzer [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
+            logger.error("Tokens for analyzer [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
         }
 
-        System.out.println("#################\nAnalyzers by token\n####################\n");
+        logger.error("#################\nAnalyzers by token\n####################\n");
         for (Map.Entry<String, Set<String>> entry : termToAnalyzers.entrySet()) {
-            System.out.println("Analyzers with token [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
+            logger.error("Analyzers with token [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
         }
     }
 
@@ -109,19 +109,23 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
         analyze("with_3_shingles", with3Shingles, text, analyzerToTerm, termToAnalyzers);
         analyze("with_3_shingles_and_edge_ngrams", with3ShinglesAndEdgeNGrams, text, analyzerToTerm, termToAnalyzers);
 
-        System.out.println("#############\nTokens by analyzer\n######################\n");
+        logger.error("#############\nTokens by analyzer\n######################\n");
         for (Map.Entry<String, List<String>> entry : analyzerToTerm.entrySet()) {
-            System.out.println("Tokens for analyzer [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
+            logger.error("Tokens for analyzer [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
         }
 
-        System.out.println("#################\nAnalyzers by token\n####################\n");
+        logger.error("#################\nAnalyzers by token\n####################\n");
         for (Map.Entry<String, Set<String>> entry : termToAnalyzers.entrySet()) {
-            System.out.println("Analyzers with token [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
+            logger.error("Analyzers with token [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
         }
     }
 
     // todo remove this is temporary
-    private static void analyze(String name, Analyzer analyzer, String text, Map<String, List<String>> analyzerToTerm, Map<String, Set<String>> termToAnalyzers) throws IOException {
+    private static void analyze(String name,
+                                Analyzer analyzer,
+                                String text,
+                                Map<String, List<String>> analyzerToTerm,
+                                Map<String, Set<String>> termToAnalyzers) throws IOException {
         final List<String> tokens = analyzeTerms(text, analyzer);
         assertFalse(analyzerToTerm.containsKey(name));
         analyzerToTerm.put(name, tokens);

@@ -55,6 +55,11 @@ public final class MlTasks {
         return tasks == null ? null : tasks.getTask(datafeedTaskId(datafeedId));
     }
 
+    /**
+     * Note that the return value of this method does NOT take node relocations into account.
+     * Use {@link #getJobStateModifiedForReassignments} to return a value adjusted to the most
+     * appropriate value following relocations.
+     */
     public static JobState getJobState(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTasksCustomMetaData.PersistentTask<?> task = getJobTask(jobId, tasks);
         if (task != null) {
@@ -66,6 +71,36 @@ public final class MlTasks {
         }
         // If we haven't opened a job than there will be no persistent task, which is the same as if the job was closed
         return JobState.CLOSED;
+    }
+
+    public static JobState getJobStateModifiedForReassignments(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
+        return getJobStateModifiedForReassignments(getJobTask(jobId, tasks));
+    }
+
+    public static JobState getJobStateModifiedForReassignments(@Nullable PersistentTasksCustomMetaData.PersistentTask<?> task) {
+        if (task == null) {
+            // A closed job has no persistent task
+            return JobState.CLOSED;
+        }
+        JobTaskState jobTaskState = (JobTaskState) task.getState();
+        if (jobTaskState == null) {
+            return JobState.OPENING;
+        }
+        JobState jobState = jobTaskState.getState();
+        if (jobTaskState.isStatusStale(task)) {
+            // the job is re-locating
+            if (jobState == JobState.CLOSING) {
+                // previous executor node failed while the job was closing - it won't
+                // be reopened on another node, so consider it CLOSED for most purposes
+                return JobState.CLOSED;
+            }
+            if (jobState != JobState.FAILED) {
+                // previous executor node failed and current executor node didn't
+                // have the chance to set job status to OPENING
+                return JobState.OPENING;
+            }
+        }
+        return jobState;
     }
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {

@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.VersionType;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
@@ -55,9 +57,17 @@ public final class FollowingEngine extends InternalEngine {
         return engineConfig;
     }
 
+    private void preFlight(final Operation operation) {
+        assert FollowingEngineAssertions.preFlight(operation);
+        if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new ElasticsearchStatusException("a following engine does not accept operations without an assigned sequence number",
+                RestStatus.FORBIDDEN);
+        }
+    }
+
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
-        FollowingEngineAssertions.preFlight(index);
+        preFlight(index);
         // NOTES: refer Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers.
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
         assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
@@ -89,7 +99,7 @@ public final class FollowingEngine extends InternalEngine {
 
     @Override
     protected InternalEngine.DeletionStrategy deletionStrategyForOperation(final Delete delete) throws IOException {
-        FollowingEngineAssertions.preFlight(delete);
+        preFlight(delete);
         if (delete.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(delete)) {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
@@ -119,7 +129,7 @@ public final class FollowingEngine extends InternalEngine {
 
     @Override
     protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
-        FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(origin, seqNo);
+        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(origin, seqNo);
         return true;
     }
 

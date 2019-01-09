@@ -5,11 +5,9 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.rest.RestStatus;
 
 /**
  * Moved preflight and assertPrimaryIncomingSequenceNumber check to its own class,
@@ -18,24 +16,22 @@ import org.elasticsearch.rest.RestStatus;
  */
 final class FollowingEngineAssertions {
 
-    static void preFlight(final Engine.Operation operation) {
+    static boolean preFlight(final Engine.Operation operation) {
         /*
          * We assert here so that this goes uncaught in unit tests and fails nodes in standalone tests (we want a harsh failure so that we
          * do not have a situation where a shard fails and is recovered elsewhere and a test subsequently passes). We throw an exception so
          * that we also prevent issues in production code.
          */
         assert operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
-        if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            throw new ElasticsearchStatusException("a following engine does not accept operations without an assigned sequence number",
-                RestStatus.FORBIDDEN);
-        }
         assert (operation.origin() == Engine.Operation.Origin.PRIMARY) == (operation.versionType() == VersionType.EXTERNAL) :
             "invalid version_type in a following engine; version_type=" + operation.versionType() + "origin=" + operation.origin();
+        return true;
     }
 
-    static void assertPrimaryIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
+    static boolean assertPrimaryIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
         // sequence number should be set when operation origin is primary
         assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations on a following index must have an assigned sequence number";
+        return true;
     }
 
 }

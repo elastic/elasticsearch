@@ -12,6 +12,8 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,34 +46,18 @@ public final class DataFrameInternalIndex {
     // internal document types, e.g. "job_config"
     public static final String DOC_TYPE = "doc_type";
 
-    public static void createIndexTemplate(Client client, final ActionListener<Boolean> finalListener) {
-        PutIndexTemplateRequest request;
-        try {
-            request = new PutIndexTemplateRequest(INDEX_TEMPLATE_NAME)
-                    .patterns(Collections.singletonList(INDEX_TEMPLATE_NAME))
-                    .version(Version.CURRENT.id)
-                    .settings(Settings.builder()
-                            // the configurations are expected to be small
-                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
-                    // todo: remove type
-                    .mapping(MapperService.SINGLE_MAPPING_NAME, mappings());
-
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ClientHelper.DATA_FRAME_ORIGIN, request,
-                    ActionListener.<AcknowledgedResponse>wrap(r -> {
-                        if (r.isAcknowledged()) {
-                            finalListener.onResponse(true);
-                        } else {
-                            finalListener.onFailure(
-                                    new RuntimeException("Error creating data frame index template, request was not acknowledged"));
-                        }
-                    }, e -> {
-                        finalListener.onFailure(new RuntimeException("Error adding data frame index template", e));
-                    }), client.admin().indices()::putTemplate);
-        } catch (IOException e) {
-            finalListener.onFailure(new RuntimeException("Error creating data frame index template", e));
-        }
+    public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
+        IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(INDEX_TEMPLATE_NAME)
+                .patterns(Collections.singletonList(INDEX_TEMPLATE_NAME))
+                .version(Version.CURRENT.id)
+                .settings(Settings.builder()
+                        // the configurations are expected to be small
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
+                // todo: remove type
+                .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(mappings()))
+                .build();
+        return dataFrameTemplate;
     }
 
     private static XContentBuilder mappings() throws IOException {

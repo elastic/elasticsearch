@@ -6,11 +6,14 @@
 
 package org.elasticsearch.xpack.dataframe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -58,6 +61,7 @@ import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobState;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameJobConfigManager;
 import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameJobsAction;
@@ -66,6 +70,7 @@ import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameJobAction;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -73,8 +78,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 
@@ -86,6 +93,8 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     // list of headers that will be stored when a job is created
     public static final Set<String> HEADER_FILTERS = new HashSet<>(
             Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
+
+    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
 
     private final boolean enabled;
     private final Settings settings;
@@ -168,11 +177,21 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
             return emptyList();
         }
 
-        DataFrameInitializationService dataFrameInitializationService = new DataFrameInitializationService(clusterService, threadPool,
-                client);
         dataFrameJobConfigManager.set(new DataFrameJobConfigManager(client, xContentRegistry));
 
-        return Arrays.asList(dataFrameInitializationService, dataFrameJobConfigManager);
+        return Collections.singletonList(dataFrameJobConfigManager);
+    }
+
+    @Override
+    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+        return templates -> {
+            try {
+                templates.put(DataFrameInternalIndex.INDEX_TEMPLATE_NAME, DataFrameInternalIndex.getIndexTemplateMetaData());
+            } catch (IOException e) {
+                logger.error("Error creating data frame index template", e);
+            }
+            return templates;
+        };
     }
 
     @Override

@@ -21,7 +21,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
@@ -31,12 +30,14 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -51,25 +52,35 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     private final ClusterService clusterService;
     private final AutodetectProcessManager processManager;
     private final JobResultsProvider jobResultsProvider;
+    private final JobConfigProvider jobConfigProvider;
 
     @Inject
     public TransportGetJobsStatsAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
-                                       AutodetectProcessManager processManager, JobResultsProvider jobResultsProvider) {
+                                       AutodetectProcessManager processManager, JobResultsProvider jobResultsProvider,
+                                       JobConfigProvider jobConfigProvider) {
         super(GetJobsStatsAction.NAME, clusterService, transportService, actionFilters, GetJobsStatsAction.Request::new,
             GetJobsStatsAction.Response::new, in -> new QueryPage<>(in, JobStats::new), ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.processManager = processManager;
         this.jobResultsProvider = jobResultsProvider;
+        this.jobConfigProvider = jobConfigProvider;
     }
 
     @Override
-    protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> listener) {
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
-        request.setExpandedJobsIds(new ArrayList<>(mlMetadata.expandJobIds(request.getJobId(), request.allowNoJobs())));
-        ActionListener<GetJobsStatsAction.Response> finalListener = listener;
-        listener = ActionListener.wrap(response -> gatherStatsForClosedJobs(mlMetadata,
-                request, response, finalListener), listener::onFailure);
-        super.doExecute(task, request, listener);
+    protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> finalListener) {
+        logger.debug("Get stats for job [{}]", request.getJobId());
+
+        jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), true, ActionListener.wrap(
+                expandedIds -> {
+                    request.setExpandedJobsIds(new ArrayList<>(expandedIds));
+                    ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(
+                            response -> gatherStatsForClosedJobs(request, response, finalListener),
+                            finalListener::onFailure
+                    );
+                    super.doExecute(task, request, jobStatsListener);
+                },
+                finalListener::onFailure
+        ));
     }
 
     @Override
@@ -81,6 +92,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         for (QueryPage<JobStats> task : tasks) {
             stats.addAll(task.results());
         }
+        Collections.sort(stats, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
         return new GetJobsStatsAction.Response(taskOperationFailures, failedNodeExceptions, new QueryPage<>(stats, stats.size(),
                 Job.RESULTS_FIELD));
     }
@@ -89,7 +101,6 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     protected void taskOperation(GetJobsStatsAction.Request request, TransportOpenJobAction.JobTask task,
                                  ActionListener<QueryPage<JobStats>> listener) {
         String jobId = task.getJobId();
-        logger.debug("Get stats for job [{}]", jobId);
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(task);
@@ -112,21 +123,20 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
 
     // Up until now we gathered the stats for jobs that were open,
     // This method will fetch the stats for missing jobs, that was stored in the jobs index
-    void gatherStatsForClosedJobs(MlMetadata mlMetadata, GetJobsStatsAction.Request request, GetJobsStatsAction.Response response,
+    void gatherStatsForClosedJobs(GetJobsStatsAction.Request request, GetJobsStatsAction.Response response,
                                   ActionListener<GetJobsStatsAction.Response> listener) {
-        List<String> jobIds = determineNonDeletedJobIdsWithoutLiveStats(mlMetadata,
-                request.getExpandedJobsIds(), response.getResponse().results());
-        if (jobIds.isEmpty()) {
+        List<String> closedJobIds = determineJobIdsWithoutLiveStats(request.getExpandedJobsIds(), response.getResponse().results());
+        if (closedJobIds.isEmpty()) {
             listener.onResponse(response);
             return;
         }
 
-        AtomicInteger counter = new AtomicInteger(jobIds.size());
-        AtomicArray<JobStats> jobStats = new AtomicArray<>(jobIds.size());
+        AtomicInteger counter = new AtomicInteger(closedJobIds.size());
+        AtomicArray<GetJobsStatsAction.Response.JobStats> jobStats = new AtomicArray<>(closedJobIds.size());
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        for (int i = 0; i < jobIds.size(); i++) {
+        for (int i = 0; i < closedJobIds.size(); i++) {
             int slot = i;
-            String jobId = jobIds.get(i);
+            String jobId = closedJobIds.get(i);
             gatherForecastStats(jobId, forecastStats -> {
                 gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
                     JobState jobState = MlTasks.getJobState(jobId, tasks);
@@ -140,6 +150,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
                     if (counter.decrementAndGet() == 0) {
                         List<JobStats> results = response.getResponse().results();
                         results.addAll(jobStats.asList());
+                        Collections.sort(results, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
                         listener.onResponse(new GetJobsStatsAction.Response(response.getTaskFailures(), response.getNodeFailures(),
                                 new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)));
                     }
@@ -169,11 +180,9 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         }
     }
 
-    static List<String> determineNonDeletedJobIdsWithoutLiveStats(MlMetadata mlMetadata,
-                                                                  List<String> requestedJobIds,
-                                                                  List<JobStats> stats) {
-        Set<String> excludeJobIds = stats.stream().map(JobStats::getJobId).collect(Collectors.toSet());
-        return requestedJobIds.stream().filter(jobId -> !excludeJobIds.contains(jobId) &&
-                !mlMetadata.isJobDeleting(jobId)).collect(Collectors.toList());
+    static List<String> determineJobIdsWithoutLiveStats(List<String> requestedJobIds,
+                                                        List<GetJobsStatsAction.Response.JobStats> stats) {
+        Set<String> excludeJobIds = stats.stream().map(GetJobsStatsAction.Response.JobStats::getJobId).collect(Collectors.toSet());
+        return requestedJobIds.stream().filter(jobId -> !excludeJobIds.contains(jobId)).collect(Collectors.toList());
     }
 }

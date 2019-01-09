@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -19,8 +19,8 @@ import java.util.List;
  */
 public class Max extends NumericAggregate implements EnclosedAgg {
 
-    public Max(Location location, Expression field) {
-        super(location, field);
+    public Max(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -30,7 +30,7 @@ public class Max extends NumericAggregate implements EnclosedAgg {
 
     @Override
     public Max replaceChildren(List<Expression> newChildren) {
-        return new Max(location(), newChildren.get(0));
+        return new Max(source(), newChildren.get(0));
     }
 
     @Override

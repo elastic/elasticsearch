@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -20,8 +20,8 @@ public class CurrentDateTime extends ConfigurationFunction {
     private final Expression precision;
     private final ZonedDateTime dateTime;
 
-    public CurrentDateTime(Location location, Expression precision, Configuration configuration) {
-        super(location, configuration, DataType.DATE);
+    public CurrentDateTime(Source source, Expression precision, Configuration configuration) {
+        super(source, configuration, DataType.DATE);
         this.precision = precision;
         int p = precision != null ? ((Number) precision.fold()).intValue() : 0;
         this.dateTime = nanoPrecision(configuration().now(), p);

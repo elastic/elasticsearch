@@ -230,7 +230,8 @@ public class MasterService extends AbstractLifecycleComponent {
                 if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
                     String nodeSummary = nodesDelta.shortSummary();
                     if (nodeSummary.length() > 0) {
-                        logger.info("{}, reason: {}", summary, nodeSummary);
+                        logger.info("{}, term: {}, version: {}, reason: {}",
+                            summary, newClusterState.term(), newClusterState.version(), nodeSummary);
                     }
                 }
 

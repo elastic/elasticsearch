@@ -75,21 +75,25 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     @Override
     protected void doExecute(Task task, GetOverallBucketsAction.Request request,
                              ActionListener<GetOverallBucketsAction.Response> listener) {
-        QueryPage<Job> jobsPage = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), clusterService.state());
-        if (jobsPage.count() == 0) {
-            listener.onResponse(new GetOverallBucketsAction.Response());
-            return;
-        }
+        jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
+                jobPage -> {
+                    if (jobPage.count() == 0) {
+                        listener.onResponse(new GetOverallBucketsAction.Response());
+                        return;
+                    }
 
-        // As computing and potentially aggregating overall buckets might take a while,
-        // we run in a different thread to avoid blocking the network thread.
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            try {
-                getOverallBuckets(request, jobsPage.results(), listener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+                    // As computing and potentially aggregating overall buckets might take a while,
+                    // we run in a different thread to avoid blocking the network thread.
+                    threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                        try {
+                            getOverallBuckets(request, jobPage.results(), listener);
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                },
+                listener::onFailure
+        ));
     }
 
     private void getOverallBuckets(GetOverallBucketsAction.Request request, List<Job> jobs,

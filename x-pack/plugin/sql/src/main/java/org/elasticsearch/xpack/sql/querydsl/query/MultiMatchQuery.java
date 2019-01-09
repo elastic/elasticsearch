@@ -11,7 +11,7 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,8 +49,8 @@ public class MultiMatchQuery extends LeafQuery {
     private final Map<String, String> options;
     private final MultiMatchQueryPredicate predicate;
 
-    public MultiMatchQuery(Location location, String query, Map<String, Float> fields, MultiMatchQueryPredicate predicate) {
-        super(location);
+    public MultiMatchQuery(Source source, String query, Map<String, Float> fields, MultiMatchQueryPredicate predicate) {
+        super(source);
         this.query = query;
         this.fields = fields;
         this.predicate = predicate;

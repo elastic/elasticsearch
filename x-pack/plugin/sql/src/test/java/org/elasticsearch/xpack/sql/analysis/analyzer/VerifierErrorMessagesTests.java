@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -26,12 +27,13 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 import java.util.Map;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
+
     private SqlParser parser = new SqlParser();
+    private IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
+        TypesTests.loadMapping("mapping-multi-field-with-nested.json")));
 
     private String error(String sql) {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
-        EsIndex test = new EsIndex("test", mapping);
-        return error(IndexResolution.valid(test), sql);
+        return error(indexResolution, sql);
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
@@ -178,9 +180,22 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     // GROUP BY
+    public void testGroupBySelectWithAlias() {
+        assertNotNull(accept("SELECT int AS i FROM test GROUP BY i"));
+    }
+
+    public void testGroupBySelectWithAliasOrderOnActualField() {
+        assertNotNull(accept("SELECT int AS i FROM test GROUP BY i ORDER BY int"));
+    }
+
     public void testGroupBySelectNonGrouped() {
         assertEquals("1:8: Cannot use non-grouped column [text], expected [int]",
                 error("SELECT text, int FROM test GROUP BY int"));
+    }
+
+    public void testGroupByFunctionSelectFieldFromGroupByFunction() {
+        assertEquals("1:8: Cannot use non-grouped column [int], expected [ABS(int)]",
+                error("SELECT int FROM test GROUP BY ABS(int)"));
     }
 
     public void testGroupByOrderByNonGrouped() {
@@ -199,17 +214,22 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByScalarOverNonGrouped() {
-        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
+        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date [Z])], expected [text]",
                 error("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
     }
 
+    public void testGroupByOrderByFieldFromGroupByFunction() {
+        assertEquals("1:54: Cannot use non-grouped column [int], expected [ABS(int)]",
+                error("SELECT ABS(int) FROM test GROUP BY ABS(int) ORDER BY int"));
+    }
+
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
-        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
+        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date [Z])], expected [text]",
             error("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY YEAR(date)"));
     }
 
     public void testGroupByHavingNonGrouped() {
-        assertEquals("1:48: Cannot filter by non-grouped column [int], expected [text]",
+        assertEquals("1:48: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
                 error("SELECT AVG(int) FROM test GROUP BY text HAVING int > 10"));
     }
 
@@ -278,12 +298,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testHavingOnColumn() {
-        assertEquals("1:42: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
+        assertEquals("1:42: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
                 error("SELECT int FROM test GROUP BY int HAVING int > 2"));
     }
 
     public void testHavingOnScalar() {
-        assertEquals("1:42: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
+        assertEquals("1:42: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
                 error("SELECT int FROM test GROUP BY int HAVING 2 < ABS(int)"));
     }
 
@@ -455,5 +475,51 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:" + (46 + arbirtraryArgsfunction.length()) +
                 ": expected data type [KEYWORD], value provided is of type [INTEGER]",
             error("SELECT * FROM test WHERE " + arbirtraryArgsfunction + "(null, null, 'foo', 4) > 1"));
+    }
+
+    public void testAggsInWhere() {
+        assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
+                error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+    }
+
+    public void testHistogramInFilter() {
+        assertEquals("1:63: Cannot filter on grouping function [HISTOGRAM(date)], use its argument instead",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test WHERE "
+                        + "HISTOGRAM(date, INTERVAL 1 MONTH) > CAST('2000-01-01' AS DATE) GROUP BY h"));
+    }
+
+    // related https://github.com/elastic/elasticsearch/issues/36853
+    public void testHistogramInHaving() {
+        assertEquals("1:75: Cannot filter on grouping function [h], use its argument instead",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test GROUP BY h HAVING "
+                        + "h > CAST('2000-01-01' AS DATE)"));
+    }
+
+    public void testGroupByScalarOnTopOfGrouping() {
+        assertEquals(
+                "1:14: Cannot combine [HISTOGRAM(date)] grouping function inside GROUP BY, "
+                + "found [MONTH_OF_YEAR(HISTOGRAM(date) [Z])]; consider moving the expression inside the histogram",
+                error("SELECT MONTH(HISTOGRAM(date, INTERVAL 1 MONTH)) AS h FROM test GROUP BY h"));
+    }
+
+    public void testAggsInHistogram() {
+        assertEquals("1:47: Cannot use an aggregate [MAX] for grouping",
+                error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
+    }
+
+    public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
+            "SELECT PERCENTILE(int, ABS(int)) FROM test"), true));
+        assertEquals("2nd argument of PERCENTILE must be constant, received [ABS(int)]",
+            e.getMessage());
+    }
+
+    public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
+            "SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"), true));
+        assertEquals("2nd argument of PERCENTILE_RANK must be constant, received [ABS(int)]",
+            e.getMessage());
     }
 }

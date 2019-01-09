@@ -66,3 +66,12 @@ jarHell.enabled = false
 namingConventions {
     testClass = 'junit.framework.TestCase'
 }
+
+testingConventions {
+    naming.clear()
+    naming {
+        Tests {
+            baseClass 'junit.framework.TestCase'
+        }
+    }
+}

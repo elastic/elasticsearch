@@ -172,6 +172,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANS
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -1801,7 +1802,7 @@ public class InternalEngineTests extends EngineTestCase {
         int opsPerformed = 0;
         long lastOpVersion = currentOpVersion;
         long lastOpSeqNo = UNASSIGNED_SEQ_NO;
-        long lastOpTerm = 0;
+        long lastOpTerm = UNASSIGNED_PRIMARY_TERM;
         final AtomicLong currentTerm = new AtomicLong(1);
         BiFunction<Long, Engine.Index, Engine.Index> indexWithVersion = (version, index) -> new Engine.Index(index.uid(), index.parsedDoc(),
             UNASSIGNED_SEQ_NO, currentTerm.get(), version, index.versionType(), index.origin(), index.startTime(),
@@ -1900,7 +1901,7 @@ public class InternalEngineTests extends EngineTestCase {
                     docDeleted = true;
                     lastOpVersion = result.getVersion();
                     lastOpSeqNo = UNASSIGNED_SEQ_NO;
-                    lastOpTerm = 0;
+                    lastOpTerm = UNASSIGNED_PRIMARY_TERM;
                     opsPerformed++;
                 }
             }
@@ -3010,7 +3011,8 @@ public class InternalEngineTests extends EngineTestCase {
                 new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), null,
-                new NoneCircuitBreakerService(), () -> UNASSIGNED_SEQ_NO, primaryTerm::get, tombstoneDocSupplier());
+                new NoneCircuitBreakerService(), () -> UNASSIGNED_SEQ_NO, Collections::emptySet, primaryTerm::get,
+                tombstoneDocSupplier());
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
@@ -3609,8 +3611,8 @@ public class InternalEngineTests extends EngineTestCase {
         }
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            int count = searcher.searcher().count(new MatchAllDocsQuery());
+            assertEquals(numDocs, count);
         }
         if (primary) {
             // primaries rely on lucene dedup and may index the same document twice
@@ -3716,8 +3718,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-            assertEquals(docs.size(), topDocs.totalHits.value);
+            int count = searcher.searcher().count(new MatchAllDocsQuery());
+            assertEquals(docs.size(), count);
         }
         assertEquals(0, engine.getNumVersionLookups());
         assertEquals(0, engine.getNumIndexVersionsLookups());
@@ -4309,7 +4311,7 @@ public class InternalEngineTests extends EngineTestCase {
             final long seqNo;
             DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), get.uid());
             if (docIdAndSeqNo == null) {
-                primaryTerm = 0;
+                primaryTerm = UNASSIGNED_PRIMARY_TERM;
                 seqNo = UNASSIGNED_SEQ_NO;
             } else {
                 seqNo = docIdAndSeqNo.seqNo;
@@ -5451,19 +5453,20 @@ public class InternalEngineTests extends EngineTestCase {
                 docs = getDocIds(engine, true);
             }
             trimUnsafeCommits(config);
-            List<Engine.Operation> safeCommit = null;
+            Set<Long> seqNosInSafeCommit = null;
             for (int i = commits.size() - 1; i >= 0; i--) {
                 if (commits.get(i).stream().allMatch(op -> op.seqNo() <= globalCheckpoint.get())) {
-                    safeCommit = commits.get(i);
+                    seqNosInSafeCommit = commits.get(i).stream().map(Engine.Operation::seqNo).collect(Collectors.toSet());
                     break;
                 }
             }
-            assertThat(safeCommit, notNullValue());
+            assertThat(seqNosInSafeCommit, notNullValue());
             try (InternalEngine engine = new InternalEngine(config)) { // do not recover from translog
                 final LocalCheckpointTracker tracker = engine.getLocalCheckpointTracker();
                 for (Engine.Operation op : operations) {
-                    assertThat("seq_no=" + op.seqNo() + " max_seq_no=" + tracker.getMaxSeqNo() +
-                            " checkpoint=" + tracker.getCheckpoint(), tracker.contains(op.seqNo()), equalTo(safeCommit.contains(op)));
+                    assertThat(
+                        "seq_no=" + op.seqNo() + " max_seq_no=" + tracker.getMaxSeqNo() + "checkpoint=" + tracker.getCheckpoint(),
+                        tracker.contains(op.seqNo()), equalTo(seqNosInSafeCommit.contains(op.seqNo())));
                 }
                 engine.initializeMaxSeqNoOfUpdatesOrDeletes();
                 engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);

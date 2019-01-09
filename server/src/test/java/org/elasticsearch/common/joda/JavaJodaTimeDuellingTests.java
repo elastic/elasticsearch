@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.joda;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.test.ESTestCase;
@@ -75,15 +76,9 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("1522332219.0", "epoch_second");
         assertSameDate("0", "epoch_second");
         assertSameDate("1", "epoch_second");
-        assertSameDate("-1", "epoch_second");
-        assertSameDate("-1522332219", "epoch_second");
-        assertSameDate("1.0e3", "epoch_second");
         assertSameDate("1522332219321", "epoch_millis");
         assertSameDate("0", "epoch_millis");
         assertSameDate("1", "epoch_millis");
-        assertSameDate("-1", "epoch_millis");
-        assertSameDate("-1522332219321", "epoch_millis");
-        assertSameDate("1.0e3", "epoch_millis");
 
         assertSameDate("20181126", "basic_date");
         assertSameDate("20181126T121212.123Z", "basic_date_time");
@@ -390,6 +385,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
         ZonedDateTime javaDate = ZonedDateTime.of(year, month, day, hour, minute, second, 0, ZoneOffset.UTC);
         DateTime jodaDate = new DateTime(year, month, day, hour, minute, second, DateTimeZone.UTC);
+        assertSamePrinterOutput("epoch_second", javaDate, jodaDate);
 
         assertSamePrinterOutput("basicDate", javaDate, jodaDate);
         assertSamePrinterOutput("basicDateTime", javaDate, jodaDate);
@@ -434,7 +430,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSamePrinterOutput("year", javaDate, jodaDate);
         assertSamePrinterOutput("yearMonth", javaDate, jodaDate);
         assertSamePrinterOutput("yearMonthDay", javaDate, jodaDate);
-        assertSamePrinterOutput("epoch_second", javaDate, jodaDate);
+
         assertSamePrinterOutput("epoch_millis", javaDate, jodaDate);
         assertSamePrinterOutput("strictBasicWeekDate", javaDate, jodaDate);
         assertSamePrinterOutput("strictBasicWeekDateTime", javaDate, jodaDate);
@@ -473,7 +469,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     public void testSeveralTimeFormats() {
         DateFormatter jodaFormatter = DateFormatter.forPattern("year_month_day||ordinal_date");
-        DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||8ordinal_date");
+        DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||ordinal_date");
         assertSameDate("2018-12-12", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
         assertSameDate("2018-128", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
     }
@@ -482,6 +478,12 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
         String javaTimeOut = DateFormatters.forPattern(format).format(javaDate);
         String jodaTimeOut = DateFormatter.forPattern(format).formatJoda(jodaDate);
+        if (JavaVersion.current().getVersion().get(0) == 8 && javaTimeOut.endsWith(".0")
+            && (format.equals("epoch_second") || format.equals("epoch_millis"))) {
+            // java 8 has a bug in DateTimeFormatter usage when printing dates that rely on isSupportedBy for fields, which is
+            // what we use for epoch time. This change accounts for that bug. It should be removed when java 8 support is removed
+            jodaTimeOut += ".0";
+        }
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
                 format, jodaTimeOut, javaTimeOut);
         assertThat(message, javaTimeOut, is(jodaTimeOut));
@@ -490,7 +492,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     private void assertSameDate(String input, String format) {
         DateFormatter jodaFormatter = Joda.forPattern(format);
         DateFormatter javaFormatter = DateFormatters.forPattern(format);
-
         assertSameDate(input, format, jodaFormatter, javaFormatter);
     }
 

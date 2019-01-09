@@ -7,7 +7,7 @@ Requires the <<geo-shape,`geo_shape` Mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
 `geo_shape` mapping to find documents that have a shape that intersects
-with the query shape. It will also use the same PrefixTree configuration
+with the query shape. It will also use the same Prefix Tree configuration
 as defined for the field mapping.
 
 The query supports two ways of defining the query shape, either by
@@ -81,7 +81,7 @@ GET /example/_search
 ==== Pre-Indexed Shape
 
 The Query also supports using a shape which has already been indexed in
-another index and/or index type. This is particularly useful for when
+another index. This is particularly useful for when
 you have a pre-defined list of shapes which are useful to your
 application and you want to reference this using a logical name (for
 example 'New Zealand') rather than having to provide their coordinates
@@ -90,7 +90,6 @@ each time. In this situation it is only necessary to provide:
 * `id` - The ID of the document that containing the pre-indexed shape.
 * `index` - Name of the index where the pre-indexed shape is. Defaults
 to 'shapes'.
-* `type` - Index type where the pre-indexed shape is.
 * `path` - The field specified as path containing the pre-indexed shape.
 Defaults to 'shape'.
 * `routing` - The routing of the shape document if required.
@@ -130,7 +129,6 @@ GET /example/_search
                     "location": {
                         "indexed_shape": {
                             "index": "shapes",
-                            "type": "_doc",
                             "id": "deu",
                             "path": "location"
                         }
@@ -157,7 +155,8 @@ has nothing in common with the query geometry.
 * `WITHIN` - Return all documents whose `geo_shape` field
 is within the query geometry.
 * `CONTAINS` - Return all documents whose `geo_shape` field
-contains the query geometry.
+contains the query geometry. Note: this is only supported using the
+`recursive` Prefix Tree Strategy deprecated[6.6]
 
 [float]
 ==== Ignore Unmapped

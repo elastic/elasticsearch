@@ -305,7 +305,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), threadPool.scheduler(), logger);
         this.replicationTracker =
-                new ReplicationTracker(shardId, aId, indexSettings, UNASSIGNED_SEQ_NO, globalCheckpointListeners::globalCheckpointUpdated);
+                new ReplicationTracker(
+                        shardId,
+                        aId,
+                        indexSettings,
+                        UNASSIGNED_SEQ_NO,
+                        globalCheckpointListeners::globalCheckpointUpdated,
+                        threadPool::absoluteTimeInMillis);
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis

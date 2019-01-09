@@ -29,33 +29,38 @@ Here is an example:
 
 [source,js]
 --------------------------------------------------
-PUT test?include_type_name=false
-{
-  "mappings": {
-    "properties": {
-      "foo": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-
-GET test?include_type_name=false
+GET twitter?include_type_name=false
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 which returns
 
 [source,js]
 --------------------------------------------------
 {
-    "test": {
+    "twitter": {
         "aliases": {},
-        "mappings": {
-            "properties": {
-                "foo": {
-                    "type": "keyword"
+        "mappings" : {
+            "properties" : {
+              "date" : {
+                "type" : "date"
+              },
+              "likes" : {
+                "type" : "long"
+              },
+              "message" : {
+                "type" : "text",
+                "fields" : {
+                  "keyword" : {
+                    "type" : "keyword",
+                    "ignore_above" : 256
+                  }
                 }
+              },
+              "user" : {
+                "type" : "keyword"
+              }
             }
         },
         "settings": {
@@ -67,12 +72,12 @@ which returns
                 "version": {
                     "created": ...
                 },
-                "provided_name": "test"
+                "provided_name": "twitter"
             }
         }
     }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/1547028674905/$body.test.settings.index.creation_date/]
-// TESTRESPONSE[s/u1YpkPqLSqGIn3kNAvY8cA/$body.test.settings.index.uuid/]
-// TESTRESPONSE[s/"created": \.\.\./"created": $body.test.settings.index.version.created/]
+// TESTRESPONSE[s/1547028674905/$body.twitter.settings.index.creation_date/]
+// TESTRESPONSE[s/u1YpkPqLSqGIn3kNAvY8cA/$body.twitter.settings.index.uuid/]
+// TESTRESPONSE[s/"created": \.\.\./"created": $body.twitter.settings.index.version.created/]

@@ -787,9 +787,8 @@ final class QueryTranslator {
             if (c.distinct()) {
                 return new CardinalityAgg(id, field(c));
             } else {
-                
+                return new FilterExistsAgg(id, field(c));
             }
-            return new FilterExistsAgg(id, field(c));
         }
     }
 

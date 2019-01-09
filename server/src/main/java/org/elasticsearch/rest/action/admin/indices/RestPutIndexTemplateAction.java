@@ -69,15 +69,21 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.cause(request.param("cause", ""));
 
         boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, true);
+        Map<String, Object> sourceAsMap = prepareRequestSource(request, includeTypeName);
+        putRequest.source(sourceAsMap);
+
+        return channel -> client.admin().indices().putTemplate(putRequest, new RestToXContentListener<>(channel));
+    }
+
+    Map<String, Object> prepareRequestSource(RestRequest request, boolean includeTypeName) {
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
             request.getXContentType()).v2();
         if (includeTypeName == false && sourceAsMap.containsKey("mappings")) {
             Map<String, Object> newSourceAsMap = new HashMap<>(sourceAsMap);
             newSourceAsMap.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
-            sourceAsMap = newSourceAsMap;
+            return newSourceAsMap;
+        } else {
+            return sourceAsMap;
         }
-        putRequest.source(sourceAsMap);
-        return channel -> client.admin().indices().putTemplate(putRequest, new RestToXContentListener<>(channel));
     }
-
 }

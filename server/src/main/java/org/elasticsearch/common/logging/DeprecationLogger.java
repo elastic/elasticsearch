@@ -27,6 +27,8 @@ import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.nio.charset.Charset;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -318,7 +320,10 @@ public class DeprecationLogger {
         }
 
         if (log) {
-            logger.warn(message, params);
+            AccessController.doPrivileged((PrivilegedAction<Void>)() -> {
+                logger.warn(message, params);
+                return null;
+            });
         }
     }
 

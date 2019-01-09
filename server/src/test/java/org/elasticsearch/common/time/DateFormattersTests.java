@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
@@ -84,6 +85,14 @@ public class DateFormattersTests extends ESTestCase {
         TemporalAccessor accessor = formatter.parse("123");
         assertThat(DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli(), is(123L));
         assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
+    }
+
+    public void testParsersWithMultipleInternalFormats() throws Exception {
+        ZonedDateTime first = DateFormatters.toZonedDateTime(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+0100"));
+        ZonedDateTime second = DateFormatters.toZonedDateTime(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00"));
+        assertThat(first, is(second));
     }
 
     public void testLocales() {

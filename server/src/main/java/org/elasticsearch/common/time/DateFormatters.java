@@ -118,29 +118,25 @@ public class DateFormatters {
         .optionalStart()
         .appendZoneOrOffsetId()
         .optionalEnd()
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
-
-    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_2 = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-        .optionalStart()
-        .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
-        .optionalEnd()
         .optionalStart()
         .appendOffset("+HHmm", "Z")
         .optionalEnd()
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendZoneOrOffsetId()
+        .toFormatter(Locale.ROOT);
+
     /**
      * Returns a generic ISO datetime parser where the date is mandatory and the time is optional with nanosecond resolution.
      */
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = new JavaDateFormatter("strict_date_optional_time_nanos",
-        STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_1,
-        STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_1, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_2);
+        STRICT_DATE_OPTIONAL_TIME_PRINTER, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_1);
 
     /////////////////////////////////////////
     //
@@ -1447,14 +1443,18 @@ public class DateFormatters {
         assert formatters.size() > 0;
 
         List<DateTimeFormatter> dateTimeFormatters = new ArrayList<>();
+        DateTimeFormatter printer = null;
         for (DateFormatter formatter : formatters) {
             assert formatter instanceof JavaDateFormatter;
             JavaDateFormatter javaDateFormatter = (JavaDateFormatter) formatter;
             DateTimeFormatter dateTimeFormatter = javaDateFormatter.getParser();
+            if (printer == null) {
+                printer = javaDateFormatter.getPrinter();
+            }
             dateTimeFormatters.add(dateTimeFormatter);
         }
 
-        return new JavaDateFormatter(pattern, dateTimeFormatters.get(0), dateTimeFormatters.toArray(new DateTimeFormatter[]{}));
+        return new JavaDateFormatter(pattern, printer, dateTimeFormatters.toArray(new DateTimeFormatter[]{}));
     }
 
     private static final ZonedDateTime EPOCH_ZONED_DATE_TIME = Instant.EPOCH.atZone(ZoneOffset.UTC);

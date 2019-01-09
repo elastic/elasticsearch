@@ -77,8 +77,12 @@ class JavaDateFormatter implements DateFormatter {
         this.printer = printer;
     }
 
-    public DateTimeFormatter getParser() {
+    DateTimeFormatter getParser() {
         return parser;
+    }
+
+    DateTimeFormatter getPrinter() {
+        return printer;
     }
 
     @Override

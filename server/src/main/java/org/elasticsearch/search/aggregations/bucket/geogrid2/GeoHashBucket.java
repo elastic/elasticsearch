@@ -20,55 +20,31 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid2;
 
 import org.elasticsearch.common.geo.GeoHashUtils;
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 
 /**
- * A simple wrapper for GeoUtils handling of the geohash hashing algorithm
+ * A bucket to store GeoHash geogrid aggregation
  */
-public class GeoHashType implements GeoGridType {
-    static final String NAME = "geohash";
+public class GeoHashBucket extends GeoGridBucket {
 
-    @Override
-    public String getName() {
-        return NAME;
+    protected GeoHashBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
+        super(hashAsLong, docCount, aggregations);
+    }
+
+    protected GeoHashBucket(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
-    public int getDefaultPrecision() {
-        return 5;
-    }
-
-    @Override
-    public int parsePrecisionString(String precision) {
-        return GeoUtils.parsePrecisionString(precision);
-    }
-
-    @Override
-    public int validatePrecision(int precision) {
-        return GeoUtils.checkPrecisionRange(precision);
-    }
-
-    @Override
-    public long calculateHash(double longitude, double latitude, int precision) {
-        return GeoHashUtils.longEncode(longitude, latitude, precision);
-    }
-
-    @Override
-    public String hashAsString(long hash) {
-        return GeoHashUtils.stringEncode(hash);
-    }
-
-    @Override
-    public GeoGridBucket createBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
+    protected GeoGridBucket newBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         return new GeoHashBucket(hashAsLong, docCount, aggregations);
     }
 
     @Override
-    public GeoGridBucket createBucket(StreamInput reader) throws IOException {
-        return new GeoHashBucket(reader);
+    public String getKeyAsString() {
+        return GeoHashUtils.stringEncode(this.hashAsLong);
     }
 }

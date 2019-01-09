@@ -19,6 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid2;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+
+import java.io.IOException;
+
 /**
  * Instances implement different hashing algorithms for geo-grid aggregations
  */
@@ -57,4 +62,14 @@ public interface GeoGridType {
      * @return bucket ID as a string
      */
     String hashAsString(long hash);
+
+    /**
+     * Factory method to create a new bucket.
+     */
+    GeoGridBucket createBucket(long hashAsLong, long docCount, InternalAggregations aggregations);
+
+    /**
+     * Factory method to create a new bucket from a stream.
+     */
+    GeoGridBucket createBucket(StreamInput reader) throws IOException;
 }

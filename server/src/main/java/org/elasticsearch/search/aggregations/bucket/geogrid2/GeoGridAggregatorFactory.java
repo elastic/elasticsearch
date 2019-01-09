@@ -59,7 +59,7 @@ public class GeoGridAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         final InternalAggregation aggregation = new InternalGeoGrid(name, type, requiredSize,
-                Collections.<InternalGeoGrid.Bucket> emptyList(), pipelineAggregators, metaData);
+                Collections.<GeoGridBucket> emptyList(), pipelineAggregators, metaData);
         return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {

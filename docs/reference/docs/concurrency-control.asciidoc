@@ -48,7 +48,7 @@ the `_seq_no` and `_primary_term` fields of the response:
     "result" : "created"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/ s/"successful" : 2/"successful" : 1/]
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 2/"_primary_term" : $body._primary_term/ s/"successful" : 2/"successful" : 1/]
 
 
 Elasticsearch keeps tracks of the sequence number and primary of the last
@@ -105,3 +105,5 @@ PUT products/_doc/1567?if_seq_no=362&if_primary_term=2
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[catch: conflict]
+

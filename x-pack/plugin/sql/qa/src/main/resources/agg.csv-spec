@@ -358,8 +358,9 @@ true           |90
 ;
 
 aggCountAllDifferentFields
-schema::areEqual:b|afn:l
+schema::areEqual:b|afn:l|aln:l
 SELECT COUNT(ALL last_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_name) afn, COUNT(ALL last_name) aln FROM test_emp;
+
    areEqual    |      afn      |      aln
 ---------------+---------------+---------------
 false          |90             |100

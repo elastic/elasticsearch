@@ -95,6 +95,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         // The job running on the original node should have been killed, and hence should not have persisted quantiles
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId())))
+                .setTrackTotalHits(true)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
         assertEquals(0L, searchResponse.getHits().getTotalHits().value);
 
@@ -105,6 +106,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         // The relocated job was closed rather than killed, and hence should have persisted quantiles
         searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId())))
+                .setTrackTotalHits(true)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
     }

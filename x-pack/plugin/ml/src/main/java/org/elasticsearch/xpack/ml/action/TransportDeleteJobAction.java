@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -387,7 +386,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 failureHandler);
 
         // Step 2. Delete state done, delete the quantiles
-        ActionListener<BulkResponse> deleteStateHandler = ActionListener.wrap(
+        ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(
                 bulkResponse -> deleteQuantiles(parentTaskClient, jobId, deleteQuantilesHandler),
                 failureHandler);
 
@@ -417,7 +416,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 }));
     }
 
-    private void deleteModelState(ParentTaskAssigningClient parentTaskClient, String jobId, ActionListener<BulkResponse> listener) {
+    private void deleteModelState(ParentTaskAssigningClient parentTaskClient, String jobId, ActionListener<BulkByScrollResponse> listener) {
         GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request(jobId, null);
         request.setPageParams(new PageParams(0, MAX_SNAPSHOTS_TO_DELETE));
         executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, GetModelSnapshotsAction.INSTANCE, request, ActionListener.wrap(

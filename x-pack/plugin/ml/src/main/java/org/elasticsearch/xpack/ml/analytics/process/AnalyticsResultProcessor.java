@@ -96,6 +96,8 @@ public class AnalyticsResultProcessor {
                 continue;
             }
             AnalyticsResult result = currentResults.get(i);
+            checkIdHashesMatch(row, result);
+
             SearchHit hit = row.getHit();
             Map<String, Object> source = new LinkedHashMap(hit.getSourceAsMap());
             source.putAll(result.getResults());
@@ -110,6 +112,16 @@ public class AnalyticsResultProcessor {
                 LOGGER.error("Failures while writing data frame");
                 // TODO Better error handling
             }
+        }
+    }
+
+    private void checkIdHashesMatch(DataFrameDataExtractor.Row row, AnalyticsResult result) {
+        if (row.getIdHash().equals(result.getIdHash()) == false) {
+            StringBuilder msg = new StringBuilder();
+            msg.append("Detected id hash mismatch for document with id [" + row.getHit().getId() + "]; ");
+            msg.append("expected hash was [" + row.getIdHash() + "] but result had [" + result.getIdHash() + "]; ");
+            msg.append("this implies that the data frame index copy has been modified externally while analysis was running");
+            throw new IllegalStateException(msg.toString());
         }
     }
 }

@@ -238,5 +238,9 @@ public class DataFrameDataExtractor {
         public boolean shouldSkip() {
             return values == null;
         }
+
+        public String getIdHash() {
+            return String.valueOf(hit.getId().hashCode());
+        }
     }
 }

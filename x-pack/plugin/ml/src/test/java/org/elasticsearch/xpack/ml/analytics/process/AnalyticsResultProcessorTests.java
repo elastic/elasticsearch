@@ -69,7 +69,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
         resultFields.put("b", "2");
-        AnalyticsResult result = new AnalyticsResult("some_hash", resultFields);
+        AnalyticsResult result = new AnalyticsResult(String.valueOf("1".hashCode()), resultFields);
         givenProcessResults(Arrays.asList(result));
 
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
@@ -88,6 +88,28 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(indexedDocSource.get("f_2"), equalTo(42.0));
         assertThat(indexedDocSource.get("a"), equalTo("1"));
         assertThat(indexedDocSource.get("b"), equalTo("2"));
+    }
+
+    public void testProcess_GivenSingleRowAndResultWithMismatchingIdHash() throws IOException {
+        givenClientHasNoFailures();
+
+        String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
+        String[] dataValues = {"42.0"};
+        DataFrameDataExtractor.Row row = newRow(newHit("1", dataDoc), dataValues);
+        givenSingleDataFrameBatch(Arrays.asList(row));
+
+        Map<String, Object> resultFields = new HashMap<>();
+        resultFields.put("a", "1");
+        resultFields.put("b", "2");
+        AnalyticsResult result = new AnalyticsResult(String.valueOf("2".hashCode()), resultFields);
+        givenProcessResults(Arrays.asList(result));
+
+        AnalyticsResultProcessor resultProcessor = createResultProcessor();
+
+        resultProcessor.process(process);
+        resultProcessor.awaitForCompletion();
+
+        verifyNoMoreInteractions(client);
     }
 
     private void givenProcessResults(List<AnalyticsResult> results) {
@@ -109,6 +131,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         DataFrameDataExtractor.Row row = mock(DataFrameDataExtractor.Row.class);
         when(row.getHit()).thenReturn(hit);
         when(row.getValues()).thenReturn(values);
+        when(row.getIdHash()).thenReturn(String.valueOf(hit.getId().hashCode()));
         return row;
     }
 

@@ -55,7 +55,7 @@ public class NioSelector implements Closeable {
     private final Selector selector;
     private final ByteBuffer ioBuffer;
 
-    private final NioTimer nioTimer = new NioTimer();
+    private final TaskScheduler taskScheduler = new TaskScheduler();
     private final ReentrantLock runLock = new ReentrantLock();
     private final CountDownLatch exitedLoop = new CountDownLatch(1);
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -83,8 +83,8 @@ public class NioSelector implements Closeable {
         return ioBuffer;
     }
 
-    public NioTimer getNioTimer() {
-        return nioTimer;
+    public TaskScheduler getTaskScheduler() {
+        return taskScheduler;
     }
 
     public Selector rawSelector() {
@@ -151,7 +151,7 @@ public class NioSelector implements Closeable {
         try {
             closePendingChannels();
             preSelect();
-            long nanosUntilNextTask = nioTimer.nanosUntilNextTask(System.nanoTime());
+            long nanosUntilNextTask = taskScheduler.nanosUntilNextTask(System.nanoTime());
             int ready;
             if (nanosUntilNextTask == 0) {
                 ready = selector.selectNow();
@@ -263,7 +263,7 @@ public class NioSelector implements Closeable {
 
     private void handleScheduledTasks(long nanoTime) {
         Runnable task;
-        while ((task = nioTimer.pollTask(nanoTime)) != null) {
+        while ((task = taskScheduler.pollTask(nanoTime)) != null) {
             try {
                 task.run();
             } catch (Exception e) {

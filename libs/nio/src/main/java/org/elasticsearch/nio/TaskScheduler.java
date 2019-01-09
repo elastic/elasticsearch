@@ -19,8 +19,6 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.unit.TimeValue;
-
 import java.util.Comparator;
 import java.util.PriorityQueue;
 
@@ -28,15 +26,20 @@ import java.util.PriorityQueue;
  * A basic priority queue backed timer service. The service is thread local and should only be used by a
  * single nio selector event loop thread.
  */
-public class NioTimer {
+public class TaskScheduler {
 
     private final PriorityQueue<DelayedTask> tasks = new PriorityQueue<>(Comparator.comparingLong(DelayedTask::getDeadline));
 
-    public Cancellable schedule(Runnable task, TimeValue timeValue) {
-        return scheduleAtRelativeTime(task, System.nanoTime() + timeValue.nanos());
-    }
-
-    public Cancellable scheduleAtRelativeTime(Runnable task, long relativeNanos) {
+    /**
+     * Schedule a task at the defined relative nanotime. When {@link #pollTask(long)} is called with a
+     * relative nanotime after the scheduled time, the task will be returned. This method returns a
+     * {@link Runnable} that can be run to cancel the scheduled task.
+     *
+     * @param task to schedule
+     * @param relativeNanos defining when to execute the task
+     * @return runnable that will cancel the task
+     */
+    public Runnable scheduleAtRelativeTime(Runnable task, long relativeNanos) {
         DelayedTask delayedTask = new DelayedTask(relativeNanos, task);
         tasks.offer(delayedTask);
         return delayedTask;
@@ -66,12 +69,7 @@ public class NioTimer {
         }
     }
 
-    public interface Cancellable {
-
-        void cancel();
-    }
-
-    private static class DelayedTask implements Cancellable {
+    private static class DelayedTask implements Runnable {
 
         private final long deadline;
         private final Runnable runnable;
@@ -87,7 +85,7 @@ public class NioTimer {
         }
 
         @Override
-        public void cancel() {
+        public void run() {
             cancelled = true;
         }
     }

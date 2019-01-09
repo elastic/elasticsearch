@@ -105,7 +105,7 @@ public class NioSelectorTests extends ESTestCase {
     public void testNioDelayedTasksAreExecuted() throws IOException {
         AtomicBoolean isRun = new AtomicBoolean(false);
         long nanoTime = System.nanoTime() - 1;
-        selector.getNioTimer().scheduleAtRelativeTime(() -> isRun.set(true), nanoTime);
+        selector.getTaskScheduler().scheduleAtRelativeTime(() -> isRun.set(true), nanoTime);
 
         assertFalse(isRun.get());
         selector.singleLoop();
@@ -114,7 +114,8 @@ public class NioSelectorTests extends ESTestCase {
     }
 
     public void testDefaultSelectorTimeoutIsUsedIfNoTaskSooner() throws IOException {
-        selector.getNioTimer().schedule(() -> {}, new TimeValue(15, TimeUnit.MINUTES));
+        long delay = new TimeValue(15, TimeUnit.MINUTES).nanos();
+        selector.getTaskScheduler().scheduleAtRelativeTime(() -> {}, System.nanoTime() + delay);
 
         selector.singleLoop();
         verify(rawSelector).select(300);
@@ -125,7 +126,8 @@ public class NioSelectorTests extends ESTestCase {
         // delayed for 50 milliseconds (causing a selectNow())
         assertBusy(() -> {
             ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
-            selector.getNioTimer().schedule(() -> {}, new TimeValue(50, TimeUnit.MILLISECONDS));
+            long delay = new TimeValue(50, TimeUnit.MILLISECONDS).nanos();
+            selector.getTaskScheduler().scheduleAtRelativeTime(() -> {}, System.nanoTime() + delay);
             selector.singleLoop();
             verify(rawSelector).select(captor.capture());
             assertTrue(captor.getValue() > 0);

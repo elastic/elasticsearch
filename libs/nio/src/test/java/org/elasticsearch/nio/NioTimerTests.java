@@ -84,13 +84,21 @@ public class NioTimerTests extends ESTestCase {
         AtomicBoolean first = new AtomicBoolean(false);
         AtomicBoolean second = new AtomicBoolean(false);
         long executeTime = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(10);
-        Runnable cancellable = timer.scheduleAtRelativeTime(() -> first.set(true), executeTime);
+        NioTimer.Cancellable cancellable = timer.scheduleAtRelativeTime(() -> first.set(true), executeTime);
         timer.scheduleAtRelativeTime(() -> second.set(true), executeTime + 1);
 
-        cancellable.run();
+        cancellable.cancel();
         timer.pollTask(executeTime + 10).run();
         assertFalse(first.get());
         assertTrue(second.get());
         assertNull(timer.pollTask(executeTime + 10));
+    }
+
+    public void testNanosUntilNextTask() {
+        long nanoTime = System.nanoTime();
+        long executeTime = nanoTime + TimeUnit.MILLISECONDS.toNanos(10);
+        timer.scheduleAtRelativeTime(() -> {}, executeTime);
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(10), timer.nanosUntilNextTask(nanoTime));
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(5), timer.nanosUntilNextTask(nanoTime + TimeUnit.MILLISECONDS.toNanos(5)));
     }
 }

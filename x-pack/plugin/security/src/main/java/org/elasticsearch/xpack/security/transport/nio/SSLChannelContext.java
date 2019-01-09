@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.NioTimer;
 import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.NioSelector;
@@ -16,6 +18,7 @@ import org.elasticsearch.nio.WriteOperation;
 
 import javax.net.ssl.SSLEngine;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -28,7 +31,11 @@ import java.util.function.Predicate;
  */
 public final class SSLChannelContext extends SocketChannelContext {
 
+    private static final TimeValue CLOSE_TIMEOUT = new TimeValue(10, TimeUnit.SECONDS);
+    private static final NioTimer.Cancellable DEFAULT_TIMEOUT_TASK = () -> {};
+
     private final SSLDriver sslDriver;
+    private NioTimer.Cancellable closeTimeoutTask = DEFAULT_TIMEOUT_TASK;
 
     SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
                       ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
@@ -53,6 +60,7 @@ public final class SSLChannelContext extends SocketChannelContext {
         getSelector().assertOnSelectorThread();
         if (writeOperation instanceof CloseNotifyOperation) {
             sslDriver.initiateClose();
+            closeTimeoutTask = getSelector().getNioTimer().schedule(this::channelCloseTimeout, CLOSE_TIMEOUT);
         } else {
             super.queueWriteOperation(writeOperation);
         }
@@ -161,12 +169,19 @@ public final class SSLChannelContext extends SocketChannelContext {
     public void closeFromSelector() throws IOException {
         getSelector().assertOnSelectorThread();
         if (channel.isOpen()) {
+            closeTimeoutTask.cancel();
             IOUtils.close(super::closeFromSelector, sslDriver::close);
         }
     }
 
     public SSLEngine getSSLEngine() {
         return sslDriver.getSSLEngine();
+    }
+
+    private void channelCloseTimeout() {
+        closeTimeoutTask = DEFAULT_TIMEOUT_TASK;
+        setCloseNow();
+        getSelector().queueChannelClose(channel);
     }
 
     private static class CloseNotifyOperation implements WriteOperation {

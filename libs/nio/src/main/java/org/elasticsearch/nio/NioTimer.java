@@ -21,30 +21,25 @@ package org.elasticsearch.nio;
 
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.PriorityQueue;
 
-class NioTimer {
+/**
+ * A basic priority queue backed timer service. The service is thread local and should only be used by a
+ * single nio selector event loop thread.
+ */
+public class NioTimer {
 
-    private final PriorityQueue<DelayedTask> tasks;
+    private final PriorityQueue<DelayedTask> tasks = new PriorityQueue<>(Comparator.comparingLong(DelayedTask::getDeadline));
 
-    NioTimer() {
-        tasks = new PriorityQueue<>(Comparator.comparingLong(DelayedTask::getDeadline));
-    }
-
-    Runnable schedule(Runnable task, TimeValue timeValue) {
+    public Cancellable schedule(Runnable task, TimeValue timeValue) {
         return scheduleAtRelativeTime(task, System.nanoTime() + timeValue.nanos());
     }
 
-    Runnable scheduleAtRelativeTime(Runnable task, long relativeNanos) {
+    public Cancellable scheduleAtRelativeTime(Runnable task, long relativeNanos) {
         DelayedTask delayedTask = new DelayedTask(relativeNanos, task);
         tasks.offer(delayedTask);
         return delayedTask;
-    }
-
-    Runnable pollTask() {
-        return pollTask(System.nanoTime());
     }
 
     Runnable pollTask(long relativeNanos) {
@@ -62,7 +57,21 @@ class NioTimer {
         return null;
     }
 
-    private static class DelayedTask implements Runnable {
+    long nanosUntilNextTask(long relativeNanos) {
+        DelayedTask nextTask = tasks.peek();
+        if (nextTask == null) {
+            return Long.MAX_VALUE;
+        } else {
+            return Math.max(nextTask.deadline - relativeNanos, 0);
+        }
+    }
+
+    public interface Cancellable {
+
+        void cancel();
+    }
+
+    private static class DelayedTask implements Cancellable {
 
         private final long deadline;
         private final Runnable runnable;
@@ -78,7 +87,7 @@ class NioTimer {
         }
 
         @Override
-        public void run() {
+        public void cancel() {
             cancelled = true;
         }
     }

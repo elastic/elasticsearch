@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -118,16 +117,7 @@ public class TransportPutDataFrameJobAction
                                                 startPersistentTaskException));
                             }));
                         }));
-                    }, putJobIntoIndexException -> {
-                        if (putJobIntoIndexException instanceof VersionConflictEngineException) {
-                            // the job already exists although we checked before, can happen if requests come in simultaneously
-                            listener.onFailure(new ResourceAlreadyExistsException(DataFrameMessages
-                                    .getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_JOB_EXISTS, jobId)));
-                        } else {
-                            listener.onFailure(new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_PERSIST_JOB_CONFIGURATION,
-                                    putJobIntoIndexException));
-                        }
-                    }));
+                    }, listener::onFailure));
                 }, createDestinationIndexException -> {
                     listener.onFailure(new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_CREATE_TARGET_INDEX,
                             createDestinationIndexException));

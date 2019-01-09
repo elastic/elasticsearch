@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.dataframe.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobConfig;
 
@@ -73,8 +75,17 @@ public class DataFrameJobConfigManager {
 
             executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> {
                 listener.onResponse(true);
-            }, listener::onFailure));
+            }, e -> {
+                if (e instanceof VersionConflictEngineException) {
+                    // the job already exists
+                    listener.onFailure(new ResourceAlreadyExistsException(
+                            DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_JOB_EXISTS, jobConfig.getId())));
+                } else {
+                    listener.onFailure(new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_PERSIST_JOB_CONFIGURATION, e));
+                }
+            }));
         } catch (IOException e) {
+            // not expected to happen but for the sake of completeness
             listener.onFailure(new ElasticsearchParseException(
                     DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_FAILED_TO_SERIALIZE_JOB, jobConfig.getId()), e));
         }
@@ -108,12 +119,19 @@ public class DataFrameJobConfigManager {
         executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, DeleteAction.INSTANCE, request, ActionListener.wrap(deleteResponse -> {
 
             if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                listener.onFailure(new ResourceNotFoundException(
-                        DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_JOB, jobId)));
+                listener.onFailure(
+                        new ResourceNotFoundException(DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_JOB, jobId)));
                 return;
             }
             listener.onResponse(true);
-        },  listener::onFailure));
+        }, e -> {
+            if (e.getClass() == IndexNotFoundException.class) {
+                listener.onFailure(
+                        new ResourceNotFoundException(DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_JOB, jobId)));
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 
     private void parseJobLenientlyFromSource(BytesReference source, String jobId, ActionListener<DataFrameJobConfig> jobListener)  {

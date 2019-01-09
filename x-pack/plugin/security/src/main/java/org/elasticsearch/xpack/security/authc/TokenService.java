@@ -1017,8 +1017,7 @@ public final class TokenService {
         Instant currentTime = clock.instant();
         if (currentTime.isAfter(userToken.getExpirationTime())) {
             listener.onFailure(traceLog("validate token", userToken.getId(), expiredTokenException()));
-        }
-        if (securityIndex.indexExists() == false) {
+        } else if (securityIndex.indexExists() == false) {
             // index doesn't exist so the token is considered invalid as we cannot verify its validity
             logger.warn("failed to validate token [{}] since the security index doesn't exist", userToken.getId());
             listener.onResponse(null);

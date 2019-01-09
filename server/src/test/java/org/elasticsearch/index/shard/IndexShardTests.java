@@ -2509,8 +2509,9 @@ public class IndexShardTests extends IndexShardTestCase {
             }) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
-                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
+                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps,
+                                                         Consumer<Exception> onComplete) throws IOException {
+                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, onComplete);
                     assertListenerCalled.accept(replica);
                 }
 
@@ -2524,8 +2525,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
 
                 @Override
-                public void finalizeRecovery(long globalCheckpoint) throws IOException {
-                    super.finalizeRecovery(globalCheckpoint);
+                public void finalizeRecovery(long globalCheckpoint, Consumer<Exception> onComplete) throws IOException {
+                    super.finalizeRecovery(globalCheckpoint, onComplete);
                     assertListenerCalled.accept(replica);
                 }
             }, false, true);

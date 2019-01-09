@@ -22,6 +22,7 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -81,7 +82,7 @@ public class PeerRecoverySourceService implements IndexEventListener {
         }
     }
 
-    private RecoveryResponse recover(final StartRecoveryRequest request) throws IOException {
+    private void recover(StartRecoveryRequest request, ActionListener<RecoveryResponse> listener) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
@@ -101,18 +102,55 @@ public class PeerRecoverySourceService implements IndexEventListener {
         RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);
         logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(),
             request.targetNode());
+        boolean submitted = false;
         try {
-            return handler.recoverToTarget();
+            handler.recoverToTarget(new ActionListener<RecoveryResponse>() {
+                @Override
+                public void onResponse(RecoveryResponse recoveryResponse) {
+                    try {
+                        listener.onResponse(recoveryResponse);
+                    } finally {
+                        ongoingRecoveries.remove(shard, handler);
+                    }
+                }
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        listener.onFailure(e);
+                    } finally {
+                        ongoingRecoveries.remove(shard, handler);
+                    }
+                }
+            });
+            submitted = true;
         } finally {
-            ongoingRecoveries.remove(shard, handler);
+            if (submitted == false) {
+                ongoingRecoveries.remove(shard, handler);
+            }
         }
     }
 
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
         @Override
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
-            RecoveryResponse response = recover(request);
-            channel.sendResponse(response);
+            recover(request, new ActionListener<RecoveryResponse>() {
+                @Override
+                public void onResponse(RecoveryResponse recoveryResponse) {
+                    try {
+                        channel.sendResponse(recoveryResponse);
+                    } catch (Exception transportExp) {
+                        logger.warn("failed to send recovery response", transportExp);
+                    }
+                }
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (Exception transportExp) {
+                        logger.warn("failed to send recovery response", transportExp);
+                    }
+                }
+            });
         }
     }
 

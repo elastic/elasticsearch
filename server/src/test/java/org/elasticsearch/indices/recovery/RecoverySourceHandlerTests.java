@@ -35,6 +35,7 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
@@ -191,8 +192,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
         final long requiredStartingSeqNo = randomIntBetween((int) startingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
         final long endingSeqNo = randomIntBetween((int) requiredStartingSeqNo - 1, numberOfDocsWithValidSequenceNumbers - 1);
-        RecoverySourceHandler.SendSnapshotResult result = handler.phase2(startingSeqNo, requiredStartingSeqNo,
-            endingSeqNo, new Translog.Snapshot() {
+        PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
+        handler.phase2(startingSeqNo, requiredStartingSeqNo, endingSeqNo, new Translog.Snapshot() {
                 @Override
                 public void close() {
 
@@ -209,7 +210,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 public Translog.Operation next() throws IOException {
                     return operations.get(counter++);
                 }
-            }, randomNonNegativeLong(), randomNonNegativeLong());
+            }, randomNonNegativeLong(), randomNonNegativeLong(), future);
+        RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         assertThat(result.totalOperations, equalTo(expectedOps));
         final ArgumentCaptor<List> shippedOpsCaptor = ArgumentCaptor.forClass(List.class);
@@ -229,16 +231,14 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             List<Translog.Operation> requiredOps = operations.subList(0, operations.size() - 1).stream() // remove last null marker
                 .filter(o -> o.seqNo() >= requiredStartingSeqNo && o.seqNo() <= endingSeqNo).collect(Collectors.toList());
             List<Translog.Operation> opsToSkip = randomSubsetOf(randomIntBetween(1, requiredOps.size()), requiredOps);
-            expectThrows(IllegalStateException.class, () ->
+            expectThrows(IllegalStateException.class, () -> {
+                PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> fut = new PlainActionFuture<>();
                 handler.phase2(startingSeqNo, requiredStartingSeqNo,
                     endingSeqNo, new Translog.Snapshot() {
                         @Override
                         public void close() {
-
                         }
-
                         private int counter = 0;
-
                         @Override
                         public int totalOperations() {
                             return operations.size() - 1 - opsToSkip.size();
@@ -252,7 +252,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                             } while (op != null && opsToSkip.contains(op));
                             return op;
                         }
-                    }, randomNonNegativeLong(), randomNonNegativeLong()));
+                    }, randomNonNegativeLong(), randomNonNegativeLong(), fut);
+                future.actionGet();
+            });
         }
     }
 
@@ -413,27 +415,31 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 recoverySettings.getChunkSize().bytesAsInt()) {
 
             @Override
-            public SendFileResult phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
+            public void phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps, ActionListener<SendFileResult> listener) {
                 phase1Called.set(true);
-                return super.phase1(snapshot, translogOps);
+                super.phase1(snapshot, translogOps, listener);
             }
 
             @Override
-            TimeValue prepareTargetForTranslog(final boolean fileBasedRecovery, final int totalTranslogOps) throws IOException {
+            void prepareTargetForTranslog(boolean fileBasedRecovery,
+                                          int totalTranslogOps, ActionListener<TimeValue> listener) throws IOException {
                 prepareTargetForTranslogCalled.set(true);
-                return super.prepareTargetForTranslog(fileBasedRecovery, totalTranslogOps);
+                super.prepareTargetForTranslog(fileBasedRecovery, totalTranslogOps, listener);
             }
 
             @Override
-            SendSnapshotResult phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
-                                      long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) throws IOException {
+            void phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
+                        long maxSeenAutoIdTimestamp, long msu, ActionListener<SendSnapshotResult> listener) throws IOException {
                 phase2Called.set(true);
-                return super.phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot,
-                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
+                super.phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot, maxSeenAutoIdTimestamp, msu, listener);
             }
 
         };
-        expectThrows(IndexShardRelocatedException.class, handler::recoverToTarget);
+        expectThrows(IndexShardRelocatedException.class, () -> {
+            PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
+            handler.recoverToTarget(future);
+            future.actionGet();
+        });
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());

@@ -28,9 +28,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportFuture;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -74,19 +77,19 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, Consumer<Exception> onComplete) {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
                 new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, fileBasedRecovery),
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                wrapResponseHandler(onComplete));
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint) {
+    public void finalizeRecovery(final long globalCheckpoint, final Consumer<Exception> onComplete) {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FINALIZE,
             new RecoveryFinalizeRecoveryRequest(recoveryId, shardId, globalCheckpoint),
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-            EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+            wrapResponseHandler(onComplete));
     }
 
     @Override
@@ -176,4 +179,16 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                 throttleTimeInNanos), fileChunkRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
 
+    private static EmptyTransportResponseHandler wrapResponseHandler(Consumer<Exception> onComplete) {
+        return new EmptyTransportResponseHandler(ThreadPool.Names.GENERIC) {
+            @Override
+            public void handleResponse(TransportResponse.Empty response) {
+                onComplete.accept(null);
+            }
+            @Override
+            public void handleException(TransportException exp) {
+                onComplete.accept(exp);
+            }
+        };
+    }
 }

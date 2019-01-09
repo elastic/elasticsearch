@@ -51,7 +51,7 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
     @Override
     protected void doExecute(MainRequest request, ActionListener<MainResponse> listener) {
         ClusterState clusterState = clusterService.state();
-        final boolean available = clusterState.getBlocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE) == false;
+        final boolean available = clusterState.getBlocks().hasGlobalBlockWithStatus(RestStatus.SERVICE_UNAVAILABLE) == false;
         listener.onResponse(
             new MainResponse(nodeName, Version.CURRENT, clusterState.getClusterName(),
                     clusterState.metaData().clusterUUID(), Build.CURRENT, available));

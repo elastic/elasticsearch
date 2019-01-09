@@ -119,7 +119,7 @@ Which returns the following information:
 <9> the definition of the phase (in this case, the "warm" phase) that the index is currently on
 
 The index here has been moved to the error step because the shrink definition in
-the policy is using an incorrect number of shards. So rectifing that in the
+the policy is using an incorrect number of shards. So rectifying that in the
 policy entails updating the existing policy to use one instead of four for
 the targeted number of shards.
 

@@ -125,8 +125,8 @@ public class RefreshListenersTests extends ESTestCase {
             indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
             eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
             TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null,
-            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> primaryTerm,
-            EngineTestCase.tombstoneDocSupplier());
+            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, Collections::emptySet,
+                () -> primaryTerm, EngineTestCase.tombstoneDocSupplier());
         engine = new InternalEngine(config);
         engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);

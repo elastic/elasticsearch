@@ -120,6 +120,24 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         return compareValues(currentValue, afterValue);
     }
 
+    @Override
+    int hashCode(int slot) {
+        if (missingBucket && bits.get(slot) == false) {
+            return 0;
+        } else {
+            return Long.hashCode(values.get(slot));
+        }
+    }
+
+    @Override
+    int hashCodeCurrent() {
+        if (missingCurrentValue) {
+            return 0;
+        } else {
+            return Long.hashCode(currentValue);
+        }
+    }
+
     private int compareValues(long v1, long v2) {
         return Long.compare(v1, v2) * reverseMul;
     }

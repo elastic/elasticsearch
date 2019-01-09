@@ -52,10 +52,6 @@ setup:
 
 ---
 "Test model memory limit is updated":
-  - skip:
-      version: "all"
-      reason: "@AwaitsFix: https://github.com/elastic/elasticsearch/issues/36961"
-
 # Jobs created in 6.1.x and 6.2.x underestimated the necessary model memory
 # limit, check the limit has been updated.
 # Opening the job updates the limit

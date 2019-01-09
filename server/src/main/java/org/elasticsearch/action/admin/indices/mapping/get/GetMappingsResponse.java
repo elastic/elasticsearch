@@ -131,7 +131,10 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                     MappingMetaData mappings = null;
                     for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
                         if (typeEntry.key.equals("_default_") == false) {
-                            assert mappings == null;
+                            if (mappings != null) {
+                                throw new IllegalArgumentException("Cannot use [include_type_name=false] on index [" + indexEntry.key +
+                                        "] that has multiple mappings: " + indexEntry.value.keys());
+                            }
                             mappings = typeEntry.value;
                         }
                     }

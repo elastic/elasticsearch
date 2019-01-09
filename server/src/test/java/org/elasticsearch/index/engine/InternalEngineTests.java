@@ -3028,7 +3028,8 @@ public class InternalEngineTests extends EngineTestCase {
                 new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), null,
-                new NoneCircuitBreakerService(), () -> SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm::get, tombstoneDocSupplier());
+                new NoneCircuitBreakerService(), () -> SequenceNumbers.UNASSIGNED_SEQ_NO, Collections::emptySet, primaryTerm::get,
+                tombstoneDocSupplier());
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
             fail("translog belongs to a different engine");

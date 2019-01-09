@@ -8,7 +8,7 @@ and to configure your jobs to analyze aggregated data.
 
 One of the benefits of aggregating data this way is that {es} automatically
 distributes these calculations across your cluster. You can then feed this
-aggregated data into {xpackml} instead of raw results, which
+aggregated data into the {ml-features} instead of raw results, which
 reduces the volume of data that must be considered while detecting anomalies.
 
 There are some limitations to using aggregations in {dfeeds}, however.

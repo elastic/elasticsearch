@@ -36,7 +36,7 @@ public class ScalarSubquery extends SubQueryExpression {
     }
 
     @Override
-    public boolean nullable() {
-        return true;
+    public Nullability nullable() {
+        return Nullability.TRUE;
     }
 }

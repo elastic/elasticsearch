@@ -21,6 +21,7 @@ public class RestPostStartBasicLicense extends XPackRestHandler {
     RestPostStartBasicLicense(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, URI_BASE + "/license/start_basic", this);
+        controller.registerHandler(POST, "/_license/start_basic", this);
     }
 
     @Override

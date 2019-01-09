@@ -70,7 +70,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            assertTrue(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID));
         });
 
         assertThrows(client().prepareGet("test", "type1", "1"),
@@ -197,7 +197,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         assertTrue(awaitBusy(() -> {
                     ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
-                    return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+                    return state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID);
                 }
         ));
 

@@ -16,6 +16,10 @@
         }
       },
       "params": {
+        "include_type_name": {
+          "type" : "boolean",
+          "description" : "Whether to add the type name to the response."
+        },
         "ignore_unavailable": {
             "type" : "boolean",
             "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"

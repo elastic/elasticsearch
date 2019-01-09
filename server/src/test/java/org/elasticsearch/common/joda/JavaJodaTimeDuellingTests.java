@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.joda;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.test.ESTestCase;
@@ -384,6 +385,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
         ZonedDateTime javaDate = ZonedDateTime.of(year, month, day, hour, minute, second, 0, ZoneOffset.UTC);
         DateTime jodaDate = new DateTime(year, month, day, hour, minute, second, DateTimeZone.UTC);
+        assertSamePrinterOutput("epoch_second", javaDate, jodaDate);
 
         assertSamePrinterOutput("basicDate", javaDate, jodaDate);
         assertSamePrinterOutput("basicDateTime", javaDate, jodaDate);
@@ -428,7 +430,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSamePrinterOutput("year", javaDate, jodaDate);
         assertSamePrinterOutput("yearMonth", javaDate, jodaDate);
         assertSamePrinterOutput("yearMonthDay", javaDate, jodaDate);
-        assertSamePrinterOutput("epoch_second", javaDate, jodaDate);
+
         assertSamePrinterOutput("epoch_millis", javaDate, jodaDate);
         assertSamePrinterOutput("strictBasicWeekDate", javaDate, jodaDate);
         assertSamePrinterOutput("strictBasicWeekDateTime", javaDate, jodaDate);
@@ -476,6 +478,12 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
         String javaTimeOut = DateFormatters.forPattern(format).format(javaDate);
         String jodaTimeOut = DateFormatter.forPattern(format).formatJoda(jodaDate);
+        if (JavaVersion.current().getVersion().get(0) == 8 && javaTimeOut.endsWith(".0")
+            && (format.equals("epoch_second") || format.equals("epoch_millis"))) {
+            // java 8 has a bug in DateTimeFormatter usage when printing dates that rely on isSupportedBy for fields, which is
+            // what we use for epoch time. This change accounts for that bug. It should be removed when java 8 support is removed
+            jodaTimeOut += ".0";
+        }
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
                 format, jodaTimeOut, javaTimeOut);
         assertThat(message, javaTimeOut, is(jodaTimeOut));
@@ -484,7 +492,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     private void assertSameDate(String input, String format) {
         DateFormatter jodaFormatter = Joda.forPattern(format);
         DateFormatter javaFormatter = DateFormatters.forPattern(format);
-
         assertSameDate(input, format, jodaFormatter, javaFormatter);
     }
 

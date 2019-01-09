@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.TokenStream;
@@ -56,8 +54,6 @@ import static org.elasticsearch.index.mapper.TypeParsers.nodeIndexOptionValue;
  * field type, and {@link SuggesterizedFieldMapper} which maps the synthetic fields created by this type
  */
 public final class SearchAsYouTypeFieldMappers {
-
-    private static final Logger LOG = LogManager.getLogger(SearchAsYouTypeFieldMappers.class);
 
     public static final String CONTENT_TYPE = "search_as_you_type";
 
@@ -222,9 +218,6 @@ public final class SearchAsYouTypeFieldMappers {
 
             final Map<Integer, SuggesterizedFieldMapper> withShinglesMappers = new HashMap<>();
 
-            // todo does it make sense to use ShingleFilter instead of FixedSHingleFilter and collapse all the shingle-without-edge-ngrams
-            // fields into one field to reduce the number of fields further - we'd get the same tokens and would have exactly 3
-            // fields (root, variable sized singles, max-fixed-sized-and-edge-ngrams)
             for (int numberOfShingles = 2; numberOfShingles < maxShingleSize; numberOfShingles++) {
                 final SuggesterizedFieldMapper shingleField = buildShinglesField(name(), originalAnalyzer, numberOfShingles, context);
                 withShinglesMappers.put(numberOfShingles, shingleField);
@@ -284,18 +277,8 @@ public final class SearchAsYouTypeFieldMappers {
             this.hasEdgeNGrams = hasEdgeNGrams;
         }
 
-        // todo this can probably be removed
-        public static SearchAsYouTypeAnalyzer withNeither(Analyzer delegate) {
-            return new SearchAsYouTypeAnalyzer(delegate, false, -1, false);
-        }
-
         public static SearchAsYouTypeAnalyzer withShingles(Analyzer delegate, int shingleSize) {
             return new SearchAsYouTypeAnalyzer(delegate, true, shingleSize, false);
-        }
-
-        // todo this can probably be removed
-        public static SearchAsYouTypeAnalyzer withEdgeNGrams(Analyzer delegate) {
-            return new SearchAsYouTypeAnalyzer(delegate, false, -1, true);
         }
 
         public static SearchAsYouTypeAnalyzer withShinglesAndEdgeNGrams(Analyzer delegate, int shingleSize) {
@@ -309,7 +292,6 @@ public final class SearchAsYouTypeFieldMappers {
 
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-            // TODO we must find a way to add the last unigram term (michael jackson -> jackson)
             TokenStream tokenStream = components.getTokenStream();
             if (hasShingles) {
                 tokenStream = new FixedShingleFilter(tokenStream, shingleSize);

@@ -19,10 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.core.SimpleAnalyzer;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,13 +34,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 
 import static java.util.Arrays.asList;
@@ -58,97 +48,6 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(SearchAsYouTypePlugin.class);
-    }
-
-    // todo remove this is temporary
-    public void testAnalysisV1() throws IOException {
-        final SimpleAnalyzer simple = new SimpleAnalyzer();
-        final SearchAsYouTypeAnalyzer withEdgeNGrams = SearchAsYouTypeAnalyzer.withEdgeNGrams(simple);
-        final SearchAsYouTypeAnalyzer with2Shingles = SearchAsYouTypeAnalyzer.withShingles(simple, 2);
-        final SearchAsYouTypeAnalyzer with2ShinglesAndEdgeNGrams = SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(simple, 2);
-        final SearchAsYouTypeAnalyzer with3Shingles = SearchAsYouTypeAnalyzer.withShingles(simple, 3);
-        final SearchAsYouTypeAnalyzer with3ShinglesAndEdgeNGrams = SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(simple, 3);
-
-        final String text = "aa bb cc dd ee";
-
-        final Map<String, List<String>> analyzerToTerm = new HashMap<>();
-        final Map<String, Set<String>> termToAnalyzers = new HashMap<>();
-
-        analyze("root", simple, text, analyzerToTerm, termToAnalyzers);
-        analyze("with_edge_ngrams", withEdgeNGrams, text, analyzerToTerm, termToAnalyzers);
-        analyze("with_2_shingles", with2Shingles, text, analyzerToTerm, termToAnalyzers);
-        analyze("with_2_shingles_and_edge_ngrams", with2ShinglesAndEdgeNGrams, text, analyzerToTerm, termToAnalyzers);
-        analyze("with_3_shingles", with3Shingles, text, analyzerToTerm, termToAnalyzers);
-        analyze("with_3_shingles_and_edge_ngrams", with3ShinglesAndEdgeNGrams, text, analyzerToTerm, termToAnalyzers);
-
-        logger.error("#############\nTokens by analyzer\n######################\n");
-        for (Map.Entry<String, List<String>> entry : analyzerToTerm.entrySet()) {
-            logger.error("Tokens for analyzer [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
-        }
-
-        logger.error("#################\nAnalyzers by token\n####################\n");
-        for (Map.Entry<String, Set<String>> entry : termToAnalyzers.entrySet()) {
-            logger.error("Analyzers with token [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
-        }
-    }
-
-    // todo remove this is temporary
-    public void testAnalysisV2() throws IOException {
-        final SimpleAnalyzer simple = new SimpleAnalyzer();
-        final SearchAsYouTypeAnalyzer with2Shingles = SearchAsYouTypeAnalyzer.withShingles(simple, 2);
-        final SearchAsYouTypeAnalyzer with3Shingles = SearchAsYouTypeAnalyzer.withShingles(simple, 3);
-        final SearchAsYouTypeAnalyzer with3ShinglesAndEdgeNGrams = SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(simple, 3);
-
-        final String text = "aa bb cc dd ee";
-
-        final Map<String, List<String>> analyzerToTerm = new HashMap<>();
-        final Map<String, Set<String>> termToAnalyzers = new HashMap<>();
-
-        analyze("root", simple, text, analyzerToTerm, termToAnalyzers);
-        analyze("with_2_shingles", with2Shingles, text, analyzerToTerm, termToAnalyzers);
-        analyze("with_3_shingles", with3Shingles, text, analyzerToTerm, termToAnalyzers);
-        analyze("with_3_shingles_and_edge_ngrams", with3ShinglesAndEdgeNGrams, text, analyzerToTerm, termToAnalyzers);
-
-        logger.error("#############\nTokens by analyzer\n######################\n");
-        for (Map.Entry<String, List<String>> entry : analyzerToTerm.entrySet()) {
-            logger.error("Tokens for analyzer [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
-        }
-
-        logger.error("#################\nAnalyzers by token\n####################\n");
-        for (Map.Entry<String, Set<String>> entry : termToAnalyzers.entrySet()) {
-            logger.error("Analyzers with token [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
-        }
-    }
-
-    // todo remove this is temporary
-    private static void analyze(String name,
-                                Analyzer analyzer,
-                                String text,
-                                Map<String, List<String>> analyzerToTerm,
-                                Map<String, Set<String>> termToAnalyzers) throws IOException {
-        final List<String> tokens = analyzeTerms(text, analyzer);
-        assertFalse(analyzerToTerm.containsKey(name));
-        analyzerToTerm.put(name, tokens);
-        for (String token : tokens) {
-            if (termToAnalyzers.containsKey(token) == false) {
-                termToAnalyzers.put(token, new HashSet<>());
-            }
-            termToAnalyzers.get(token).add(name);
-        }
-    }
-
-    // todo remove this is temporary
-    private static List<String> analyzeTerms(String text, Analyzer analyzer) throws IOException {
-        final List<String> terms = new ArrayList<>();
-        try (TokenStream tokenStream = analyzer.tokenStream("foo", text)) {
-            final CharTermAttribute charTermAttribute = tokenStream.addAttribute(CharTermAttribute.class);
-            tokenStream.reset();
-            while (tokenStream.incrementToken()) {
-                terms.add(charTermAttribute.toString());
-            }
-            tokenStream.end();
-        }
-        return terms;
     }
 
     public void testDefaultConfiguration() throws IOException {

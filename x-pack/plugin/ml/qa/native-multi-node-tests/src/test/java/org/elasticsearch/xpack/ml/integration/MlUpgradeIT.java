@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
-public class ResultsIndexUpgradeIT extends MlNativeAutodetectIntegTestCase {
+public class MlUpgradeIT extends MlNativeAutodetectIntegTestCase {
 
     @After
     public void cleanup() throws Exception {

@@ -94,8 +94,8 @@ integTestRunner {
     'ml/validate_detector/Test invalid detector',
     'ml/delete_forecast/Test delete on _all forecasts not allow no forecasts',
     'ml/delete_forecast/Test delete forecast on missing forecast',
-    'ml/results_indices_upgrade/Upgrade results when there is nothing to upgrade',
-    'ml/results_indices_upgrade/Upgrade results when there is nothing to upgrade not waiting for results'
+    'ml/ml_upgrade/Upgrade results when there is nothing to upgrade',
+    'ml/ml_upgrade/Upgrade results when there is nothing to upgrade not waiting for results'
   ].join(',')
 }
 

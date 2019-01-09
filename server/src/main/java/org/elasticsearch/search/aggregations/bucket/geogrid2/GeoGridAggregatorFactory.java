@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGridAggregationBuilder.CellIdSource;
+import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGridAggregationBuilder2.CellIdSource;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint;

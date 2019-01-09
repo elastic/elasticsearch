@@ -22,7 +22,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.GeoGridTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -31,6 +33,7 @@ import java.util.List;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geoCentroid;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.geoGrid;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
@@ -164,6 +167,28 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(grid.getName(), equalTo("geoGrid"));
         List<? extends GeoHashGrid.Bucket> buckets = grid.getBuckets();
         for (GeoHashGrid.Bucket cell : buckets) {
+            String geohash = cell.getKeyAsString();
+            GeoPoint expectedCentroid = expectedCentroidsForGeoHash.get(geohash);
+            GeoCentroid centroidAgg = cell.getAggregations().get(aggName);
+            assertThat("Geohash " + geohash + " has wrong centroid latitude ", expectedCentroid.lat(),
+                    closeTo(centroidAgg.centroid().lat(), GEOHASH_TOLERANCE));
+            assertThat("Geohash " + geohash + " has wrong centroid longitude", expectedCentroid.lon(),
+                    closeTo(centroidAgg.centroid().lon(), GEOHASH_TOLERANCE));
+        }
+    }
+
+    public void testSingleValueFieldAsSubAggToGeoGrid() throws Exception {
+        SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
+                .addAggregation(geoGrid("geoGrid", GeoGridTests.GEOHASH_TYPE).field(SINGLE_VALUED_FIELD_NAME)
+                .subAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME)))
+                .get();
+        assertSearchResponse(response);
+
+        GeoGrid grid = response.getAggregations().get("geoGrid");
+        assertThat(grid, notNullValue());
+        assertThat(grid.getName(), equalTo("geoGrid"));
+        List<? extends GeoGrid.Bucket> buckets = grid.getBuckets();
+        for (GeoGrid.Bucket cell : buckets) {
             String geohash = cell.getKeyAsString();
             GeoPoint expectedCentroid = expectedCentroidsForGeoHash.get(geohash);
             GeoCentroid centroidAgg = cell.getAggregations().get(aggName);

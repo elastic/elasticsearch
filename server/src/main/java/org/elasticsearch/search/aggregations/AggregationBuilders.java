@@ -30,6 +30,9 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGridAggregationBuilder2;
+import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGridType;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -248,6 +251,13 @@ public class AggregationBuilders {
      */
     public static GeoGridAggregationBuilder geohashGrid(String name) {
         return new GeoGridAggregationBuilder(name);
+    }
+
+    /**
+     * Create a new {@link GeoGrid} aggregation with the given name.
+     */
+    public static GeoGridAggregationBuilder2 geoGrid(String name, GeoGridType type) {
+        return new GeoGridAggregationBuilder2(name, type);
     }
 
     /**

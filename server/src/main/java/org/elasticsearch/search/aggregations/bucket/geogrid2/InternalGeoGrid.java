@@ -179,7 +179,7 @@ public class InternalGeoGrid extends InternalMultiBucketAggregation<InternalGeoG
 
     @Override
     public String getWriteableName() {
-        return GeoGridAggregationBuilder.NAME;
+        return GeoGridAggregationBuilder2.NAME;
     }
 
     @Override

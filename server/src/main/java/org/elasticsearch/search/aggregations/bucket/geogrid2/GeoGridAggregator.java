@@ -44,11 +44,11 @@ public class GeoGridAggregator extends BucketsAggregator {
 
     private final int requiredSize;
     private final int shardSize;
-    private final GeoGridAggregationBuilder.CellIdSource valuesSource;
+    private final GeoGridAggregationBuilder2.CellIdSource valuesSource;
     private final LongHash bucketOrds;
     private final GeoGridType type;
 
-    GeoGridAggregator(String name, AggregatorFactories factories, GeoGridAggregationBuilder.CellIdSource valuesSource,
+    GeoGridAggregator(String name, AggregatorFactories factories, GeoGridAggregationBuilder2.CellIdSource valuesSource,
                       int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
                       List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData, GeoGridType type
     ) throws IOException {

@@ -32,7 +32,7 @@ public class ParsedGeoGrid extends ParsedMultiBucketAggregation<ParsedGeoGrid.Pa
 
     @Override
     public String getType() {
-        return GeoGridAggregationBuilder.NAME;
+        return GeoGridAggregationBuilder2.NAME;
     }
 
     @Override

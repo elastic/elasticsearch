@@ -55,7 +55,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder>
+public class GeoGridAggregationBuilder2 extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder2>
     implements MultiBucketAggregationBuilder {
     public static final String NAME = "geo_grid";
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;
@@ -68,29 +68,29 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     public static GeoGridTypes types;
 
-    private static final ConstructingObjectParser<GeoGridAggregationBuilder, String> PARSER;
+    private static final ConstructingObjectParser<GeoGridAggregationBuilder2, String> PARSER;
 
     static {
         types = GeoGridTypes.DEFAULT;
 
-        PARSER = new ConstructingObjectParser<>(GeoGridAggregationBuilder.NAME, false,
-            (a, name) -> new GeoGridAggregationBuilder(name, (GeoGridType) a[0]));
+        PARSER = new ConstructingObjectParser<>(GeoGridAggregationBuilder2.NAME, false,
+            (a, name) -> new GeoGridAggregationBuilder2(name, (GeoGridType) a[0]));
 
         PARSER.declareField(
             constructorArg(),
-            GeoGridAggregationBuilder::parseType,
+            GeoGridAggregationBuilder2::parseType,
             FIELD_TYPE,
             ObjectParser.ValueType.STRING);
         PARSER.declareField(
-            GeoGridAggregationBuilder::precisionRaw,
-            GeoGridAggregationBuilder::parsePrecision,
+            GeoGridAggregationBuilder2::precisionRaw,
+            GeoGridAggregationBuilder2::parsePrecision,
             FIELD_PRECISION,
             ObjectParser.ValueType.VALUE);
         PARSER.declareInt(
-            GeoGridAggregationBuilder::size,
+            GeoGridAggregationBuilder2::size,
             FIELD_SIZE);
         PARSER.declareInt(
-            GeoGridAggregationBuilder::shardSize,
+            GeoGridAggregationBuilder2::shardSize,
             FIELD_SHARD_SIZE);
 
         ValuesSourceParserHelper.declareGeoFields(PARSER, false, false);
@@ -113,7 +113,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         }
     }
 
-    public static GeoGridAggregationBuilder parse(String aggregationName, XContentParser parser) {
+    public static GeoGridAggregationBuilder2 parse(String aggregationName, XContentParser parser) {
         return PARSER.apply(parser, aggregationName);
     }
 
@@ -122,13 +122,13 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     private int requiredSize = DEFAULT_MAX_NUM_CELLS;
     private int shardSize = -1;
 
-    public GeoGridAggregationBuilder(String name, GeoGridType type) {
+    public GeoGridAggregationBuilder2(String name, GeoGridType type) {
         super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         this.type = type;
         this.precision = this.type.getDefaultPrecision();
     }
 
-    protected GeoGridAggregationBuilder(GeoGridAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected GeoGridAggregationBuilder2(GeoGridAggregationBuilder2 clone, Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
         this.type = clone.type;
         this.precision = clone.precision;
@@ -138,13 +138,13 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     @Override
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GeoGridAggregationBuilder(this, factoriesBuilder, metaData);
+        return new GeoGridAggregationBuilder2(this, factoriesBuilder, metaData);
     }
 
     /**
      * Read from a stream.
      */
-    public GeoGridAggregationBuilder(StreamInput in) throws IOException {
+    public GeoGridAggregationBuilder2(StreamInput in) throws IOException {
         super(in, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
 
         // FIXME: better debug name than a class name?
@@ -170,7 +170,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         return type;
     }
 
-    private GeoGridAggregationBuilder precisionRaw(Object precision) {
+    private GeoGridAggregationBuilder2 precisionRaw(Object precision) {
         if (precision == null) {
             this.precision(type.getDefaultPrecision());
         } else if (precision instanceof String) {
@@ -181,7 +181,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         return this;
     }
 
-    public GeoGridAggregationBuilder precision(int precision) {
+    public GeoGridAggregationBuilder2 precision(int precision) {
         this.precision = type.validatePrecision(precision);
         return this;
     }
@@ -190,7 +190,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         return precision;
     }
 
-    public GeoGridAggregationBuilder size(int size) {
+    public GeoGridAggregationBuilder2 size(int size) {
         if (size <= 0) {
             throw new IllegalArgumentException(
                 "[size] must be greater than 0. Found [" + size + "] in [" + name + "]");
@@ -203,7 +203,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         return requiredSize;
     }
 
-    public GeoGridAggregationBuilder shardSize(int shardSize) {
+    public GeoGridAggregationBuilder2 shardSize(int shardSize) {
         if (shardSize <= 0) {
             throw new IllegalArgumentException(
                 "[shardSize] must be greater than 0. Found [" + shardSize + "] in [" + name + "]");
@@ -252,7 +252,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     @Override
     protected boolean innerEquals(Object obj) {
-        GeoGridAggregationBuilder other = (GeoGridAggregationBuilder) obj;
+        GeoGridAggregationBuilder2 other = (GeoGridAggregationBuilder2) obj;
         if (type != other.type) {
             return false;
         }

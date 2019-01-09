@@ -96,7 +96,7 @@ public class TransportPutDataFrameJobAction
                 DataframeIndex.createDestinationIndex(client, request.getConfig(), mappings, ActionListener.wrap(createIndexResult -> {
                     DataFrameJob job = createDataFrameJob(jobId, threadPool);
                     // create the job configuration and store it in the internal index
-                    dataFrameJobConfigManager.putJobConfiguration(request.getConfig(), false, ActionListener.wrap(r -> {
+                    dataFrameJobConfigManager.putJobConfiguration(request.getConfig(), ActionListener.wrap(r -> {
                         // finally start the persistent task
                         persistentTasksService.sendStartRequest(job.getId(), DataFrameJob.NAME, job, ActionListener.wrap(persistentTask -> {
                             listener.onResponse(new PutDataFrameJobAction.Response(true));

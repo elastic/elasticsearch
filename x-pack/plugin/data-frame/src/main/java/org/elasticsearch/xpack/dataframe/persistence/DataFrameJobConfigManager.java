@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobConfig;
 
@@ -60,12 +61,12 @@ public class DataFrameJobConfigManager {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public void putJobConfiguration(DataFrameJobConfig jobConfig, boolean update, ActionListener<Boolean> listener) {
+    public void putJobConfiguration(DataFrameJobConfig jobConfig, ActionListener<Boolean> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = jobConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
             IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.INDEX_NAME)
-                    .opType(update ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE)
+                    .opType(DocWriteRequest.OpType.CREATE)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .id(DataFrameJobConfig.documentId(jobConfig.getId()))
                     .source(source);
@@ -90,7 +91,14 @@ public class DataFrameJobConfigManager {
             }
             BytesReference source = getResponse.getSourceAsBytesRef();
             parseJobLenientlyFromSource(source, jobId, resultListener);
-        }, resultListener::onFailure));
+        }, e -> {
+            if (e.getClass() == IndexNotFoundException.class) {
+                resultListener.onFailure(
+                        new ResourceNotFoundException(DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_JOB, jobId)));
+            } else {
+                resultListener.onFailure(e);
+            }
+        }));
     }
 
     public void deleteJobConfiguration(String jobId, ActionListener<Boolean> listener) {

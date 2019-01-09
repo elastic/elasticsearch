@@ -67,8 +67,8 @@ bin/elasticsearch-keystore add s3.client.default.secret_key
 ----
 
 The following list contains the available client settings. Those that must be
-stored in the keystore are marked as "secure"; all other settings can be
-included in the `elasticsearch.yml` file.
+stored in the keystore are marked as "secure"; the other settings belong in the
+`elasticsearch.yml` file.
 
 `access_key` ({ref}/secure-settings.html[Secure])::
 

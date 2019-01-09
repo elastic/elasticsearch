@@ -57,8 +57,8 @@ public class ParsedGeoGrid extends ParsedMultiBucketAggregation<ParsedGeoGrid.Pa
         private String geohashAsString;
 
         @Override
-        public GeoPoint getKey() {
-            return GeoPoint.fromGeohash(geohashAsString);
+        public String getKey() {
+            return getKeyAsString();
         }
 
         @Override

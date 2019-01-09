@@ -16,7 +16,6 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.VersionType;
@@ -24,7 +23,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
@@ -57,24 +55,9 @@ public final class FollowingEngine extends InternalEngine {
         return engineConfig;
     }
 
-    private void preFlight(final Operation operation) {
-        /*
-         * We assert here so that this goes uncaught in unit tests and fails nodes in standalone tests (we want a harsh failure so that we
-         * do not have a situation where a shard fails and is recovered elsewhere and a test subsequently passes). We throw an exception so
-         * that we also prevent issues in production code.
-         */
-        assert operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
-        if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            throw new ElasticsearchStatusException("a following engine does not accept operations without an assigned sequence number",
-                RestStatus.FORBIDDEN);
-        }
-        assert (operation.origin() == Operation.Origin.PRIMARY) == (operation.versionType() == VersionType.EXTERNAL) :
-            "invalid version_type in a following engine; version_type=" + operation.versionType() + "origin=" + operation.origin();
-    }
-
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
-        preFlight(index);
+        FollowingEngineAssertions.preFlight(index);
         // NOTES: refer Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers.
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
         assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
@@ -106,7 +89,7 @@ public final class FollowingEngine extends InternalEngine {
 
     @Override
     protected InternalEngine.DeletionStrategy deletionStrategyForOperation(final Delete delete) throws IOException {
-        preFlight(delete);
+        FollowingEngineAssertions.preFlight(delete);
         if (delete.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(delete)) {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
@@ -136,8 +119,7 @@ public final class FollowingEngine extends InternalEngine {
 
     @Override
     protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
-        // sequence number should be set when operation origin is primary
-        assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations on a following index must have an assigned sequence number";
+        FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(origin, seqNo);
         return true;
     }
 

@@ -956,7 +956,7 @@ public class CoordinatorTests extends ESTestCase {
         // TODO reboot the leader and verify that the same block is applied when it restarts
     }
 
-    public void testNodeCantJoinIfJoinValidationFailsOnMaster() {
+    public void testNodeCannotJoinIfJoinValidationFailsOnMaster() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 3));
         cluster.runRandomly();
         cluster.stabilise();
@@ -979,7 +979,7 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise();
     }
 
-    public void testNodeCantJoinIfJoinValidationFailsOnJoiningNode() {
+    public void testNodeCannotJoinIfJoinValidationFailsOnJoiningNode() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 3));
         cluster.runRandomly();
         cluster.stabilise();
@@ -1002,7 +1002,7 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise();
     }
 
-    public void testClusterCantFormWithFailingJoinValidation() {
+    public void testClusterCannotFormWithFailingJoinValidation() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         // fail join validation on a majority of nodes in the initial configuration
         randomValueOtherThanMany(nodes ->

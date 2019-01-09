@@ -283,7 +283,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             if (publishRequest.getAcceptedState().term() > coordinationState.get().getLastAcceptedState().term()) {
                 // only do join validation if we have not accepted state from this master yet
-                onJoinValidators.stream().forEach(a -> a.accept(getLocalNode(), publishRequest.getAcceptedState()));
+                onJoinValidators.forEach(a -> a.accept(getLocalNode(), publishRequest.getAcceptedState()));
             }
 
             ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
@@ -403,7 +403,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
             // we do this in a couple of places including the cluster update thread. This one here is really just best effort
             // to ensure we fail as fast as possible.
-            onJoinValidators.stream().forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
+            onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
             if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                 JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
                     stateForJoinValidation.getNodes().getMinNodeVersion());

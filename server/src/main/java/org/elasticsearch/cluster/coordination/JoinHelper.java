@@ -130,16 +130,16 @@ public class JoinHelper {
             });
 
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
-            () -> new MembershipAction.ValidateJoinRequest(), ThreadPool.Names.GENERIC,
+            MembershipAction.ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
             (request, channel, task) -> {
-                joinValidators.stream().forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
+                joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
             });
 
         transportService.registerRequestHandler(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
-            () -> new MembershipAction.ValidateJoinRequest(), ThreadPool.Names.GENERIC,
+            MembershipAction.ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
             (request, channel, task) -> {
-                joinValidators.stream().forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
+                joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
             });
 

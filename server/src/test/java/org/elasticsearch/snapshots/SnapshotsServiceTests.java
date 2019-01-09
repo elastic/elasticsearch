@@ -203,9 +203,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         testClusterNodes.nodes.values().forEach(testClusterNode -> testClusterNode.start(initialClusterState));
 
         deterministicTaskQueue.advanceTime();
-        if (deterministicTaskQueue.hasRunnableTasks()) {
-            deterministicTaskQueue.runAllRunnableTasks();
-        }
+        deterministicTaskQueue.runAllRunnableTasks();
 
         final BootstrapConfiguration bootstrapConfiguration = new BootstrapConfiguration(
             testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())

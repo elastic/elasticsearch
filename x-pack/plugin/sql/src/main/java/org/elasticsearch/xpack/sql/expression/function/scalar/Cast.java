@@ -9,15 +9,15 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public class Cast extends UnaryScalarFunction {
@@ -86,7 +86,7 @@ public class Cast extends UnaryScalarFunction {
     public ScriptTemplate asScript() {
         ScriptTemplate fieldAsScript = asScript(field());
         return new ScriptTemplate(
-                formatTemplate(String.format(Locale.ROOT, "{sql}.cast(%s,{})", fieldAsScript.template())),
+                formatTemplate(format("{sql}.", "cast({},{})", fieldAsScript.template())),
                 paramsBuilder()
                     .script(fieldAsScript.params())
                     .variable(dataType.name())

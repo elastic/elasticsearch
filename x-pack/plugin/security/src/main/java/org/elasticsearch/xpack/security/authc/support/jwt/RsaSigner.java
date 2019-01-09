@@ -5,6 +5,10 @@ import java.security.Key;
 import java.security.PrivateKey;
 import java.security.Signature;
 
+/**
+ * Class offering necessary functionality for signing JWTs with a Private Key using
+ * RSASSA-PKCS1-v1_5 (PKCS#1)
+ */
 public class RsaSigner implements JwtSigner {
 
     private SignatureAlgorithm algorithm;
@@ -22,6 +26,13 @@ public class RsaSigner implements JwtSigner {
         this.key = key;
     }
 
+    /**
+     * Signs the data byte array with an Private Key using RSASSA-PKCS1-v1_5 (PKCS#1)
+     *
+     * @param data the data to be signed
+     * @return the signature bytes
+     * @throws GeneralSecurityException if any error was encountered while signing
+     */
     @Override
     public byte[] sign(byte[] data) throws GeneralSecurityException {
         if (null == data || data.length == 0) {
@@ -29,8 +40,8 @@ public class RsaSigner implements JwtSigner {
         }
 
         final Signature rsa = Signature.getInstance(algorithm.getJcaAlgoName());
-            rsa.initSign((PrivateKey) key);
-            rsa.update(data);
-            return rsa.sign();
+        rsa.initSign((PrivateKey) key);
+        rsa.update(data);
+        return rsa.sign();
     }
 }

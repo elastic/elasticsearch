@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.authc.support.jwt;
+package org.elasticsearch.xpack.security.authc.oidc;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -12,7 +12,12 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.security.authc.oidc.RPConfiguration;
+import org.elasticsearch.xpack.security.authc.support.jwt.Claims;
+import org.elasticsearch.xpack.security.authc.support.jwt.EcSignatureValidator;
+import org.elasticsearch.xpack.security.authc.support.jwt.HmacSignatureValidator;
+import org.elasticsearch.xpack.security.authc.support.jwt.JwtSignatureValidator;
+import org.elasticsearch.xpack.security.authc.support.jwt.RsaSignatureValidator;
+import org.elasticsearch.xpack.security.authc.support.jwt.SignatureAlgorithm;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -27,7 +32,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 
 /**
- * Contains the necessary functionality for parsing a serialized OpenID Connect ID Token to a {@link JsonWebToken}
+ * Contains the necessary functionality for parsing a serialized OpenID Connect ID Token to an {@link IdToken}
  */
 public class IdTokenParser {
     private final RPConfiguration rpConfig;
@@ -37,21 +42,22 @@ public class IdTokenParser {
     }
 
     /**
-     * Parses the serialized format of an ID Token into a {@link JsonWebToken}. In doing so it:
+     * Parses the serialized format of an ID Token into a {@link IdToken}. In doing so it:
      * <ul>
      * <li>Validates that the format and structure of the ID Token is correct</li>
      * <li>Validates that the ID Token is signed and that one of the supported algorithms is used</li>
      * <li>Validates the signature using the appropriate</li>
      * </ul>
      * This method does <strong>not</strong> validate the contents of the ID Token such as expiration time,
-     * issuer, audience etc. These checks should be performed on the {@link JsonWebToken} by the caller.
+     * issuer, audience etc. These checks should be performed on the {@link IdToken}
+     * by the caller.
      *
      * @param idToken Serialized string representation of the ID Token
      * @param key The {@link Key} to be used for verifying the signature
-     * @return a {@link JsonWebToken}
+     * @return a {@link IdToken}
      * @throws IOException if the ID Token cannot be deserialized
      */
-    public final JsonWebToken parseAndValidateIdToken(String idToken, Key key) throws IOException {
+    public final IdToken parseAndValidateIdToken(String idToken, Key key) throws IOException {
         final String[] idTokenParts = idToken.split("\\.");
         if (idTokenParts.length != 3) {
             throw new IllegalArgumentException("The provided token is not a valid JWT");
@@ -81,7 +87,7 @@ public class IdTokenParser {
         final byte[] data = (serializedHeader + "." + serializedPayload).getBytes(StandardCharsets.UTF_8);
         validator.validateSignature(data, signatureBytes);
         final Map<String, Object> payloadMap = parsePayload(deserializedPayload);
-        return new JsonWebToken(headerMap, payloadMap);
+        return new IdToken(headerMap, payloadMap);
     }
 
     /**

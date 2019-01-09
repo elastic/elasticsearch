@@ -9,6 +9,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
+import org.elasticsearch.xpack.security.authc.oidc.IdTokenParserTests;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.file.Path;

@@ -12,10 +12,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.MessageDigest;
-import java.util.Arrays;
 import java.util.Base64;
 
 /**

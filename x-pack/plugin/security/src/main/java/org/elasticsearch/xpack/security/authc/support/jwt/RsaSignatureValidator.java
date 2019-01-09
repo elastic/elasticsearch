@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import java.security.Key;
 import java.security.PublicKey;
 import java.security.Signature;
-import java.util.Base64;
 
 /**
  * Class offering necessary functionality for validating the signatures of JWTs that have been signed with

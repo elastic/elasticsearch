@@ -6,6 +6,10 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.security.interfaces.ECPrivateKey;
 
+/**
+ * Class offering necessary functionality for signing JWTs using the
+ * Elliptic Curve Digital Signature Algorithm (ECDSA) with a EC Private Key.
+ */
 public class EcSigner implements JwtSigner {
 
     private SignatureAlgorithm algorithm;
@@ -38,7 +42,13 @@ public class EcSigner implements JwtSigner {
         }
     }
 
-
+    /**
+     * Signs the data byte array with a EC Private Key using the Elliptic Curve Digital Signature Algorithm (ECDSA)
+     *
+     * @param data the data to be signed
+     * @return the signature bytes
+     * @throws GeneralSecurityException if any error was encountered while signing
+     */
     @Override
     public byte[] sign(byte[] data) throws GeneralSecurityException {
         if (null == data || data.length == 0) {
@@ -57,8 +67,8 @@ public class EcSigner implements JwtSigner {
      * Based on https://github.com/jwtk/jjwt/blob/1520ae8a21052b376282f8a38d310a91b15285e5/impl/src/main/java/io/jsonwebtoken/impl/crypto/EllipticCurveProvider.java
      *
      * @param derSignature The DER formatted signature
-     * @return
-     * @throws SignatureException
+     * @return the signature formatted in a way that can be encoded and added in a JWT
+     * @throws SignatureException if the signature DER encoding is not valid
      */
     private byte[] convertToJose(byte[] derSignature) throws SignatureException {
         if (derSignature.length < 8 || derSignature[0] != 48) {

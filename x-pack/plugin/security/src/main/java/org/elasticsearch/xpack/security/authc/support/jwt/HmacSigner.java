@@ -1,13 +1,14 @@
 package org.elasticsearch.xpack.security.authc.support.jwt;
 
-import org.elasticsearch.ElasticsearchSecurityException;
-
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.GeneralSecurityException;
 import java.security.Key;
 
+/**
+ * Class offering necessary functionality for generating an HMAC for the JWT using a secret key.
+ */
 public class HmacSigner implements JwtSigner {
 
     private Key key;
@@ -26,6 +27,13 @@ public class HmacSigner implements JwtSigner {
 
     }
 
+    /**
+     * Generates the HMAC of the JWT
+     *
+     * @param data the data to be signed
+     * @return the HMAC as a byte array
+     * @throws GeneralSecurityException if any error was encountered generating the HMAC
+     */
     @Override
     public byte[] sign(byte[] data) throws GeneralSecurityException {
         if (null == data || data.length == 0) {

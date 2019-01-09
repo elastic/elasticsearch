@@ -67,7 +67,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
@@ -105,10 +104,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -385,28 +382,30 @@ public class SnapshotsServiceTests extends ESTestCase {
             final Settings settings = environment.settings();
             final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool = deterministicTaskQueue.getThreadPool();
+            final class KillWorkerError extends Error {
+            }
             clusterService = new ClusterService(settings, clusterSettings, masterService,
                 new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                     @Override
                     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                        return new PrioritizedEsThreadPoolExecutor(node.getName(), 1, 1, 1, TimeUnit.SECONDS,
-                            r -> {
-                                throw new UnsupportedOperationException();
-                            }, null, null) {
+                        return new PrioritizedEsThreadPoolExecutor(node.getName(), 0, 1, 0, TimeUnit.SECONDS,
+                            r -> new Thread() {
+                                @Override
+                                public void start() {
+                                    deterministicTaskQueue.scheduleNow(() -> {
+                                        try {
+                                            r.run();
+                                        } catch (KillWorkerError kwe) {
+                                            // hacks everywhere
+                                        }
+                                    });
+                                }
+                            },  threadPool.getThreadContext(), threadPool.scheduler()) {
 
-                            private final Deque<Runnable> orderedTasks = new ArrayDeque<>();
-
-                            @Override
-                            public void execute(Runnable command, TimeValue timeout, Runnable timeoutCallback) {
-                                throw new UnsupportedOperationException();
-                            }
-
-                            @Override
-                            public void execute(Runnable command) {
-                                // Ensure ordered execution of the tasks here since the threadpool we're
-                                // mocking out is single threaded
-                                orderedTasks.addLast(command);
-                                deterministicTaskQueue.scheduleNow(() -> orderedTasks.removeFirst().run());
+                            protected void afterExecute(Runnable r, Throwable t) {
+                                super.afterExecute(r, t);
+                                // kill worker so that next one will be scheduled
+                                throw new KillWorkerError();
                             }
                         };
                     }

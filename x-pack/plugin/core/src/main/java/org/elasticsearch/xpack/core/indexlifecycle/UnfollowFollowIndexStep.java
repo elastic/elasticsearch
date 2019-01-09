@@ -42,7 +42,7 @@ final class UnfollowFollowIndexStep extends AsyncActionStep {
         PauseFollowAction.Request request = new PauseFollowAction.Request(followerIndex);
         getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(
             r -> {
-                assert r.isAcknowledged();
+                assert r.isAcknowledged() : "pause follow response is not acknowledge";
                 closeFollowerIndex(followerIndex, listener);
             },
             listener::onFailure
@@ -52,8 +52,8 @@ final class UnfollowFollowIndexStep extends AsyncActionStep {
     void closeFollowerIndex(final String followerIndex, final Listener listener) {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(followerIndex);
         getClient().admin().indices().close(closeIndexRequest, ActionListener.wrap(
-            acknowledgedResponse -> {
-                assert acknowledgedResponse.isAcknowledged();
+            r -> {
+                assert r.isAcknowledged() : "close index response is not acknowledge";
                 unfollow(followerIndex, listener);
             },
             listener::onFailure)
@@ -64,7 +64,7 @@ final class UnfollowFollowIndexStep extends AsyncActionStep {
         UnfollowAction.Request request = new UnfollowAction.Request(followerIndex);
         getClient().execute(UnfollowAction.INSTANCE, request, ActionListener.wrap(
             r -> {
-                assert r.isAcknowledged();
+                assert r.isAcknowledged() : "unfollow response is not acknowledge";
                 openIndex(followerIndex, listener);
             },
             listener::onFailure
@@ -74,8 +74,8 @@ final class UnfollowFollowIndexStep extends AsyncActionStep {
     void openIndex(final String index, final Listener listener) {
         OpenIndexRequest request = new OpenIndexRequest(index);
         getClient().admin().indices().open(request, ActionListener.wrap(
-            openIndexResponse -> {
-                assert openIndexResponse.isAcknowledged();
+            r -> {
+                assert r.isAcknowledged() :  "open index response is not acknowledge";
                 listener.onResponse(true);
             },
             listener::onFailure

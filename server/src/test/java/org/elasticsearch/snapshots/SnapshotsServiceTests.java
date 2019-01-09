@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.CoordinatorTests;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
+import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -382,32 +383,11 @@ public class SnapshotsServiceTests extends ESTestCase {
             final Settings settings = environment.settings();
             final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool = deterministicTaskQueue.getThreadPool();
-            final class KillWorkerError extends Error {
-            }
             clusterService = new ClusterService(settings, clusterSettings, masterService,
                 new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                     @Override
                     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                        return new PrioritizedEsThreadPoolExecutor(node.getName(), 0, 1, 0, TimeUnit.SECONDS,
-                            r -> new Thread() {
-                                @Override
-                                public void start() {
-                                    deterministicTaskQueue.scheduleNow(() -> {
-                                        try {
-                                            r.run();
-                                        } catch (KillWorkerError kwe) {
-                                            // hacks everywhere
-                                        }
-                                    });
-                                }
-                            },  threadPool.getThreadContext(), threadPool.scheduler()) {
-
-                            protected void afterExecute(Runnable r, Throwable t) {
-                                super.afterExecute(r, t);
-                                // kill worker so that next one will be scheduled
-                                throw new KillWorkerError();
-                            }
-                        };
+                        return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue);
                     }
                 });
             mockTransport = new DisruptableMockTransport(logger) {

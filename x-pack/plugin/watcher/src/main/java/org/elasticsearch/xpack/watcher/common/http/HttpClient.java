@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.common.http;
 
 import org.apache.http.Header;
-import org.apache.http.HttpException;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequestInterceptor;
@@ -139,22 +138,23 @@ public class HttpClient implements Closeable {
             }
         });
 
-        clientBuilder.addInterceptorFirst(new HttpRequestInterceptor() {
-            @Override
-            public void process(org.apache.http.HttpRequest request, HttpContext context) throws HttpException, IOException {
-                // TODO do proper casting check
-                HttpRequestWrapper wrapper = ((HttpRequestWrapper) request);
-                final String host;
-                if (wrapper.getTarget() != null) {
-                    host = ((HttpRequestWrapper) request).getTarget().toURI();
-                } else {
-                    host = ((HttpRequestWrapper) request).getOriginal().getRequestLine().getUri();
-                }
+        clientBuilder.addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
+            if (request instanceof HttpRequestWrapper == false) {
+                throw new ElasticsearchException("unable to check request [{}/{}] for white listing", request,
+                    request.getClass().getName());
+            }
 
-                if (whitelistAutomaton.get().run(host) == false) {
-                    throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
-                        HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect");
-                }
+            HttpRequestWrapper wrapper = ((HttpRequestWrapper) request);
+            final String host;
+            if (wrapper.getTarget() != null) {
+                host = wrapper.getTarget().toURI();
+            } else {
+                host = wrapper.getOriginal().getRequestLine().getUri();
+            }
+
+            if (whitelistAutomaton.get().run(host) == false) {
+                throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
+                    HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect");
             }
         });
 

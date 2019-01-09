@@ -371,7 +371,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
             int bytesRequested = (int) Math.min(remainingBytes, len);
             String fileName = fileToRecover.name();
-            GetCcrRestoreFileChunkRequest request = new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileName, pos, bytesRequested);
+            GetCcrRestoreFileChunkRequest request = new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileName, bytesRequested);
             BytesReference fileChunk = remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request).actionGet().getChunk();
 
             int bytesReceived = fileChunk.length();

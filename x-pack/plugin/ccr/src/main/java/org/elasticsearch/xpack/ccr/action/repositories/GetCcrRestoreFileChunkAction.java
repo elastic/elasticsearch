@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -79,7 +77,6 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
                 @Override
                 protected void doRun() throws Exception {
                     int bytesRequested = request.getSize();
-                    long fileOffset = request.getOffset();
                     ByteArray array = bigArrays.newByteArray(bytesRequested, false);
                     String fileName = request.getFileName();
                     String sessionUUID = request.getSessionUUID();
@@ -87,16 +84,13 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
                     // structure on the same thread. So the bytes will be copied before the reference is released.
                     try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(array, bytesRequested, array)) {
                         try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID, fileName)) {
-                            BytesRefIterator refIterator = reference.iterator();
-                            BytesRef ref;
-                            int bytesWritten = 0;
-                            while ((ref = refIterator.next()) != null) {
-                                byte[] refBytes = ref.bytes;
-                                reader.readFileBytes(refBytes, fileOffset + bytesWritten, ref.length);
-                                bytesWritten += ref.length;
+                            int bytesRead = reader.readFileBytes(reference);
+                            if (bytesRead < bytesRequested) {
+                                listener.onFailure(new IOException("[" + bytesRead + "] bytes requested. Only [" + bytesRead +
+                                    "] could be read from file."));
+                            } else {
+                                listener.onResponse(new GetCcrRestoreFileChunkResponse(reference));
                             }
-
-                            listener.onResponse(new GetCcrRestoreFileChunkResponse(reference));
                         }
                     }
                 }

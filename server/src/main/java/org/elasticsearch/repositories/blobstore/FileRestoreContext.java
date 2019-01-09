@@ -54,6 +54,12 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * This context will execute a file restore of the lucene files. It is primarily designed to be used to
+ * restore from some form of a snapshot. It will setup a new store, identify files that need to be copied
+ * for the source, and perform the copies. Implementers must implement the functionality of opening the
+ * underlying file streams for snapshotted lucene file.
+ */
 public abstract class FileRestoreContext {
 
     private static final Logger logger = LogManager.getLogger(FileRestoreContext.class);

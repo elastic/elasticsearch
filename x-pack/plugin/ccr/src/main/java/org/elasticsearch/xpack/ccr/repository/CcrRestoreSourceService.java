@@ -10,8 +10,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -151,6 +155,8 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         private final IndexShard indexShard;
         private final RefCountedCloseable<Engine.IndexCommitRef> session;
         private RefCountedCloseable<IndexInput> cachedInput;
+        private volatile boolean sessionLocked = false;
+        private Releasable lockRelease = () -> sessionLocked = false;
 
         private RestoreContext(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef) {
             this.sessionUUID = sessionUUID;
@@ -168,17 +174,21 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
 
         Reader getFileReader(String fileName) throws IOException {
+            if (sessionLocked) {
+                throw new IllegalStateException("Session is currently locked by another get file chunk request");
+            }
+            sessionLocked = true;
             if (cachedInput != null) {
                 if (fileName.equals(cachedInput.name)) {
-                    return new Reader(session, cachedInput);
+                    return new Reader(session, cachedInput, lockRelease);
                 } else {
                     cachedInput.decRef();
                     openNewIndexInput(fileName);
-                    return new Reader(session, cachedInput);
+                    return new Reader(session, cachedInput, lockRelease);
                 }
             } else {
                 openNewIndexInput(fileName);
-                return new Reader(session, cachedInput);
+                return new Reader(session, cachedInput, lockRelease);
 
             }
         }
@@ -232,27 +242,44 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
         private final RefCountedCloseable<Engine.IndexCommitRef> session;
         private final RefCountedCloseable<IndexInput> input;
+        private final Releasable lockRelease;
 
-        private Reader(RefCountedCloseable<Engine.IndexCommitRef> session, RefCountedCloseable<IndexInput> input) {
+        private Reader(RefCountedCloseable<Engine.IndexCommitRef> session, RefCountedCloseable<IndexInput> input, Releasable lockRelease) {
             this.session = session;
             this.input = input;
-            session.incRef();
-            input.incRef();
-        }
-
-        public void readFileBytes(byte[] chunk, long offset, int length) throws IOException {
-            synchronized (input.object) {
-                try (IndexInput in = input.object.clone()) {
-                    in.seek(offset);
-                    in.readBytes(chunk, 0, length);
+            this.lockRelease = lockRelease;
+            boolean sessionRefIncremented = false;
+            boolean inputRefIncremented = false;
+            try {
+                session.incRef();
+                sessionRefIncremented = true;
+                input.incRef();
+                inputRefIncremented = true;
+            } finally {
+                if (sessionRefIncremented == false) {
+                    IOUtils.closeWhileHandlingException(lockRelease);
+                } else if (inputRefIncremented == false) {
+                    IOUtils.closeWhileHandlingException(session::decRef, lockRelease);
                 }
             }
         }
 
+        public int readFileBytes(BytesReference reference) throws IOException {
+            IndexInput in = input.object;
+            BytesRefIterator refIterator = reference.iterator();
+            BytesRef ref;
+            int bytesWritten = 0;
+            while ((ref = refIterator.next()) != null) {
+                byte[] refBytes = ref.bytes;
+                in.readBytes(refBytes, 0, refBytes.length);
+                bytesWritten += ref.length;
+            }
+            return bytesWritten;
+        }
+
         @Override
         public void close() {
-            input.decRef();
-            session.decRef();
+            IOUtils.closeWhileHandlingException(input::decRef, session::decRef, lockRelease);
         }
     }
 }

@@ -20,7 +20,6 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
     private DiscoveryNode node;
     private final String sessionUUID;
     private final String fileName;
-    private final long offset;
     private final int size;
 
     @Override
@@ -28,19 +27,18 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
         return null;
     }
 
-    public GetCcrRestoreFileChunkRequest(DiscoveryNode node, String sessionUUID, String fileName, long offset, int size) {
+    public GetCcrRestoreFileChunkRequest(DiscoveryNode node, String sessionUUID, String fileName, int size) {
         this.sessionUUID = sessionUUID;
         this.node = node;
         this.fileName = fileName;
-        this.offset = offset;
         this.size = size;
+        assert size > -1 : "The file chunk request size must be positive. Found: [" + size + "].";
     }
 
     GetCcrRestoreFileChunkRequest(StreamInput in) throws IOException {
         super(in);
         sessionUUID = in.readString();
         fileName = in.readString();
-        offset = in.readVLong();
         size = in.readVInt();
     }
 
@@ -49,7 +47,6 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
         super.writeTo(out);
         out.writeString(sessionUUID);
         out.writeString(fileName);
-        out.writeVLong(offset);
         out.writeVInt(size);
     }
 
@@ -58,19 +55,15 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
         throw new UnsupportedOperationException();
     }
 
-    public String getSessionUUID() {
+    String getSessionUUID() {
         return sessionUUID;
     }
 
-    public String getFileName() {
+    String getFileName() {
         return fileName;
     }
 
-    public long getOffset() {
-        return offset;
-    }
-
-    public int getSize() {
+    int getSize() {
         return size;
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.repository;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -148,8 +149,9 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             indexInput.readBytes(expectedBytes, 0, (int) fileMetaData.length());
         }
 
+        BytesArray byteArray = new BytesArray(actualBytes);
         try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID1, fileName)) {
-            reader.readFileBytes(actualBytes, 0, (int) fileMetaData.length());
+            reader.readFileBytes(byteArray);
         }
 
         assertArrayEquals(expectedBytes, actualBytes);
@@ -184,5 +186,26 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         restoreSourceService.closeSession(sessionUUID1);
         closeShards(indexShard);
         // Exception will be thrown if file is not closed.
+    }
+
+    public void testCannotAccessTwoSessionReadersAtOnce() throws IOException {
+        IndexShard indexShard = newStartedShard(true);
+        final String sessionUUID1 = UUIDs.randomBase64UUID();
+
+        restoreSourceService.openSession(sessionUUID1, indexShard);
+
+        ArrayList<StoreFileMetaData> files = new ArrayList<>();
+        indexShard.snapshotStoreMetadata().forEach(files::add);
+
+        StoreFileMetaData fileMetaData = files.get(0);
+        String fileName = fileMetaData.name();
+
+        indexShard.snapshotStoreMetadata().forEach(files::add);
+        try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID1, fileName)) {
+            expectThrows(IllegalStateException.class, () -> restoreSourceService.getSessionReader(sessionUUID1, fileName));
+        }
+
+        restoreSourceService.closeSession(sessionUUID1);
+        closeShards(indexShard);
     }
 }

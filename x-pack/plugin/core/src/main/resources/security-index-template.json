@@ -1,5 +1,5 @@
 {
-  "index_patterns" : [ ".security-*" ],
+  "index_patterns" : [ ".security-6" ],
   "order" : 1000,
   "settings" : {
     "number_of_shards" : 1,

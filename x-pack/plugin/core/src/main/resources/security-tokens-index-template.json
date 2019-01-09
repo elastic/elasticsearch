@@ -1,5 +1,5 @@
 {
-  "index_patterns" : [ ".security-tokens-*" ],
+  "index_patterns" : [ ".security-tokens-7" ],
   "order" : 1000,
   "settings" : {
     "number_of_shards" : 1,

@@ -30,7 +30,7 @@ import java.util.Locale;
  * Exception thrown when an elasticsearch node responds to a request with a status code that indicates an error.
  * Holds the response that was returned.
  */
-public final class ResponseException extends IOException {
+public class ResponseException extends IOException {
 
     private Response response;
 

@@ -421,9 +421,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         if (expectFailure) {
             try {
                 restClient.performRequest(request);
-                fail("expected ResponseException from warnings");
+                fail("expected WarningFailureException from warnings");
                 return;
-            } catch (ResponseException e) {
+            } catch (WarningFailureException e) {
                 if (false == warningBodyTexts.isEmpty()) {
                     assertThat(e.getMessage(), containsString("\nWarnings: " + warningBodyTexts));
                 }

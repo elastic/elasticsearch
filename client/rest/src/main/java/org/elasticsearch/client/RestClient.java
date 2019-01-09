@@ -301,7 +301,7 @@ public class RestClient implements Closeable {
                     if (isSuccessfulResponse(statusCode) || ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
                         onResponse(node);
                         if (thisWarningsHandler.warningsShouldFailRequest(response.getWarnings())) {
-                            listener.onDefinitiveFailure(new ResponseException(response));
+                            listener.onDefinitiveFailure(new WarningFailureException(response));
                         } else {
                             listener.onSuccess(response);
                         }
@@ -686,6 +686,9 @@ public class RestClient implements Closeable {
                  * like the asynchronous API. We wrap the exception so that the caller's
                  * signature shows up in any exception we throw.
                  */
+                if (exception instanceof WarningFailureException) {
+                    throw new WarningFailureException((WarningFailureException) exception);
+                }
                 if (exception instanceof ResponseException) {
                     throw new ResponseException((ResponseException) exception);
                 }

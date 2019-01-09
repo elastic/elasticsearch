@@ -1671,15 +1671,19 @@ public class RestHighLevelClient implements Closeable {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
         ElasticsearchStatusException elasticsearchException;
-        if (entity == null) {
+        RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
+
+        if (responseException instanceof WarningFailureException) {
+            elasticsearchException = new ElasticsearchStatusException("Warnings/Deprecations caused response to fail", restStatus,
+                responseException);
+        } else if (entity == null) {
             elasticsearchException = new ElasticsearchStatusException(
-                    responseException.getMessage(), RestStatus.fromCode(response.getStatusLine().getStatusCode()), responseException);
+                    responseException.getMessage(), restStatus, responseException);
         } else {
             try {
                 elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
                 elasticsearchException.addSuppressed(responseException);
             } catch (Exception e) {
-                RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
                 elasticsearchException = new ElasticsearchStatusException("Unable to parse response body", restStatus, responseException);
                 elasticsearchException.addSuppressed(e);
             }

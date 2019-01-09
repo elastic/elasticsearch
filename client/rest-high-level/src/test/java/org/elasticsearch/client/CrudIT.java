@@ -875,7 +875,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // test1: create one doc in dest
             UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
             updateByQueryRequest.indices(sourceIndex);
-            updateByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1").types("_doc"));
+            updateByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1"));
             updateByQueryRequest.setRefresh(true);
             BulkByScrollResponse bulkResponse =
                 execute(updateByQueryRequest, highLevelClient()::updateByQuery, highLevelClient()::updateByQueryAsync);
@@ -917,7 +917,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // test update-by-query rethrottling
             UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
             updateByQueryRequest.indices(sourceIndex);
-            updateByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1").types("_doc"));
+            updateByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1"));
             updateByQueryRequest.setRefresh(true);
 
             // this following settings are supposed to halt reindexing after first document
@@ -987,7 +987,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // test1: delete one doc
             DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
             deleteByQueryRequest.indices(sourceIndex);
-            deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1").types("_doc"));
+            deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1"));
             deleteByQueryRequest.setRefresh(true);
             BulkByScrollResponse bulkResponse =
                 execute(deleteByQueryRequest, highLevelClient()::deleteByQuery, highLevelClient()::deleteByQueryAsync);
@@ -1009,7 +1009,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // test delete-by-query rethrottling
             DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
             deleteByQueryRequest.indices(sourceIndex);
-            deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("2", "3").types("_doc"));
+            deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("2", "3"));
             deleteByQueryRequest.setRefresh(true);
 
             // this following settings are supposed to halt reindexing after first document

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,9 +43,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
  * A response for a get index action.
@@ -249,15 +253,32 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     }
                     builder.endObject();
 
-                    builder.startObject("mappings");
                     ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.get(index);
-                    if (indexMappings != null) {
+                    boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, false);
+                    if (includeTypeName) {
+                        builder.startObject("mappings");
+                        if (indexMappings != null) {
+                            for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
+                                builder.field(typeEntry.key);
+                                builder.map(typeEntry.value.sourceAsMap());
+                            }
+                        }
+                        builder.endObject();
+                    } else {
+                        MappingMetaData mappings = null;
                         for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
-                            builder.field(typeEntry.key);
-                            builder.map(typeEntry.value.sourceAsMap());
+                            if (typeEntry.key.equals(MapperService.DEFAULT_MAPPING) == false) {
+                                assert mappings == null;
+                                mappings = typeEntry.value;
+                            }
+                        }
+                        if (mappings == null) {
+                            // no mappings yet
+                            builder.startObject("mappings").endObject();
+                        } else {
+                            builder.field("mappings", mappings.sourceAsMap());
                         }
                     }
-                    builder.endObject();
 
                     builder.startObject("settings");
                     Settings indexSettings = settings.get(index);
@@ -292,16 +313,9 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     private static ImmutableOpenMap<String, MappingMetaData> parseMappings(XContentParser parser) throws IOException {
         ImmutableOpenMap.Builder<String, MappingMetaData> indexMappings = ImmutableOpenMap.builder();
-        // We start at START_OBJECT since parseIndexEntry ensures that
-        while (parser.nextToken() != Token.END_OBJECT) {
-            ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-            parser.nextToken();
-            if (parser.currentToken() == Token.START_OBJECT) {
-                String mappingType = parser.currentName();
-                indexMappings.put(mappingType, new MappingMetaData(mappingType, parser.map()));
-            } else if (parser.currentToken() == Token.START_ARRAY) {
-                parser.skipChildren();
-            }
+        Map<String, Object> map = parser.map();
+        if (map.isEmpty() == false) {
+            indexMappings.put(MapperService.SINGLE_MAPPING_NAME, new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, map));
         }
         return indexMappings.build();
     }

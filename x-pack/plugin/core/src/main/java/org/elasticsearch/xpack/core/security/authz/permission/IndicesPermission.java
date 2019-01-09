@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
@@ -52,7 +51,7 @@ public final class IndicesPermission {
     public static final IndicesPermission NONE = new IndicesPermission();
     private static final Automaton systemIndicesAutomaton = Automatons.patterns(SystemIndicesNames.indexNames());
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(IndicesPermission.class);
 
     private final ConcurrentMap<String, Predicate<String>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
     private final ConcurrentMap<Group, Automaton> indexGroupAutomatonCache = new ConcurrentHashMap<>();
@@ -383,7 +382,8 @@ public final class IndicesPermission {
             if (implicitlyAuthorizeMonitorSystemIndices.test(action, index)) {
                 // we allow indices monitoring actions through for debugging purposes. These monitor requests resolve indices concretely and
                 // then requests them. WE SHOULD BREAK THIS BEHAVIOR
-                logger.debug("Granted monitoring passthrough for index [{}] and action [{}]", index, action);
+                logger.debug("Privileges [{}] over the indices [{}], granted monitoring passthrough for index [{}] and action [{}]",
+                        privilege.name(), indices, index, action);
                 return true;
             }
             return checkAction(action) && checkIndex(index);

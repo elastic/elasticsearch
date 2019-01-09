@@ -204,7 +204,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         step.setLatch(latch);
         runner.runPolicyAfterStateChange(policyName, indexMetaData);
 
-        awaitLatch(latch,5, TimeUnit.SECONDS);
+        awaitLatch(latch, 5, TimeUnit.SECONDS);
         ClusterState after = clusterService.state();
 
         assertEquals(before, after);
@@ -374,7 +374,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetaData);
 
         // Wait for the cluster state action step
-        awaitLatch(latch,5, TimeUnit.SECONDS);
+        awaitLatch(latch, 5, TimeUnit.SECONDS);
 
         CountDownLatch asyncLatch = new CountDownLatch(1);
         nextStep.setLatch(asyncLatch);
@@ -441,7 +441,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         step.setLatch(latch);
         runner.runPeriodicStep(policyName, indexMetaData);
-        awaitLatch(latch,5, TimeUnit.SECONDS);
+        awaitLatch(latch, 5, TimeUnit.SECONDS);
 
         ClusterState after = clusterService.state();
 

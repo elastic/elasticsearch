@@ -18,12 +18,18 @@ public class EsField {
     private final boolean aggregatable;
     private final Map<String, EsField> properties;
     private final String name;
+    private final boolean synthetic;
 
     public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable) {
+        this(name, esDataType, properties, aggregatable, false);
+    }
+
+    public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable, boolean synthetic) {
         this.name = name;
         this.esDataType = esDataType;
         this.aggregatable = aggregatable;
         this.properties = properties;
+        this.synthetic = synthetic;
     }
 
     /**
@@ -54,6 +60,15 @@ public class EsField {
     @Nullable
     public Map<String, EsField> getProperties() {
         return properties;
+    }
+
+    /**
+     * Indicates whether the field exists only in SQL but not in Elasticsearch.
+     * This is needed for aliases which allow dots in their names (a.b.c) without an actual
+     * hierachy behind them.
+     */
+    public boolean isSynthetic() {
+        return synthetic;
     }
 
     /**
@@ -99,7 +114,7 @@ public class EsField {
             return false;
         }
         EsField field = (EsField) o;
-        return aggregatable == field.aggregatable && esDataType == field.esDataType 
+        return aggregatable == field.aggregatable && esDataType == field.esDataType
                 && Objects.equals(name, field.name)
                 && Objects.equals(properties, field.properties);
     }

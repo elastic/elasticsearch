@@ -237,6 +237,7 @@ dep.from_date       |TIMESTAMP      |DATE
 dep.to_date         |TIMESTAMP      |DATE           
 emp_no              |INTEGER        |INTEGER        
 extra_gender        |VARCHAR        |KEYWORD        
+extra.info.gender   |VARCHAR        |KEYWORD 
 extra_no            |INTEGER        |INTEGER        
 first_name          |VARCHAR        |TEXT           
 first_name.keyword  |VARCHAR        |KEYWORD        

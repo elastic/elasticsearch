@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.EsField;
 
 import java.util.ArrayList;
@@ -49,7 +49,9 @@ public class EsRelation extends LeafPlan {
 
             if (t != null) {
                 FieldAttribute f = new FieldAttribute(source, parent, parent != null ? parent.name() + "." + name : name, t);
-                list.add(f);
+                if (t.isSynthetic() == false) {
+                    list.add(f);
+                }
                 // object or nested
                 if (t.getProperties().isEmpty() == false) {
                     list.addAll(flatten(source, t.getProperties(), f));

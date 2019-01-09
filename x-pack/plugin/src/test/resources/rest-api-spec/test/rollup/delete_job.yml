@@ -57,7 +57,7 @@ setup:
               date_histogram:
                 interval: "1h"
                 field: "the_field"
-                time_zone: "Z"
+                time_zone: "UTC"
             metrics:
               - field: "value_field"
                 metrics:
@@ -110,7 +110,7 @@ setup:
               date_histogram:
                 interval: "1h"
                 field: "the_field"
-                time_zone: "Z"
+                time_zone: "UTC"
             metrics:
               - field: "value_field"
                 metrics:
@@ -163,7 +163,7 @@ setup:
               date_histogram:
                 interval: "1h"
                 field: "the_field"
-                time_zone: "Z"
+                time_zone: "UTC"
             metrics:
               - field: "value_field"
                 metrics:

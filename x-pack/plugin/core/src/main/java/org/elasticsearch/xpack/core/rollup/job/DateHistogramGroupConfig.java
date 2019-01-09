@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.Nullable;
@@ -16,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -28,7 +26,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
 
@@ -57,7 +54,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     private static final String FIELD = "field";
     public static final String TIME_ZONE = "time_zone";
     public static final String DELAY = "delay";
-    public static final ZoneId DEFAULT_TIMEZONE = ZoneOffset.UTC;
+    public static final String DEFAULT_TIMEZONE = "UTC";
     private static final ConstructingObjectParser<DateHistogramGroupConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, a ->
@@ -71,7 +68,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     private final String field;
     private final DateHistogramInterval interval;
     private final DateHistogramInterval delay;
-    private final ZoneId timeZone;
+    private final String timeZone;
 
     /**
      * Create a new {@link DateHistogramGroupConfig} using the given field and interval parameters.
@@ -107,9 +104,11 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         this.interval = interval;
         this.field = field;
         this.delay = delay;
-        // Convert to ZoneId, then validate roundings (which unfortunately requires converting to DateTimeZone)
-        this.timeZone = Strings.isNullOrEmpty(timeZone) ? DEFAULT_TIMEZONE : ZoneId.of(timeZone, ZoneId.SHORT_IDS);
-        createRounding(this.interval.toString(), DateUtils.zoneIdToDateTimeZone(this.timeZone));
+        this.timeZone = ZoneId.of((timeZone != null && timeZone.isEmpty() == false)
+            ? timeZone : DEFAULT_TIMEZONE, ZoneId.SHORT_IDS).toString();
+
+        // validate interval
+        createRounding(this.interval.toString(), this.timeZone);
         if (delay != null) {
             // and delay
             TimeValue.parseTimeValue(this.delay.toString(), DELAY);
@@ -120,8 +119,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         interval = new DateHistogramInterval(in);
         field = in.readString();
         delay = in.readOptionalWriteable(DateHistogramInterval::new);
-        // new ZoneId can deal with older DateTimeStrings, no need for version check
-        timeZone = ZoneId.of(in.readString(), ZoneId.SHORT_IDS);
+        timeZone = in.readString();
     }
 
     @Override
@@ -129,14 +127,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         interval.writeTo(out);
         out.writeString(field);
         out.writeOptionalWriteable(delay);
-        // TODO change version after backport
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeString(timeZone.toString());
-        } else {
-            // If we're on an older version, DateTime doesn't know how to
-            // deal with new ZoneId strings (E.g. "Z" instead of "UTC")
-            out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).toString());
-        }
+        out.writeString(timeZone);
     }
 
     @Override
@@ -148,7 +139,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
             if (delay != null) {
                 builder.field(DELAY, delay.toString());
             }
-            builder.field(TIME_ZONE, timeZone.toString());
+            builder.field(TIME_ZONE, timeZone);
         }
         return builder.endObject();
     }
@@ -178,14 +169,14 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      * Get the timezone to apply
      */
     public String getTimeZone() {
-        return timeZone.toString();
+        return timeZone;
     }
 
     /**
      * Create the rounding for this date histogram
      */
     public Rounding createRounding() {
-        return createRounding(interval.toString(), DateUtils.zoneIdToDateTimeZone(timeZone));
+        return createRounding(interval.toString(), timeZone);
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
@@ -222,12 +213,12 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         return Objects.equals(interval, that.interval)
             && Objects.equals(field, that.field)
             && Objects.equals(delay, that.delay)
-            && timeZone.getRules().equals(((DateHistogramGroupConfig) other).timeZone.getRules());
+            && Objects.equals(timeZone, that.timeZone);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(interval, field, delay, timeZone.getRules());
+        return Objects.hash(interval, field, delay, timeZone);
     }
 
     @Override
@@ -239,7 +230,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         return PARSER.parse(parser, null);
     }
 
-    private static Rounding createRounding(final String expr, final DateTimeZone timeZone) {
+    private static Rounding createRounding(final String expr, final String timeZone) {
         DateTimeUnit timeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expr);
         final Rounding.Builder rounding;
         if (timeUnit != null) {
@@ -247,7 +238,16 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         } else {
             rounding = new Rounding.Builder(TimeValue.parseTimeValue(expr, "createRounding"));
         }
-        rounding.timeZone(timeZone);
+        rounding.timeZone(toDateTimeZone(timeZone));
         return rounding.build();
     }
+
+    private static DateTimeZone toDateTimeZone(final String timezone) {
+        try {
+            return DateTimeZone.forOffsetHours(Integer.parseInt(timezone));
+        } catch (NumberFormatException e) {
+            return DateTimeZone.forID(timezone);
+        }
+    }
+
 }

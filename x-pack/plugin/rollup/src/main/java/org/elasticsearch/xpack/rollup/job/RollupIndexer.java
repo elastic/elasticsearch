@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.rollup.job;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -43,7 +42,6 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.joda.time.DateTimeZone;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -216,7 +214,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         final DateHistogramValuesSourceBuilder dateHistogramBuilder = new DateHistogramValuesSourceBuilder(dateHistogramName);
         dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
         dateHistogramBuilder.field(dateHistogramField);
-        dateHistogramBuilder.timeZone(DateUtils.zoneIdToDateTimeZone(ZoneId.of(dateHistogram.getTimeZone())));
+        dateHistogramBuilder.timeZone(toDateTimeZone(dateHistogram.getTimeZone()));
         return Collections.singletonList(dateHistogramBuilder);
     }
 

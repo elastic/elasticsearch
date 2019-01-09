@@ -171,7 +171,7 @@ teardown:
       hits.hits.0._id: "foo$VxMkzTqILshClbtbFi4-rQ"
   - match:
       hits.hits.0._source:
-        timestamp.date_histogram.time_zone: "Z"
+        timestamp.date_histogram.time_zone: "UTC"
         timestamp.date_histogram.timestamp: 0
         value_field.max.value: 1232.0
         _rollup.version: 2
@@ -334,7 +334,7 @@ teardown:
       hits.hits.0._id: "foo$VxMkzTqILshClbtbFi4-rQ"
   - match:
       hits.hits.0._source:
-        timestamp.date_histogram.time_zone: "Z"
+        timestamp.date_histogram.time_zone: "UTC"
         timestamp.date_histogram.timestamp: 0
         value_field.max.value: 1232.0
         _rollup.version: 2

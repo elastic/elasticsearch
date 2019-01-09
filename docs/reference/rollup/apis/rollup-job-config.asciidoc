@@ -152,7 +152,7 @@ The `date_histogram` group has several parameters:
 
 `time_zone`::
   Defines what time_zone the rollup documents are stored as.  Unlike raw data, which can shift timezones on the fly, rolled documents have
-  to be stored with a specific timezone.  By default, rollup documents are stored in `UTC` (`"Z"`), but this can be changed with the `time_zone`
+  to be stored with a specific timezone.  By default, rollup documents are stored in `UTC`, but this can be changed with the `time_zone`
   parameter.
 
 .Calendar vs Fixed time intervals

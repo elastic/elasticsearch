@@ -70,17 +70,17 @@ public class ConfigTests extends ESTestCase {
 
     public void testNullTimeZone() {
         DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, null);
-        assertThat(config.getTimeZone(), equalTo("Z"));
+        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
     }
 
     public void testEmptyTimeZone() {
         DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "");
-        assertThat(config.getTimeZone(), equalTo("Z"));
+        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
     }
 
     public void testDefaultTimeZone() {
         DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR);
-        assertThat(config.getTimeZone(), equalTo("Z"));
+        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
     }
 
     public void testUnkownTimeZone() {

@@ -115,7 +115,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.timestamp", 3,
                             "the_histo.date_histogram.interval", "1ms",
                             "the_histo.date_histogram._count", 2,
-                            "the_histo.date_histogram.time_zone", "Z",
+                            "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -128,7 +128,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.timestamp", 7,
                             "the_histo.date_histogram.interval", "1ms",
                             "the_histo.date_histogram._count", 1,
-                            "the_histo.date_histogram.time_zone", "Z",
+                            "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -178,7 +178,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.min.value", 10.0,
                             "counter.max.value", 20.0,
                             "counter.sum.value", 50.0,
-                            "the_histo.date_histogram.time_zone", "Z",
+                            "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -196,7 +196,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.min.value", 32.0,
                             "counter.max.value", 55.0,
                             "counter.sum.value", 141.0,
-                            "the_histo.date_histogram.time_zone", "Z",
+                            "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -214,7 +214,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.min.value", 55.0,
                             "counter.max.value", 80.0,
                             "counter.sum.value", 275.0,
-                            "the_histo.date_histogram.time_zone", "Z",
+                            "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -232,7 +232,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.min.value", 80.0,
                             "counter.max.value", 100.0,
                             "counter.sum.value", 270.0,
-                            "the_histo.date_histogram.time_zone", "Z",
+                            "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -250,7 +250,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.min.value", 120.0,
                             "counter.max.value", 200.0,
                             "counter.sum.value", 440.0,
-                            "the_histo.date_histogram.time_zone", "Z",
+                            "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -291,7 +291,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.timestamp", rounding.round(now - TimeValue.timeValueHours(5).getMillis()),
                             "the_histo.date_histogram.interval", "1m",
                             "the_histo.date_histogram._count", 2,
-                            "the_histo.date_histogram.time_zone", "Z",
+                            "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -304,7 +304,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.timestamp", rounding.round(now - TimeValue.timeValueMinutes(75).getMillis()),
                             "the_histo.date_histogram.interval", "1m",
                             "the_histo.date_histogram._count", 2,
-                            "the_histo.date_histogram.time_zone", "Z",
+                            "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -317,7 +317,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.timestamp", rounding.round(now - TimeValue.timeValueMinutes(61).getMillis()),
                             "the_histo.date_histogram.interval", "1m",
                             "the_histo.date_histogram._count", 1,
-                            "the_histo.date_histogram.time_zone", "Z",
+                            "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
                             "_rollup.id", job.getId()
                     )
             ));

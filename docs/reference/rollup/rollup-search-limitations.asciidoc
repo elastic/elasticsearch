@@ -131,5 +131,5 @@ thrown.  We expect the list of support queries to grow over time as more are imp
 === Timezones
 
 Rollup documents are stored in the timezone of the `date_histogram` group configuration in the job.  If no timezone is specified, the default
-is to rollup timestamps in `UTC` (`"Z"`).
+is to rollup timestamps in `UTC`.
 

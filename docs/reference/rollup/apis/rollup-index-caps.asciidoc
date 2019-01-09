@@ -117,7 +117,7 @@ This  will yield the following response:
           "timestamp" : [
             {
               "agg" : "date_histogram",
-              "time_zone" : "Z",
+              "time_zone" : "UTC",
               "interval" : "1h",
               "delay": "7d"
             }

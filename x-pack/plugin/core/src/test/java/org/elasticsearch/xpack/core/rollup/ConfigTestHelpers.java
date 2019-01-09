@@ -71,13 +71,7 @@ public class ConfigTestHelpers {
         final String field = randomField(random);
         final DateHistogramInterval interval = randomInterval();
         final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
-        // TODO extend this to full set of ZoneId's once we move away from DateTime
-        // can't do it now because some ZoneIds are not compatible with DateTime
-        final String timezone = random.nextBoolean()
-            ? (random.nextBoolean()
-                ? randomDateTimeZone().toString()
-                : "Z")
-            : null;
+        final String timezone = random.nextBoolean() ? randomDateTimeZone().toString() : null;
         return new DateHistogramGroupConfig(field, interval, delay, timezone);
     }
 

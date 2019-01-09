@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.rollup;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -98,11 +97,14 @@ public class RollupJobIdentifierUtils {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
                         DateHistogramInterval interval = new DateHistogramInterval((String)agg.get(RollupField.INTERVAL));
-                        String tz = source.timeZone() == null
-                            ? DateHistogramGroupConfig.DEFAULT_TIMEZONE.toString()
-                            : source.timeZone().toString();
+
+                        ZoneId thisTimezone = ZoneId.of(((String)agg.get(DateHistogramGroupConfig.TIME_ZONE)), ZoneId.SHORT_IDS);
+                        ZoneId sourceTimeZone = source.timeZone() == null
+                            ? ZoneId.of(DateHistogramGroupConfig.DEFAULT_TIMEZONE)
+                            : ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
+
                         // Ensure we are working on the same timezone
-                        if (timezoneRulesCompatible(agg, tz) == false) {
+                        if (thisTimezone.getRules().equals(sourceTimeZone.getRules()) == false) {
                             continue;
                         }
                         if (source.dateHistogramInterval() != null) {
@@ -138,15 +140,6 @@ public class RollupJobIdentifierUtils {
             // otherwise keep working down the tree
             source.getSubAggregations().forEach(sub -> doFindBestJobs(sub, localCaps, bestCaps));
         }
-    }
-
-    public static boolean timezoneRulesCompatible(Map<String, Object> caps, String targetTZ) {
-        ZoneId thisTimezone = ZoneId.of((String)caps.get(DateHistogramGroupConfig.TIME_ZONE), ZoneId.SHORT_IDS);
-        ZoneId sourceTimeZone = Strings.isNullOrEmpty(targetTZ)
-            ? DateHistogramGroupConfig.DEFAULT_TIMEZONE
-            : ZoneId.of(targetTZ, ZoneId.SHORT_IDS);
-
-        return thisTimezone.getRules().equals(sourceTimeZone.getRules());
     }
 
     private static boolean isCalendarInterval(DateHistogramInterval interval) {

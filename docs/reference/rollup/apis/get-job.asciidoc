@@ -66,7 +66,7 @@ Which will yield the following response:
                 "interval" : "1h",
                 "delay": "7d",
                 "field": "timestamp",
-                "time_zone": "Z"
+                "time_zone": "UTC"
               },
               "terms" : {
                 "fields" : [
@@ -192,7 +192,7 @@ Which will yield the following response:
                 "interval" : "1h",
                 "delay": "7d",
                 "field": "timestamp",
-                "time_zone": "Z"
+                "time_zone": "UTC"
               },
               "terms" : {
                 "fields" : [
@@ -247,7 +247,7 @@ Which will yield the following response:
                 "interval" : "1h",
                 "delay": "7d",
                 "field": "timestamp",
-                "time_zone": "Z"
+                "time_zone": "UTC"
               },
               "terms" : {
                 "fields" : [

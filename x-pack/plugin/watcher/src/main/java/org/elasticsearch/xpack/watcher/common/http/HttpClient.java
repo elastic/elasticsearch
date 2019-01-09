@@ -68,7 +68,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,9 +81,6 @@ public class HttpClient implements Closeable {
     // you are querying a remote Elasticsearch cluster
     private static final int MAX_CONNECTIONS = 500;
     private static final Logger logger = LogManager.getLogger(HttpClient.class);
-
-    private static final List<String> ALWAYS_WHITELISTED_HOSTS =
-        Arrays.asList("https://events.pagerduty.com*", "https://hooks.slack.com*", "https://api.hipchat.com*");
 
     private final AtomicReference<CharacterRunAutomaton> whitelistAutomaton = new AtomicReference<>();
     private final CloseableHttpClient client;
@@ -128,7 +124,7 @@ public class HttpClient implements Closeable {
                 boolean isRedirected = super.isRedirected(request, response, context);
                 if (isRedirected) {
                     String host = response.getHeaders("Location")[0].getValue();
-                    if (whitelistAutomaton.get().run(host) == false) {
+                    if (isBlacklisted(host)) {
                         throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
                             HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
                     }
@@ -152,7 +148,7 @@ public class HttpClient implements Closeable {
                 host = wrapper.getOriginal().getRequestLine().getUri();
             }
 
-            if (whitelistAutomaton.get().run(host) == false) {
+            if (isBlacklisted(host)) {
                 throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
                     HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect");
             }
@@ -354,19 +350,20 @@ public class HttpClient implements Closeable {
 
     }
 
+    private boolean isBlacklisted(String host) {
+        return whitelistAutomaton.get().run(host) == false;
+    }
+
+    private static final CharacterRunAutomaton MATCH_ALL_AUTOMATON = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton("*"));
     // visible for testing
     static CharacterRunAutomaton createAutomaton(List<String> whiteListedHosts) {
-        Automaton whiteListAutomaton;
         if (whiteListedHosts.isEmpty()) {
             // the default is to accept everything, this should change in the next major version, being 8.0
-            // we could emit depreciation warning here, if the whitelist are empty
-            whiteListAutomaton = Regex.simpleMatchToAutomaton("*");
-        } else {
-            List<String> hosts = new ArrayList<>(whiteListedHosts);
-            hosts.addAll(ALWAYS_WHITELISTED_HOSTS);
-            whiteListAutomaton = Regex.simpleMatchToAutomaton(hosts.toArray(new String[]{}));
+            // we could emit depreciation warning here, if the whitelist is empty
+            return MATCH_ALL_AUTOMATON;
         }
 
+        Automaton whiteListAutomaton = Regex.simpleMatchToAutomaton(whiteListedHosts.toArray(new String[]{}));
         whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
         return new CharacterRunAutomaton(whiteListAutomaton);
     }

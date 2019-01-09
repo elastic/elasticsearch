@@ -739,16 +739,9 @@ public class HttpClientTests extends ESTestCase {
         CharacterRunAutomaton automaton = HttpClient.createAutomaton(Collections.singletonList("https://example*"));
         assertThat(automaton.run("https://example.org"), is(true));
         assertThat(automaton.run("https://example.com"), is(true));
+        assertThat(automaton.run("https://examples.com"), is(true));
+        assertThat(automaton.run("https://example-website.com"), is(true));
         assertThat(automaton.run("https://noexample.com"), is(false));
-
-        assertThat(automaton.run("https://events.pagerduty.com"), is(true));
-        assertThat(automaton.run("https://www.events.pagerduty.com"), is(false));
-        assertThat(automaton.run("https://events2.pagerduty.com"), is(false));
-        assertThat(automaton.run("https://pagerduty.com"), is(false));
-
-        assertThat(automaton.run("https://api.hipchat.com"), is(true));
-        assertThat(automaton.run("https://hooks.slack.com/foo/bar"), is(true));
-        assertThat(automaton.run("https://www.slack.com"), is(false));
     }
 
     public void testWhitelistEverythingByDefault() {

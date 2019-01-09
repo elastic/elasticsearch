@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -966,8 +967,13 @@ public class DateRangeIT extends ESIntegTestCase {
                 .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        assertBucket(buckets.get(0), 2L, "1000000-3000000", 1000000L, 3000000L);
-        assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);
+        if (JavaVersion.current().getVersion().get(0) == 8) {
+            assertBucket(buckets.get(0), 2L, "1000000.0-3000000.0", 1000000L, 3000000L);
+            assertBucket(buckets.get(1), 1L, "3000000.0-4000000.0", 3000000L, 4000000L);
+        } else {
+            assertBucket(buckets.get(0), 2L, "1000000-3000000", 1000000L, 3000000L);
+            assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);
+        }
 
         // providing numeric input without format should throw an exception
         Exception e = expectThrows(Exception.class, () -> client().prepareSearch(indexName).setSize(0)
@@ -1032,8 +1038,13 @@ public class DateRangeIT extends ESIntegTestCase {
                 .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        assertBucket(buckets.get(0), 2L, "1000000-3000000", 1000000L, 3000000L);
-        assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);
+        if (JavaVersion.current().getVersion().get(0) == 8) {
+            assertBucket(buckets.get(0), 2L, "1000000.0-3000000.0", 1000000L, 3000000L);
+            assertBucket(buckets.get(1), 1L, "3000000.0-4000000.0", 3000000L, 4000000L);
+        } else {
+            assertBucket(buckets.get(0), 2L, "1000000-3000000", 1000000L, 3000000L);
+            assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);
+        }
     }
 
     private static List<Range.Bucket> checkBuckets(Range dateRange, String expectedAggName, long expectedBucketsSize) {

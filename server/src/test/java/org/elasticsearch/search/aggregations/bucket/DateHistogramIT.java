@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -329,7 +330,12 @@ public class DateHistogramIT extends ESIntegTestCase {
         for (Histogram.Bucket bucket : buckets) {
             assertThat(bucket, notNullValue());
             ZonedDateTime expectedKey = keyIterator.next();
-            assertThat(bucket.getKeyAsString(), equalTo(Long.toString(expectedKey.toInstant().toEpochMilli() / millisDivider)));
+            String bucketKey = bucket.getKeyAsString();
+            String expectedBucketName = Long.toString(expectedKey.toInstant().toEpochMilli() / millisDivider);
+            if (JavaVersion.current().getVersion().get(0) == 8 && bucket.getKeyAsString().endsWith(".0")) {
+                expectedBucketName = expectedBucketName + ".0";
+            }
+            assertThat(bucketKey, equalTo(expectedBucketName));
             assertThat(((ZonedDateTime) bucket.getKey()), equalTo(expectedKey));
             assertThat(bucket.getDocCount(), equalTo(1L));
         }
@@ -1397,7 +1403,11 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(1));
-        assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("1477954800000"));
+        if (JavaVersion.current().getVersion().get(0) == 8 && histo.getBuckets().get(0).getKeyAsString().endsWith(".0")) {
+            assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("1477954800000.0"));
+        } else {
+            assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("1477954800000"));
+        }
         assertThat(histo.getBuckets().get(0).getDocCount(), equalTo(1L));
 
         response = client().prepareSearch(index).addAggregation(dateHistogram("histo").field("d")

@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutMappingAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestPutMappingAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in put " +
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in put " +
         "mapping requests is deprecated. The parameter will be removed in the next major version.";
 
     public RestPutMappingAction(Settings settings, RestController controller) {

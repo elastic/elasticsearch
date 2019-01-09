@@ -38,20 +38,30 @@ public final class UnfollowAction implements LifecycleAction {
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey indexingComplete = new StepKey(phase, NAME, WaitForIndexingCompleteStep.NAME);
         StepKey waitForFollowShardTasks = new StepKey(phase, NAME, WaitForFollowShardTasksStep.NAME);
-        StepKey unfollowIndex = new StepKey(phase, NAME, UnfollowFollowIndexStep.NAME);
+        StepKey pauseFollowerIndex = new StepKey(phase, NAME, PauseFollowerIndexStep.NAME);
+        StepKey closeFollowerIndex = new StepKey(phase, NAME, CloseFollowerIndexStep.NAME);
+        StepKey unfollowFollowerIndex = new StepKey(phase, NAME, UnfollowFollowIndexStep.NAME);
+        StepKey openFollowerIndex = new StepKey(phase, NAME, OpenFollowerIndexStep.NAME);
 
         WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitForFollowShardTasks);
-        WaitForFollowShardTasksStep step2 = new WaitForFollowShardTasksStep(waitForFollowShardTasks, unfollowIndex, client);
-        UnfollowFollowIndexStep  step3 = new UnfollowFollowIndexStep(unfollowIndex, nextStepKey, client);
-        return Arrays.asList(step1, step2, step3);
+        WaitForFollowShardTasksStep step2 = new WaitForFollowShardTasksStep(waitForFollowShardTasks, pauseFollowerIndex, client);
+        PauseFollowerIndexStep step3 = new PauseFollowerIndexStep(pauseFollowerIndex, closeFollowerIndex, client);
+        CloseFollowerIndexStep step4 = new CloseFollowerIndexStep(closeFollowerIndex, unfollowFollowerIndex, client);
+        UnfollowFollowIndexStep step5 = new UnfollowFollowIndexStep(unfollowFollowerIndex, openFollowerIndex, client);
+        OpenFollowerIndexStep step6 = new OpenFollowerIndexStep(openFollowerIndex, nextStepKey, client);
+        return Arrays.asList(step1, step2, step3, step4, step5, step6);
     }
 
     @Override
     public List<StepKey> toStepKeys(String phase) {
         StepKey indexingCompleteStep = new StepKey(phase, NAME, WaitForIndexingCompleteStep.NAME);
         StepKey waitForFollowShardTasksStep = new StepKey(phase, NAME, WaitForFollowShardTasksStep.NAME);
+        StepKey pauseFollowerIndexStep = new StepKey(phase, NAME, PauseFollowerIndexStep.NAME);
+        StepKey closeFollowerIndexStep = new StepKey(phase, NAME, CloseFollowerIndexStep.NAME);
         StepKey unfollowIndexStep = new StepKey(phase, NAME, UnfollowFollowIndexStep.NAME);
-        return Arrays.asList(indexingCompleteStep, waitForFollowShardTasksStep, unfollowIndexStep);
+        StepKey openFollowerIndexStep = new StepKey(phase, NAME, OpenFollowerIndexStep.NAME);
+        return Arrays.asList(indexingCompleteStep, waitForFollowShardTasksStep, pauseFollowerIndexStep,
+            closeFollowerIndexStep, unfollowIndexStep, openFollowerIndexStep);
     }
 
     @Override

@@ -6,27 +6,26 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
-final class UnfollowFollowIndexStep extends AbstractUnfollowIndexStep {
+final class OpenFollowerIndexStep extends AbstractUnfollowIndexStep {
 
-    static final String NAME = "unfollow-follower-index";
+    static final String NAME = "open-follower-index";
 
-    UnfollowFollowIndexStep(StepKey key, StepKey nextStepKey, Client client) {
+    OpenFollowerIndexStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
     }
 
     @Override
     void innerPerformAction(String followerIndex, Listener listener) {
-        UnfollowAction.Request request = new UnfollowAction.Request(followerIndex);
-        getClient().execute(UnfollowAction.INSTANCE, request, ActionListener.wrap(
+        OpenIndexRequest request = new OpenIndexRequest(followerIndex);
+        getClient().admin().indices().open(request, ActionListener.wrap(
             r -> {
-                assert r.isAcknowledged() : "unfollow response is not acknowledged";
+                assert r.isAcknowledged() :  "open index response is not acknowledged";
                 listener.onResponse(true);
             },
             listener::onFailure
         ));
     }
-
 }

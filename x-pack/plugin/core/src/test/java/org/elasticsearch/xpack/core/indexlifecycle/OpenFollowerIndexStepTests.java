@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -23,14 +23,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestCase<UnfollowFollowIndexStep> {
+public class OpenFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCase<OpenFollowerIndexStep> {
 
     @Override
-    protected UnfollowFollowIndexStep newInstance(Step.StepKey key, Step.StepKey nextKey, Client client) {
-        return new UnfollowFollowIndexStep(key, nextKey, client);
+    protected OpenFollowerIndexStep newInstance(Step.StepKey key, Step.StepKey nextKey, Client client) {
+        return new OpenFollowerIndexStep(key, nextKey, client);
     }
 
-    public void testUnFollow() {
+    public void testOpenFollowingIndex() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -45,17 +45,17 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Mockito.doAnswer(invocation -> {
-            UnfollowAction.Request request = (UnfollowAction.Request) invocation.getArguments()[1];
-            assertThat(request.getFollowerIndex(), equalTo("follower-index"));
+            OpenIndexRequest closeIndexRequest = (OpenIndexRequest) invocation.getArguments()[0];
+            assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            listener.onResponse(new AcknowledgedResponse(true));
+            ActionListener<OpenIndexResponse> listener = (ActionListener<OpenIndexResponse>) invocation.getArguments()[1];
+            listener.onResponse(new OpenIndexResponse(true, true));
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(indicesClient).open(Mockito.any(), Mockito.any());
 
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
-        UnfollowFollowIndexStep step = new UnfollowFollowIndexStep(randomStepKey(), randomStepKey(), client);
+        OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
@@ -71,7 +71,7 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
         assertThat(failure[0], nullValue());
     }
 
-    public void testUnFollowUnfollowFailed() {
+    public void testOpenFollowingIndexFailed() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -85,19 +85,18 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        // Mock unfollow api call:
         Exception error = new RuntimeException();
         Mockito.doAnswer(invocation -> {
-            UnfollowAction.Request request = (UnfollowAction.Request) invocation.getArguments()[1];
-            assertThat(request.getFollowerIndex(), equalTo("follower-index"));
-            ActionListener listener = (ActionListener) invocation.getArguments()[2];
+            OpenIndexRequest closeIndexRequest = (OpenIndexRequest) invocation.getArguments()[0];
+            assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
+            ActionListener listener = (ActionListener) invocation.getArguments()[1];
             listener.onFailure(error);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(indicesClient).open(Mockito.any(), Mockito.any());
 
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
-        UnfollowFollowIndexStep step = new UnfollowFollowIndexStep(randomStepKey(), randomStepKey(), client);
+        OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
@@ -111,5 +110,7 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
         });
         assertThat(completed[0], nullValue());
         assertThat(failure[0], sameInstance(error));
+        Mockito.verify(indicesClient).open(Mockito.any(), Mockito.any());
+        Mockito.verifyNoMoreInteractions(indicesClient);
     }
 }

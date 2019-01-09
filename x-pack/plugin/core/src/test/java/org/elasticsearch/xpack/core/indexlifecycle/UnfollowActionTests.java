@@ -39,11 +39,14 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
                 randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertThat(steps, notNullValue());
-        assertThat(steps.size(), equalTo(3));
+        assertThat(steps.size(), equalTo(6));
 
         StepKey expectedFirstStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexingCompleteStep.NAME);
         StepKey expectedSecondStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForFollowShardTasksStep.NAME);
-        StepKey expectedThirdStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowIndexStep.NAME);
+        StepKey expectedThirdStepKey = new StepKey(phase, UnfollowAction.NAME, PauseFollowerIndexStep.NAME);
+        StepKey expectedFourthStepKey = new StepKey(phase, UnfollowAction.NAME, CloseFollowerIndexStep.NAME);
+        StepKey expectedFifthStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowIndexStep.NAME);
+        StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, OpenFollowerIndexStep.NAME);
 
         WaitForIndexingCompleteStep firstStep = (WaitForIndexingCompleteStep) steps.get(0);
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
@@ -53,8 +56,20 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         assertThat(secondStep.getKey(), equalTo(expectedSecondStepKey));
         assertThat(secondStep.getNextStepKey(), equalTo(expectedThirdStepKey));
 
-        UnfollowFollowIndexStep thirdStep = (UnfollowFollowIndexStep) steps.get(2);
+        PauseFollowerIndexStep thirdStep = (PauseFollowerIndexStep) steps.get(2);
         assertThat(thirdStep.getKey(), equalTo(expectedThirdStepKey));
-        assertThat(thirdStep.getNextStepKey(), equalTo(nextStepKey));
+        assertThat(thirdStep.getNextStepKey(), equalTo(expectedFourthStepKey));
+
+        CloseFollowerIndexStep fourthStep = (CloseFollowerIndexStep) steps.get(3);
+        assertThat(fourthStep.getKey(), equalTo(expectedFourthStepKey));
+        assertThat(fourthStep.getNextStepKey(), equalTo(expectedFifthStepKey));
+
+        UnfollowFollowIndexStep fifthStep = (UnfollowFollowIndexStep) steps.get(4);
+        assertThat(fifthStep.getKey(), equalTo(expectedFifthStepKey));
+        assertThat(fifthStep.getNextStepKey(), equalTo(expectedSixthStepKey));
+
+        OpenFollowerIndexStep sixthStep = (OpenFollowerIndexStep) steps.get(5);
+        assertThat(sixthStep.getKey(), equalTo(expectedSixthStepKey));
+        assertThat(sixthStep.getNextStepKey(), equalTo(nextStepKey));
     }
 }

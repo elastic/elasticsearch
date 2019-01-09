@@ -7,26 +7,25 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 
-final class UnfollowFollowIndexStep extends AbstractUnfollowIndexStep {
+final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
 
-    static final String NAME = "unfollow-follower-index";
+    static final String NAME = "pause-follower-index";
 
-    UnfollowFollowIndexStep(StepKey key, StepKey nextStepKey, Client client) {
+    PauseFollowerIndexStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
     }
 
     @Override
     void innerPerformAction(String followerIndex, Listener listener) {
-        UnfollowAction.Request request = new UnfollowAction.Request(followerIndex);
-        getClient().execute(UnfollowAction.INSTANCE, request, ActionListener.wrap(
+        PauseFollowAction.Request request = new PauseFollowAction.Request(followerIndex);
+        getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(
             r -> {
-                assert r.isAcknowledged() : "unfollow response is not acknowledged";
+                assert r.isAcknowledged() : "pause follow response is not acknowledged";
                 listener.onResponse(true);
             },
             listener::onFailure
         ));
     }
-
 }

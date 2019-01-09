@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,11 +37,13 @@ import static org.mockito.Mockito.mock;
 public class RestGetIndicesActionTests extends ESTestCase {
 
     /**
-     * Test that setting the "include_type_name" parameter raises a warning
+     * Test that setting no "include_type_name" or setting it to "true" raises a warning
      */
     public void testIncludeTypeNamesWarning() throws IOException {
         Map<String, String> params = new HashMap<>();
-        params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
+        if (randomBoolean()) {
+            params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true"));
+        }
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.GET)
             .withPath("/some_index")
@@ -51,9 +54,10 @@ public class RestGetIndicesActionTests extends ESTestCase {
         handler.prepareRequest(request, mock(NodeClient.class));
         assertWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE);
 
-        // the same request without the parameter should pass without warning
+        // the same request with the parameter set to "false" should pass without warning
         request = new FakeRestRequest.Builder(xContentRegistry())
                 .withMethod(RestRequest.Method.GET)
+                .withParams(Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "false"))
                 .withPath("/some_index")
                 .build();
         handler.prepareRequest(request, mock(NodeClient.class));

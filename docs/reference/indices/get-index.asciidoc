@@ -20,7 +20,8 @@ all indices by using `_all` or `*` as index.
 === Skipping types
 
 Types are scheduled to be fully removed in Elasticsearch 8.0 and will not appear
-in requests or responses anymore. You can opt in for this future behaviour by
+in requests or responses anymore. 
+Starting with 6.7 you can already opt in for this future behaviour by
 setting `include_type_name=false` in the request, which will return mappings
 directly under `mappings` without keying by the type name.
 

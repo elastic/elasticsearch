@@ -55,8 +55,15 @@ setup:
 ---
 "Test include_type_name":
   - skip:
-      version: " - 6.99.99"
-      reason: the include_type_name parameter is not backported to pre 7.0 versions yet
+      version: " - 6.6.99"
+      reason: the include_type_name parameter is not backported to pre 6.7 versions yet
+
+  - do:
+      indices.get:
+        index: test_index
+
+  - is_true: test_index.mappings
+  - is_true: test_index.mappings.type_1
 
   - do:
       indices.get:
@@ -69,13 +76,6 @@ setup:
   - do:
       indices.get:
         include_type_name: false
-        index: test_index
-
-  - is_true: test_index.mappings
-  - is_false: test_index.mappings.type_1
-
-  - do:
-      indices.get:
         index: test_index
 
   - is_true: test_index.mappings

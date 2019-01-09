@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -84,10 +85,10 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
     public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex() {
         // rarely have no types
         int typeCount = rarely() ? 0 : scaledRandomIntBetween(1, 3);
-        return createMappingsForIndex(typeCount, true);
+        return createMappingsForIndex(typeCount);
     }
 
-    public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex(int typeCount, boolean randomTypeName) {
+    public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex(int typeCount) {
         List<MappingMetaData> typeMappings = new ArrayList<>(typeCount);
 
         for (int i = 0; i < typeCount; i++) {
@@ -99,10 +100,7 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
                 }
 
                 try {
-                    String typeName = MapperService.SINGLE_MAPPING_NAME;
-                    if (randomTypeName) {
-                        typeName = "type-" + randomAlphaOfLength(5);
-                    }
+                    String typeName = randomBoolean() ? "type-" + randomAlphaOfLength(5) : MapperService.SINGLE_MAPPING_NAME;
                     MappingMetaData mmd = new MappingMetaData(typeName, mappings);
                     typeMappings.add(mmd);
                 } catch (IOException e) {

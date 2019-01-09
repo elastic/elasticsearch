@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid2;
 
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;

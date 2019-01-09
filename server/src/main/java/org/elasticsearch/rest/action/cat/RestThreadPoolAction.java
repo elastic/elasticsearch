@@ -88,7 +88,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
-                                return RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse), channel);
+                                return RestTable.buildResponse(
+                                    buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse), channel);
                             }
                         });
                     }

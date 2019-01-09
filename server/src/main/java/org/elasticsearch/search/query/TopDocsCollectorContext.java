@@ -264,8 +264,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
-            final TopDocs topDocs = topDocsSupplier.get();
-            topDocs.totalHits = totalHitsSupplier.get();
+            final TopDocs topDocs = new TopDocs(totalHitsSupplier.get(), topDocsSupplier.get().scoreDocs);
             result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()),
                 sortAndFormats == null ? null : sortAndFormats.formats);
         }
@@ -292,11 +291,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
-            final TopDocs topDocs = topDocsSupplier.get();
+            final TopDocs topDocs = new TopDocs(totalHitsSupplier.get(), topDocsSupplier.get().scoreDocs);
             final float maxScore;
             if (scrollContext.totalHits == null) {
                 // first round
-                topDocs.totalHits = scrollContext.totalHits = totalHitsSupplier.get();
+                scrollContext.totalHits = topDocs.totalHits;
                 maxScore = scrollContext.maxScore = maxScoreSupplier.get();
             } else {
                 // subsequent round: the total number of hits and

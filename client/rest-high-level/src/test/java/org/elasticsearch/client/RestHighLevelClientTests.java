@@ -54,6 +54,7 @@ import org.elasticsearch.client.indexlifecycle.FreezeAction;
 import org.elasticsearch.client.indexlifecycle.LifecycleAction;
 import org.elasticsearch.client.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
+import org.elasticsearch.client.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
@@ -676,6 +677,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(RolloverAction.NAME));
         assertTrue(names.contains(ShrinkAction.NAME));
         assertTrue(names.contains(FreezeAction.NAME));
+        assertTrue(names.contains(SetPriorityAction.NAME));
     }
 
     public void testApiNamingConventions() throws Exception {

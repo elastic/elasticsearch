@@ -53,7 +53,10 @@ public class IndexLifecycleNamedXContentProvider implements NamedXContentProvide
                 ShrinkAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class,
                 new ParseField(FreezeAction.NAME),
-                FreezeAction::parse)
+                FreezeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class,
+                new ParseField(SetPriorityAction.NAME),
+                SetPriorityAction::parse)
         );
     }
 }

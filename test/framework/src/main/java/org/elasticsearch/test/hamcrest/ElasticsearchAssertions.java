@@ -708,7 +708,7 @@ public class ElasticsearchAssertions {
      */
     public static void awaitLatch(CountDownLatch latch, long timeout, TimeUnit unit) throws InterruptedException {
         TimeValue timeValue = new TimeValue(timeout, unit);
-        String message = String.format("expected latch to be counted down after %s, but was not", timeValue);
+        String message = String.format(Locale.ROOT, "expected latch to be counted down after %s, but was not", timeValue);
         boolean isCountedDown = latch.await(timeout, unit);
         assertThat(message, isCountedDown, is(true));
     }

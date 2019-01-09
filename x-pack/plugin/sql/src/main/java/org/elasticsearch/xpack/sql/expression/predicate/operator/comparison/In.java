@@ -12,19 +12,19 @@ import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public class In extends ScalarFunction {
@@ -100,7 +100,7 @@ public class In extends ScalarFunction {
         List<Object> values = new ArrayList<>(new LinkedHashSet<>(Foldables.valuesOf(list, value.dataType())));
 
         return new ScriptTemplate(
-            formatTemplate(String.format(Locale.ROOT, "{sql}.in(%s, {})", leftScript.template())),
+            formatTemplate(format("{sql}.","in({}, {})", leftScript.template())),
             paramsBuilder()
                 .script(leftScript.params())
                 .variable(values)

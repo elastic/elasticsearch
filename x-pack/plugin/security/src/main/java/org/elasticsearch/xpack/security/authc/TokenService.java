@@ -1029,11 +1029,10 @@ public final class TokenService {
      */
     private void checkIfTokenIsValid(UserToken userToken, ActionListener<UserToken> listener) {
         Instant currentTime = clock.instant();
+        final SecurityIndexManager indexManager = indexManager();
         if (currentTime.isAfter(userToken.getExpirationTime())) {
             listener.onFailure(traceLog("validate token", userToken.getId(), expiredTokenException()));
-        }
-        final SecurityIndexManager indexManager = indexManager();
-        if (indexManager.exists() == false) {
+        } else if (indexManager.exists() == false) {
             // index doesn't exist so the token is considered invalid as we cannot verify its validity
             logger.warn("failed to validate token [{}] since the alias [{}] doesn't exist", userToken.getId(), indexManager.aliasName());
             listener.onResponse(null);

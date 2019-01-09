@@ -161,7 +161,7 @@ public class DatafeedManager {
             protected void doRun() {
                 Long next = null;
                 try {
-                    next = holder.executeLoopBack(startTime, endTime);
+                    next = holder.executeLookBack(startTime, endTime);
                 } catch (DatafeedJob.ExtractionProblemException e) {
                     if (endTime == null) {
                         next = e.nextDelayInMsSinceEpoch;
@@ -253,7 +253,7 @@ public class DatafeedManager {
     }
 
     private JobState getJobState(PersistentTasksCustomMetaData tasks, TransportStartDatafeedAction.DatafeedTask datafeedTask) {
-        return MlTasks.getJobState(getJobId(datafeedTask), tasks);
+        return MlTasks.getJobStateModifiedForReassignments(getJobId(datafeedTask), tasks);
     }
 
     private TimeValue computeNextDelay(long next) {
@@ -272,7 +272,7 @@ public class DatafeedManager {
         private final TransportStartDatafeedAction.DatafeedTask task;
         private final long allocationId;
         private final String datafeedId;
-        // To ensure that we wait until loopback / realtime search has completed before we stop the datafeed
+        // To ensure that we wait until lookback / realtime search has completed before we stop the datafeed
         private final ReentrantLock datafeedJobLock = new ReentrantLock(true);
         private final DatafeedJob datafeedJob;
         private final boolean autoCloseJob;
@@ -352,7 +352,7 @@ public class DatafeedManager {
             isRelocating = true;
         }
 
-        private Long executeLoopBack(long startTime, Long endTime) throws Exception {
+        private Long executeLookBack(long startTime, Long endTime) throws Exception {
             datafeedJobLock.lock();
             try {
                 if (isRunning() && !isIsolated()) {

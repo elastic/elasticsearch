@@ -179,7 +179,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
         dataFrameJobConfigManager.set(new DataFrameJobConfigManager(client, xContentRegistry));
 
-        return Collections.singletonList(dataFrameJobConfigManager);
+        return Collections.singletonList(dataFrameJobConfigManager.get());
     }
 
     @Override

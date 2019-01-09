@@ -53,7 +53,7 @@ COUNT(expression<1>)
 
 Returns the total number (count) of input values.
 
-In case of `COUNT(*)` or `COUNT(<numeric_value>)`, _all_ values are considered (including `null` or missing ones).
+In case of `COUNT(*)` or `COUNT(<literal>)`, _all_ values are considered (including `null` or missing ones).
 
 In case of `COUNT(<field_name>)` `null` values are not considered.
 

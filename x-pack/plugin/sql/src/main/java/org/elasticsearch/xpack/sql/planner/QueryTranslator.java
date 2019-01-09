@@ -136,8 +136,7 @@ final class QueryTranslator {
             new MatrixStatsAggs(),
             new PercentilesAggs(),
             new PercentileRanksAggs(),
-            new FieldCounts(),
-            new DistinctCounts(),
+            new CountAggs(),
             new DateTimes()
             );
 
@@ -780,26 +779,17 @@ final class QueryTranslator {
     //
     // Agg translators
     //
-
-    static class FieldCounts extends SingleValueAggTranslator<Count> {
+    
+    static class CountAggs extends SingleValueAggTranslator<Count> {
 
         @Override
         protected LeafAgg toAgg(String id, Count c) {
             if (c.distinct()) {
-                return null;
+                return new CardinalityAgg(id, field(c));
+            } else {
+                
             }
             return new FilterExistsAgg(id, field(c));
-        }
-    }
-    
-    static class DistinctCounts extends SingleValueAggTranslator<Count> {
-
-        @Override
-        protected LeafAgg toAgg(String id, Count c) {
-            if (!c.distinct()) {
-                return null;
-            }
-            return new CardinalityAgg(id, field(c));
         }
     }
 

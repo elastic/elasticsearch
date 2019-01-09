@@ -381,7 +381,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             // handle count as a special case agg
             if (f instanceof Count) {
                 Count c = (Count) f;
-                // COUNT(*) or COUNT(<numeric_value>)
+                // COUNT(*) or COUNT(<literal>)
                 if (c.field() instanceof Literal) {
                     AggRef ref = groupingAgg == null ?
                             GlobalCountRef.INSTANCE :
@@ -397,6 +397,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
                     return new Tuple<>(queryC, a);
                 }
+                // the only variant left - COUNT(DISTINCT) - will be covered by the else branch below
             }
 
             AggPathInput aggInput = null;

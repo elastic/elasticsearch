@@ -66,8 +66,6 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType.DISTINCT;
-import static org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType.STANDARD;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
@@ -776,7 +774,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
                         // matches the one from the unresolved function to be checked. 
                         if (seenFunction instanceof Count) {
-                            if (((Count) seenFunction).distinct() == ((Count) f).distinct()) {
+                            if (seenFunction.equals(f)){
                                 return seenFunction;
                             }
                         } else {
@@ -822,8 +820,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                                 // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
                                 // matches the one from the unresolved function to be checked. 
                                 if (seenFunction instanceof Count) {
-                                    if (uf.resolutionType() == DISTINCT && ((Count) seenFunction).distinct()
-                                            || uf.resolutionType() == STANDARD && ((Count) seenFunction).distinct() == false) {
+                                    if (uf.sameAs((Count) seenFunction)) {
                                         return seenFunction;
                                     }
                                 } else {

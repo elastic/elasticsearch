@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Nullability;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
@@ -122,12 +123,20 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         return name;
     }
 
-    public ResolutionType resolutionType() {
+    ResolutionType resolutionType() {
         return resolutionType;
     }
 
     public boolean analyzed() {
         return analyzed;
+    }
+    
+    public boolean sameAs(Count count) {
+        if (this.resolutionType == ResolutionType.DISTINCT && count.distinct()
+                || this.resolutionType == ResolutionType.STANDARD && count.distinct() == false) {
+            return true;
+        }
+        return false;
     }
 
     @Override

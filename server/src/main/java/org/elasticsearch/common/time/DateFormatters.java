@@ -1366,9 +1366,9 @@ public class DateFormatters {
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             return YEAR_MONTH_DAY;
         } else if ("epoch_second".equals(input)) {
-            return EpochSecondsDateFormatter.INSTANCE;
+            return EpochTime.SECONDS_FORMATTER;
         } else if ("epoch_millis".equals(input)) {
-            return EpochMillisDateFormatter.INSTANCE;
+            return EpochTime.MILLIS_FORMATTER;
         // strict date formats here, must be at least 4 digits for year and two for months and two for day
         } else if ("strictBasicWeekDate".equals(input) || "strict_basic_week_date".equals(input)) {
             return STRICT_BASIC_WEEK_DATE;

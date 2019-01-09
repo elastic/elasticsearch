@@ -31,18 +31,23 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.util.Set;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public abstract class ReplicationTrackerTestCase extends ESTestCase  {
 
-    ReplicationTracker newTracker(final AllocationId allocationId, final LongConsumer updatedGlobalCheckpoint) {
+    ReplicationTracker newTracker(
+            final AllocationId allocationId,
+            final LongConsumer updatedGlobalCheckpoint,
+            final LongSupplier currentTimeMillisSupplier) {
         return new ReplicationTracker(
                 new ShardId("test", "_na_", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
                 UNASSIGNED_SEQ_NO,
-                updatedGlobalCheckpoint);
+                updatedGlobalCheckpoint,
+                currentTimeMillisSupplier);
     }
 
     static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {

@@ -257,7 +257,8 @@ public class ExplainActionIT extends ESIntegTestCase {
 
         refresh();
 
-        ExplainResponse explainResponse = client().prepareExplain("test", "type", "1").setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
+        ExplainResponse explainResponse = client().prepareExplain("test", "type", "1")
+            .setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
         assertThat(explainResponse.isExists(), equalTo(true));
         assertThat(explainResponse.isMatch(), equalTo(true));
     }

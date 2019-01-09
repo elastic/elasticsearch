@@ -138,7 +138,7 @@ public class CoordinatorTests extends ESTestCase {
             final long afterRunRandomly = value(cluster.getAnyNode().getLastAppliedClusterState());
             cluster.stabilise();
             final long afterStabilisation = value(cluster.getAnyNode().getLastAppliedClusterState());
-            return afterRunRandomly + afterStabilisation;
+            return afterRunRandomly ^ afterStabilisation;
         };
         final long seed = randomLong();
         logger.info("First run with seed [{}]", seed);

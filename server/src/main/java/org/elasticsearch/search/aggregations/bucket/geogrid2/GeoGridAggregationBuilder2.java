@@ -253,19 +253,10 @@ public class GeoGridAggregationBuilder2 extends ValuesSourceAggregationBuilder<V
     @Override
     protected boolean innerEquals(Object obj) {
         GeoGridAggregationBuilder2 other = (GeoGridAggregationBuilder2) obj;
-        if (type != other.type) {
-            return false;
-        }
-        if (precision != other.precision) {
-            return false;
-        }
-        if (requiredSize != other.requiredSize) {
-            return false;
-        }
-        if (shardSize != other.shardSize) {
-            return false;
-        }
-        return true;
+        return Objects.equals(type, other.type) &&
+            Objects.equals(precision, other.precision) &&
+            Objects.equals(requiredSize, other.requiredSize) &&
+            Objects.equals(shardSize, other.shardSize);
     }
 
     @Override

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid2;
 
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
@@ -45,6 +44,6 @@ public class GeoHashBucket extends GeoGridBucket {
 
     @Override
     public String getKeyAsString() {
-        return GeoHashUtils.stringEncode(this.hashAsLong);
+        return GeoHashType.SINGLETON.hashAsString(this.hashAsLong);
     }
 }

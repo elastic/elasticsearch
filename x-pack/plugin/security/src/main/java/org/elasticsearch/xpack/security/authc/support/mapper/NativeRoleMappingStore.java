@@ -66,7 +66,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
 
 /**
  * This store reads + writes {@link ExpressionRoleMapping role mappings} in an Elasticsearch
- * {@link SECURITY_INDEX_NAME index}.
+ * {@link SECURITY_INDEX_NAME} index.
  * <br>
  * The store is responsible for all read and write operations as well as
  * {@link #resolveRoles(UserData, ActionListener) resolving roles}.

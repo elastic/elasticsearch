@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.EsType;
-import org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.JdbcPreparedStatement;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -287,12 +285,12 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         Float floatNotInt =  5_155_000_000f;
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, floatNotInt, Types.INTEGER));
-        assertEquals(String.format(Locale.ROOT, "Numeric %s out of range",
-                Long.toString(Math.round(floatNotInt.doubleValue()))), sqle.getMessage());
+        assertEquals(LoggerMessageFormat.format("Numeric {} out of range",
+            Math.round(floatNotInt.doubleValue())), sqle.getMessage());
 
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, floatNotInt, Types.SMALLINT));
-        assertEquals(String.format(Locale.ROOT, "Numeric %s out of range",
-                Long.toString(Math.round(floatNotInt.doubleValue()))), sqle.getMessage());
+        assertEquals(LoggerMessageFormat.format("Numeric {} out of range",
+                Math.round(floatNotInt.doubleValue())), sqle.getMessage());
     }
 
     public void testSettingDoubleValues() throws SQLException {
@@ -328,8 +326,8 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         Double doubleNotInt = 5_155_000_000d;
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, doubleNotInt, Types.INTEGER));
-        assertEquals(String.format(Locale.ROOT, "Numeric %s out of range",
-                Long.toString(((Number) doubleNotInt).longValue())), sqle.getMessage());
+        assertEquals(LoggerMessageFormat.format("Numeric {} out of range",
+                ((Number) doubleNotInt).longValue()), sqle.getMessage());
     }
 
     public void testUnsupportedClasses() throws SQLException {

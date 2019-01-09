@@ -20,6 +20,10 @@ public class IdToken extends JsonWebToken {
         super(header, payload, signature);
     }
 
+    public IdToken(JsonWebToken token) {
+        super(token.getHeader(), token.getPayload());
+    }
+
     /**
      * Returns the iss claim value of the ID Token as a String
      */

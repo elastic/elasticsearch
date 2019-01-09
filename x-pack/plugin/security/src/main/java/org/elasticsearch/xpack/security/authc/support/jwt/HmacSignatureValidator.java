@@ -27,7 +27,8 @@ public class HmacSignatureValidator implements JwtSignatureValidator {
 
     public HmacSignatureValidator(SignatureAlgorithm algorithm, Key key) {
         if (key instanceof SecretKey == false) {
-            throw new IllegalArgumentException("HMAC signatures can only be verified using a SecretKey but a [" + key.getClass().getName() + "] is provided");
+            throw new IllegalArgumentException("HMAC signatures can only be verified using a SecretKey " +
+                "but a [" + key.getClass().getName() + "] is provided");
         }
         if (SignatureAlgorithm.getHmacAlgorithms().contains(algorithm) == false) {
             throw new IllegalArgumentException("Unsupported algorithm " + algorithm.name() + " for HMAC signature");
@@ -43,8 +44,6 @@ public class HmacSignatureValidator implements JwtSignatureValidator {
      *
      * @param data              The JWT payload
      * @param expectedSignature The JWT signature
-     * @return True if the newly calculated signature of the header and payload matches the one that was included in the JWT, false
-     * otherwise
      */
     @Override
     public void validateSignature(byte[] data, byte[] expectedSignature) {

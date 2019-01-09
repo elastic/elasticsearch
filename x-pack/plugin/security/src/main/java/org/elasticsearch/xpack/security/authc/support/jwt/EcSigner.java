@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.security.authc.support.jwt;
 
 import java.security.GeneralSecurityException;
@@ -64,7 +69,8 @@ public class EcSigner implements JwtSigner {
     /**
      * Converts a DER Encoded signature to JOSE so that it can be attached to a JWT. See
      * <a href="https://tools.ietf.org/html/rfc7518#section-3.4">the specification</a>
-     * Based on https://github.com/jwtk/jjwt/blob/1520ae8a21052b376282f8a38d310a91b15285e5/impl/src/main/java/io/jsonwebtoken/impl/crypto/EllipticCurveProvider.java
+     * Based on https://github.com/jwtk/jjwt/blob/1520ae8a21052b376282f8a38d310a91b15285e5/impl/src/main/java/io/jsonwebtoken/impl/
+     * crypto/EllipticCurveProvider.java
      *
      * @param derSignature The DER formatted signature
      * @return the signature formatted in a way that can be encoded and added in a JWT

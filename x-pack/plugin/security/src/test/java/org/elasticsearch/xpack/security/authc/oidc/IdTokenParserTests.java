@@ -9,10 +9,12 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.security.authc.support.jwt.JsonWebToken;
+import org.elasticsearch.xpack.security.authc.support.jwt.JsonWebTokenBuilder;
 import org.elasticsearch.xpack.security.authc.support.jwt.SignatureAlgorithm;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.PublicKey;
 import java.util.Arrays;
@@ -34,7 +36,8 @@ public class IdTokenParserTests extends ESTestCase {
             "Vkb2UvbWUuanBnIn0.bpG9QZk9uykstyn2rv2w_7NkS-rerdX78_ehxli8RTM";
         RPConfiguration rpConfig = new RPConfiguration("clientId", "redirectUri", "code", SignatureAlgorithm.getAllNames(), null, null);
         IdTokenParser idTokenParser = new IdTokenParser(rpConfig);
-        final SecretKeySpec keySpec = new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(), "HmacSHA256");
+        final SecretKeySpec keySpec =
+            new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(StandardCharsets.UTF_8.name()), "HmacSHA256");
         IdToken idToken = idTokenParser.parseAndValidateIdToken(serializedJwt, keySpec);
         assertThat(idToken.getIssuer(), equalTo("http://op.example.com"));
         assertThat(idToken.getSubject(), equalTo("248289761001"));
@@ -73,7 +76,8 @@ public class IdTokenParserTests extends ESTestCase {
         RPConfiguration rpConfig = new RPConfiguration("clientId", "redirectUri", "code", SignatureAlgorithm.getAllNames(),
             null, Arrays.asList("claim1", "claim2", "claim3", "claim4"));
         IdTokenParser idTokenParser = new IdTokenParser(rpConfig);
-        final SecretKeySpec keySpec = new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(), "HmacSHA256");
+        final SecretKeySpec keySpec =
+            new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(StandardCharsets.UTF_8.name()), "HmacSHA256");
         IdToken idToken = idTokenParser.parseAndValidateIdToken(serializedJwt, keySpec);
         assertThat(idToken.getIssuer(), equalTo("http://op.example.com"));
         assertThat(idToken.getSubject(), equalTo("248289761001"));
@@ -125,7 +129,8 @@ public class IdTokenParserTests extends ESTestCase {
         RPConfiguration rpConfig = new RPConfiguration("clientId", "redirectUri", "code", SignatureAlgorithm.getAllNames(),
             null, Arrays.asList("claim1", "claim2", "claim3", "claim4"));
         IdTokenParser idTokenParser = new IdTokenParser(rpConfig);
-        final SecretKeySpec keySpec = new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(), "HmacSHA256");
+        final SecretKeySpec keySpec =
+            new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(StandardCharsets.UTF_8.name()), "HmacSHA256");
         IdToken idToken = idTokenParser.parseAndValidateIdToken(serializedJwt, keySpec);
         assertThat(idToken.getIssuer(), equalTo("http://op.example.com"));
         assertThat(idToken.getSubject(), equalTo("248289761001"));
@@ -173,7 +178,8 @@ public class IdTokenParserTests extends ESTestCase {
         RPConfiguration rpConfig = new RPConfiguration("clientId", "redirectUri", "code", SignatureAlgorithm.getAllNames(),
             null, Arrays.asList("claim1", "claim2", "claim3", "claim4"));
         IdTokenParser jwtParser = new IdTokenParser(rpConfig);
-        final SecretKeySpec keySpec = new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(), "HmacSHA384");
+        final SecretKeySpec keySpec =
+            new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(StandardCharsets.UTF_8.name()), "HmacSHA384");
         JsonWebToken jwt = jwtParser.parseAndValidateIdToken(serializedJwt, keySpec);
         assertTrue(jwt.getPayload().containsKey("iss"));
         assertThat(jwt.getPayload().get("iss"), equalTo("http://op.example.com"));
@@ -188,7 +194,8 @@ public class IdTokenParserTests extends ESTestCase {
             "0ZSI6IjE5OTQtMTAtMzEiLCJlbWFpbCI6ImphbmVkb2VAZXhhbXBsZS5jb20iLCJwaWN0dXJlIjoiaHR0cDovL2V4YW1wbGUuY29tL2phbmVkb2UvbWU" +
             "uanBnIn0.b-wg-whI_4hzmSn_lVmAfBt2YHjeeX9800jYBsiRLpGJ_WB8sCIIASTUpHiwT8RxqXAgn_nr0JsKTQkhJT6frg";
 
-        final SecretKeySpec keySpec512 = new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(), "HmacSHA512");
+        final SecretKeySpec keySpec512 =
+            new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(StandardCharsets.UTF_8.name()), "HmacSHA512");
         JsonWebToken jwt512 = jwtParser.parseAndValidateIdToken(serializedJwt512, keySpec512);
         assertTrue(jwt512.getPayload().containsKey("iss"));
         assertThat(jwt512.getPayload().get("iss"), equalTo("http://op.example.com"));
@@ -345,5 +352,23 @@ public class IdTokenParserTests extends ESTestCase {
         final PublicKey publicKey384 = PemUtils.readPublicKey(keyPath384);
         Exception e = expectThrows(IllegalStateException.class, () -> jwtParser.parseAndValidateIdToken(serliazedJwt384, publicKey384));
         assertThat(e.getMessage(), containsString("ID Token is signed with an unsupported algorithm"));
+    }
+
+    public void testNoneAlgorithmNotAllowed() throws Exception {
+        IdToken idToken = new IdToken(new JsonWebTokenBuilder()
+            .algorithm("NONE")
+            .type("JWT")
+            .issuer("issuer")
+            .audience("audience")
+            .expirationTime(1516339022L)
+            .issuedAt(1516239022L)
+            .build());
+        RPConfiguration rpConfig = new RPConfiguration("clientId", "redirectUri", "code", SignatureAlgorithm.getAllNames(), null, null);
+        IdTokenParser idTokenParser = new IdTokenParser(rpConfig);
+        final SecretKeySpec keySpec =
+            new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(StandardCharsets.UTF_8.name()), "HmacSHA256");
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> idTokenParser.parseAndValidateIdToken(idToken.encode(), keySpec));
+        assertThat(e.getMessage(), containsString("ID Token is not signed or the signing algorithm is unsupported"));
     }
 }

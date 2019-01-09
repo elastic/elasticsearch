@@ -12,7 +12,7 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.security.interfaces.ECPublicKey;
 
-import static org.elasticsearch.xpack.security.authc.support.jwt.SignatureAlgorithm.*;
+import static org.elasticsearch.xpack.security.authc.support.jwt.SignatureAlgorithm.getEcAlgorithms;
 
 /**
  * Class offering necessary functionality for validating the signatures of JWTs that have been signed with the
@@ -83,7 +83,8 @@ public class EcSignatureValidator implements JwtSignatureValidator {
     /**
      * Converts the JOSE signature to DER so that it can be verified. See
      * <a href="https://tools.ietf.org/html/rfc7518#section-3.4">the specification</a>
-     * Based on https://github.com/jwtk/jjwt/blob/1520ae8a21052b376282f8a38d310a91b15285e5/impl/src/main/java/io/jsonwebtoken/impl/crypto/EllipticCurveProvider.java
+     * Based on https://github.com/jwtk/jjwt/blob/1520ae8a21052b376282f8a38d310a91b15285e5/
+     * impl/src/main/java/io/jsonwebtoken/impl/crypto/EllipticCurveProvider.java
      *
      * @param jwsSignature The signature as decoded from the JWT
      * @return the signature, DER encoded so that it can be used in {@link Signature#verify(byte[])}

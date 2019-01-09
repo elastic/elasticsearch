@@ -58,7 +58,7 @@ public class IdTokenParser {
      * @throws IOException if the ID Token cannot be deserialized
      */
     public final IdToken parseAndValidateIdToken(String idToken, Key key) throws IOException {
-        final String[] idTokenParts = idToken.split("\\.");
+        final String[] idTokenParts = idToken.split("\\.", -1);
         if (idTokenParts.length != 3) {
             throw new IllegalArgumentException("The provided token is not a valid JWT");
         }

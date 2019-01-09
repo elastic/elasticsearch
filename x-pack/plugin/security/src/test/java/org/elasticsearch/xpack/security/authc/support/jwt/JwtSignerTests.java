@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.security.authc.oidc.IdTokenParserTests;
 
 import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -23,7 +24,7 @@ public class JwtSignerTests extends ESTestCase {
     public void testOnlyAcceptCorrectKeyAndAlgorithm() throws Exception {
         SignatureAlgorithm hmacAlgo = randomFrom(SignatureAlgorithm.getHmacAlgorithms());
         final SecretKeySpec hmacKey =
-            new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(), hmacAlgo.getJcaAlgoName());
+            new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(StandardCharsets.UTF_8.name()), hmacAlgo.getJcaAlgoName());
         SignatureAlgorithm rsaAlgo = randomFrom(SignatureAlgorithm.getRsaAlgorithms());
         Path privateKeyPath = PathUtils.get(IdTokenParserTests.class.getResource
             ("/org/elasticsearch/xpack/security/authc/oidc/rsa_private_key.pem").toURI());
@@ -66,7 +67,7 @@ public class JwtSignerTests extends ESTestCase {
             .issuer("theissuer")
             .build();
         final SecretKeySpec key =
-            new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(), algorithm.getJcaAlgoName());
+            new SecretKeySpec("144753a689a6508d7c7cd02752d7138e".getBytes(StandardCharsets.UTF_8.name()), algorithm.getJcaAlgoName());
         JwtSigner signer = new HmacSigner(algorithm, key);
         JwtSignatureValidator validator = new HmacSignatureValidator(algorithm, key);
         validator.validateSignature(token.encodeSignableContent(), signer.sign(token.encodeSignableContent()));

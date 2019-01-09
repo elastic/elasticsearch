@@ -331,19 +331,19 @@ SELECT COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn,
 ;
 
 aggCountEqualityFalse
-schema::bool:b|ln:l|dln:l
-SELECT FALSE=(COUNT(last_name)=COUNT(DISTINCT last_name)) AS bool, COUNT(last_name) ln, COUNT(DISTINCT last_name) dln FROM test_emp;
+schema::areEqual:b|ln:l|dln:l
+SELECT COUNT(last_name)=COUNT(DISTINCT last_name) AS areEqual, COUNT(last_name) ln, COUNT(DISTINCT last_name) dln FROM test_emp;
 
-     bool      |      ln       |      dln
+   areEqual    |      ln       |      dln
 ---------------+---------------+---------------
-true           |100            |96
+false          |100            |96
 ;
 
 aggCountEqualityTrue
-schema::bool:b|fn:l|dfn:l
-SELECT TRUE=(COUNT(first_name)=COUNT(DISTINCT first_name)) AS bool, COUNT(first_name) fn, COUNT(DISTINCT first_name) dfn FROM test_emp;
+schema::areEqual:b|fn:l|dfn:l
+SELECT COUNT(first_name)=COUNT(DISTINCT first_name) AS areEqual, COUNT(first_name) fn, COUNT(DISTINCT first_name) dfn FROM test_emp;
 
-     bool      |      fn       |      dfn
+   areEqual    |      fn       |      dfn
 ---------------+---------------+---------------
 true           |90             |90
 ;

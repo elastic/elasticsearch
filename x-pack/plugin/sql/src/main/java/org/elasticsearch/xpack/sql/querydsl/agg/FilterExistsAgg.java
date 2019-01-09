@@ -10,6 +10,9 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 
+/**
+ * Aggregation builder for a "filter" aggregation encapsulating an "exists" query.
+ */
 public class FilterExistsAgg extends LeafAgg {
 
     public FilterExistsAgg(String id, String fieldName) {

@@ -106,7 +106,7 @@ COUNT(DISTINCT field_name<1>)
 
 .Description:
 
-Returns the total number of _distinct_ non-null values in input values.
+Returns the total number of _distinct non-null_ values in input values.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------

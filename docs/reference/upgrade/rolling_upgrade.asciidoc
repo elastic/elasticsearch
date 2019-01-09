@@ -19,6 +19,12 @@ SSL/TLS, which requires a full cluster restart. For more information about this
 requirement and the associated bootstrap check, see
 {ref}/bootstrap-checks-xpack.html#bootstrap-checks-tls[SSL/TLS check].
 
+WARNING: The format used for the internal indices used by Kibana and {xpack}
+has changed in 6.x. When upgrading from 5.6 to 6.x, these internal indices have
+to be {stack-ref}/upgrading-elastic-stack.html#upgrade-internal-indices[upgraded]
+before the rolling upgrade procedure can start. Otherwise the upgraded node will
+refuse to join the cluster.
+
 To perform a rolling upgrade:
 
 . *Disable shard allocation*.

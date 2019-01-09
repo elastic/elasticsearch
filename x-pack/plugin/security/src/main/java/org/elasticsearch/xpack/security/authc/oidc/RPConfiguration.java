@@ -19,10 +19,12 @@ public class RPConfiguration {
     private final String clientId;
     private final String redirectUri;
     private final String responseType;
+    private final List<String> allowedSigningAlgorithms;
     private final List<String> requestedScopes;
     private final List<String> allowedScopes;
 
     public RPConfiguration(String clientId, String redirectUri, String responseType,
+                           List<String> allowedSigningAlgorithms,
                            @Nullable List<String> requestedScopes,
                            @Nullable List<String> allowedScopes) {
         this.clientId = Objects.requireNonNull(clientId, "RP Client ID must be provided");
@@ -33,6 +35,11 @@ public class RPConfiguration {
             throw new IllegalArgumentException("Invalid response type provided. Only code or implicit are allowed");
         } else {
             this.responseType = responseType;
+        }
+        if (null == allowedSigningAlgorithms || allowedSigningAlgorithms.isEmpty()) {
+            throw new IllegalArgumentException("Allowed signing algorithms must be provided");
+        } else {
+            this.allowedSigningAlgorithms = allowedSigningAlgorithms;
         }
         if (null == requestedScopes || requestedScopes.isEmpty()) {
             this.requestedScopes = Collections.singletonList("openid");
@@ -56,6 +63,10 @@ public class RPConfiguration {
 
     public String getResponseType() {
         return responseType;
+    }
+
+    public List<String> getAllowedSigningAlgorithms() {
+        return allowedSigningAlgorithms;
     }
 
     public List<String> getRequestedScopes() {

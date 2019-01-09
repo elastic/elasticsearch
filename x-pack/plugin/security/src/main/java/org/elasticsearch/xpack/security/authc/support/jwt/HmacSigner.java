@@ -5,6 +5,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.GeneralSecurityException;
 import java.security.Key;
 
 public class HmacSigner implements JwtSigner {
@@ -26,18 +27,15 @@ public class HmacSigner implements JwtSigner {
     }
 
     @Override
-    public byte[] sign(byte[] data) {
+    public byte[] sign(byte[] data) throws GeneralSecurityException {
         if (null == data || data.length == 0) {
             throw new IllegalArgumentException("JWT data must be provided");
         }
 
-        try {
-            final SecretKeySpec keySpec = new SecretKeySpec(key.getEncoded(), algorithm.getJcaAlgoName());
-            final Mac mac = Mac.getInstance(algorithm.getJcaAlgoName());
-            mac.init(keySpec);
-            return mac.doFinal(data);
-        } catch (Exception e) {
-            throw new ElasticsearchSecurityException("Encountered error attempting to create the JWT HMAC Signature", e);
-        }
+
+        final SecretKeySpec keySpec = new SecretKeySpec(key.getEncoded(), algorithm.getJcaAlgoName());
+        final Mac mac = Mac.getInstance(algorithm.getJcaAlgoName());
+        mac.init(keySpec);
+        return mac.doFinal(data);
     }
 }

@@ -12,8 +12,11 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Base64;
 
 /**
  * Class offering necessary functionality for validating the signatures of JWTs that have been signed with a
@@ -40,9 +43,10 @@ public class HmacSignatureValidator implements JwtSignatureValidator {
      * Validates the signature of a signed JWT by generating the signature using the provided key and verifying that
      * it matches the provided signature.
      *
-     * @param data              The serialized representation of the JWT payload
-     * @param expectedSignature The serialized representation of the JWT signature
-     * @return True if the newly calculated signature of the header and matches the one that was included in the JWT, false otherwise
+     * @param data              The JWT payload
+     * @param expectedSignature The JWT signature
+     * @return True if the newly calculated signature of the header and payload matches the one that was included in the JWT, false
+     * otherwise
      */
     @Override
     public void validateSignature(byte[] data, byte[] expectedSignature) {
@@ -58,9 +62,11 @@ public class HmacSignatureValidator implements JwtSignatureValidator {
             final Mac mac = Mac.getInstance(algorithm.getJcaAlgoName());
             mac.init(keySpec);
             final byte[] calculatedSignature = mac.doFinal(data);
-            if (Arrays.equals(calculatedSignature, expectedSignature) == false) {
+            if (MessageDigest.isEqual(calculatedSignature, expectedSignature) == false) {
                 throw new ElasticsearchSecurityException("JWT HMAC Signature could not be validated. Calculated value was [{}] but the " +
-                    "expected one was [{}]");
+                    "expected one was [{}]",
+                    Base64.getUrlEncoder().withoutPadding().encodeToString(calculatedSignature),
+                    Base64.getUrlEncoder().withoutPadding().encodeToString(expectedSignature));
             }
         } catch (Exception e) {
             throw new ElasticsearchSecurityException("Encountered error attempting to validate the JWT HMAC Signature", e);

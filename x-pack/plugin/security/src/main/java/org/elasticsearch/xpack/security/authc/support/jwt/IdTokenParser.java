@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.security.authc.oidc.RPConfiguration;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Base64;
@@ -28,53 +29,55 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsV
 /**
  * Contains the necessary functionality for parsing a serialized OpenID Connect ID Token to a {@link JsonWebToken}
  */
-public class JsonWebTokenParser {
+public class IdTokenParser {
     private final RPConfiguration rpConfig;
 
-    public JsonWebTokenParser(RPConfiguration rpConfig) {
+    public IdTokenParser(RPConfiguration rpConfig) {
         this.rpConfig = rpConfig;
     }
 
     /**
-     * Parses the serialized format of an ID Token into a {@link JsonWebToken}. In doing so it
+     * Parses the serialized format of an ID Token into a {@link JsonWebToken}. In doing so it:
      * <ul>
      * <li>Validates that the format and structure of the ID Token is correct</li>
      * <li>Validates that the ID Token is signed and that one of the supported algorithms is used</li>
      * <li>Validates the signature using the appropriate</li>
      * </ul>
+     * This method does <strong>not</strong> validate the contents of the ID Token such as expiration time,
+     * issuer, audience etc. These checks should be performed on the {@link JsonWebToken} by the caller.
      *
-     * @param jwt Serialized string representation of the ID Token
+     * @param idToken Serialized string representation of the ID Token
      * @param key The {@link Key} to be used for verifying the signature
      * @return a {@link JsonWebToken}
      * @throws IOException if the ID Token cannot be deserialized
      */
-    public final JsonWebToken parseAndValidateJwt(String jwt, Key key) throws IOException {
-        final String[] jwtParts = jwt.split("\\.");
-        if (jwtParts.length != 3) {
+    public final JsonWebToken parseAndValidateIdToken(String idToken, Key key) throws IOException {
+        final String[] idTokenParts = idToken.split("\\.");
+        if (idTokenParts.length != 3) {
             throw new IllegalArgumentException("The provided token is not a valid JWT");
         }
-        final String serializedHeader = jwtParts[0];
-        final String serializedPayload = jwtParts[1];
-        final String serializedSignature = jwtParts[2];
-        final String deserializedHeader = deserializePart(serializedHeader);
-        final String deserializedPayload = deserializePart(serializedPayload);
+        final String serializedHeader = idTokenParts[0];
+        final String serializedPayload = idTokenParts[1];
+        final String serializedSignature = idTokenParts[2];
+        final String deserializedHeader = decodePartToString(serializedHeader);
+        final String deserializedPayload = decodePartToString(serializedPayload);
 
         final Map<String, Object> headerMap = parseHeader(deserializedHeader);
         final SignatureAlgorithm algorithm = getAlgorithm(headerMap);
-        if (algorithm == null || algorithm.equals(SignatureAlgorithm.NONE.name())) {
-            //TODO what kind of Exception?
-            throw new IllegalStateException("JWT not signed or unrecognised algorithm");
+        if (algorithm == null || algorithm.equals(SignatureAlgorithm.NONE)) {
+            throw new IllegalStateException("ID Token is not signed or the signing algorithm is unsupported");
         }
         if (Strings.hasText(serializedSignature) == false) {
-            //TODO what kind of Exception?
-            throw new IllegalStateException("Unsigned JWT");
+            throw new IllegalStateException("ID Token is unsigned or malformed. Signature is missing");
+        }
+        if (rpConfig.getAllowedSigningAlgorithms().contains(algorithm.name()) == false) {
+            throw new IllegalStateException("ID Token is signed with an unsupported algorithm [{" + algorithm.name() + "}]");
         }
         JwtSignatureValidator validator = getValidator(algorithm, key);
         if (null == validator) {
-            //TODO what kind of Exception?
-            throw new IllegalStateException("Wrong algorithm");
+            throw new IllegalStateException("ID Token is signed with an unsupported algorithm [{" + algorithm.name() + "}]");
         }
-        final byte[] signatureBytes = serializedSignature.getBytes(StandardCharsets.US_ASCII);
+        final byte[] signatureBytes = decodePart(serializedSignature);
         final byte[] data = (serializedHeader + "." + serializedPayload).getBytes(StandardCharsets.UTF_8);
         validator.validateSignature(data, signatureBytes);
         final Map<String, Object> payloadMap = parsePayload(deserializedPayload);
@@ -85,7 +88,8 @@ public class JsonWebTokenParser {
      * Returns the {@link SignatureAlgorithm} that corresponds to the value of the alg claim
      *
      * @param header The {@link Map} containing the parsed header claims
-     * @return the SignatureAlgorithm that corresponds to alg
+     * @return the SignatureAlgorithm that corresponds to alg or null if the header doesn't contain an alg claim or the algorithm
+     * is not valid or supported
      */
     private SignatureAlgorithm getAlgorithm(Map<String, Object> header) {
         if (header.containsKey("alg")) {
@@ -95,8 +99,37 @@ public class JsonWebTokenParser {
         }
     }
 
-    private static String deserializePart(String encodedString) throws IOException {
-        return new String(Base64.getUrlDecoder().decode(encodedString), StandardCharsets.UTF_8.name());
+    /**
+     * URL safe Base64 decode a part of a JWT to a String
+     *
+     * @param encodedString the serialized part of the JWT as a string
+     * @return a JSON String with the JWT representation
+     * @throws UnsupportedEncodingException if UTF-8 encoding is not supported
+     */
+    private static String decodePartToString(String encodedString) throws UnsupportedEncodingException {
+        return decodePartToString(encodedString, StandardCharsets.UTF_8.name());
+    }
+
+    /**
+     * URL safe Base64 decode a part of a JWT to a String
+     *
+     * @param encodedString the serialized part of the JWT as a string
+     * @param encodingName  the Charset to use for the generated String
+     * @return a JSON String with the JWT representation
+     * @throws UnsupportedEncodingException if the provided encodingName is not valid
+     */
+    private static String decodePartToString(String encodedString, String encodingName) throws UnsupportedEncodingException {
+        return new String(Base64.getUrlDecoder().decode(encodedString), encodingName);
+    }
+
+    /**
+     * URL safe Base64 decode a part of a JWT to a byte array
+     *
+     * @param encodedString the serialized part of the JWT as a string
+     * @return a byte array with the decoded bytes
+     */
+    private static byte[] decodePart(String encodedString) {
+        return Base64.getUrlDecoder().decode(encodedString);
     }
 
     /**
@@ -118,7 +151,8 @@ public class JsonWebTokenParser {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Claims.HeaderClaims.validHeaderClaims().contains(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser::getTokenLocation);
+                    XContentParserUtils
+                        .ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser::getTokenLocation);
                     if (Strings.hasText(parser.text())) {
                         headerMap.put(currentFieldName, parser.text());
                     }
@@ -197,6 +231,13 @@ public class JsonWebTokenParser {
         }
     }
 
+    /**
+     * Returns the appropriate {@link JwtSignatureValidator} for the provided {@link SignatureAlgorithm} and key
+     *
+     * @param algorithm the {@link SignatureAlgorithm} with which the signature should be validated
+     * @param key       the {@link Key} to use for validating the signature
+     * @return the appropriate {@link JwtSignatureValidator} or null if the algorithm is not supported or valid
+     */
     private JwtSignatureValidator getValidator(SignatureAlgorithm algorithm, Key key) {
         if (SignatureAlgorithm.getHmacAlgorithms().contains(algorithm)) {
             return new HmacSignatureValidator(algorithm, key);

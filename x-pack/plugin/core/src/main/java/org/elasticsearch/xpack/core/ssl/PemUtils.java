@@ -20,6 +20,7 @@ import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.interfaces.ECKey;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.DSAPrivateKeySpec;
@@ -28,6 +29,7 @@ import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPrivateKeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPrivateCrtKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -59,6 +61,8 @@ public class PemUtils {
     private static final String OPENSSL_EC_PARAMS_HEADER = "-----BEGIN EC PARAMETERS-----";
     private static final String OPENSSL_EC_PARAMS_FOOTER = "-----END EC PARAMETERS-----";
     private static final String HEADER = "-----BEGIN";
+    private static final String PUBLIC_HEADER = "-----BEGIN PUBLIC KEY-----";
+    private static final String PUBLIC_FOOTER = "-----END PUBLIC KEY-----";
 
     private PemUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -105,6 +109,26 @@ public class PemUtils {
             }
         } catch (IOException | GeneralSecurityException e) {
             throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString(), e);
+        }
+    }
+
+    public static PublicKey readPublicKey(Path keyPath) {
+        try (BufferedReader bReader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
+            String line = bReader.readLine();
+            while (null != line && line.startsWith(HEADER) == false) {
+                line = bReader.readLine();
+            }
+            if (null == line) {
+                throw new IllegalStateException("Error parsing Public Key from: " + keyPath.toString() + ". File is empty");
+            }
+            if (PUBLIC_HEADER.equals(line.trim())) {
+                return parseRsaPublicKey(bReader);
+            } else {
+                throw new IllegalStateException("Error parsing Public Key from: " + keyPath.toString() + ". File did not contain a " +
+                    "supported key format");
+            }
+        } catch (IOException | GeneralSecurityException e) {
+            throw new IllegalStateException("Error parsing Public Key from: " + keyPath.toString(), e);
         }
     }
 
@@ -179,9 +203,36 @@ public class PemUtils {
             throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
         }
         byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
-        String keyAlgo = getKeyAlgorithmIdentifier(keyBytes);
+        String keyAlgo = getPrivateKeyAlgorithmIdentifier(keyBytes);
         KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
         return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+    }
+
+    /**
+     * Creates a {@link PublicKey} from the contents of {@code bReader} that contains a plaintext PEM encoded public key
+     *
+     * @param bReader the {@link BufferedReader} containing the key file contents
+     * @return {@link PublicKey}
+     * @throws IOException              if the file can't be read
+     * @throws GeneralSecurityException if the public key can't be generated from the {@link X509EncodedKeySpec}
+     */
+    private static PublicKey parseRsaPublicKey(BufferedReader bReader) throws IOException, GeneralSecurityException {
+        StringBuilder sb = new StringBuilder();
+        String line = bReader.readLine();
+        while (line != null) {
+            if (PUBLIC_FOOTER.equals(line.trim())) {
+                break;
+            }
+            sb.append(line.trim());
+            line = bReader.readLine();
+        }
+        if (null == line || PUBLIC_FOOTER.equals(line.trim()) == false) {
+            throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
+        }
+        byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
+        String keyAlgo = getPublicKeyAlgorithmIdentifier(keyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
+        return keyFactory.generatePublic(new X509EncodedKeySpec(keyBytes));
     }
 
     /**
@@ -332,7 +383,7 @@ public class PemUtils {
         Cipher cipher = Cipher.getInstance(encryptedPrivateKeyInfo.getAlgName());
         cipher.init(Cipher.DECRYPT_MODE, secretKey, encryptedPrivateKeyInfo.getAlgParameters());
         PKCS8EncodedKeySpec keySpec = encryptedPrivateKeyInfo.getKeySpec(cipher);
-        String keyAlgo = getKeyAlgorithmIdentifier(keySpec.getEncoded());
+        String keyAlgo = getPrivateKeyAlgorithmIdentifier(keySpec.getEncoded());
         KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
         return keyFactory.generatePrivate(keySpec);
     }
@@ -534,12 +585,23 @@ public class PemUtils {
     /**
      * Parses a DER encoded private key and reads its algorithm identifier Object OID.
      *
+     * PrivateKeyInfo ::= SEQUENCE {
+     *   version         Version,
+     *   algorithm       AlgorithmIdentifier,
+     *   PrivateKey      OCTET STRING
+     * }
+     *
+     * AlgorithmIdentifier ::= SEQUENCE {
+     *   algorithm       OBJECT IDENTIFIER,
+     *   parameters      ANY DEFINED BY algorithm OPTIONAL
+     * }
+     *
      * @param keyBytes the private key raw bytes
      * @return A string identifier for the key algorithm (RSA, DSA, or EC)
      * @throws GeneralSecurityException if the algorithm oid that is parsed from ASN.1 is unknown
      * @throws IOException if the DER encoded key can't be parsed
      */
-    private static String getKeyAlgorithmIdentifier(byte[] keyBytes) throws IOException, GeneralSecurityException {
+    private static String getPrivateKeyAlgorithmIdentifier(byte[] keyBytes) throws IOException, GeneralSecurityException {
         DerParser parser = new DerParser(keyBytes);
         DerParser.Asn1Object sequence = parser.readAsn1Object();
         parser = sequence.getParser();
@@ -556,6 +618,43 @@ public class PemUtils {
                 return "EC";
         }
         throw new GeneralSecurityException("Error parsing key algorithm identifier. Algorithm with OID: "+oidString+ " is not " +
+            "supported");
+    }
+
+    /**
+     * Parses a DER encoded public key and reads its algorithm identifier Object OID.
+     *
+     * PublicKeyInfo ::= SEQUENCE {
+     * algorithm       AlgorithmIdentifier,
+     * PublicKey       BIT STRING
+     * }
+     *
+     * AlgorithmIdentifier ::= SEQUENCE {
+     * algorithm       OBJECT IDENTIFIER,
+     * parameters      ANY DEFINED BY algorithm OPTIONAL
+     * }
+     *
+     * @param keyBytes the public key raw bytes
+     * @return A string identifier for the key algorithm (RSA, DSA, or EC)
+     * @throws GeneralSecurityException if the algorithm oid that is parsed from ASN.1 is unknown
+     * @throws IOException              if the DER encoded key can't be parsed
+     */
+    private static String getPublicKeyAlgorithmIdentifier(byte[] keyBytes) throws IOException, GeneralSecurityException {
+        DerParser parser = new DerParser(keyBytes);
+        DerParser.Asn1Object sequence = parser.readAsn1Object();
+        parser = sequence.getParser();
+        DerParser.Asn1Object algSequence = parser.readAsn1Object();
+        parser = algSequence.getParser();
+        String oidString = parser.readAsn1Object().getOid();
+        switch (oidString) {
+            case "1.2.840.10040.4.1":
+                return "DSA";
+            case "1.2.840.113549.1.1.1":
+                return "RSA";
+            case "1.2.840.10045.2.1":
+                return "EC";
+        }
+        throw new GeneralSecurityException("Error parsing key algorithm identifier. Algorithm with OID: " + oidString + " is not " +
             "supported");
     }
 }

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.authc.support;
+package org.elasticsearch.xpack.security.authc.support.jwt;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.support.jwt.JsonWebToken;

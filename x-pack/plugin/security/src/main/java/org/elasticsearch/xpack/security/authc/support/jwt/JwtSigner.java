@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security.authc.support.jwt;
 
+import java.security.GeneralSecurityException;
+
 public interface JwtSigner {
 
-    public byte[] sign(byte[] data);
+    byte[] sign(byte[] data) throws GeneralSecurityException;
 }

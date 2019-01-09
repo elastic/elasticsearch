@@ -49,11 +49,10 @@ public class RsaSignatureValidator implements JwtSignatureValidator {
         }
 
         try {
-            final byte[] signatureBytes = Base64.getUrlDecoder().decode(signature);
             final Signature rsa = Signature.getInstance(algorithm.getJcaAlgoName());
             rsa.initVerify((PublicKey) key);
             rsa.update(data);
-            rsa.verify(signatureBytes);
+            rsa.verify(signature);
         } catch (Exception e) {
             throw new ElasticsearchSecurityException("Encountered error attempting to validate the JWT RSA Signature", e);
         }

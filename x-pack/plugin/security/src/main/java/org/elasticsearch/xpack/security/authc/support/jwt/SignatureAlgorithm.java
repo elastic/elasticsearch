@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.support.jwt;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -51,5 +52,9 @@ public enum SignatureAlgorithm {
 
     public static List<SignatureAlgorithm> getEcAlgorithms() {
         return Arrays.asList(ES256, ES384, ES512);
+    }
+
+    public static List<String> getAllNames() {
+        return Stream.of(SignatureAlgorithm.values()).map(Enum::name).collect(Collectors.toList());
     }
 }

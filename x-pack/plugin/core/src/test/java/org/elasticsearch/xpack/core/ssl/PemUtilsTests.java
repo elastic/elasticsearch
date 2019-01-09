@@ -14,6 +14,9 @@ import java.nio.file.Path;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.RSAPublicKey;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -208,6 +211,18 @@ public class PemUtilsTests extends ESTestCase {
                         ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/empty.pem"),
                 "testnode"::toCharArray));
         assertThat(e.getMessage(), containsString("File is empty"));
+    }
+
+    public void testReadRsaPublicFile() {
+        PublicKey publicKey = PemUtils.readPublicKey(getDataPath
+            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-public.pem"));
+        assertTrue(publicKey instanceof RSAPublicKey);
+    }
+
+    public void testReadEcPublicFile() {
+        PublicKey publicKey = PemUtils.readPublicKey(getDataPath
+            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ec_public_key.pem"));
+        assertTrue(publicKey instanceof ECPublicKey);
     }
 
     private Key getKeyFromKeystore(String algo) throws Exception {

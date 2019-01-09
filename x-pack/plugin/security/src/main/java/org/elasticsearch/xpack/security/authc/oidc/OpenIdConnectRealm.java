@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_USERINFO_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_ALLOWED_SCOPES;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_ID;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_SECRET;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REDIRECT_URI;
@@ -91,8 +92,9 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             config.getSetting(RP_REQUESTED_SCOPES) : Collections.emptyList();
         List<String> allowedScopes = config.hasSetting(RP_ALLOWED_SCOPES) ?
             config.getSetting(RP_ALLOWED_SCOPES) : Collections.emptyList();
+        List<String> allowedSignatureAlgorithms = requireListSetting(config, RP_ALLOWED_SIGNATURE_ALGORITHMS);
 
-        return new RPConfiguration(clientId, redirectUri, responseType, requestedScopes, allowedScopes);
+        return new RPConfiguration(clientId, redirectUri, responseType, allowedSignatureAlgorithms, requestedScopes, allowedScopes);
     }
 
     private OPConfiguration buildOPConfiguration(RealmConfig config) {
@@ -107,6 +109,15 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
     static String require(RealmConfig config, Setting.AffixSetting<String> setting) {
         final String value = config.getSetting(setting);
+        if (value.isEmpty()) {
+            throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, setting)
+                + "] is required");
+        }
+        return value;
+    }
+
+    static List<String> requireListSetting(RealmConfig config, Setting.AffixSetting<List<String>> setting) {
+        final List<String> value = config.getSetting(setting);
         if (value.isEmpty()) {
             throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, setting)
                 + "] is required");

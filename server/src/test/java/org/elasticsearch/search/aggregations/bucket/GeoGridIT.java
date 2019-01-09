@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGrid.Bucket;
+import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoHashType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -146,7 +147,7 @@ public class GeoGridIT extends ESIntegTestCase {
     public void testSimple() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
-                    .addAggregation(geoGrid("geogrid", GeoGridTests.GEOHASH_TYPE)
+                    .addAggregation(geoGrid("geogrid", GeoHashType.SINGLETON)
                             .field("location")
                             .precision(precision)
                     )
@@ -177,7 +178,7 @@ public class GeoGridIT extends ESIntegTestCase {
     public void testMultivalued() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("multi_valued_idx")
-                    .addAggregation(geoGrid("geogrid", GeoGridTests.GEOHASH_TYPE)
+                    .addAggregation(geoGrid("geogrid", GeoHashType.SINGLETON)
                             .field("location")
                             .precision(precision)
                     )
@@ -206,7 +207,7 @@ public class GeoGridIT extends ESIntegTestCase {
                     .addAggregation(
                             AggregationBuilders.filter("filtered", bbox)
                                     .subAggregation(
-                                            geoGrid("geogrid", GeoGridTests.GEOHASH_TYPE)
+                                            geoGrid("geogrid", GeoHashType.SINGLETON)
                                                     .field("location")
                                                     .precision(precision)
                                     )
@@ -234,7 +235,7 @@ public class GeoGridIT extends ESIntegTestCase {
     public void testUnmapped() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx_unmapped")
-                    .addAggregation(geoGrid("geogrid", GeoGridTests.GEOHASH_TYPE)
+                    .addAggregation(geoGrid("geogrid", GeoHashType.SINGLETON)
                             .field("location")
                             .precision(precision)
                     )
@@ -251,7 +252,7 @@ public class GeoGridIT extends ESIntegTestCase {
     public void testPartiallyUnmapped() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-                    .addAggregation(geoGrid("geogrid", GeoGridTests.GEOHASH_TYPE)
+                    .addAggregation(geoGrid("geogrid", GeoHashType.SINGLETON)
                             .field("location")
                             .precision(precision)
                     )
@@ -275,7 +276,7 @@ public class GeoGridIT extends ESIntegTestCase {
     public void testTopMatch() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
-                    .addAggregation(geoGrid("geogrid", GeoGridTests.GEOHASH_TYPE)
+                    .addAggregation(geoGrid("geogrid", GeoHashType.SINGLETON)
                             .field("location")
                             .size(1)
                             .shardSize(100)
@@ -311,7 +312,7 @@ public class GeoGridIT extends ESIntegTestCase {
                 () -> client()
                     .prepareSearch("idx")
                     .addAggregation(
-                        geoGrid("geogrid", GeoGridTests.GEOHASH_TYPE)
+                        geoGrid("geogrid", GeoHashType.SINGLETON)
                             .field("location").size(size).shardSize(shardSize)).get());
         assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [geogrid]"));
     }
@@ -321,7 +322,7 @@ public class GeoGridIT extends ESIntegTestCase {
         final int shardSize = 0;
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> client().prepareSearch("idx")
-                        .addAggregation(geoGrid("geogrid", GeoGridTests.GEOHASH_TYPE).field("location").size(size).shardSize(shardSize))
+                        .addAggregation(geoGrid("geogrid", GeoHashType.SINGLETON).field("location").size(size).shardSize(shardSize))
                         .get());
         assertThat(exception.getMessage(), containsString("[shardSize] must be greater than 0. Found [0] in [geogrid]"));
     }

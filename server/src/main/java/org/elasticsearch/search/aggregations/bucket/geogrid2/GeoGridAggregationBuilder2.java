@@ -61,7 +61,7 @@ public class GeoGridAggregationBuilder2 extends ValuesSourceAggregationBuilder<V
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;
 
     /* recognized field names in JSON */
-    static final ParseField FIELD_TYPE = new ParseField("type");
+    static final ParseField FIELD_TYPE = new ParseField("hash_type");
     static final ParseField FIELD_PRECISION = new ParseField("precision");
     static final ParseField FIELD_SIZE = new ParseField("size");
     static final ParseField FIELD_SHARD_SIZE = new ParseField("shard_size");
@@ -241,7 +241,7 @@ public class GeoGridAggregationBuilder2 extends ValuesSourceAggregationBuilder<V
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(FIELD_TYPE.getPreferredName(), type);
+        builder.field(FIELD_TYPE.getPreferredName(), type.getName());
         builder.field(FIELD_PRECISION.getPreferredName(), precision);
         builder.field(FIELD_SIZE.getPreferredName(), requiredSize);
         if (shardSize > -1) {

@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoHashType;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -312,7 +313,7 @@ public class ShardReduceIT extends ESIntegTestCase {
     public void testGeoGrid() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
             .setQuery(QueryBuilders.matchAllQuery())
-            .addAggregation(geoGrid("grid", GeoGridTests.GEOHASH_TYPE).field("location")
+            .addAggregation(geoGrid("grid", GeoHashType.SINGLETON).field("location")
                 .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
                     .minDocCount(0)))
             .get();

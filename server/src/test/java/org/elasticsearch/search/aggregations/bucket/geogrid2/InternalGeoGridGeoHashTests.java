@@ -22,7 +22,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.GeoGridTests;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -58,7 +57,7 @@ public class InternalGeoGridGeoHashTests extends InternalMultiBucketAggregationT
             long geoHashAsLong = GeoHashUtils.longEncode(longitude, latitude, 4);
             buckets.add(new GeoHashBucket(geoHashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
         }
-        return new InternalGeoGrid(name, GeoGridTests.GEOHASH_TYPE, size, buckets, pipelineAggregators, metaData);
+        return new InternalGeoGrid(name, GeoHashType.SINGLETON, size, buckets, pipelineAggregators, metaData);
     }
 
     @Override
@@ -137,7 +136,7 @@ public class InternalGeoGridGeoHashTests extends InternalMultiBucketAggregationT
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoGrid(name, GeoGridTests.GEOHASH_TYPE, size, buckets, pipelineAggregators, metaData);
+        return new InternalGeoGrid(name, GeoHashType.SINGLETON, size, buckets, pipelineAggregators, metaData);
     }
 
 }

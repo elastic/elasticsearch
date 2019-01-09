@@ -34,8 +34,7 @@ public class GeoGridTypes {
         // TODO: we need to decide how types map is instantiated/stored
         // TODO: especially this is important to allow type plugins
         types = new HashMap<>();
-        final GeoGridType type = new GeoHashType();
-        types.put(type.getName(), type);
+        types.put(GeoHashType.SINGLETON.getName(), GeoHashType.SINGLETON);
     }
 
     public GeoGridType get(String typeStr, String name) {

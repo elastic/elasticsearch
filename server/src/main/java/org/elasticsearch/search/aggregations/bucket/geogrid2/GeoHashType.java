@@ -30,7 +30,15 @@ import java.io.IOException;
  * A simple wrapper for GeoUtils handling of the geohash hashing algorithm
  */
 public class GeoHashType implements GeoGridType {
-    static final String NAME = "geohash";
+
+    /**
+     * GeoGridType must be a singleton because bucket does a reference compare for equality
+     */
+    private GeoHashType() {}
+
+    public static final String NAME = "geohash";
+
+    public static final GeoGridType SINGLETON = new GeoHashType();
 
     @Override
     public String getName() {

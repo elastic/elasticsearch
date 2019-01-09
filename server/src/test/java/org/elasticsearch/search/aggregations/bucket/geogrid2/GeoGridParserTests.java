@@ -35,24 +35,24 @@ public class GeoGridParserTests extends ESTestCase {
         GeoGridType type = GeoGridTests.randomType();
         int precision = GeoGridTests.randomPrecision(type);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-            "{\"field\":\"my_loc\", \"hash_type\":\"" + type + "\", \"precision\":" + precision +
+            "{\"hash_type\":\"" + type.getName() + "\", \"field\":\"my_loc\", \"precision\":" + precision +
                 ", \"size\": 500, \"shard_size\": 550}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoGridAggregationBuilder2.parse("geohash_grid", stParser));
+        assertNotNull(GeoGridAggregationBuilder2.parse("geo_grid", stParser));
     }
 
     public void testParseValidFromStrings() throws Exception {
         GeoGridType type = GeoGridTests.randomType();
         int precision = GeoGridTests.randomPrecision(type);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-            "{\"field\":\"my_loc\", \"hash_type\":\"" + type + "\", \"precision\":\"" + precision +
+            "{\"hash_type\":\"" + type.getName() + "\", \"field\":\"my_loc\", \"precision\":\"" + precision +
                 "\", \"size\": \"500\", \"shard_size\": \"550\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoGridAggregationBuilder2.parse("geohash_grid", stParser));
+        assertNotNull(GeoGridAggregationBuilder2.parse("geo_grid", stParser));
     }
 
     public void testParseDistanceUnitPrecision() throws Exception {
@@ -63,11 +63,12 @@ public class GeoGridParserTests extends ESTestCase {
         }
         String distanceString = distance + unit.toString();
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-            "{\"field\":\"my_loc\", \"precision\": \"" + distanceString + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
+            "{\"hash_type\":\"geohash\", \"field\":\"my_loc\", \"precision\": \"" + distanceString +
+                "\", \"size\": \"500\", \"shard_size\": \"550\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        GeoGridAggregationBuilder2 builder = GeoGridAggregationBuilder2.parse("geohash_grid", stParser);
+        GeoGridAggregationBuilder2 builder = GeoGridAggregationBuilder2.parse("geo_grid", stParser);
         assertNotNull(builder);
         assertThat(builder.precision(), greaterThanOrEqualTo(0));
         assertThat(builder.precision(), lessThanOrEqualTo(12));
@@ -75,36 +76,30 @@ public class GeoGridParserTests extends ESTestCase {
 
     public void testParseInvalidUnitPrecision() throws Exception {
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-            "{\"field\":\"my_loc\", \"precision\": \"10kg\", \"size\": \"500\", \"shard_size\": \"550\"}");
+            "{\"hash_type\":\"geohash\", \"field\":\"my_loc\", \"precision\": \"10kg\", " +
+                "\"size\": \"500\", \"shard_size\": \"550\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException ex = expectThrows(XContentParseException.class,
-            () -> GeoGridAggregationBuilder2.parse("geohash_grid", stParser));
-        assertThat(ex.getMessage(), containsString("failed to build [geohash_grid] after last required field arrived"));
+            () -> GeoGridAggregationBuilder2.parse("geo_grid", stParser));
+        assertThat(ex.getMessage(), containsString("[geo_grid] failed to parse field [precision]"));
 
         Throwable cause = ex.getCause();
-        assertThat(cause, instanceOf(XContentParseException.class));
-        assertThat(cause.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
-
-        cause = cause.getCause();
         assertThat(cause, instanceOf(NumberFormatException.class));
         assertThat(cause.getMessage(), containsString("For input string: \"10kg\""));
     }
 
     public void testParseDistanceUnitPrecisionTooSmall() throws Exception {
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-            "{\"field\":\"my_loc\", \"precision\": \"1cm\", \"size\": \"500\", \"shard_size\": \"550\"}");
+            "{\"hash_type\":\"geohash\", \"field\":\"my_loc\", " +
+                "\"precision\": \"1cm\", \"size\": \"500\", \"shard_size\": \"550\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException ex = expectThrows(XContentParseException.class,
-            () -> GeoGridAggregationBuilder2.parse("geohash_grid", stParser));
-        assertThat(ex.getMessage(), containsString("failed to build [geohash_grid] after last required field arrived"));
+            () -> GeoGridAggregationBuilder2.parse("geo_grid", stParser));
+        assertThat(ex.getMessage(), containsString("[geo_grid] failed to parse field [precision]"));
 
         Throwable cause = ex.getCause();
-        assertThat(cause, instanceOf(XContentParseException.class));
-        assertThat(cause.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
-
-        cause = cause.getCause();
         assertThat(cause, instanceOf(IllegalArgumentException.class));
         assertEquals("precision too high [1cm]", cause.getMessage());
     }
@@ -112,28 +107,28 @@ public class GeoGridParserTests extends ESTestCase {
     public void testParseErrorOnBooleanPrecision() throws Exception {
         GeoGridType type = GeoGridTests.randomType();
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-            "{\"field\":\"my_loc\", \"hash_type\":\"" + type + "\", \"precision\":false}");
+            "{\"hash_type\":\"" + type.getName() + "\", \"field\":\"my_loc\", \"precision\":false}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException ex = expectThrows(XContentParseException.class,
-            () -> GeoGridAggregationBuilder2.parse("geohash_grid", stParser));
-        assertThat(ex.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
+            () -> GeoGridAggregationBuilder2.parse("geo_grid", stParser));
+        assertThat(ex.getMessage(), containsString("[geo_grid] failed to parse field [precision]"));
 
         Throwable cause = ex.getCause();
         assertThat(cause, instanceOf(XContentParseException.class));
-        assertThat(cause.getMessage(), containsString("[geohash_grid] failed to parse field [precision]" +
-            " in [geohash_grid]. It must be either an integer or a string"));
+        assertThat(cause.getMessage(), containsString("[geo_grid] failed to parse field [precision]" +
+            " in [geo_grid]. It must be either an integer or a string"));
     }
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {
         final GeoGridType type = GeoGridTests.randomType();
         final int precision = GeoGridTests.maxPrecision(type) + 1;
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-            "{\"field\":\"my_loc\", \"hash_type\":\"" + type + "\", \"precision\":\""+ precision +"\"}");
+            "{\"hash_type\":\"" + type.getName() + "\", \"field\":\"my_loc\", \"precision\":\""+ precision +"\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {
-            GeoGridAggregationBuilder2.parse("geohash_grid", stParser);
+            GeoGridAggregationBuilder2.parse("geo_grid", stParser);
             fail();
         } catch (XContentParseException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));

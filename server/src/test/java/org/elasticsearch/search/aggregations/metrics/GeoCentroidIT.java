@@ -22,9 +22,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.GeoGridTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoHashType;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -179,7 +179,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
 
     public void testSingleValueFieldAsSubAggToGeoGrid() throws Exception {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
-                .addAggregation(geoGrid("geoGrid", GeoGridTests.GEOHASH_TYPE).field(SINGLE_VALUED_FIELD_NAME)
+                .addAggregation(geoGrid("geoGrid", GeoHashType.SINGLETON).field(SINGLE_VALUED_FIELD_NAME)
                 .subAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME)))
                 .get();
         assertSearchResponse(response);

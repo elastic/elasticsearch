@@ -26,14 +26,12 @@ import org.elasticsearch.search.aggregations.bucket.geogrid2.GeoHashType;
 
 public class GeoGridTests extends BaseAggregationTestCase<GeoGridAggregationBuilder2> {
 
-    public static final GeoGridType GEOHASH_TYPE = new GeoHashType();
-
     /**
      * Pick a random hash type
      */
     public static GeoGridType randomType() {
         // With more types, will use randomIntBetween() to pick one
-        return GEOHASH_TYPE;
+        return GeoHashType.SINGLETON;
     }
 
     /**

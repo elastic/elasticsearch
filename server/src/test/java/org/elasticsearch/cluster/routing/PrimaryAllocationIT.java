@@ -34,6 +34,7 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
@@ -50,6 +51,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -179,7 +181,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             IllegalArgumentException.class,
             () -> client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("test", 0,
             dataNodeWithNoShardCopy, true)).get());
-        assertThat(iae.getMessage(), equalTo("No data for shard [0] of index [test] found on node [" + dataNodeWithNoShardCopy + ']'));
+        assertThat(iae.getMessage(), equalTo("No data for shard [0] of index [test] found on any node"));
 
         logger.info("--> wait until shard is failed and becomes unassigned again");
         assertTrue(client().admin().cluster().prepareState().get().getState().toString(),
@@ -261,6 +263,43 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY)).collect(Collectors.toSet());
         assertThat(newHistoryUUIds, everyItem(not(isIn(historyUUIDs))));
         assertThat(newHistoryUUIds, hasSize(1));
+    }
+
+    public void testForceStaleReplicaToBePromotedToPrimaryOnWrongNode() throws Exception {
+        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNodes(2);
+        final String idxName = "test";
+        assertAcked(client().admin().indices().prepareCreate(idxName)
+            .setSettings(Settings.builder().put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)).get());
+        ensureGreen();
+        createStaleReplicaScenario(master);
+        internalCluster().startDataOnlyNodes(2);
+        final int shardId = 0;
+        final List<String> nodeNames = new ArrayList<>(Arrays.asList(internalCluster().getNodeNames()));
+        nodeNames.remove(master);
+        client().admin().indices().prepareShardStores(idxName).get().getStoreStatuses().get(idxName)
+            .get(shardId).forEach(status -> nodeNames.remove(status.getNode().getName()));
+        assertThat(nodeNames, hasSize(1));
+        final String nodeWithoutData = nodeNames.get(0);
+        Throwable iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().cluster().prepareReroute()
+                .add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true)).get());
+        assertThat(
+            iae.getMessage(),
+            equalTo("No data for shard [" + shardId + "] of index [" + idxName + "] found on node [" + nodeWithoutData + ']'));
+    }
+
+    public void testForceStaleReplicaToBePromotedForMissingIndex() {
+        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String idxName = "test";
+        IndexNotFoundException ex = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().cluster().prepareReroute()
+                .add(new AllocateStalePrimaryAllocationCommand(idxName, 0, dataNode, true)).get());
+        assertThat(ex.getIndex().getName(), equalTo(idxName));
     }
 
     public void testForcePrimaryShardIfAllocationDecidersSayNoAfterIndexCreation() throws ExecutionException, InterruptedException {

@@ -46,7 +46,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -114,25 +113,22 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                         for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
                             final String index = entry.getKey();
                             final ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> indexStatus = status.get(index);
-                            if (indexStatus == null) {
-                                e = ExceptionsHelper.useOrSuppress(e, new IndexNotFoundException(index));
-                            } else {
-                                for (AbstractAllocateAllocationCommand command : entry.getValue()) {
-                                    final List<IndicesShardStoresResponse.StoreStatus> shardStatus =
-                                        indexStatus.get(command.shardId());
-                                    if (shardStatus == null) {
-                                        e = ExceptionsHelper.useOrSuppress(e, new IllegalArgumentException(
-                                            "No data for shard [" + command.shardId() + "] of index [" + index + "] found on any node")
-                                        );
-                                    } else if (shardStatus.stream().noneMatch(storeStatus -> {
-                                        final DiscoveryNode node = storeStatus.getNode();
-                                        final String nodeInCommand = command.node();
-                                        return nodeInCommand.equals(node.getName()) || nodeInCommand.equals(node.getId());
-                                    })) {
-                                        e = ExceptionsHelper.useOrSuppress(e, new IllegalArgumentException(
-                                            "No data for shard [" + command.shardId() + "] of index [" + index + "] found on node ["
-                                                + command.node() + ']'));
-                                    }
+                            assert indexStatus != null;
+                            for (AbstractAllocateAllocationCommand command : entry.getValue()) {
+                                final List<IndicesShardStoresResponse.StoreStatus> shardStatus =
+                                    indexStatus.get(command.shardId());
+                                if (shardStatus == null || shardStatus.isEmpty()) {
+                                    e = ExceptionsHelper.useOrSuppress(e, new IllegalArgumentException(
+                                        "No data for shard [" + command.shardId() + "] of index [" + index + "] found on any node")
+                                    );
+                                } else if (shardStatus.stream().noneMatch(storeStatus -> {
+                                    final DiscoveryNode node = storeStatus.getNode();
+                                    final String nodeInCommand = command.node();
+                                    return nodeInCommand.equals(node.getName()) || nodeInCommand.equals(node.getId());
+                                })) {
+                                    e = ExceptionsHelper.useOrSuppress(e, new IllegalArgumentException(
+                                        "No data for shard [" + command.shardId() + "] of index [" + index + "] found on node ["
+                                            + command.node() + ']'));
                                 }
                             }
                         }

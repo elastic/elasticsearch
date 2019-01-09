@@ -87,7 +87,12 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                         SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
                         LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders,
                             nextVersion, Instant.now().toEpochMilli());
-                        newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
+                        LifecyclePolicyMetadata oldPolicy = newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
+                        if (oldPolicy == null) {
+                            logger.info("adding index lifecycle policy [{}]", request.getPolicy().getName());
+                        } else {
+                            logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
+                        }
                         IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, OperationMode.RUNNING);
                         newState.metaData(MetaData.builder(currentState.getMetaData())
                                 .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());

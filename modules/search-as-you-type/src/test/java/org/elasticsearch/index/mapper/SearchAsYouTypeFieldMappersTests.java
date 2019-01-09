@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,11 +38,19 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
@@ -46,6 +58,93 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(SearchAsYouTypePlugin.class);
+    }
+
+    // todo remove this is temporary
+    public void testAnalysisV1() throws IOException {
+        final SimpleAnalyzer simple = new SimpleAnalyzer();
+        final SearchAsYouTypeAnalyzer withEdgeNGrams = SearchAsYouTypeAnalyzer.withEdgeNGrams(simple);
+        final SearchAsYouTypeAnalyzer with2Shingles = SearchAsYouTypeAnalyzer.withShingles(simple, 2);
+        final SearchAsYouTypeAnalyzer with2ShinglesAndEdgeNGrams = SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(simple, 2);
+        final SearchAsYouTypeAnalyzer with3Shingles = SearchAsYouTypeAnalyzer.withShingles(simple, 3);
+        final SearchAsYouTypeAnalyzer with3ShinglesAndEdgeNGrams = SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(simple, 3);
+
+        final String text = "aa bb cc dd ee";
+
+        final Map<String, List<String>> analyzerToTerm = new HashMap<>();
+        final Map<String, Set<String>> termToAnalyzers = new HashMap<>();
+
+        analyze("root", simple, text, analyzerToTerm, termToAnalyzers);
+        analyze("with_edge_ngrams", withEdgeNGrams, text, analyzerToTerm, termToAnalyzers);
+        analyze("with_2_shingles", with2Shingles, text, analyzerToTerm, termToAnalyzers);
+        analyze("with_2_shingles_and_edge_ngrams", with2ShinglesAndEdgeNGrams, text, analyzerToTerm, termToAnalyzers);
+        analyze("with_3_shingles", with3Shingles, text, analyzerToTerm, termToAnalyzers);
+        analyze("with_3_shingles_and_edge_ngrams", with3ShinglesAndEdgeNGrams, text, analyzerToTerm, termToAnalyzers);
+
+        System.out.println("#############\nTokens by analyzer\n######################\n");
+        for (Map.Entry<String, List<String>> entry : analyzerToTerm.entrySet()) {
+            System.out.println("Tokens for analyzer [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
+        }
+
+        System.out.println("#################\nAnalyzers by token\n####################\n");
+        for (Map.Entry<String, Set<String>> entry : termToAnalyzers.entrySet()) {
+            System.out.println("Analyzers with token [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
+        }
+    }
+
+    // todo remove this is temporary
+    public void testAnalysisV2() throws IOException {
+        final SimpleAnalyzer simple = new SimpleAnalyzer();
+        final SearchAsYouTypeAnalyzer with2Shingles = SearchAsYouTypeAnalyzer.withShingles(simple, 2);
+        final SearchAsYouTypeAnalyzer with3Shingles = SearchAsYouTypeAnalyzer.withShingles(simple, 3);
+        final SearchAsYouTypeAnalyzer with3ShinglesAndEdgeNGrams = SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(simple, 3);
+
+        final String text = "aa bb cc dd ee";
+
+        final Map<String, List<String>> analyzerToTerm = new HashMap<>();
+        final Map<String, Set<String>> termToAnalyzers = new HashMap<>();
+
+        analyze("root", simple, text, analyzerToTerm, termToAnalyzers);
+        analyze("with_2_shingles", with2Shingles, text, analyzerToTerm, termToAnalyzers);
+        analyze("with_3_shingles", with3Shingles, text, analyzerToTerm, termToAnalyzers);
+        analyze("with_3_shingles_and_edge_ngrams", with3ShinglesAndEdgeNGrams, text, analyzerToTerm, termToAnalyzers);
+
+        System.out.println("#############\nTokens by analyzer\n######################\n");
+        for (Map.Entry<String, List<String>> entry : analyzerToTerm.entrySet()) {
+            System.out.println("Tokens for analyzer [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
+        }
+
+        System.out.println("#################\nAnalyzers by token\n####################\n");
+        for (Map.Entry<String, Set<String>> entry : termToAnalyzers.entrySet()) {
+            System.out.println("Analyzers with token [" + entry.getKey() + "] are [" + entry.getValue().toString() + "]");
+        }
+    }
+
+    // todo remove this is temporary
+    private static void analyze(String name, Analyzer analyzer, String text, Map<String, List<String>> analyzerToTerm, Map<String, Set<String>> termToAnalyzers) throws IOException {
+        final List<String> tokens = analyzeTerms(text, analyzer);
+        assertFalse(analyzerToTerm.containsKey(name));
+        analyzerToTerm.put(name, tokens);
+        for (String token : tokens) {
+            if (termToAnalyzers.containsKey(token) == false) {
+                termToAnalyzers.put(token, new HashSet<>());
+            }
+            termToAnalyzers.get(token).add(name);
+        }
+    }
+
+    // todo remove this is temporary
+    private static List<String> analyzeTerms(String text, Analyzer analyzer) throws IOException {
+        final List<String> terms = new ArrayList<>();
+        try (TokenStream tokenStream = analyzer.tokenStream("foo", text)) {
+            final CharTermAttribute charTermAttribute = tokenStream.addAttribute(CharTermAttribute.class);
+            tokenStream.reset();
+            while (tokenStream.incrementToken()) {
+                terms.add(charTermAttribute.toString());
+            }
+            tokenStream.end();
+        }
+        return terms;
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -71,17 +170,10 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
 
         assertTopLevelFieldMapper(topLevelFieldMapper, "default");
 
-        assertEdgeNGramsFieldMapper(defaultMapper.mappers().getMapper("a_field._with_edge_ngrams"), topLevelFieldMapper, "default");
-
+        assertShinglesFieldMapper(defaultMapper.mappers().getMapper("a_field._with_2_shingles"), topLevelFieldMapper, "default", 2, false);
+        assertShinglesFieldMapper(defaultMapper.mappers().getMapper("a_field._with_3_shingles"), topLevelFieldMapper, "default", 3, true);
         assertShinglesAndEdgeNGramsFieldMapper(
-            defaultMapper.mappers().getMapper("a_field._with_2_shingles"),
-            defaultMapper.mappers().getMapper("a_field._with_2_shingles_and_edge_ngrams"),
-            topLevelFieldMapper, "default", 2);
-
-        assertShinglesAndEdgeNGramsFieldMapper(
-            defaultMapper.mappers().getMapper("a_field._with_3_shingles"),
-            defaultMapper.mappers().getMapper("a_field._with_3_shingles_and_edge_ngrams"),
-            topLevelFieldMapper, "default", 3);
+            defaultMapper.mappers().getMapper("a_field._with_3_shingles_and_edge_ngrams"), topLevelFieldMapper, "default", 3);
     }
 
     public void testConfiguration() throws IOException {
@@ -109,27 +201,12 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
 
         assertTopLevelFieldMapper(topLevelFieldMapper, "simple");
 
-        assertEdgeNGramsFieldMapper(defaultMapper.mappers().getMapper("a_field._with_edge_ngrams"), topLevelFieldMapper, "simple");
-
+        assertShinglesFieldMapper(defaultMapper.mappers().getMapper("a_field._with_2_shingles"), topLevelFieldMapper, "simple", 2, false);
+        assertShinglesFieldMapper(defaultMapper.mappers().getMapper("a_field._with_3_shingles"), topLevelFieldMapper, "simple", 3, false);
+        assertShinglesFieldMapper(defaultMapper.mappers().getMapper("a_field._with_4_shingles"), topLevelFieldMapper, "simple", 4, false);
+        assertShinglesFieldMapper(defaultMapper.mappers().getMapper("a_field._with_5_shingles"), topLevelFieldMapper, "simple", 5, true);
         assertShinglesAndEdgeNGramsFieldMapper(
-            defaultMapper.mappers().getMapper("a_field._with_2_shingles"),
-            defaultMapper.mappers().getMapper("a_field._with_2_shingles_and_edge_ngrams"),
-            topLevelFieldMapper, "simple", 2);
-
-        assertShinglesAndEdgeNGramsFieldMapper(
-            defaultMapper.mappers().getMapper("a_field._with_3_shingles"),
-            defaultMapper.mappers().getMapper("a_field._with_3_shingles_and_edge_ngrams"),
-            topLevelFieldMapper, "simple", 3);
-
-        assertShinglesAndEdgeNGramsFieldMapper(
-            defaultMapper.mappers().getMapper("a_field._with_4_shingles"),
-            defaultMapper.mappers().getMapper("a_field._with_4_shingles_and_edge_ngrams"),
-            topLevelFieldMapper, "simple", 4);
-
-        assertShinglesAndEdgeNGramsFieldMapper(
-            defaultMapper.mappers().getMapper("a_field._with_5_shingles"),
-            defaultMapper.mappers().getMapper("a_field._with_5_shingles_and_edge_ngrams"),
-            topLevelFieldMapper, "simple", 5);
+            defaultMapper.mappers().getMapper("a_field._with_5_shingles_and_edge_ngrams"), topLevelFieldMapper, "simple", 5);
     }
 
     public void testDocumentParsing() throws IOException {
@@ -151,7 +228,7 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
 
         final String value = randomAlphaOfLengthBetween(5, 20);
         final ParsedDocument parsedDocument = defaultMapper.parse(
-            SourceToParse.source("test", "_doc", "1",
+            new SourceToParse("test", "_doc", "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("a_field", value)
@@ -159,9 +236,7 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
                 XContentType.JSON));
 
         assertIndexableFields(parsedDocument.rootDoc().getFields("a_field"), value, false, -1, false);
-        assertIndexableFields(parsedDocument.rootDoc().getFields("a_field._with_edge_ngrams"), value, false, -1, true);
         assertIndexableFields(parsedDocument.rootDoc().getFields("a_field._with_2_shingles"), value, true, 2, false);
-        assertIndexableFields(parsedDocument.rootDoc().getFields("a_field._with_2_shingles_and_edge_ngrams"), value, true, 2, true);
         assertIndexableFields(parsedDocument.rootDoc().getFields("a_field._with_3_shingles"), value, true, 3, false);
         assertIndexableFields(parsedDocument.rootDoc().getFields("a_field._with_3_shingles_and_edge_ngrams"), value, true, 3, true);
     }
@@ -173,47 +248,50 @@ public class SearchAsYouTypeFieldMappersTests extends ESSingleNodeTestCase {
         for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
-
-        assertThat(mapper.subfield(false, -1, false).fieldType(), equalTo(fieldType));
     }
 
-    private static void assertEdgeNGramsFieldMapper(Mapper mapper, SearchAsYouTypeFieldMapper topLevelFieldMapper, String analyzerName) {
-        assertThat(mapper, instanceOf(SuggesterizedFieldMapper.class));
-        final SuggesterizedFieldMapper suggesterizedFieldMapper = (SuggesterizedFieldMapper) mapper;
+    private static void assertShinglesFieldMapper(Mapper fieldMapper,
+                                                  SearchAsYouTypeFieldMapper rootFieldMapper,
+                                                  String analyzerName,
+                                                  int numberOfShingles,
+                                                  boolean hasEdgeNGramsSubfield) {
 
-        final SuggesterizedFieldType fieldType = suggesterizedFieldMapper.fieldType();
-        assertThat(topLevelFieldMapper.subfield(false, -1, true).fieldType(), equalTo(fieldType));
-        assertFieldType(fieldType, false, -1, true);
-        assertAnalyzer(fieldType, analyzerName, false, -1, true);
+        assertThat(fieldMapper, instanceOf(SuggesterizedFieldMapper.class));
+        final SuggesterizedFieldMapper withShinglesFieldMapper = (SuggesterizedFieldMapper) fieldMapper;
+        final SuggesterizedFieldType withShinglesFieldType = withShinglesFieldMapper.fieldType();
+
+        assertFieldType(withShinglesFieldType, true, numberOfShingles, false);
+
+        assertThat(rootFieldMapper.subfield(numberOfShingles, false).fieldType(), equalTo(withShinglesFieldType));
+
+        if (hasEdgeNGramsSubfield) {
+            assertThat(withShinglesFieldType.withEdgeNGramsField(), notNullValue());
+            assertFieldType(withShinglesFieldType.withEdgeNGramsField(), true, numberOfShingles, true);
+            assertThat(withShinglesFieldMapper.withEdgeNGramsField(), notNullValue());
+        } else {
+            assertThat(withShinglesFieldType.withEdgeNGramsField(), nullValue());
+            assertThat(withShinglesFieldMapper.withEdgeNGramsField(), nullValue());
+        }
+
+        assertAnalyzer(withShinglesFieldType, analyzerName, true, numberOfShingles, false);
     }
 
-    private static void assertShinglesAndEdgeNGramsFieldMapper(Mapper withShinglesMapper,
-                                                               Mapper withShinglesAndEdgeNGramsMapper,
-                                                               SearchAsYouTypeFieldMapper topLevelFieldMapper,
+    private static void assertShinglesAndEdgeNGramsFieldMapper(Mapper fieldMapper,
+                                                               SearchAsYouTypeFieldMapper rootFieldmapper,
                                                                String analyzerName,
                                                                int numberOfShingles) {
 
-        assertThat(withShinglesMapper, instanceOf(SuggesterizedFieldMapper.class));
-        final SuggesterizedFieldMapper withShinglesFieldMapper = (SuggesterizedFieldMapper) withShinglesMapper;
-        final SuggesterizedFieldType withShinglesFieldType = withShinglesFieldMapper.fieldType();
-
-        assertThat(withShinglesAndEdgeNGramsMapper, instanceOf(SuggesterizedFieldMapper.class));
-        final SuggesterizedFieldMapper withShinglesAndEdgeNGramsFieldMapper = (SuggesterizedFieldMapper) withShinglesAndEdgeNGramsMapper;
+        assertThat(fieldMapper, instanceOf(SuggesterizedFieldMapper.class));
+        final SuggesterizedFieldMapper withShinglesAndEdgeNGramsFieldMapper = (SuggesterizedFieldMapper) fieldMapper;
         final SuggesterizedFieldType withShinglesAndEdgeNGramsFieldType = withShinglesAndEdgeNGramsFieldMapper.fieldType();
 
-        assertFieldType(withShinglesFieldType, true, numberOfShingles, false);
         assertFieldType(withShinglesAndEdgeNGramsFieldType, true, numberOfShingles, true);
 
-        assertThat(topLevelFieldMapper.subfield(true, numberOfShingles, false).fieldType(), equalTo(withShinglesFieldType));
-        assertThat(topLevelFieldMapper.subfield(true, numberOfShingles, true).fieldType(), equalTo(withShinglesAndEdgeNGramsFieldType));
+        assertThat(rootFieldmapper.subfield(numberOfShingles, true).fieldType(), equalTo(withShinglesAndEdgeNGramsFieldType));
 
-        assertThat(withShinglesFieldType.withEdgeNGramsField(), equalTo(withShinglesAndEdgeNGramsFieldType));
         assertThat(withShinglesAndEdgeNGramsFieldType.withEdgeNGramsField(), nullValue());
-
-        assertThat(withShinglesFieldMapper.withEdgeNGramsField(), equalTo(withShinglesAndEdgeNGramsFieldMapper));
         assertThat(withShinglesAndEdgeNGramsFieldMapper.withEdgeNGramsField(), nullValue());
 
-        assertAnalyzer(withShinglesFieldType, analyzerName, true, numberOfShingles, false);
         assertAnalyzer(withShinglesAndEdgeNGramsFieldType, analyzerName, true, numberOfShingles, true);
     }
 

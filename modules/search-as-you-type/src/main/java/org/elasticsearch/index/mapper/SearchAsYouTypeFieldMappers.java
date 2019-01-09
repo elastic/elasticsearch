@@ -33,6 +33,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -147,6 +148,77 @@ public final class SearchAsYouTypeFieldMappers {
             return (SuggesterizedFieldType) this.fieldType;
         }
 
+        private static Tuple<SuggesterizedFieldMapper, SuggesterizedFieldType>
+                buildShinglesAndEdgeNGramsField(String rootFieldName,
+                                                NamedAnalyzer rootFieldAnalyzer,
+                                                int numberOfShingles,
+                                                Mapper.BuilderContext context) {
+
+            final SuggesterizedFieldType withShinglesAndEdgeNGramsType = new SuggesterizedFieldType(
+                rootFieldName + "._with_" + numberOfShingles + "_shingles_and_edge_ngrams", true, numberOfShingles, true);
+
+            final SearchAsYouTypeAnalyzer withShinglesAnalyzer =
+                SearchAsYouTypeAnalyzer.withShingles(rootFieldAnalyzer.analyzer(), numberOfShingles);
+            final SearchAsYouTypeAnalyzer withShinglesAndEdgeNGramsAnalyzer =
+                SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(rootFieldAnalyzer.analyzer(), numberOfShingles);
+
+            withShinglesAndEdgeNGramsType.setIndexAnalyzer(
+                new NamedAnalyzer(rootFieldAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAndEdgeNGramsAnalyzer));
+            withShinglesAndEdgeNGramsType.setSearchAnalyzer(
+                new NamedAnalyzer(rootFieldAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
+
+            final SuggesterizedFieldMapper withShinglesAndEdgeNGramsMapper =
+                new SuggesterizedFieldMapper(withShinglesAndEdgeNGramsType, context.indexSettings());
+
+            return new Tuple<>(withShinglesAndEdgeNGramsMapper, withShinglesAndEdgeNGramsType);
+        }
+
+        private static Tuple<SuggesterizedFieldMapper, SuggesterizedFieldType> buildShinglesField(String rootFieldName,
+                                                                                                  NamedAnalyzer rootFieldAnalyzer,
+                                                                                                  int numberOfShingles,
+                                                                                                  Mapper.BuilderContext context) {
+
+            return buildShinglesField(rootFieldName, rootFieldAnalyzer, numberOfShingles, context, null, null);
+        }
+
+
+        private static Tuple<SuggesterizedFieldMapper, SuggesterizedFieldType>
+                buildShinglesField(String rootFieldName,
+                                   NamedAnalyzer rootFieldAnalyzer,
+                                   int numberOfShingles,
+                                   Mapper.BuilderContext context,
+                                   SuggesterizedFieldMapper edgeNGramsFieldMapper,
+                                   SuggesterizedFieldType edgeNGramsFieldType) {
+
+            if (edgeNGramsFieldMapper == null ^ edgeNGramsFieldType == null) {
+                throw new IllegalArgumentException("Either both edge ngrams subfield mapper and field type must be null, or neither");
+            }
+
+            final String subfieldName = rootFieldName + "._with_" + numberOfShingles + "_shingles";
+            final SuggesterizedFieldType shinglesFieldType;
+            if (edgeNGramsFieldType == null) {
+                shinglesFieldType = new SuggesterizedFieldType(subfieldName, true, numberOfShingles, false);
+            } else {
+                shinglesFieldType = new SuggesterizedFieldType(subfieldName, true, numberOfShingles, false, edgeNGramsFieldType);
+            }
+
+            final SearchAsYouTypeAnalyzer withShinglesAnalyzer =
+                SearchAsYouTypeAnalyzer.withShingles(rootFieldAnalyzer.analyzer(), numberOfShingles);
+
+            shinglesFieldType.setIndexAnalyzer(new NamedAnalyzer(rootFieldAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
+            shinglesFieldType.setSearchAnalyzer(new NamedAnalyzer(rootFieldAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
+
+            final SuggesterizedFieldMapper shinglesFieldMapper;
+            if (edgeNGramsFieldMapper == null) {
+                shinglesFieldMapper = new SuggesterizedFieldMapper(shinglesFieldType, context.indexSettings());
+            } else {
+                shinglesFieldMapper = new SuggesterizedFieldMapper(shinglesFieldType, context.indexSettings(), edgeNGramsFieldMapper);
+            }
+
+            return new Tuple<>(shinglesFieldMapper, shinglesFieldType);
+
+        }
+
         @Override
         public SearchAsYouTypeFieldMapper build(Mapper.BuilderContext context) {
             setupFieldType(context);
@@ -157,46 +229,23 @@ public final class SearchAsYouTypeFieldMappers {
             }
 
             final Map<Integer, SuggesterizedFieldMapper> withShinglesMappers = new HashMap<>();
-            final Map<Integer, SuggesterizedFieldMapper> withShinglesAndEdgeNGramsMappers = new HashMap<>();
 
-            final SuggesterizedFieldType withEdgeNgrams =
-                new SuggesterizedFieldType(name() + "._with_edge_ngrams", false, -1, true);
-            final SearchAsYouTypeAnalyzer wrappedWithEdgeNGrams = SearchAsYouTypeAnalyzer.withEdgeNGrams(originalAnalyzer.analyzer());
-            final SearchAsYouTypeAnalyzer unmodified = SearchAsYouTypeAnalyzer.withNeither(originalAnalyzer.analyzer());
-            withEdgeNgrams.setIndexAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, wrappedWithEdgeNGrams));
-            withEdgeNgrams.setSearchAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, unmodified));
-            final SuggesterizedFieldMapper withEdgeNGramsMapper = new SuggesterizedFieldMapper(withEdgeNgrams, context.indexSettings());
-
-            for (int numberOfShingles = 2; numberOfShingles <= maxShingleSize; numberOfShingles++) {
-
-                final SuggesterizedFieldType withShinglesAndEdgeNGrams = new SuggesterizedFieldType(
-                    name() + "._with_" + numberOfShingles + "_shingles_and_edge_ngrams", true, numberOfShingles, true);
-                final SuggesterizedFieldType withShingles = new SuggesterizedFieldType(
-                    name() + "._with_" + numberOfShingles + "_shingles", true, numberOfShingles, false, withShinglesAndEdgeNGrams);
-
-                final SearchAsYouTypeAnalyzer withShinglesAnalyzer =
-                    SearchAsYouTypeAnalyzer.withShingles(originalAnalyzer.analyzer(), numberOfShingles);
-                final SearchAsYouTypeAnalyzer withShinglesAndEdgeNGramsAnalyzer =
-                    SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(originalAnalyzer.analyzer(), numberOfShingles);
-
-                withShinglesAndEdgeNGrams.setIndexAnalyzer(
-                    new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAndEdgeNGramsAnalyzer));
-                withShinglesAndEdgeNGrams.setSearchAnalyzer(
-                    new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
-
-                withShingles.setIndexAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
-                withShingles.setSearchAnalyzer(new NamedAnalyzer(originalAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
-
-                final SuggesterizedFieldMapper withShinglesAndEdgeNGramsMapper =
-                    new SuggesterizedFieldMapper(withShinglesAndEdgeNGrams, context.indexSettings());
-                final SuggesterizedFieldMapper withShinglesMapper =
-                    new SuggesterizedFieldMapper(withShingles, context.indexSettings(), withShinglesAndEdgeNGramsMapper);
-                withShinglesAndEdgeNGramsMappers.put(numberOfShingles, withShinglesAndEdgeNGramsMapper);
-                withShinglesMappers.put(numberOfShingles, withShinglesMapper);
+            // todo does it make sense to use ShingleFilter instead of FixedSHingleFilter and collapse all the shingle-without-edge-ngrams
+            // fields into one field to reduce the number of fields further - we'd get the same tokens and would have exactly 3
+            // fields (root, variable sized singles, max-fixed-sized-and-edge-ngrams)
+            for (int numberOfShingles = 2; numberOfShingles < maxShingleSize; numberOfShingles++) {
+                final Tuple<SuggesterizedFieldMapper, SuggesterizedFieldType> shingleField =
+                    buildShinglesField(name(), originalAnalyzer, numberOfShingles, context);
+                withShinglesMappers.put(numberOfShingles, shingleField.v1());
             }
 
-            final SuggesterizedFields suggesterizedFields =
-                new SuggesterizedFields(withEdgeNGramsMapper, withShinglesMappers, withShinglesAndEdgeNGramsMappers);
+            final Tuple<SuggesterizedFieldMapper, SuggesterizedFieldType> maxShinglesAndEdgeNGramsField =
+                buildShinglesAndEdgeNGramsField(name(), originalAnalyzer, maxShingleSize, context);
+            final Tuple<SuggesterizedFieldMapper, SuggesterizedFieldType> maxShinglesField =
+                buildShinglesField(name(), originalAnalyzer, maxShingleSize, context, maxShinglesAndEdgeNGramsField.v1(), maxShinglesAndEdgeNGramsField.v2());
+            withShinglesMappers.put(maxShingleSize, maxShinglesField.v1());
+
+            final SuggesterizedFields suggesterizedFields = new SuggesterizedFields(withShinglesMappers, maxShinglesAndEdgeNGramsField.v1());
 
             return new SearchAsYouTypeFieldMapper(
                 name(),
@@ -209,24 +258,19 @@ public final class SearchAsYouTypeFieldMappers {
     }
 
     public static final class SuggesterizedFields implements Iterable<SuggesterizedFieldMapper> {
-        final SuggesterizedFieldMapper withEdgeNGrams;
         final Map<Integer, SuggesterizedFieldMapper> withShingles;
-        final Map<Integer, SuggesterizedFieldMapper> withShinglesAndEdgeNGrams;
+        final SuggesterizedFieldMapper withMaxShinglesAndEdgeNGrams;
 
-        public SuggesterizedFields(SuggesterizedFieldMapper withEdgeNGrams,
-                                   Map<Integer, SuggesterizedFieldMapper> withShingles,
-                                   Map<Integer, SuggesterizedFieldMapper> withShinglesAndEdgeNGrams) {
+        public SuggesterizedFields(Map<Integer, SuggesterizedFieldMapper> withShingles,
+                                   SuggesterizedFieldMapper withMaxShinglesAndEdgeNGrams) {
 
-            this.withEdgeNGrams = withEdgeNGrams;
             this.withShingles = unmodifiableMap(withShingles);
-            this.withShinglesAndEdgeNGrams = unmodifiableMap(withShinglesAndEdgeNGrams);
+            this.withMaxShinglesAndEdgeNGrams = withMaxShinglesAndEdgeNGrams;
         }
 
         @Override
         public Iterator<SuggesterizedFieldMapper> iterator() {
-            return Stream.concat(
-                Stream.concat(Stream.of(withEdgeNGrams), withShingles.values().stream()),
-                withShinglesAndEdgeNGrams.values().stream()).iterator();
+            return Stream.concat(withShingles.values().stream(), Stream.of(withMaxShinglesAndEdgeNGrams)).iterator();
         }
     }
 
@@ -249,6 +293,7 @@ public final class SearchAsYouTypeFieldMappers {
             this.hasEdgeNGrams = hasEdgeNGrams;
         }
 
+        // todo this can probably be removed
         public static SearchAsYouTypeAnalyzer withNeither(Analyzer delegate) {
             return new SearchAsYouTypeAnalyzer(delegate, false, -1, false);
         }
@@ -257,6 +302,7 @@ public final class SearchAsYouTypeFieldMappers {
             return new SearchAsYouTypeAnalyzer(delegate, true, shingleSize, false);
         }
 
+        // todo this can probably be removed
         public static SearchAsYouTypeAnalyzer withEdgeNGrams(Analyzer delegate) {
             return new SearchAsYouTypeAnalyzer(delegate, false, -1, true);
         }
@@ -457,23 +503,19 @@ public final class SearchAsYouTypeFieldMappers {
             this.suggesterizedFields = suggesterizedFields;
         }
 
-        SuggesterizedFieldMapper subfield(boolean hasShingles, int shingleSize, boolean hasEdgeNGrams) {
-            if (hasShingles) {
-                final Map<Integer, SuggesterizedFieldMapper> subfields = hasEdgeNGrams
-                    ? suggesterizedFields.withShinglesAndEdgeNGrams
-                    : suggesterizedFields.withShingles;
-                final SuggesterizedFieldMapper mapper = subfields.get(shingleSize);
-                if (mapper == null) {
-                    throw new IllegalArgumentException(
-                        "No subfields with [" + shingleSize + "] shingles and hasEdgeNgrams [" + hasEdgeNGrams + "]");
-                }
-                return mapper;
-            } else {
-                if (hasEdgeNGrams) {
-                    return suggesterizedFields.withEdgeNGrams;
+        SuggesterizedFieldMapper subfield(int shingleSize, boolean edgeNGrams) {
+            final SuggesterizedFieldMapper subfieldMapper = suggesterizedFields.withShingles.get(shingleSize);
+            if (subfieldMapper == null) {
+                throw new IllegalArgumentException("No subfields with [" + shingleSize + "] shingles");
+            }
+            if (edgeNGrams) {
+                if (subfieldMapper.withEdgeNGramsField == null) {
+                    throw new IllegalArgumentException("No subfield with [" + shingleSize + "] shingles and edge ngrams");
                 } else {
-                    return this;
+                    return subfieldMapper.withEdgeNGramsField;
                 }
+            } else {
+                return subfieldMapper;
             }
         }
 

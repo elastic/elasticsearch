@@ -37,7 +37,7 @@ the `_seq_no` and `_primary_term` fields of the response:
     "_shards" : {
         "total" : 2,
         "failed" : 0,
-        "successful" : 2
+        "successful" : 1
     },
     "_index" : "products",
     "_type" : "_doc",
@@ -48,7 +48,7 @@ the `_seq_no` and `_primary_term` fields of the response:
     "result" : "created"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 2/"_primary_term" : $body._primary_term/ s/"successful" : 2/"successful" : 1/]
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 2/"_primary_term" : $body._primary_term/]
 
 
 Elasticsearch keeps tracks of the sequence number and primary of the last
@@ -60,6 +60,7 @@ as part of the response of the <<docs-get,GET API>>:
 GET products/_doc/1567
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 returns:
 
@@ -79,7 +80,7 @@ returns:
     }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 2/"_primary_term" : $body._primary_term/]
 
 
 Note: The <<search-search,Search API>> can return the `_seq_no` and `_primary_term`
@@ -105,5 +106,6 @@ PUT products/_doc/1567?if_seq_no=362&if_primary_term=2
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 // TEST[catch: conflict]
 

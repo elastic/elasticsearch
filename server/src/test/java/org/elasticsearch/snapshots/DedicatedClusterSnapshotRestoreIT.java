@@ -544,7 +544,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> start snapshot with default settings and closed index - should be blocked");
         assertBlocked(client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
                 .setIndices("test-idx-all", "test-idx-none", "test-idx-some", "test-idx-closed")
-                .setWaitForCompletion(true), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+                .setWaitForCompletion(true), MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID);
 
 
         logger.info("--> start snapshot with default settings without a closed index - should fail");
@@ -603,7 +603,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 equalTo(SnapshotState.PARTIAL));
         }
 
-        assertAcked(client().admin().indices().prepareClose("test-idx-some", "test-idx-all").execute().actionGet());
+        assertAcked(client().admin().indices().prepareClose("test-idx-some", "test-idx-all"));
 
         logger.info("--> restore incomplete snapshot - should fail");
         assertThrows(client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setRestoreGlobalState(false)

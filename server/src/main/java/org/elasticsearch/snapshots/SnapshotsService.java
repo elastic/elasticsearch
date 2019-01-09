@@ -515,7 +515,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             cleanupAfterError(e);
         }
 
-        public void onNoLongerMaster(String source) {
+        public void onNoLongerMaster() {
             userCreateSnapshotListener.onFailure(e);
         }
 
@@ -1073,7 +1073,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onNoLongerMaster(String source) {
                 if (listener != null) {
-                    listener.onNoLongerMaster(source);
+                    listener.onNoLongerMaster();
                 }
             }
 
@@ -1423,8 +1423,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             builder.put(shardId,
                                 new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING, "primary shard is not allocated"));
                         } else if (primary.relocating() || primary.initializing()) {
-                            // The WAITING state was introduced in V1.2.0 -
-                            // don't use it if there are nodes with older version in the cluster
                             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), State.WAITING));
                         } else if (!primary.started()) {
                             builder.put(shardId,

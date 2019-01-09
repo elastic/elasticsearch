@@ -56,6 +56,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -872,12 +874,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     return;
                 }
 
-                // there is no equals on cluster state, so we just serialize it to XContent and compare JSON representation
-                assert clusterChangedEvent.previousState() == coordinationState.get().getLastAcceptedState() ||
-                    Strings.toString(clusterChangedEvent.previousState()).equals(
-                        Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())))
-                    : Strings.toString(clusterChangedEvent.previousState()) + " vs "
-                    + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
+                assert assertPreviousStateConsistency(clusterChangedEvent);
 
                 final ClusterState clusterState = clusterChangedEvent.state();
 
@@ -915,6 +912,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterChangedEvent.source()), e);
             publishListener.onFailure(new FailedToCommitClusterStateException("publishing failed", e));
         }
+    }
+
+    // there is no equals on cluster state, so we just serialize it to XContent and compare Maps
+    // deserialized from the resulting JSON
+    private boolean assertPreviousStateConsistency(ClusterChangedEvent event) {
+        assert event.previousState() == coordinationState.get().getLastAcceptedState() ||
+            XContentHelper.convertToMap(
+                JsonXContent.jsonXContent, Strings.toString(event.previousState()), false
+            ).equals(
+                XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())),
+                    false))
+            : Strings.toString(event.previousState()) + " vs "
+            + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
+        return true;
     }
 
     private <T> ActionListener<T> wrapWithMutex(ActionListener<T> listener) {

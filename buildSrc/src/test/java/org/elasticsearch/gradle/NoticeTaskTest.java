@@ -22,7 +22,7 @@ public class NoticeTaskTest extends GradleUnitTestCase {
     public final ExpectedException expectedException = ExpectedException.none();
     private NoticeTask noticeTask;
     private Project project;
-    final String outputHeader = "This is the header for the output file\nIt should contain:\n3 lines & 2 spaces";
+    private final String outputHeader = "This is the header for the output file\nIt should contain:\n3 lines & 2 spaces";
 
     public List<File> getListWithoutCopies() throws IOException {
         File directory1 = new File(noticeTask.getTemporaryDir(), "directoryA");
@@ -40,10 +40,10 @@ public class NoticeTaskTest extends GradleUnitTestCase {
 
         List<File> files = new ArrayList<>();
 
-        files.add(d1License);
-        files.add(d1Notice);
-        files.add(d2License);
-        files.add(d2Notice);
+        files.add(d1License.getParentFile());
+        files.add(d1Notice.getParentFile());
+        files.add(d2License.getParentFile());
+        files.add(d2Notice.getParentFile());
 
         return files;
     }
@@ -58,8 +58,8 @@ public class NoticeTaskTest extends GradleUnitTestCase {
         write(d1NoticeCopy, "d1 Copy Notice text file");
         write(d1LicenseCopy, "d1 License text file");
 
-        files.add(d1LicenseCopy);
-        files.add(d1NoticeCopy);
+        files.add(d1LicenseCopy.getParentFile());
+        files.add(d1NoticeCopy.getParentFile());
 
         return files;
     }
@@ -98,8 +98,9 @@ public class NoticeTaskTest extends GradleUnitTestCase {
 
         // Give us some dummy data to work with
         Files.write(inputFile.toPath(), this.outputHeader.getBytes());
-        this.getListWithoutCopies()
-            .forEach(noticeTask::licensesDir);
+
+        // Add each element to the list of license directories to check in the NoticeTask
+        this.getListWithoutCopies().forEach(noticeTask::licensesDir);
 
         // Generate the notice output
         noticeTask.generateNotice();
@@ -107,24 +108,19 @@ public class NoticeTaskTest extends GradleUnitTestCase {
         // Get the output String from the output file so we can compare it
         final String outputText = readFileToString(outputFile, "UTF-8");
 
-        // We should be able to find all the text from each file in the output
-        noticeTask.getLicensesDirs().forEach(file -> {
-            try {
-                String text = readFileToString(file, "UTF-8");
-                assertTrue(outputText.contains(text));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
         final String lineDivider =
             "================================================================================";
 
         // We shouldn't have any of the 'copy' notices
-        final String d1NoticeCopy = "d1 Copy Notice text file";
-        final String d1LicenseCopy = "d1 copy License text file";
+        assertFalse(outputText.contains("d1 Copy Notice text file"));
+        assertFalse(outputText.contains("d1 copy License text file"));
 
-        assertFalse(outputText.contains(d1LicenseCopy));
-        assertFalse(outputText.contains(d1NoticeCopy));
+        // We should have the non-copy notice and licenses text:
+        assertTrue(outputText.contains("d1 Notice text file"));
+        assertTrue(outputText.contains("d2 Notice text file"));
+        assertTrue(outputText.contains("d1 License text file"));
+        assertTrue(outputText.contains("d2 License text file"));
+
         assertTrue(outputText.contains(lineDivider));
     }
 

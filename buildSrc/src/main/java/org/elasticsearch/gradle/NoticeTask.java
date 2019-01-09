@@ -28,11 +28,11 @@ import static org.apache.commons.io.FileUtils.readFileToString;
 
 import java.io.IOException;
 import java.io.File;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * A task to create a notice file which includes dependencies' notices.
@@ -76,7 +76,6 @@ public class NoticeTask extends DefaultTask {
     /**
      * Add notices from the specified directory.
      */
-
     public NoticeTask() {
         setDescription("Create a notice file from dependencies");
         // Default licenses directory is ${projectDir}/licenses (if it exists)
@@ -96,37 +95,7 @@ public class NoticeTask extends DefaultTask {
 
         // This is a map rather than a set so that the sort order is the 3rd
         // party component names, unaffected by the full path to the various files
-        final Map<String, File> seen = new TreeMap<>();
-
-        licensesDirs.forEach(file -> {
-            try (Stream<Path> pathStream = Files.walk(file.toPath())) {
-                pathStream
-                    .filter(path -> path.toString().endsWith("-NOTICE.txt"))
-                    .map(Path::toFile)
-                    .forEach(licenseFile -> {
-                        // Here we remove the "-NOTICE.txt" to be used as the base name for the -LICENSE.txt file
-                        final String name =
-                            licenseFile.getName().substring(0, licenseFile.getName().length() - "-NOTICE.txt".length());
-
-                        if (seen.containsKey(name)) {
-                            File prevLicenseFile = seen.get(name);
-                            try {
-                                if (readFileToString(prevLicenseFile,"UTF-8")
-                                            .equals(readFileToString(licenseFile,"UTF-8")) == false) {
-                                    throw new RuntimeException("Two different notices exist for dependency '" +
-                                        name + "': " + prevLicenseFile + " and " + licenseFile);
-                                }
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        } else {
-                            seen.put(name, licenseFile);
-                        }
-                    });
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        final Map<String, File> seen = this.getFilesTOAppend(licensesDirs);
 
         for (Map.Entry<String, File> entry : seen.entrySet()) {
             final String name = entry.getKey();
@@ -150,5 +119,35 @@ public class NoticeTask extends DefaultTask {
             output.append(text);
             output.append("\n\n");
         }
+    }
+
+    private Map<String,File> getFilesTOAppend(List<File> licensesDirectories) throws IOException{
+        final Map<String,File> licensesSeen = new TreeMap<>();
+
+        for (File directory: licensesDirectories) {
+            try(DirectoryStream<Path> stream = Files.newDirectoryStream(directory.toPath())){
+                for (Path path : stream){
+                    if (Files.isRegularFile(path) && path.toString().endsWith("-NOTICE.txt")){
+                        File licenseFile = path.toFile();
+
+                        final String name =
+                            licenseFile.getName().substring(0, licenseFile.getName().length() - "-NOTICE.txt".length());
+
+                        if (licensesSeen.containsKey(name)) {
+                            File prevLicenseFile = licensesSeen.get(name);
+
+                            if (readFileToString(prevLicenseFile,"UTF-8")
+                                .equals(readFileToString(licenseFile,"UTF-8")) == false) {
+                                    throw new RuntimeException("Two different notices exist for dependency '" +
+                                        name + "': " + prevLicenseFile + " and " + licenseFile);
+                            }
+                        } else {
+                            licensesSeen.put(name, licenseFile);
+                        }
+                    }
+                }
+            }
+        }
+        return licensesSeen;
     }
 }

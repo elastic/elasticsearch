@@ -118,7 +118,7 @@ verify_package_installation() {
     assert_file "$ESLOG" d elasticsearch elasticsearch 2750
     assert_file "$ESPLUGINS" d root root 755
     assert_file "$ESMODULES" d root root 755
-    assert_file "$ESPIDDIR" d elasticsearch elasticsearch 755
+    assert_file "$ESPIDDIR" d elasticsearch elasticsearch 2755
     assert_file "$ESHOME/NOTICE.txt" f root root 644
     assert_file "$ESHOME/README.textile" f root root 644
 

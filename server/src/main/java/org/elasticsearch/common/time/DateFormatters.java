@@ -129,7 +129,9 @@ public class DateFormatters {
         .appendLiteral('T')
         .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
         .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .optionalStart()
         .appendZoneOrOffsetId()
+        .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     /**

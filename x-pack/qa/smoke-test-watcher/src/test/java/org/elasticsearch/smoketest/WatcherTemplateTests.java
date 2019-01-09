@@ -30,7 +30,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class WatcherTemplateIT extends ESTestCase {
+public class WatcherTemplateTests extends ESTestCase {
 
     private TextTemplateEngine textTemplateEngine;
 

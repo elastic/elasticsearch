@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -82,9 +83,37 @@ public class TermsLookupTests extends ESTestCase {
                 assertNotSame(deserializedLookup, termsLookup);
             }
         }
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(Version.V_6_7_0);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> termsLookup.writeTo(output));
+            assertEquals("Typeless [terms] lookup queries are not supported if any " +
+                "node is running a version before 7.0.", e.getMessage());
+        }
+    }
+
+    public void testSerializationWithTypes() throws IOException {
+        TermsLookup termsLookup = randomTermsLookupWithTypes();
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            termsLookup.writeTo(output);
+            try (StreamInput in = output.bytes().streamInput()) {
+                TermsLookup deserializedLookup = new TermsLookup(in);
+                assertEquals(deserializedLookup, termsLookup);
+                assertEquals(deserializedLookup.hashCode(), termsLookup.hashCode());
+                assertNotSame(deserializedLookup, termsLookup);
+            }
+        }
     }
 
     public static TermsLookup randomTermsLookup() {
+        return new TermsLookup(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10).replace('.', '_')
+        ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+    }
+
+    public static TermsLookup randomTermsLookupWithTypes() {
         return new TermsLookup(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),

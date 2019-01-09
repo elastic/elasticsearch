@@ -27,3 +27,11 @@ dependencies {
     testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
     testCompile project(path: ':modules:reindex', configuration: 'runtime')
 }
+
+testingConventions {
+    naming {
+        IT {
+            baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
+        }
+    }
+}

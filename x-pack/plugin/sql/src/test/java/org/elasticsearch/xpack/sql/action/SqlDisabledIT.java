@@ -29,6 +29,7 @@ public class SqlDisabledIT extends AbstractSqlIntegTestCase {
                 .build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37191")
     public void testSqlAction() throws Exception {
         Throwable throwable = expectThrows(Throwable.class,
                 () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SHOW tables").get());

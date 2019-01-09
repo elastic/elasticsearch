@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import java.nio.file.Files
 import org.gradle.util.GradleVersion
 
 plugins {
@@ -222,6 +221,18 @@ if (project != rootProject) {
   namingConventions {
     testClass = 'org.elasticsearch.gradle.test.GradleUnitTestCase'
     integTestClass = 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
+  }
+
+  testingConventions {
+    naming.clear()
+    naming {
+      Tests {
+        baseClass 'org.elasticsearch.gradle.test.GradleUnitTestCase'
+      }
+      IT {
+        baseClass 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
+      }
+    }
   }
 
   /*

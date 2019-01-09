@@ -303,9 +303,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
                         @Override
                         public RecoveryResponse read(StreamInput in) throws IOException {
-                            RecoveryResponse recoveryResponse = new RecoveryResponse();
-                            recoveryResponse.readFrom(in);
-                            return recoveryResponse;
+                            return new RecoveryResponse(in);
                         }
                     })
             );

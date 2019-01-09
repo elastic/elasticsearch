@@ -8,9 +8,6 @@ setup:
 
 ---
 "Test old cluster jobs and datafeeds and delete them":
-  - skip:
-      version: "all"
-      reason: "@AwaitsFix: https://github.com/elastic/elasticsearch/issues/36810"
 
   - do:
       xpack.ml.get_jobs:

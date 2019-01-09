@@ -108,22 +108,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
         mapping.put("fld", new EsField("fld", DataType.KEYWORD, emptyMap(), true));
         mapping.put("field", new EsField("field", DataType.OBJECT,
-                singletonMap("alias", new EsField("alias", DataType.KEYWORD, emptyMap(), true)), false, true));
+                singletonMap("alias", new EsField("alias", DataType.KEYWORD, emptyMap(), true)), false));
 
         IndexResolution resolution = IndexResolution.valid(new EsIndex("test", mapping));
 
         // check the nested alias is seen
         accept(resolution, "SELECT field.alias FROM test");
+        // or its hierarhcy
+        accept(resolution, "SELECT field.* FROM test");
 
         // check typos
         assertEquals("1:8: Unknown column [field.alas], did you mean [field.alias]?", error(resolution, "SELECT field.alas FROM test"));
 
         // non-existing parents for aliases are not seen by the user
-        assertEquals("1:8: Unknown column [field], did you mean [fld]?", error(resolution, "SELECT field FROM test"));
-
-        // even when asking for their hierarchy
-        assertEquals("1:8: Unknown column [field], did you mean [fld]?", error(resolution, "SELECT field.* FROM test"));
-
+        assertEquals("1:8: Cannot use field [field] type [object] only its subfields", error(resolution, "SELECT field FROM test"));
     }
 
     public void testMultipleColumnsWithWildcard1() {

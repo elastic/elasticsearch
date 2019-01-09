@@ -394,7 +394,7 @@ public class IndexResolver {
             case UNSUPPORTED:
                 return new UnsupportedEsField(fieldName, typeName);
             default:
-                return new EsField(fieldName, esType, props, isAggregateable, isSynthetic);
+                return new EsField(fieldName, esType, props, isAggregateable);
         }
     }
     

@@ -81,9 +81,7 @@ public class ShowColumns extends Command {
             String name = e.getKey();
             if (dt != null) {
                 // show only fields that exist in ES
-                if (field.isSynthetic() == false) {
-                    rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName(), dt.name()));
-                }
+                rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName(), dt.name()));
                 if (field.getProperties().isEmpty() == false) {
                     String newPrefix = prefix != null ? prefix + "." + name : name;
                     fillInRows(field.getProperties(), newPrefix, rows);

@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -20,9 +19,6 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-
-import java.util.ArrayList;
 
 /**
  * Implementation of the action needed to create an API key
@@ -30,15 +26,13 @@ import java.util.ArrayList;
 public final class TransportCreateApiKeyAction extends HandledTransportAction<CreateApiKeyRequest, CreateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
-    private final CompositeRolesStore compositeRolesStore;
     private final SecurityContext securityContext;
 
     @Inject
     public TransportCreateApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService,
-                                       CompositeRolesStore compositeRolesStore, SecurityContext context) {
+                                       SecurityContext context) {
         super(CreateApiKeyAction.NAME, transportService, actionFilters, (Writeable.Reader<CreateApiKeyRequest>) CreateApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
-        this.compositeRolesStore = compositeRolesStore;
         this.securityContext = context;
     }
 
@@ -47,12 +41,6 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
-        } else if (request.getRoleDescriptors() == null || request.getRoleDescriptors().isEmpty()) {
-            compositeRolesStore.getRoleDescriptors(Sets.newHashSet(authentication.getUser().roles()),
-                ActionListener.wrap(rdSet -> {
-                    request.setRoleDescriptors(new ArrayList<>(rdSet));
-                    apiKeyService.createApiKey(authentication, request, listener);
-                }, listener::onFailure));
         } else {
             apiKeyService.createApiKey(authentication, request, listener);
         }

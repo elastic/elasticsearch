@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -27,6 +28,8 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,6 +64,7 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -107,7 +111,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     }
 
     @Override
-    protected DirectoryReader wrap(DirectoryReader reader) {
+    protected DirectoryReader wrap(final DirectoryReader reader) {
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return reader;
         }
@@ -120,51 +124,84 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 throw new IllegalStateException(LoggerMessageFormat.format("couldn't extract shardId from reader [{}]", reader));
             }
 
-            IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
+            final IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
+            final IndicesAccessControl.IndexAccessControl scopedPermissions = indicesAccessControl
+                    .getScopedIndexPermissions(shardId.getIndexName());
             // No permissions have been defined for an index, so don't intercept the index reader for access control
-            if (permissions == null) {
+            if (permissions == null && scopedPermissions == null) {
                 return reader;
             }
 
-            if (permissions.getQueries() != null) {
-                BooleanQuery.Builder filter = new BooleanQuery.Builder();
-                for (BytesReference bytesReference : permissions.getQueries()) {
-                    QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
-                    String templateResult = evaluateTemplate(bytesReference.utf8ToString());
-                    try (XContentParser parser = XContentFactory.xContent(templateResult)
-                            .createParser(queryShardContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, templateResult)) {
-                        QueryBuilder queryBuilder = queryShardContext.parseInnerQueryBuilder(parser);
-                        verifyRoleQuery(queryBuilder);
-                        failIfQueryUsesClient(queryBuilder, queryShardContext);
-                        Query roleQuery = queryShardContext.toQuery(queryBuilder).query();
-                        filter.add(roleQuery, SHOULD);
-                        if (queryShardContext.getMapperService().hasNested()) {
-                            NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());
-                            if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
-                                roleQuery = new BooleanQuery.Builder()
-                                    .add(roleQuery, FILTER)
-                                    .add(Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()), FILTER)
-                                    .build();
-                            }
-                            // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
-                            BitSetProducer rootDocs = queryShardContext.bitsetFilter(
-                                    Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()));
-                            ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);
-                            filter.add(includeNestedDocs, SHOULD);
-                        }
-                    }
-                }
+            DirectoryReader wrappedReader = reader;
+            BooleanQuery.Builder filter = new BooleanQuery.Builder();
+            if (scopedPermissions != null && scopedPermissions.getQueries() != null) {
+                buildRoleQuery(shardId, scopedPermissions, filter, FILTER);
+            }
+
+            if (permissions != null && permissions.getQueries() != null) {
+                buildRoleQuery(shardId, permissions, filter, SHOULD);
 
                 // at least one of the queries should match
                 filter.setMinimumNumberShouldMatch(1);
-                reader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, new ConstantScoreQuery(filter.build()));
             }
 
-            return permissions.getFieldPermissions().filter(reader);
+            if (filter != null) {
+                wrappedReader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, new ConstantScoreQuery(filter.build()));
+            }
+
+            wrappedReader = wrappedReaderForAllowedFields(permissions, scopedPermissions, wrappedReader);
+            return wrappedReader;
         } catch (IOException e) {
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);
         }
+    }
+
+    private void buildRoleQuery(ShardId shardId, IndicesAccessControl.IndexAccessControl permissions,
+            BooleanQuery.Builder filter, Occur operator) throws IOException {
+        for (BytesReference bytesReference : permissions.getQueries()) {
+            QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
+            String templateResult = evaluateTemplate(bytesReference.utf8ToString());
+            try (XContentParser parser = XContentFactory.xContent(templateResult)
+                    .createParser(queryShardContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, templateResult)) {
+                QueryBuilder queryBuilder = queryShardContext.parseInnerQueryBuilder(parser);
+                verifyRoleQuery(queryBuilder);
+                failIfQueryUsesClient(queryBuilder, queryShardContext);
+                Query roleQuery = queryShardContext.toQuery(queryBuilder).query();
+                filter.add(roleQuery, operator);
+                if (queryShardContext.getMapperService().hasNested()) {
+                    NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());
+                    if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
+                        roleQuery = new BooleanQuery.Builder()
+                            .add(roleQuery, FILTER)
+                            .add(Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()), FILTER)
+                            .build();
+                    }
+                    // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
+                    BitSetProducer rootDocs = queryShardContext.bitsetFilter(
+                            Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()));
+                    ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);
+                    filter.add(includeNestedDocs, SHOULD);
+                }
+            }
+        }
+    }
+
+    // pkg scope for testing
+    DirectoryReader wrappedReaderForAllowedFields(IndicesAccessControl.IndexAccessControl permissions,
+            IndicesAccessControl.IndexAccessControl scopedPermissions, DirectoryReader reader) throws IOException {
+        DirectoryReader wrappedReader = reader;
+        if (scopedPermissions != null && scopedPermissions.getFieldPermissions().hasFieldLevelSecurity()
+                && permissions != null && permissions.getFieldPermissions().hasFieldLevelSecurity()) {
+            Automaton permittedFieldsAutomaton = Automatons.intersectAndMinimize(
+                    scopedPermissions.getFieldPermissions().getIncludeAutomaton(), permissions.getFieldPermissions().getIncludeAutomaton());
+            wrappedReader = FieldSubsetReader.wrap(reader, new CharacterRunAutomaton(permittedFieldsAutomaton));
+        } else if (scopedPermissions != null) {
+            wrappedReader = scopedPermissions.getFieldPermissions().filter(reader);
+        } else if (permissions != null) {
+            wrappedReader = permissions.getFieldPermissions().filter(reader);
+        }
+        return wrappedReader;
     }
 
     @Override

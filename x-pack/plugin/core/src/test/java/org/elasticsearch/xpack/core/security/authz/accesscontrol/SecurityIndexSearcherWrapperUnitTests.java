@@ -34,7 +34,6 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -74,6 +74,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader.FieldSubsetDirectoryReader;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -677,5 +679,61 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
         return new FieldPermissionsDefinition(granted, denied);
+    }
+
+    public void testFieldPermissionsIntersection() throws IOException {
+        securityIndexSearcherWrapper =
+                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
+
+        FieldPermissions fieldPermissions1 = new FieldPermissions(
+                fieldPermissionDef(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" }));
+        FieldPermissions fieldPermissions2 = new FieldPermissions(
+                fieldPermissionDef(new String[] { "f1", "f3*", "f4" }, new String[] { "f3"}));
+
+        IndexAccessControl permissions = new IndexAccessControl(true, fieldPermissions1, Collections.emptySet());
+        IndexAccessControl filteredPermissions = null;
+
+        DirectoryReader wrappedReader = securityIndexSearcherWrapper.wrappedReaderForAllowedFields(permissions, filteredPermissions, esIn);
+        assertThat(wrappedReader, instanceOf(FieldSubsetDirectoryReader.class));
+        FieldSubsetDirectoryReader reader = (FieldSubsetDirectoryReader) wrappedReader;
+        assertThat(reader.getFilter().run("f1"), is(true));
+        assertThat(reader.getFilter().run("f2"), is(true));
+        assertThat(reader.getFilter().run("f3"), is(false));
+        assertThat(reader.getFilter().run("f31"), is(true));
+        assertThat(reader.getFilter().run("f4"), is(false));
+
+        permissions = new IndexAccessControl(true, fieldPermissions1, Collections.emptySet());
+        filteredPermissions = new IndexAccessControl(true, fieldPermissions2, Collections.emptySet());
+        DirectoryReader wrappedReader1 = securityIndexSearcherWrapper.wrappedReaderForAllowedFields(permissions, filteredPermissions, esIn);
+        assertThat(wrappedReader1, instanceOf(FieldSubsetDirectoryReader.class));
+        FieldSubsetDirectoryReader reader1 = (FieldSubsetDirectoryReader) wrappedReader1;
+        assertThat(reader1.getFilter().run("f1"), is(true));
+        assertThat(reader1.getFilter().run("f2"), is(false));
+        assertThat(reader1.getFilter().run("f3"), is(false));
+        assertThat(reader1.getFilter().run("f31"), is(true));
+        assertThat(reader1.getFilter().run("f4"), is(false));
+
+        permissions = new IndexAccessControl(true, fieldPermissions1, Collections.emptySet());
+        filteredPermissions = null;
+        DirectoryReader wrappedReader2 = securityIndexSearcherWrapper.wrappedReaderForAllowedFields(permissions, filteredPermissions, esIn);
+        assertThat(wrappedReader2, instanceOf(FieldSubsetDirectoryReader.class));
+        FieldSubsetDirectoryReader reader2 = (FieldSubsetDirectoryReader) wrappedReader2;
+        assertThat(reader2.getFilter().run("f1"), is(true));
+        assertThat(reader2.getFilter().run("f2"), is(true));
+        assertThat(reader2.getFilter().run("f3"), is(false));
+        assertThat(reader2.getFilter().run("f31"), is(true));
+        assertThat(reader2.getFilter().run("f4"), is(false));
+
+        permissions = null;
+        filteredPermissions = new IndexAccessControl(true, fieldPermissions2, Collections.emptySet());
+        DirectoryReader wrappedReader3 = securityIndexSearcherWrapper.wrappedReaderForAllowedFields(permissions, filteredPermissions, esIn);
+        assertThat(wrappedReader3, instanceOf(FieldSubsetDirectoryReader.class));
+        FieldSubsetDirectoryReader reader3 = (FieldSubsetDirectoryReader) wrappedReader3;
+        assertThat(reader3.getFilter().run("f1"), is(true));
+        assertThat(reader3.getFilter().run("f2"), is(false));
+        assertThat(reader3.getFilter().run("f3"), is(false));
+        assertThat(reader3.getFilter().run("f31"), is(true));
+        assertThat(reader3.getFilter().run("f4"), is(true));
+        assertThat(reader3.getFilter().run("f5"), is(false));
     }
 }

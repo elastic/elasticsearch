@@ -26,10 +26,17 @@ public class IndicesAccessControl {
 
     private final boolean granted;
     private final Map<String, IndexAccessControl> indexPermissions;
+    private final Map<String, IndexAccessControl> scopedIndexPermissions;
 
     public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions) {
+        this(granted, indexPermissions, null);
+    }
+
+    public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions,
+            Map<String, IndexAccessControl> scopedIndexPermissions) {
         this.granted = granted;
         this.indexPermissions = indexPermissions;
+        this.scopedIndexPermissions = scopedIndexPermissions;
     }
 
     /**
@@ -39,6 +46,15 @@ public class IndicesAccessControl {
     @Nullable
     public IndexAccessControl getIndexPermissions(String index) {
         return indexPermissions.get(index);
+    }
+
+    /**
+     * @return The document and field permissions for an index if exist in scoped index permissions, otherwise {@code null} is returned. If
+     * {@code null} is being returned this means that there are no field or document level restrictions in the scoped index permissions.
+     */
+    @Nullable
+    public IndexAccessControl getScopedIndexPermissions(String index) {
+        return (scopedIndexPermissions == null) ? null : scopedIndexPermissions.get(index);
     }
 
     /**
@@ -101,6 +117,7 @@ public class IndicesAccessControl {
         return "IndicesAccessControl{" +
                 "granted=" + granted +
                 ", indexPermissions=" + indexPermissions +
+                ((scopedIndexPermissions != null) ? ", scopedIndexPermissions=" + scopedIndexPermissions : "") +
                 '}';
     }
 }

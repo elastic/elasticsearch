@@ -440,9 +440,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         this.tokenService.set(tokenService);
         components.add(tokenService);
 
-        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService);
-        components.add(apiKeyService);
-
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get());
@@ -467,12 +464,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityIndex.get().addIndexStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
 
-        final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
-
-        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
-                anonymousUser, tokenService, apiKeyService));
-        components.add(authcService.get());
-
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
         components.add(privilegeStore);
 
@@ -490,6 +481,16 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
+
+        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService,
+                allRolesStore);
+        components.add(apiKeyService);
+
+        final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
+        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
+                anonymousUser, tokenService, apiKeyService));
+        components.add(authcService.get());
+
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser, apiKeyService, fieldPermissionsCache);
         components.add(nativeRolesStore); // used by roles actions

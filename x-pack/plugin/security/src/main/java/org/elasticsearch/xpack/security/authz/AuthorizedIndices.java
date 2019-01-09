@@ -46,13 +46,19 @@ class AuthorizedIndices {
 
     private List<String> load() {
         Predicate<String> predicate = userRoles.indices().allowedIndicesMatcher(action);
+        Predicate<String> scopedRolePredicate = null;
+        if (userRoles.scopedRole() != null) {
+            scopedRolePredicate = userRoles.scopedRole().indices().allowedIndicesMatcher(action);
+        }
 
         List<String> indicesAndAliases = new ArrayList<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
         for (Map.Entry<String, AliasOrIndex> entry : metaData.getAliasAndIndexLookup().entrySet()) {
             String aliasOrIndex = entry.getKey();
             if (predicate.test(aliasOrIndex)) {
-                indicesAndAliases.add(aliasOrIndex);
+                if (scopedRolePredicate == null || scopedRolePredicate != null && scopedRolePredicate.test(aliasOrIndex)) {
+                    indicesAndAliases.add(aliasOrIndex);
+                }
             }
         }
 

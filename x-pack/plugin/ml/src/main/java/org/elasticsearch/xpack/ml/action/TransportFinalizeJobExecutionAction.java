@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
+import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -102,7 +102,7 @@ public class TransportFinalizeJobExecutionAction extends
         String jobIdString = String.join(",", jobIds);
         logger.debug("finalizing jobs [{}]", jobIdString);
 
-        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.executor(
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(threadPool.executor(
                 MachineLearning.UTILITY_THREAD_POOL_NAME), true);
 
         Map<Object, Object> update = Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date());
@@ -114,7 +114,7 @@ public class TransportFinalizeJobExecutionAction extends
             updateRequest.doc(update);
             updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            chainTaskExecutor.add(chainedListener -> {
+            voidChainTaskExecutor.add(chainedListener -> {
                 executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest, ActionListener.wrap(
                         updateResponse -> chainedListener.onResponse(null),
                         chainedListener::onFailure
@@ -122,8 +122,8 @@ public class TransportFinalizeJobExecutionAction extends
             });
         }
 
-        chainTaskExecutor.execute(ActionListener.wrap(
-                aVoid ->  {
+        voidChainTaskExecutor.execute(ActionListener.wrap(
+                aVoids ->  {
                     logger.debug("finalized job [{}]", jobIdString);
                     listener.onResponse(new AcknowledgedResponse(true));
                 },

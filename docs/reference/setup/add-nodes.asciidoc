@@ -1,30 +1,30 @@
 [[add-elasticsearch-nodes]]
 == Adding nodes to your cluster
 
-An {es} _node_ is a single server that is part of your
-cluster and stores pieces of your data called _shards_. 
+When you start an instance of {es}, you are starting a _node_. An {es} _cluster_
+is a group of nodes that have the same `cluster.name` attribute. As nodes join
+or leave a cluster, the cluster automatically reorganizes itself to evenly
+distribute the data across the available nodes.
+
+If you are running a single instance of {es}, then you have a cluster of one
+node.
 
 image::setup/images/elas_0202.png["A cluster with one node and three primary shards"]
 
-You can add more nodes to your cluster and optionally designate specific
-purposes for each node. For example, you can allocate master nodes, data nodes,
-ingest nodes, machine learning nodes, and dedicated coordinating nodes. For
-details about each node type, see <<modules-node,Nodes>>.
-
-In a single cluster, you can have as many nodes as you want but they must be
-able to communicate with each other. The communication between nodes in a
-cluster is handled by the <<modules-transport,transport module>>.
-
-When you have multiple nodes, your data can be distributed across the cluster in
-multiple primary and replica shards. For example:
+You add nodes to a cluster to increase its capacity and reliability. By default,
+a node is both a data node and eligible to be elected as the master node that
+controls the cluster. You can also configure a new node for a specific purpose,
+such as handling ingest requests. For more information, see
+<<modules-node,Nodes>>.
 
 image::setup/images/elas_0204.png["A cluster with three nodes"]
 
-For more information about the concepts of
-clusters, nodes, and shards, see <<getting-started-concepts>>.
+To add a node to a cluster:
 
-The method for adding nodes to your cluster varies depending on whether you are
-in development or production mode, whether you are adding the new node on the
-same server or a different server, and which {es} package you installed.
-
-For more information, see <<modules-discovery-adding-removing-nodes>>.
+. Set up a new {es} instance.
+. Specify the name of the cluster in its `cluster.name` attribute. For example,
+to add a node to the `logging-prod` cluster, set `cluster.name: "logging-prod"`
+in `elasticsearch.yml`.
+. Start {es}. The node automatically discovers and joins the specified cluster.
+For more information about how the discovery process works, see
+<<modules-discovery-hosts-providers, Discovery>>.

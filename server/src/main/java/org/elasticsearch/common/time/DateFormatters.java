@@ -1663,7 +1663,7 @@ public class DateFormatters {
             result = result.with(ChronoField.NANO_OF_SECOND, accessor.getLong(ChronoField.NANO_OF_SECOND));
         }
 
-        ZoneOffset zoneOffset = accessor.query(TemporalQueries.offset());
+        ZoneId zoneOffset = accessor.query(TemporalQueries.zone());
         if (zoneOffset != null) {
             result = result.withZoneSameLocal(zoneOffset);
         }

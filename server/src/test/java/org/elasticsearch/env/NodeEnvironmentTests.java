@@ -31,6 +31,7 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -468,6 +469,72 @@ public class NodeEnvironmentTests extends ESTestCase {
             final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
             assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
         }
+    }
+
+    public void testFailOnDataForNonDataNode() throws IOException {
+        Settings settings = buildEnvSettings(Settings.EMPTY);
+        final NodeEnvironment env = newNodeEnvironment(settings);
+
+        Index badIndex = new Index("bad", "badUUID");
+        for (Path path : env.indexPaths(badIndex)) {
+            Files.createDirectories(path.resolve("0"));
+        }
+
+        env.close();
+
+        try {
+            Settings noDataSettings = Settings.builder()
+                .put(settings)
+                .put(Node.NODE_DATA_SETTING.getKey(), false).build();
+            newNodeEnvironment(noDataSettings).close();
+            fail("Must fail creating NodeEnvironment on a data path that has shard data if node.data=false");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(env.indexPaths(badIndex)[0].resolve("0").getFileName().toString()));
+        }
+    }
+
+    public void testSucceedOnMetaOnlyForNonDataNode() throws IOException {
+        Settings settings = buildEnvSettings(Settings.EMPTY);
+        final NodeEnvironment env = newNodeEnvironment(settings);
+
+        Index goodIndex = new Index("good", "goodUUID");
+
+        for (Path path : env.indexPaths(goodIndex)) {
+            Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+        }
+
+        env.close();
+
+        Settings noDataSettings = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_DATA_SETTING.getKey(), false).build();
+
+        // test that this succeeds
+        newNodeEnvironment(noDataSettings).close();
+    }
+
+    public void testSucceedOnDataForDataNode() throws IOException {
+        Settings settings = buildEnvSettings(Settings.EMPTY);
+        final NodeEnvironment env = newNodeEnvironment(settings);
+
+        Index goodIndex = new Index("good", "goodUUID");
+
+        for (Path path : env.indexPaths(goodIndex)) {
+            Files.createDirectories(path.resolve("0"));
+        }
+
+        env.close();
+
+        // test that this succeeds
+        newNodeEnvironment(settings).close();
+    }
+
+    private String[] pathsToStrings(Path[] paths) {
+        String[] result = new String[paths.length];
+        for (int i = 0; i < paths.length; i++) {
+            result[i] = paths[i].toString();
+        }
+        return result;
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

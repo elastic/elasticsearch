@@ -1736,8 +1736,16 @@ public final class InternalTestCluster extends TestCluster {
 
         removeExclusions(excludedNodeIds);
 
-        nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(emptyList()));
-        nodeAndClient.startNode();
+        boolean success = false;
+        try {
+            nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(emptyList()));
+            nodeAndClient.startNode();
+            success = true;
+        } finally {
+            if (!success)
+                nodes.remove(nodeAndClient.name);
+        }
+
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
         }

@@ -59,6 +59,7 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -309,6 +310,11 @@ public final class NodeEnvironment  implements Closeable {
             if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
                 ensureAtomicMoveSupported(nodePaths);
             }
+
+            if (!DiscoveryNode.isDataNode(settings)) {
+                ensureNoIndexData(nodePaths);
+            }
+
             success = true;
         } finally {
             if (success == false) {
@@ -1030,13 +1036,44 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
-    /**
-     * Resolve the custom path for a index's shard.
-     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
-     * the root path for the index.
-     *
-     * @param indexSettings settings for the index
-     */
+    private void ensureNoIndexData(final NodePath[] nodePaths) throws IOException {
+        List<Path> badDataPaths = new ArrayList<>();
+        for (NodePath nodePath : nodePaths) {
+            Path indicesPath = nodePath.indicesPath;
+            if (Files.isDirectory(indicesPath)) {
+                try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(indicesPath)) {
+                    for (Path indexPath : indexStream) {
+                        if (Files.isDirectory(indexPath)) {
+                            try (Stream<Path> shardStream = Files.list(indexPath)) {
+                                shardStream.filter(this::isShardPath)
+                                    .forEach(badDataPaths::add);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!badDataPaths.isEmpty()) {
+            throw new IllegalArgumentException("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false, but found shard data: "
+                + badDataPaths);
+        }
+    }
+
+    private boolean isShardPath(Path path) {
+        return Files.isDirectory(path)
+            && path.getFileName().toString().chars().allMatch(Character::isDigit);
+    }
+
+        /**
+         * Resolve the custom path for a index's shard.
+         * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
+         * the root path for the index.
+         *
+         * @param indexSettings settings for the index
+         */
     public static Path resolveBaseCustomLocation(IndexSettings indexSettings, Path sharedDataPath, int nodeLockId) {
         String customDataDir = indexSettings.customDataPath();
         if (customDataDir != null) {
@@ -1140,3 +1177,4 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 }
+

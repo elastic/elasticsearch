@@ -375,11 +375,6 @@ public class IndexResolver {
     }
 
     private static EsField createField(String fieldName, String typeName, Map<String, EsField> props, boolean isAggregateable) {
-        return createField(fieldName, typeName, props, isAggregateable, false);
-    }
-    
-    private static EsField createField(String fieldName, String typeName, Map<String, EsField> props, boolean isAggregateable,
-            boolean isSynthetic) {
         DataType esType = DataType.fromTypeName(typeName);
         switch (esType) {
             case TEXT:

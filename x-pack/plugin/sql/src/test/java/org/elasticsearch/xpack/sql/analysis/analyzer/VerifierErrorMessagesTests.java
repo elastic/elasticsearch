@@ -106,7 +106,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testFieldAliasTypeWithoutHierarchy() {
         Map<String, EsField> mapping = new LinkedHashMap<>();
 
-        mapping.put("fld", new EsField("fld", DataType.KEYWORD, emptyMap(), true));
         mapping.put("field", new EsField("field", DataType.OBJECT,
                 singletonMap("alias", new EsField("alias", DataType.KEYWORD, emptyMap(), true)), false));
 

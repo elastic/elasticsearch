@@ -42,7 +42,7 @@ public class RestGetIndicesActionTests extends ESTestCase {
     public void testIncludeTypeNamesWarning() throws IOException {
         Map<String, String> params = new HashMap<>();
         if (randomBoolean()) {
-            params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true"));
+            params.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.GET)

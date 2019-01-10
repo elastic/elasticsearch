@@ -56,7 +56,7 @@ setup:
 "Test include_type_name":
   - skip:
       version: " - 6.6.99"
-      reason: the include_type_name parameter is not backported to pre 6.7 versions yet
+      reason: the include_type_name parameter is not supported before 6.7
 
   - do:
       indices.get:

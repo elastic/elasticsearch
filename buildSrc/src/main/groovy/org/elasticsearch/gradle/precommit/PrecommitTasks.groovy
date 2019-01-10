@@ -133,8 +133,16 @@ class PrecommitTasks {
         project.tasks.withType(CheckForbiddenApis) {
             dependsOn(buildResources)
             targetCompatibility = project.runtimeJavaVersion >= JavaVersion.VERSION_1_9 ?
-                    project.runtimeJavaVersion.getMajorVersion() :
-                    project.runtimeJavaVersion
+                    project.runtimeJavaVersion.getMajorVersion() : project.runtimeJavaVersion
+            if (project.runtimeJavaVersion > JavaVersion.VERSION_11) {
+                doLast {
+                    project.logger.info(
+                            "Forbidden APIs does not support java version past 11. Will use the signatures from 11 for ",
+                            project.runtimeJavaVersion
+                    )
+                }
+                targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
+            }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
             ]

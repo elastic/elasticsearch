@@ -25,7 +25,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
@@ -661,7 +661,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         Request request = RequestConverters.index(indexRequest);
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
-            assertEquals("/" + index + "/_doc/" + id + "/_create", request.getEndpoint());
+            assertEquals("/" + index + "/_create/" + id, request.getEndpoint());
         } else if (id != null) {
             assertEquals("/" + index + "/_doc/" + id, request.getEndpoint());
         } else {
@@ -671,7 +671,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(method, request.getMethod());
 
         HttpEntity entity = request.getEntity();
-        assertTrue(entity instanceof ByteArrayEntity);
+        assertTrue(entity instanceof NByteArrayEntity);
         assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType().getValue());
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
@@ -714,7 +714,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(method, request.getMethod());
 
         HttpEntity entity = request.getEntity();
-        assertTrue(entity instanceof ByteArrayEntity);
+        assertTrue(entity instanceof NByteArrayEntity);
         assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType().getValue());
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
@@ -787,7 +787,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
 
         HttpEntity entity = request.getEntity();
-        assertTrue(entity instanceof ByteArrayEntity);
+        assertTrue(entity instanceof NByteArrayEntity);
 
         UpdateRequest parsedUpdateRequest = new UpdateRequest();
 
@@ -1685,17 +1685,17 @@ public class RequestConvertersTests extends ESTestCase {
             assertEquals("/a/b", endpointBuilder.build());
         }
         {
-            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPart("b").addPathPartAsIs("_create");
-            assertEquals("/a/b/_create", endpointBuilder.build());
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPart("b").addPathPartAsIs("_endpoint");
+            assertEquals("/a/b/_endpoint", endpointBuilder.build());
         }
 
         {
-            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a", "b", "c").addPathPartAsIs("_create");
-            assertEquals("/a/b/c/_create", endpointBuilder.build());
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a", "b", "c").addPathPartAsIs("_endpoint");
+            assertEquals("/a/b/c/_endpoint", endpointBuilder.build());
         }
         {
-            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPartAsIs("_create");
-            assertEquals("/a/_create", endpointBuilder.build());
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPartAsIs("_endpoint");
+            assertEquals("/a/_endpoint", endpointBuilder.build());
         }
     }
 

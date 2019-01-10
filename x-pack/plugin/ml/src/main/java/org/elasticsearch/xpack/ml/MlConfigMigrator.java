@@ -11,6 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -21,6 +23,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -29,17 +32,19 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
+import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -126,18 +131,10 @@ public class MlConfigMigrator {
      * @param listener     The success listener
      */
     public void migrateConfigsWithoutTasks(ClusterState clusterState, ActionListener<Boolean> listener) {
-
-        if (migrationEligibilityCheck.canStartMigration(clusterState) == false) {
-            listener.onResponse(false);
-            return;
-        }
-
         if (migrationInProgress.compareAndSet(false, true) == false) {
             listener.onResponse(Boolean.FALSE);
             return;
         }
-
-        logger.debug("migrating ml configurations");
 
         ActionListener<Boolean> unMarkMigrationInProgress = ActionListener.wrap(
                 response -> {
@@ -150,26 +147,41 @@ public class MlConfigMigrator {
                 }
         );
 
-        snapshotMlMeta(MlMetadata.getMlMetadata(clusterState), ActionListener.wrap(
-            response -> {
-                // We have successfully snapshotted the ML configs so we don't need to try again
-                tookConfigSnapshot.set(true);
+        List<JobsAndDatafeeds> batches = splitInBatches(clusterState);
+        if (batches.isEmpty()) {
+            unMarkMigrationInProgress.onResponse(Boolean.FALSE);
+            return;
+        }
 
-                List<JobsAndDatafeeds> batches = splitInBatches(clusterState);
-                if (batches.isEmpty()) {
-                    unMarkMigrationInProgress.onResponse(Boolean.FALSE);
-                    return;
-                }
-                migrateBatches(batches, unMarkMigrationInProgress);
-            },
-            unMarkMigrationInProgress::onFailure
+        if (clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+            createConfigIndex(ActionListener.wrap(
+                    response -> {
+                        unMarkMigrationInProgress.onResponse(Boolean.FALSE);
+                    },
+                    unMarkMigrationInProgress::onFailure
+            ));
+            return;
+        }
+
+        if (migrationEligibilityCheck.canStartMigration(clusterState) == false) {
+            unMarkMigrationInProgress.onResponse(Boolean.FALSE);
+            return;
+        }
+
+        snapshotMlMeta(MlMetadata.getMlMetadata(clusterState), ActionListener.wrap(
+                response -> {
+                    // We have successfully snapshotted the ML configs so we don't need to try again
+                    tookConfigSnapshot.set(true);
+                    migrateBatches(batches, unMarkMigrationInProgress);
+                },
+                unMarkMigrationInProgress::onFailure
         ));
     }
 
     private void migrateBatches(List<JobsAndDatafeeds> batches, ActionListener<Boolean> listener) {
-        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(EsExecutors.newDirectExecutorService(), true);
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(EsExecutors.newDirectExecutorService(), true);
         for (JobsAndDatafeeds batch : batches) {
-            chainTaskExecutor.add(chainedListener -> writeConfigToIndex(batch.datafeedConfigs, batch.jobs, ActionListener.wrap(
+            voidChainTaskExecutor.add(chainedListener -> writeConfigToIndex(batch.datafeedConfigs, batch.jobs, ActionListener.wrap(
                 failedDocumentIds -> {
                     List<String> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, batch.jobs);
                     List<String> successfulDatafeedWrites =
@@ -179,7 +191,7 @@ public class MlConfigMigrator {
                 chainedListener::onFailure
             )));
         }
-        chainTaskExecutor.execute(ActionListener.wrap(aVoid -> listener.onResponse(true), listener::onFailure));
+        voidChainTaskExecutor.execute(ActionListener.wrap(aVoids -> listener.onResponse(true), listener::onFailure));
     }
 
     // Exposed for testing
@@ -296,6 +308,7 @@ public class MlConfigMigrator {
     private void addJobIndexRequests(Collection<Job> jobs, BulkRequestBuilder bulkRequestBuilder) {
         ToXContent.Params params = new ToXContent.MapParams(JobConfigProvider.TO_XCONTENT_PARAMS);
         for (Job job : jobs) {
+            logger.debug("adding job to migrate: " + job.getId());
             bulkRequestBuilder.add(indexRequest(job, Job.documentId(job.getId()), params));
         }
     }
@@ -303,6 +316,7 @@ public class MlConfigMigrator {
     private void addDatafeedIndexRequests(Collection<DatafeedConfig> datafeedConfigs, BulkRequestBuilder bulkRequestBuilder) {
         ToXContent.Params params = new ToXContent.MapParams(DatafeedConfigProvider.TO_XCONTENT_PARAMS);
         for (DatafeedConfig datafeedConfig : datafeedConfigs) {
+            logger.debug("adding datafeed to migrate: " + datafeedConfig.getId());
             bulkRequestBuilder.add(indexRequest(datafeedConfig, DatafeedConfig.documentId(datafeedConfig.getId()), params));
         }
     }
@@ -317,7 +331,6 @@ public class MlConfigMigrator {
         }
         return indexRequest;
     }
-
 
     // public for testing
     public void snapshotMlMeta(MlMetadata mlMetadata, ActionListener<Boolean> listener) {
@@ -361,17 +374,53 @@ public class MlConfigMigrator {
         );
     }
 
+    private void createConfigIndex(ActionListener<Boolean> listener) {
+        logger.info("creating the .ml-config index");
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(AnomalyDetectorsIndex.configIndexName());
+        try
+        {
+            createIndexRequest.settings(
+                    Settings.builder()
+                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                            .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+            );
+            createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, ElasticsearchMappings.configMapping());
+        } catch (Exception e) {
+            logger.error("error writing the .ml-config mappings", e);
+            listener.onFailure(e);
+            return;
+        }
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
+                ActionListener.<CreateIndexResponse>wrap(
+                        r -> listener.onResponse(r.isAcknowledged()),
+                        listener::onFailure
+                ), client.admin().indices()::create);
+    }
 
     public static Job updateJobForMigration(Job job) {
         Job.Builder builder = new Job.Builder(job);
         Map<String, Object> custom = job.getCustomSettings() == null ? new HashMap<>() : new HashMap<>(job.getCustomSettings());
         custom.put(MIGRATED_FROM_VERSION, job.getJobVersion());
         builder.setCustomSettings(custom);
+        // Increase the model memory limit for 6.1 - 6.3 jobs
+        Version jobVersion = job.getJobVersion();
+        if (jobVersion != null && jobVersion.onOrAfter(Version.V_6_1_0) && jobVersion.before(Version.V_6_3_0)) {
+            // Increase model memory limit if < 512MB
+            if (job.getAnalysisLimits() != null && job.getAnalysisLimits().getModelMemoryLimit() != null &&
+                    job.getAnalysisLimits().getModelMemoryLimit() < 512L) {
+                long updatedModelMemoryLimit = (long) (job.getAnalysisLimits().getModelMemoryLimit() * 1.3);
+                AnalysisLimits limits = new AnalysisLimits(updatedModelMemoryLimit,
+                        job.getAnalysisLimits().getCategorizationExamplesLimit());
+                builder.setAnalysisLimits(limits);
+            }
+        }
         // Pre v5.5 (ml beta) jobs do not have a version.
         // These jobs cannot be opened, we rely on the missing version
         // to indicate this.
         // See TransportOpenJobAction.validate()
-        if (job.getJobVersion() != null) {
+        if (jobVersion != null) {
             builder.setJobVersion(Version.CURRENT);
         }
         return builder.build();

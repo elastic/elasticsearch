@@ -35,7 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 /**
- * FieldMapper for indexing {@link org.apache.lucene.document.LatLonShape}s.
+ * FieldMapper for indexing {@link LatLonShape}s.
  * <p>
  * Currently Shapes can only be indexed and can only be queried using
  * {@link org.elasticsearch.index.query.GeoShapeQueryBuilder}, consequently

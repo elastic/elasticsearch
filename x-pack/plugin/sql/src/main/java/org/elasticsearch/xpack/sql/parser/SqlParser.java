@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.carrotsearch.hppc.ObjectShortHashMap;
+
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonToken;

@@ -234,6 +234,9 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         return closeNow;
     }
 
+    protected void setCloseNow() {
+        closeNow = true;
+    }
 
     // When you read or write to a nio socket in java, the heap memory passed down must be copied to/from
     // direct memory. The JVM internally does some buffering of the direct memory, however we can save space

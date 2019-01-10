@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.time.ZoneId;
@@ -16,8 +16,8 @@ import java.time.ZoneId;
  * Extract the second of the minute from a datetime.
  */
 public class SecondOfMinute extends DateTimeFunction {
-    public SecondOfMinute(Location location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.SECOND_OF_MINUTE);
+    public SecondOfMinute(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.SECOND_OF_MINUTE);
     }
 
     @Override
@@ -27,7 +27,7 @@ public class SecondOfMinute extends DateTimeFunction {
 
     @Override
     protected SecondOfMinute replaceChild(Expression newChild) {
-        return new SecondOfMinute(location(), newChild, zoneId());
+        return new SecondOfMinute(source(), newChild, zoneId());
     }
 
     @Override

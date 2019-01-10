@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests.DummyPipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe.AttributeResolver;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import static org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests.tracksScores;
 
@@ -59,6 +59,6 @@ public class UnaryPipeTests extends ESTestCase {
     }
 
     private Pipe newUnaryProcessor(Pipe child) {
-        return new UnaryPipe(Location.EMPTY, null, child, null);
+        return new UnaryPipe(Source.EMPTY, null, child, null);
     }
 }

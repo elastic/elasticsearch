@@ -29,7 +29,7 @@ The following is a list of the events that can be generated:
 | `run_as_denied`                   | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>>
                                           another user action they do not have the necessary
                                           <<security-reference, privilege>> to do so.
-| `tampered_request`                | | | Logged when {security} detects that the request has
+| `tampered_request`                | | | Logged when the {security-features} detect that the request has
                                           been tampered with. Typically relates to `search/scroll`
                                           requests when the scroll ID is believed to have been
                                           tampered with.
@@ -94,6 +94,16 @@ descriptions for the format that you are using.
                         the request associated with this event. This header can
                         be used freely by the client to mark API calls, as it has
                         no semantics in Elasticsearch.
+`x_forwarded_for` ::    The verbatim value of the `X-Forwarded-For` HTTP request
+                        header (if present) of the request associated with the
+                        audit event. This header is commonly added by proxies
+                        when they forward requests and the value is the address
+                        of the proxied client. When a request crosses multiple
+                        proxies the header is a comma delimited list with the
+                        last value being the address of the second to last
+                        proxy server (the address of the last proxy server is
+                        designated by the `origin.address` field).
+
 
 ==== Audit event attributes of the REST event type
 

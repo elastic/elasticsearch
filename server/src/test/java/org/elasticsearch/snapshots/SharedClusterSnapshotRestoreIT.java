@@ -445,7 +445,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> assert that old settings are restored");
         GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings("test-idx").execute().actionGet();
-        assertThat(getSettingsResponse.getSetting("test-idx", "index.refresh_interval"), equalTo("10000ms"));
+        assertThat(getSettingsResponse.getSetting("test-idx", "index.refresh_interval"), equalTo("10s"));
     }
 
     public void testEmptySnapshot() throws Exception {
@@ -1345,7 +1345,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"), SnapshotMissingException.class);
+        assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo")
+                                             .addSnapshots("test-snap-1"), SnapshotMissingException.class);
 
         for (String index : indices) {
             assertTrue(Files.notExists(indicesPath.resolve(indexIds.get(index).getId())));
@@ -1384,7 +1385,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"), SnapshotMissingException.class);
+        assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo")
+                                             .addSnapshots("test-snap-1"), SnapshotMissingException.class);
     }
 
     public void testDeleteSnapshotWithCorruptedSnapshotFile() throws Exception {
@@ -1560,7 +1562,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> snapshot with closed index");
         assertBlocked(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true)
-            .setIndices("test-idx", "test-idx-closed"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+            .setIndices("test-idx", "test-idx-closed"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID);
     }
 
     public void testSnapshotSingleClosedIndex() throws Exception {
@@ -1578,7 +1580,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> snapshot");
         assertBlocked(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
-                .setWaitForCompletion(true).setIndices("test-idx"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+                .setWaitForCompletion(true).setIndices("test-idx"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID);
     }
 
     public void testRenameOnRestore() throws Exception {
@@ -2014,7 +2016,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> waiting for block to kick in");
         waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
 
-        logger.info("--> execution was blocked on node [{}], checking snapshot status with specified repository and snapshot", blockedNode);
+        logger.info("--> execution was blocked on node [{}], checking snapshot status with specified repository and snapshot",
+            blockedNode);
         SnapshotsStatusResponse response = client.admin().cluster().prepareSnapshotStatus("test-repo").execute().actionGet();
         assertThat(response.getSnapshots().size(), equalTo(1));
         SnapshotStatus snapshotStatus = response.getSnapshots().get(0);
@@ -3240,7 +3243,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     .put("location", repoPath)
                     .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
                     // test that we can take a snapshot after a failed one, even if a partial index-N was written
-                    .put("allow_atomic_operations", false)
                     .put("random", randomAlphaOfLength(10))));
 
         logger.info("--> indexing some data");

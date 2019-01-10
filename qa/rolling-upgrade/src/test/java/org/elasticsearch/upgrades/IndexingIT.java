@@ -22,6 +22,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -152,6 +153,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
+        bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         bulk.setJsonEntity(b.toString());
         client().performRequest(bulk);
     }

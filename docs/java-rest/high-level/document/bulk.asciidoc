@@ -86,8 +86,8 @@ include-tagged::{doc-tests-file}[{api}-request-routing]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-index-type]
 --------------------------------------------------
-<1> A bulk request with global index and type used on all sub requests, unless overridden on a sub request.
-Both parameters are @Nullable and can only be set during +{request}+ creation.
+<1> A bulk request with a global index used on all sub requests, unless overridden on a sub request.
+This parameter is @Nullable and can only be set during +{request}+ creation.
 
 include::../execution.asciidoc[]
 

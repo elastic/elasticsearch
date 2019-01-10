@@ -95,13 +95,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         }
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
-
-        String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
-        String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
-        if (modernTZ != null) {
-            deprecationLogger.deprecated("Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
-                + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
-        }
+        checkForDeprecatedTZ(request);
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
             .indices(request.getConfig().getIndexPattern())
@@ -125,6 +119,15 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 listener.onFailure(e);
             }
         });
+    }
+
+    static void checkForDeprecatedTZ(PutRollupJobAction.Request request) {
+        String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
+        String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
+        if (modernTZ != null) {
+            deprecationLogger.deprecated("Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
+                + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
+        }
     }
 
     private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {

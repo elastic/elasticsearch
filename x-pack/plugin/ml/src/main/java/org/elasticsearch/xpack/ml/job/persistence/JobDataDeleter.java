@@ -75,6 +75,7 @@ public class JobDataDeleter {
 
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indices.toArray(new String[0]))
             .setRefresh(true)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(new IdsQueryBuilder().addIds(idsToDelete.toArray(new String[0])));
 
         try {

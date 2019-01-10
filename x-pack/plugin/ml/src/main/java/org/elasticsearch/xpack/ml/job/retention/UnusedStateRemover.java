@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.retention;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -104,6 +105,7 @@ public class UnusedStateRemover implements MlDataRemover {
                 unusedDocIds.size());
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexName())
             .types(ElasticsearchMappings.DOC_TYPE)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(unusedDocIds.toArray(new String[0])));
         client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
             response -> {

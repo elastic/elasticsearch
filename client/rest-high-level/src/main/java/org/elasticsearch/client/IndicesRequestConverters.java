@@ -170,6 +170,8 @@ final class IndicesRequestConverters {
         parameters.withIndicesOptions(getFieldMappingsRequest.indicesOptions());
         parameters.withIncludeDefaults(getFieldMappingsRequest.includeDefaults());
         parameters.withLocal(getFieldMappingsRequest.local());
+        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
+
         return request;
     }
 

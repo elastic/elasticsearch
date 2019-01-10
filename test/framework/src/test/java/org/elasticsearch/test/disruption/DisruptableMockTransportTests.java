@@ -112,7 +112,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
-            protected void schedule(Runnable runnable) {
+            protected void execute(Runnable runnable) {
                 deterministicTaskQueue.scheduleNow(runnable);
             }
         };
@@ -134,7 +134,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
-            protected void schedule(Runnable runnable) {
+            protected void execute(Runnable runnable) {
                 deterministicTaskQueue.scheduleNow(runnable);
             }
         };

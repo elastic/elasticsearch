@@ -406,7 +406,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                 }
 
                 @Override
-                protected void schedule(Runnable runnable) {
+                protected void execute(Runnable runnable) {
                     deterministicTaskQueue.scheduleNow(CoordinatorTests.onNodeLog(getLocalNode(), runnable));
                 }
             };

@@ -1461,7 +1461,7 @@ public class CoordinatorTests extends ESTestCase {
                     }
 
                     @Override
-                    protected void schedule(Runnable runnable) {
+                    protected void execute(Runnable runnable) {
                         deterministicTaskQueue.scheduleNow(onNode(runnable));
                     }
 

@@ -65,14 +65,15 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
     protected abstract Optional<DisruptableMockTransport> getDisruptableMockTransport(TransportAddress address);
 
-    protected abstract void schedule(Runnable runnable);
+    protected abstract void execute(Runnable runnable);
 
-    protected final void schedule(String action, Runnable runnable) {
+    protected final void execute(String action, Runnable runnable) {
         // handshake needs to run inline as the caller blockingly waits on the result
         if (action.equals(HANDSHAKE_ACTION_NAME)) {
             runnable.run();
         } else {
-            schedule(runnable);
+
+            execute(runnable);
         }
     }
 
@@ -111,7 +112,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
         assert destinationTransport.getLocalNode().equals(getLocalNode()) == false :
             "non-local message from " + getLocalNode() + " to itself";
 
-        schedule(action, new Runnable() {
+        execute(action, new Runnable() {
             @Override
             public void run() {
                 switch (getConnectionStatus(destinationTransport.getLocalNode())) {
@@ -160,14 +161,14 @@ public abstract class DisruptableMockTransport extends MockTransport {
             logger.trace("ignoring blackhole and delivering {}",
                 getRequestDescription(requestId, action, destinationTransport.getLocalNode()));
             // handshakes always have a timeout, and are sent in a blocking fashion, so we must respond with an exception.
-            destinationTransport.schedule(action, getDisconnectException(requestId, action, destinationTransport.getLocalNode()));
+            destinationTransport.execute(action, getDisconnectException(requestId, action, destinationTransport.getLocalNode()));
         } else {
             logger.trace("dropping {}", getRequestDescription(requestId, action, destinationTransport.getLocalNode()));
         }
     }
 
     protected void onDisconnectedDuringSend(long requestId, String action, DisruptableMockTransport destinationTransport) {
-        destinationTransport.schedule(action, getDisconnectException(requestId, action, destinationTransport.getLocalNode()));
+        destinationTransport.execute(action, getDisconnectException(requestId, action, destinationTransport.getLocalNode()));
     }
 
     protected void onConnectedDuringSend(long requestId, String action, TransportRequest request,
@@ -192,7 +193,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             @Override
             public void sendResponse(final TransportResponse response) {
-                schedule(action, new Runnable() {
+                execute(action, new Runnable() {
                     @Override
                     public void run() {
                         if (destinationTransport.getConnectionStatus(getLocalNode()) != ConnectionStatus.CONNECTED) {
@@ -212,7 +213,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             @Override
             public void sendResponse(Exception exception) {
-                schedule(action, new Runnable() {
+                execute(action, new Runnable() {
                     @Override
                     public void run() {
                         if (destinationTransport.getConnectionStatus(getLocalNode()) != ConnectionStatus.CONNECTED) {

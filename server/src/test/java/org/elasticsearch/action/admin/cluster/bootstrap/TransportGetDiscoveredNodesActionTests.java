@@ -133,7 +133,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             ESAllocationTestCase.createAllocationService(settings),
             new MasterService("local", settings, threadPool),
             () -> new InMemoryPersistedState(0, ClusterState.builder(new ClusterName(clusterName)).build()), r -> emptyList(),
-            new NoOpClusterApplier(), new Random(random().nextLong()));
+            new NoOpClusterApplier(), Collections.emptyList(), new Random(random().nextLong()));
     }
 
     public void testHandlesNonstandardDiscoveryImplementation() throws InterruptedException {

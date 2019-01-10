@@ -28,7 +28,9 @@ public final class CcrStatsResponse {
     static final ParseField AUTO_FOLLOW_STATS_FIELD = new ParseField("auto_follow_stats");
     static final ParseField FOLLOW_STATS_FIELD = new ParseField("follow_stats");
 
-    private static final ConstructingObjectParser<CcrStatsResponse, Void> PARSER = new ConstructingObjectParser<>("indices",
+    private static final ConstructingObjectParser<CcrStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "indices",
+        true,
         args -> {
             AutoFollowStats autoFollowStats = (AutoFollowStats) args[0];
             IndicesFollowStats indicesFollowStats = (IndicesFollowStats) args[1];

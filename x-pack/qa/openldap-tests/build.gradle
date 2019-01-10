@@ -29,8 +29,3 @@ if (project.rootProject.vagrantSupported) {
     unitTest.enabled = false
   testingConventions.enabled = false
 }
-
-namingConventions {
-    // integ tests use Tests instead of IT
-    skipIntegTestInDisguise = true
-}

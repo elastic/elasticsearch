@@ -78,7 +78,7 @@ public class Join implements Writeable {
         return targetNode;
     }
 
-    public boolean matchesTarget(DiscoveryNode matchingNode) {
+    public boolean targetMatches(DiscoveryNode matchingNode) {
         return targetNode.getId().equals(matchingNode.getId());
     }
 

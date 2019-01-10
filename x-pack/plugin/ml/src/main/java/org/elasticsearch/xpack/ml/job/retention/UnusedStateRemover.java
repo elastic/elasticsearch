@@ -68,7 +68,8 @@ public class UnusedStateRemover implements MlDataRemover {
     private List<String> findUnusedStateDocIds() {
         Set<String> jobIds = getJobIds();
         List<String> stateDocIdsToDelete = new ArrayList<>();
-        BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(client, AnomalyDetectorsIndex.jobStateIndexPattern());
+        BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(client,
+            AnomalyDetectorsIndex.jobStateIndexPattern());
         while (stateDocIdsIterator.hasNext()) {
             Deque<String> stateDocIds = stateDocIdsIterator.next();
             for (String stateDocId : stateDocIds) {

@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -24,8 +24,8 @@ import static java.util.Collections.emptyList;
  * with other function.
  */
 public class Score extends Function {
-    public Score(Location location) {
-        super(location, emptyList());
+    public Score(Source source) {
+        super(source, emptyList());
     }
 
     @Override
@@ -45,7 +45,7 @@ public class Score extends Function {
 
     @Override
     public Attribute toAttribute() {
-        return new ScoreAttribute(location());
+        return new ScoreAttribute(source());
     }
 
     @Override
@@ -54,12 +54,12 @@ public class Score extends Function {
             return false;
         }
         Score other = (Score) obj;
-        return location().equals(other.location());
+        return source().equals(other.source());
     }
 
     @Override
     public int hashCode() {
-        return location().hashCode();
+        return source().hashCode();
     }
 
     @Override

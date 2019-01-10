@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.MultiPipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
@@ -21,8 +21,8 @@ public class ConditionalPipe extends MultiPipe {
 
     private final ConditionalOperation operation;
 
-    public ConditionalPipe(Location location, Expression expression, List<Pipe> children, ConditionalOperation operation) {
-        super(location, expression, children);
+    public ConditionalPipe(Source source, Expression expression, List<Pipe> children, ConditionalOperation operation) {
+        super(source, expression, children);
         this.operation = operation;
     }
 
@@ -33,7 +33,7 @@ public class ConditionalPipe extends MultiPipe {
 
     @Override
     public Pipe replaceChildren(List<Pipe> newChildren) {
-        return new ConditionalPipe(location(), expression(), newChildren, operation);
+        return new ConditionalPipe(source(), expression(), newChildren, operation);
     }
 
     @Override

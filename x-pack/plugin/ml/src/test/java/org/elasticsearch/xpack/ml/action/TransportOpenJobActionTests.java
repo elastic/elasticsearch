@@ -575,10 +575,16 @@ public class TransportOpenJobActionTests extends ESTestCase {
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
+        addJobTask(jobId, nodeId, jobState, builder, false);
+    }
+
+    public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder,
+                                  boolean isStale) {
         builder.addTask(MlTasks.jobTaskId(jobId), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams(jobId),
-                new Assignment(nodeId, "test assignment"));
+            new Assignment(nodeId, "test assignment"));
         if (jobState != null) {
-            builder.updateTaskState(MlTasks.jobTaskId(jobId), new JobTaskState(jobState, builder.getLastAllocationId()));
+            builder.updateTaskState(MlTasks.jobTaskId(jobId),
+                new JobTaskState(jobState, builder.getLastAllocationId() - (isStale ? 1 : 0)));
         }
     }
 

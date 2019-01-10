@@ -20,8 +20,9 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.logging.log4j.Logger;
+
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -85,7 +86,7 @@ public class RestGetMappingAction extends BaseRestHandler {
             deprecationLogger.deprecated("Type exists requests are deprecated, as types have been deprecated.");
         }
 
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, true);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();

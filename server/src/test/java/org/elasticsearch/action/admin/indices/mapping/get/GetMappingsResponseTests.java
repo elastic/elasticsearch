@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -84,22 +85,30 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
     public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex() {
         // rarely have no types
         int typeCount = rarely() ? 0 : scaledRandomIntBetween(1, 3);
+        return createMappingsForIndex(typeCount, true);
+    }
+
+    public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex(int typeCount, boolean randomTypeName) {
         List<MappingMetaData> typeMappings = new ArrayList<>(typeCount);
 
         for (int i = 0; i < typeCount; i++) {
-            Map<String, Object> mappings = new HashMap<>();
             if (rarely() == false) { // rarely have no fields
+                Map<String, Object> mappings = new HashMap<>();
                 mappings.put("field-" + i, randomFieldMapping());
                 if (randomBoolean()) {
                     mappings.put("field2-" + i, randomFieldMapping());
                 }
-            }
 
-            try {
-                MappingMetaData mmd = new MappingMetaData("type-" + randomAlphaOfLength(5), mappings);
-                typeMappings.add(mmd);
-            } catch (IOException e) {
-                fail("shouldn't have failed " + e);
+                try {
+                    String typeName = MapperService.SINGLE_MAPPING_NAME;
+                    if (randomTypeName) {
+                        typeName = "type-" + randomAlphaOfLength(5);
+                    }
+                    MappingMetaData mmd = new MappingMetaData(typeName, mappings);
+                    typeMappings.add(mmd);
+                } catch (IOException e) {
+                    fail("shouldn't have failed " + e);
+                }
             }
         }
         ImmutableOpenMap.Builder<String, MappingMetaData> typeBuilder = ImmutableOpenMap.builder();

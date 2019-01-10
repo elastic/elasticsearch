@@ -175,7 +175,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     public static final class ScaledFloatFieldType extends SimpleMappedFieldType {
 
-        private BigDecimal scalingFactor;
+        private double scalingFactor;
 
         public ScaledFloatFieldType() {
             super();
@@ -190,12 +190,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         public double getScalingFactor() {
-            return scalingFactor.doubleValue();
+            return scalingFactor;
         }
 
         public void setScalingFactor(double scalingFactor) {
             checkIfFrozen();
-            this.scalingFactor = new BigDecimal(scalingFactor);
+            this.scalingFactor = scalingFactor;
         }
 
         @Override
@@ -211,7 +211,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
             super.checkCompatibility(other, conflicts);
-            if (scalingFactor.doubleValue() != ((ScaledFloatFieldType) other).getScalingFactor()) {
+            if (scalingFactor != ((ScaledFloatFieldType) other).getScalingFactor()) {
                 conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
             }
         }
@@ -287,7 +287,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     final IndexNumericFieldData scaledValues = (IndexNumericFieldData) new DocValuesIndexFieldData.Builder()
                             .numericType(IndexNumericFieldData.NumericType.LONG)
                             .build(indexSettings, fieldType, cache, breakerService, mapperService);
-                    return new ScaledFloatIndexFieldData(scaledValues, scalingFactor.doubleValue());
+                    return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
                 }
             };
         }
@@ -297,7 +297,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (value == null) {
                 return null;
             }
-            return ((Number) value).longValue() / scalingFactor.doubleValue();
+            return ((Number) value).longValue() / scalingFactor;
         }
 
         @Override
@@ -318,12 +318,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (super.equals(o) == false) {
                 return false;
             }
-            return scalingFactor.equals(((ScaledFloatFieldType) o).scalingFactor);
+            return scalingFactor == ((ScaledFloatFieldType) o).scalingFactor;
         }
 
         @Override
         public int hashCode() {
-            return 31 * super.hashCode() + Double.hashCode(scalingFactor.doubleValue());
+            return 31 * super.hashCode() + Double.hashCode(scalingFactor);
         }
 
         /**
@@ -336,7 +336,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
          * @return Scaled value
          */
         private double scale(Object input) {
-            return new BigDecimal(Double.toString(parse(input))).multiply(scalingFactor).doubleValue();
+            return new BigDecimal(Double.toString(parse(input))).multiply(BigDecimal.valueOf(scalingFactor)).doubleValue();
         }
     }
 

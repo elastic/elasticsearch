@@ -89,7 +89,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final Collection<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
     private final Collection<TimeoutClusterStateListener> timeoutClusterStateListeners =
-        Collections.newSetFromMap(new ConcurrentHashMap<TimeoutClusterStateListener, Boolean>());
+        Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final LocalNodeMasterListeners localNodeMasterListeners;
 
@@ -134,11 +134,15 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
         Objects.requireNonNull(state.get(), "please set initial state before starting");
         addListener(localNodeMasterListeners);
-        threadPoolExecutor = EsExecutors.newSinglePrioritizing(
-                nodeName + "/" + CLUSTER_UPDATE_THREAD_NAME,
-                daemonThreadFactory(nodeName, CLUSTER_UPDATE_THREAD_NAME),
-                threadPool.getThreadContext(),
-                threadPool.scheduler());
+        threadPoolExecutor = createThreadPoolExecutor();
+    }
+
+    protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+        return EsExecutors.newSinglePrioritizing(
+            nodeName + "/" + CLUSTER_UPDATE_THREAD_NAME,
+            daemonThreadFactory(nodeName, CLUSTER_UPDATE_THREAD_NAME),
+            threadPool.getThreadContext(),
+            threadPool.scheduler());
     }
 
     class UpdateTask extends SourcePrioritizedRunnable implements Function<ClusterState, ClusterState> {

@@ -59,7 +59,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -86,7 +85,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37266")
 public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testMultiLevelChild() throws Exception {

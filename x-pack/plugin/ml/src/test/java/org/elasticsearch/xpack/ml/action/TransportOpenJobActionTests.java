@@ -597,7 +597,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("missing_job_field");
         assertEquals(TransportOpenJobAction.AWAITING_MIGRATION, executor.getAssignment(params, mock(ClusterState.class)));
     }
-    
+
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
         addJobTask(jobId, nodeId, jobState, builder, false);
     }

@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
@@ -35,6 +36,8 @@ import static org.hamcrest.Matchers.isEmptyOrNullString;
 
 public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
+    private static final String OLD_CLUSTER_OPEN_JOB_ID = "migration-old-cluster-open-job";
+    private static final String OLD_CLUSTER_STARTED_DATAFEED_ID = "migration-old-cluster-started-datafeed";
     private static final String OLD_CLUSTER_CLOSED_JOB_ID = "migration-old-cluster-closed-job";
     private static final String OLD_CLUSTER_STOPPED_DATAFEED_ID = "migration-old-cluster-stopped-datafeed";
 
@@ -102,13 +105,40 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         Request putStoppedDatafeed = new Request("PUT", "/_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_ID);
         putStoppedDatafeed.setJsonEntity(Strings.toString(stoppedDfBuilder.build()));
         client().performRequest(putStoppedDatafeed);
+
+        // open job and started datafeed
+        Job.Builder openJob = new Job.Builder(OLD_CLUSTER_OPEN_JOB_ID);
+        openJob.setAnalysisConfig(analysisConfig);
+        openJob.setDataDescription(new DataDescription.Builder());
+        Request putOpenJob = new Request("PUT", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_OPEN_JOB_ID);
+        putOpenJob.setJsonEntity(Strings.toString(openJob));
+        client().performRequest(putOpenJob);
+
+        Request openOpenJob = new Request("POST", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_OPEN_JOB_ID + "/_open");
+        client().performRequest(openOpenJob);
+
+        DatafeedConfig.Builder dfBuilder = new DatafeedConfig.Builder(OLD_CLUSTER_STARTED_DATAFEED_ID, OLD_CLUSTER_OPEN_JOB_ID);
+        if (getOldClusterVersion().before(Version.V_6_6_0)) {
+            dfBuilder.setDelayedDataCheckConfig(null);
+        }
+        dfBuilder.setIndices(Collections.singletonList("airline-data"));
+
+        Request putDatafeed = new Request("PUT", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID);
+        putDatafeed.setJsonEntity(Strings.toString(dfBuilder.build()));
+        client().performRequest(putDatafeed);
+
+        Request startDatafeed = new Request("POST", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID + "/_start");
+        client().performRequest(startDatafeed);
     }
 
     private void upgradedClusterTests() throws Exception {
-        // wait for the closed job and datafeed to be migrated
-        waitForMigration(Collections.singletonList(OLD_CLUSTER_CLOSED_JOB_ID),
-                Collections.singletonList(OLD_CLUSTER_STOPPED_DATAFEED_ID),
-                Collections.emptyList(), Collections.emptyList());
+        // wait for the closed and open jobs and datafeed to be migrated
+        waitForMigration(Arrays.asList(OLD_CLUSTER_CLOSED_JOB_ID, OLD_CLUSTER_OPEN_JOB_ID),
+                Arrays.asList(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_STARTED_DATAFEED_ID));
+
+        // TODO The next 2 lines fail as expected
+        waitForJobToBeAssigned(OLD_CLUSTER_OPEN_JOB_ID);
+        waitForDatafeedToBeAssigned(OLD_CLUSTER_STARTED_DATAFEED_ID);
 
         // open the migrated job and datafeed
         Request openJob = new Request("POST", "_ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_ID + "/_open");
@@ -154,8 +184,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     @SuppressWarnings("unchecked")
-    private void waitForMigration(List<String> expectedMigratedJobs, List<String> expectedMigratedDatafeeds,
-                                  List<String> unMigratedJobs, List<String> unMigratedDatafeeds) throws Exception {
+    private void waitForMigration(List<String> expectedMigratedJobs, List<String> expectedMigratedDatafeeds) throws Exception {
 
         // After v6.6.0 jobs are created in the index so no migration will take place
         if (getOldClusterVersion().onOrAfter(Version.V_6_6_0)) {
@@ -173,11 +202,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
             assertNotNull(jobs);
 
             for (String jobId : expectedMigratedJobs) {
-                assertJob(jobId, jobs, false);
-            }
-
-            for (String jobId : unMigratedJobs) {
-                assertJob(jobId, jobs, true);
+                assertJobNotPresent(jobId, jobs);
             }
 
             List<Map<String, Object>> datafeeds =
@@ -185,33 +210,20 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
             assertNotNull(datafeeds);
 
             for (String datafeedId : expectedMigratedDatafeeds) {
-                assertDatafeed(datafeedId, datafeeds, false);
+                assertDatafeedNotPresent(datafeedId, datafeeds);
             }
-
-            for (String datafeedId : unMigratedDatafeeds) {
-                assertDatafeed(datafeedId, datafeeds, true);
-            }
-
         }, 30, TimeUnit.SECONDS);
     }
 
-    private void assertDatafeed(String datafeedId, List<Map<String, Object>> datafeeds, boolean expectedToBePresent) {
+    private void assertDatafeedNotPresent(String datafeedId, List<Map<String, Object>> datafeeds) {
         Optional<Object> config = datafeeds.stream().map(map -> map.get("datafeed_id"))
                 .filter(id -> id.equals(datafeedId)).findFirst();
-        if (expectedToBePresent) {
-            assertTrue(config.isPresent());
-        } else {
-            assertFalse(config.isPresent());
-        }
+        assertFalse(config.isPresent());
     }
 
-    private void assertJob(String jobId, List<Map<String, Object>> jobs, boolean expectedToBePresent) {
+    private void assertJobNotPresent(String jobId, List<Map<String, Object>> jobs) {
         Optional<Object> config = jobs.stream().map(map -> map.get("job_id"))
                 .filter(id -> id.equals(jobId)).findFirst();
-        if (expectedToBePresent) {
-            assertTrue(config.isPresent());
-        } else {
-            assertFalse(config.isPresent());
-        }
+        assertFalse(config.isPresent());
     }
 }

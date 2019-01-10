@@ -11,7 +11,10 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -23,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -50,74 +54,82 @@ public class MlConfigMigratorTests extends ESTestCase {
         assertThat(MlConfigMigrator.nonDeletingJobs(Arrays.asList(job1, job2, deletingJob)), containsInAnyOrder(job1, job2));
     }
 
-    public void testClosedJobConfigs() {
-        Job openJob1 = JobTests.buildJobBuilder("openjob1").build();
-        Job openJob2 = JobTests.buildJobBuilder("openjob2").build();
+    public void testClosedOrUnallocatedJobs() {
+        Job closedJob = JobTests.buildJobBuilder("closedjob").build();
+        Job jobWithoutAllocation = JobTests.buildJobBuilder("jobwithoutallocation").build();
+        Job openJob = JobTests.buildJobBuilder("openjob").build();
 
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder()
-                .putJob(openJob1, false)
-                .putJob(openJob2, false)
-                .putDatafeed(createCompatibleDatafeed(openJob1.getId()), Collections.emptyMap());
+                .putJob(closedJob, false)
+                .putJob(jobWithoutAllocation, false)
+                .putJob(openJob, false)
+                .putDatafeed(createCompatibleDatafeed(closedJob.getId()), Collections.emptyMap());
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        tasksBuilder.addTask(MlTasks.jobTaskId("jobwithoutallocation"), MlTasks.JOB_TASK_NAME,
+                new OpenJobAction.JobParams("jobwithoutallocation"),
+                new PersistentTasksCustomMetaData.Assignment(null, "test assignment"));
+        tasksBuilder.addTask(MlTasks.jobTaskId("openjob"), MlTasks.JOB_TASK_NAME,
+                new OpenJobAction.JobParams("openjob"),
+                new PersistentTasksCustomMetaData.Assignment("node1", "test assignment"));
+
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+                .localNodeId("node1")
+                .masterNodeId("node1")
+                .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
                 .metaData(MetaData.builder()
                         .putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData.builder().build())
-                )
-                .build();
-
-        assertThat(MlConfigMigrator.closedJobConfigs(clusterState), containsInAnyOrder(openJob1, openJob2));
-
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(MlTasks.jobTaskId("openjob1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-1"),
-                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
-
-        clusterState = ClusterState.builder(new ClusterName("migratortests"))
-                .metaData(MetaData.builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
                 )
+                .nodes(nodes)
                 .build();
 
-        assertThat(MlConfigMigrator.closedJobConfigs(clusterState), containsInAnyOrder(openJob2));
+        assertThat(MlConfigMigrator.closedOrUnallocatedJobs(clusterState), containsInAnyOrder(closedJob, jobWithoutAllocation));
     }
 
     public void testStoppedDatafeedConfigs() {
-        Job openJob1 = JobTests.buildJobBuilder("openjob1").build();
-        Job openJob2 = JobTests.buildJobBuilder("openjob2").build();
-        DatafeedConfig datafeedConfig1 = createCompatibleDatafeed(openJob1.getId());
-        DatafeedConfig datafeedConfig2 = createCompatibleDatafeed(openJob2.getId());
+        Job job1 = JobTests.buildJobBuilder("job1").build();
+        Job job2 = JobTests.buildJobBuilder("job2").build();
+        Job job3 = JobTests.buildJobBuilder("job3").build();
+        DatafeedConfig stopppedDatafeed = createCompatibleDatafeed(job1.getId());
+        DatafeedConfig datafeedWithoutAllocation = createCompatibleDatafeed(job2.getId());
+        DatafeedConfig startedDatafeed = createCompatibleDatafeed(job3.getId());
+
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder()
-                .putJob(openJob1, false)
-                .putJob(openJob2, false)
-                .putDatafeed(datafeedConfig1, Collections.emptyMap())
-                .putDatafeed(datafeedConfig2, Collections.emptyMap());
+                .putJob(job1, false)
+                .putJob(job2, false)
+                .putJob(job3, false)
+                .putDatafeed(stopppedDatafeed, Collections.emptyMap())
+                .putDatafeed(datafeedWithoutAllocation, Collections.emptyMap())
+                .putDatafeed(startedDatafeed, Collections.emptyMap());
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        tasksBuilder.addTask(MlTasks.datafeedTaskId(stopppedDatafeed.getId()), MlTasks.DATAFEED_TASK_NAME,
+                new StartDatafeedAction.DatafeedParams(stopppedDatafeed.getId(), 0L),
+                new PersistentTasksCustomMetaData.Assignment(null, "test assignment"));
+        tasksBuilder.addTask(MlTasks.datafeedTaskId(startedDatafeed.getId()), MlTasks.DATAFEED_TASK_NAME,
+                new StartDatafeedAction.DatafeedParams(stopppedDatafeed.getId(), 0L),
+                new PersistentTasksCustomMetaData.Assignment("node1", "test assignment"));
+
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+                .localNodeId("node1")
+                .masterNodeId("node1")
+                .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
                 .metaData(MetaData.builder()
                         .putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData.builder().build())
-                )
-                .build();
-
-        assertThat(MlConfigMigrator.stoppedDatafeedConfigs(clusterState), containsInAnyOrder(datafeedConfig1, datafeedConfig2));
-
-
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(MlTasks.jobTaskId("openjob1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-1"),
-                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
-        tasksBuilder.addTask(MlTasks.datafeedTaskId(datafeedConfig1.getId()), MlTasks.DATAFEED_TASK_NAME,
-                new StartDatafeedAction.DatafeedParams(datafeedConfig1.getId(), 0L),
-                new PersistentTasksCustomMetaData.Assignment("node-2", "test assignment"));
-
-        clusterState = ClusterState.builder(new ClusterName("migratortests"))
-                .metaData(MetaData.builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
                 )
+                .nodes(nodes)
                 .build();
 
-        assertThat(MlConfigMigrator.stoppedDatafeedConfigs(clusterState), containsInAnyOrder(datafeedConfig2));
+        assertThat(MlConfigMigrator.stopppedOrUnallocatedDatafeeds(clusterState),
+                containsInAnyOrder(stopppedDatafeed, datafeedWithoutAllocation));
     }
 
     public void testUpdateJobForMigration() {

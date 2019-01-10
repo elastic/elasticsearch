@@ -6,14 +6,15 @@
 
 package org.elasticsearch.xpack.core.ml;
 
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -134,6 +135,27 @@ public final class MlTasks {
     }
 
     /**
+     * Get the job Ids of anomaly detector job tasks that do
+     * not have an assignment.
+     *
+     * @param tasks Persistent tasks. If null an empty set is returned.
+     * @param nodes The cluster nodes
+     * @return The job Ids of tasks to do not have an assignment.
+     */
+    public static Set<String> unallocatedJobIds(@Nullable PersistentTasksCustomMetaData tasks,
+                                                DiscoveryNodes nodes) {
+        if (tasks == null) {
+            return Collections.emptySet();
+        }
+
+        return tasks.findTasks(JOB_TASK_NAME, task -> true)
+                .stream()
+                .filter(task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes))
+                .map(t -> t.getId().substring(JOB_TASK_ID_PREFIX.length()))
+                .collect(Collectors.toSet());
+    }
+
+    /**
      * The datafeed Ids of started datafeed tasks
      *
      * @param tasks Persistent tasks. If null an empty set is returned.
@@ -151,6 +173,27 @@ public final class MlTasks {
     }
 
     /**
+     * Get the datafeed Ids of started datafeed tasks
+     * that do not have an assignment.
+     *
+     * @param tasks Persistent tasks. If null an empty set is returned.
+     * @param nodes The cluster nodes
+     * @return The job Ids of tasks to do not have an assignment.
+     */
+    public static Set<String> unallocatedDatafeedIds(@Nullable PersistentTasksCustomMetaData tasks,
+                                                DiscoveryNodes nodes) {
+        if (tasks == null) {
+            return Collections.emptySet();
+        }
+
+        return tasks.findTasks(DATAFEED_TASK_NAME, task -> true)
+                .stream()
+                .filter(task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes))
+                .map(t -> t.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
+                .collect(Collectors.toSet());
+    }
+
+    /**
      * Is there an ml anomaly detector job task for the job {@code jobId}?
      * @param jobId The job id
      * @param tasks Persistent tasks
@@ -158,19 +201,5 @@ public final class MlTasks {
      */
     public static boolean taskExistsForJob(String jobId, PersistentTasksCustomMetaData tasks) {
         return openJobIds(tasks).contains(jobId);
-    }
-
-    /**
-     * Read the active anomaly detector job tasks.
-     * Active tasks are not {@code JobState.CLOSED} or {@code JobState.FAILED}.
-     *
-     * @param tasks Persistent tasks
-     * @return The job tasks excluding closed and failed jobs
-     */
-    public static List<PersistentTasksCustomMetaData.PersistentTask<?>> activeJobTasks(PersistentTasksCustomMetaData tasks) {
-        return tasks.findTasks(JOB_TASK_NAME, task -> true)
-                .stream()
-                .filter(task -> ((JobTaskState) task.getState()).getState().isAnyOf(JobState.CLOSED, JobState.FAILED) == false)
-                .collect(Collectors.toList());
     }
 }

@@ -78,14 +78,10 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  *     - The index operation could fail, don't delete from clusterstate in this case
  * 3. Remove config from the clusterstate
  *     - Before this happens config is duplicated in index and clusterstate, all ops
- *       must prefer to use the index config at this stage
+ *       must prefer to use the clusterstate config at this stage
  *     - If the clusterstate update fails then the config will remain duplicated
  *       and the migration process should try again
  *
- * If there was an error in step 3 and the config is in both the clusterstate and
- * index then when the migrator retries it must not overwrite an existing job config
- * document as once the index document is present all update operations will function
- * on that rather than the clusterstate.
  *
  * The number of configs indexed in each bulk operation is limited by {@link #MAX_BULK_WRITE_SIZE}
  * pairs of datafeeds and jobs are migrated together.
@@ -130,7 +126,7 @@ public class MlConfigMigrator {
      * @param clusterState The current clusterstate
      * @param listener     The success listener
      */
-    public void migrateConfigsWithoutTasks(ClusterState clusterState, ActionListener<Boolean> listener) {
+    public void migrateConfigs(ClusterState clusterState, ActionListener<Boolean> listener) {
         if (migrationInProgress.compareAndSet(false, true) == false) {
             listener.onResponse(Boolean.FALSE);
             return;
@@ -441,15 +437,18 @@ public class MlConfigMigrator {
     }
 
     /**
-     * Find the configurations for all closed jobs in the cluster state.
-     * Closed jobs are those that do not have an associated persistent task.
+     * Find the configurations for all closed jobs and the jobs that
+     * do not have an allocation in the cluster state.
+     * Closed jobs are those that do not have an associated persistent task,
+     * unallocated jobs have a task but no executing node
      *
      * @param clusterState The cluster state
      * @return The closed job configurations
       */
-    public static List<Job> closedJobConfigs(ClusterState clusterState) {
+    public static List<Job> closedOrUnallocatedJobs(ClusterState clusterState) {
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         Set<String> openJobIds = MlTasks.openJobIds(persistentTasks);
+        openJobIds.removeAll(MlTasks.unallocatedJobIds(persistentTasks, clusterState.nodes()));
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         return mlMetadata.getJobs().values().stream()
@@ -458,15 +457,18 @@ public class MlConfigMigrator {
     }
 
     /**
-     * Find the configurations for stopped datafeeds in the cluster state.
-     * Stopped datafeeds are those that do not have an associated persistent task.
+     * Find the configurations for stopped datafeeds and datafeeds that do
+     * not have an allocation in the cluster state.
+     * Stopped datafeeds are those that do not have an associated persistent task,
+     * unallocated datafeeds have a task but no executing node.
      *
      * @param clusterState The cluster state
      * @return The closed job configurations
      */
-    public static List<DatafeedConfig> stoppedDatafeedConfigs(ClusterState clusterState) {
+    public static List<DatafeedConfig> stopppedOrUnallocatedDatafeeds(ClusterState clusterState) {
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(persistentTasks);
+        startedDatafeedIds.removeAll(MlTasks.unallocatedDatafeedIds(persistentTasks, clusterState.nodes()));
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         return mlMetadata.getDatafeeds().values().stream()
@@ -489,8 +491,8 @@ public class MlConfigMigrator {
     }
 
     public static List<JobsAndDatafeeds> splitInBatches(ClusterState clusterState) {
-        Collection<DatafeedConfig> stoppedDatafeeds = stoppedDatafeedConfigs(clusterState);
-        Map<String, Job> eligibleJobs = nonDeletingJobs(closedJobConfigs(clusterState)).stream()
+        Collection<DatafeedConfig> stoppedDatafeeds = stopppedOrUnallocatedDatafeeds(clusterState);
+        Map<String, Job> eligibleJobs = nonDeletingJobs(closedOrUnallocatedJobs(clusterState)).stream()
             .map(MlConfigMigrator::updateJobForMigration)
             .collect(Collectors.toMap(Job::getId, Function.identity(), (a, b) -> a));
 

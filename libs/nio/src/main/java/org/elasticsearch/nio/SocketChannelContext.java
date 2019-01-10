@@ -301,7 +301,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     protected int flushToChannel(ByteBuffer buffer) throws IOException {
         int initialPosition = buffer.position();
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
-        ioBuffer.limit(WRITE_LIMIT);
+        ioBuffer.limit(Math.min(WRITE_LIMIT, ioBuffer.limit()));
         copyBytes(buffer, ioBuffer);
         ioBuffer.flip();
         int bytesWritten;
@@ -323,7 +323,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         int totalBytesFlushed = 0;
         while (continueFlush) {
             ioBuffer.clear();
-            ioBuffer.limit(WRITE_LIMIT);
+            ioBuffer.limit(Math.min(WRITE_LIMIT, ioBuffer.limit()));
             int j = 0;
             ByteBuffer[] buffers = flushOperation.getBuffersToWrite();
             while (j < buffers.length && ioBuffer.remaining() > 0) {

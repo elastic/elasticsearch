@@ -21,10 +21,15 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.stats.Metrics;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
 
@@ -97,7 +102,27 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testColumnWithNoSubFields() {
         assertEquals("1:8: Cannot determine columns for [text.*]", error("SELECT text.* FROM test"));
     }
-    
+
+    public void testFieldAliasTypeWithoutHierarchy() {
+        Map<String, EsField> mapping = new LinkedHashMap<>();
+
+        mapping.put("field", new EsField("field", DataType.OBJECT,
+                singletonMap("alias", new EsField("alias", DataType.KEYWORD, emptyMap(), true)), false));
+
+        IndexResolution resolution = IndexResolution.valid(new EsIndex("test", mapping));
+
+        // check the nested alias is seen
+        accept(resolution, "SELECT field.alias FROM test");
+        // or its hierarhcy
+        accept(resolution, "SELECT field.* FROM test");
+
+        // check typos
+        assertEquals("1:8: Unknown column [field.alas], did you mean [field.alias]?", error(resolution, "SELECT field.alas FROM test"));
+
+        // non-existing parents for aliases are not seen by the user
+        assertEquals("1:8: Cannot use field [field] type [object] only its subfields", error(resolution, "SELECT field FROM test"));
+    }
+
     public void testMultipleColumnsWithWildcard1() {
         assertEquals("1:14: Unknown column [a]\n" +
                 "line 1:17: Unknown column [b]\n" +

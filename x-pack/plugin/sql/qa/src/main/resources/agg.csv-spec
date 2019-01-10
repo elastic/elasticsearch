@@ -310,3 +310,58 @@ SELECT HISTOGRAM(emp_no % 100, 10) AS h, COUNT(*) as c FROM test_emp GROUP BY h 
 10             |10             
 0              |10   
 ;
+
+countAll
+schema::all_names:l|c:l
+SELECT COUNT(ALL first_name) all_names, COUNT(*) c FROM test_emp;
+
+   all_names   |       c
+---------------+---------------
+90             |100
+;
+
+countAllCountTypesWithHaving
+schema::ln:l|dln:l|fn:l|dfn:l|ccc:l
+SELECT COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn, COUNT(distinct first_name) dfn, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING dln>5 AND ln>32 AND dfn>1 AND fn>1 AND ccc>5;
+
+      ln       |     dln     |      fn       |     dfn    |      ccc
+---------------+-------------+---------------+------------+-------------
+33             |32           |32             |32          |33
+57             |54           |48             |48          |57
+;
+
+aggCountEqualityFalse
+schema::areEqual:b|ln:l|dln:l
+SELECT COUNT(last_name)=COUNT(DISTINCT last_name) AS areEqual, COUNT(last_name) ln, COUNT(DISTINCT last_name) dln FROM test_emp;
+
+   areEqual    |      ln       |      dln
+---------------+---------------+---------------
+false          |100            |96
+;
+
+aggCountEqualityTrue
+schema::areEqual:b|fn:l|dfn:l
+SELECT COUNT(first_name)=COUNT(DISTINCT first_name) AS areEqual, COUNT(first_name) fn, COUNT(DISTINCT first_name) dfn FROM test_emp;
+
+   areEqual    |      fn       |      dfn
+---------------+---------------+---------------
+true           |90             |90
+;
+
+aggCountAllEquality
+schema::areEqual:b|afn:l
+SELECT COUNT(first_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_name) afn FROM test_emp;
+
+   areEqual    |      afn      
+---------------+---------------
+true           |90             
+;
+
+aggCountAllDifferentFields
+schema::areEqual:b|afn:l|aln:l
+SELECT COUNT(ALL last_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_name) afn, COUNT(ALL last_name) aln FROM test_emp;
+
+   areEqual    |      afn      |      aln
+---------------+---------------+---------------
+false          |90             |100
+;

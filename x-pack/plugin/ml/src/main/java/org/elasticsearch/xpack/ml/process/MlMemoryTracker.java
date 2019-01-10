@@ -154,6 +154,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     aVoid -> logger.trace("Job memory requirement refresh request completed successfully"),
                     e -> logger.error("Failed to refresh job memory requirements", e)
                 );
+                logger.debug("scheduling async refresh");
                 threadPool.executor(executorName()).execute(
                     () -> refresh(clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE), listener));
                 return true;
@@ -252,6 +253,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             return;
         }
 
+        logger.debug("refreshing memory for job [{}]", jobId);
         try {
             jobResultsProvider.getEstablishedMemoryUsage(jobId, null, null,
                 establishedModelMemoryBytes -> {

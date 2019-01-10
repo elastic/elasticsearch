@@ -1509,7 +1509,7 @@ public class CoordinatorTests extends ESTestCase {
                 try {
                     persistedState = new MockPersistedState(settings, localNode);
                 } catch (IOException e) {
-                    fail("Unable to create MockPersistedState");
+                    throw new AssertionError("Unable to create MockPersistedState", e);
                 }
 
                 transportService.start();

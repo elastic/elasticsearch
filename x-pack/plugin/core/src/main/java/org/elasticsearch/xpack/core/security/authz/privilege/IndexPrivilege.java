@@ -61,7 +61,7 @@ public final class IndexPrivilege extends Privilege {
             ClusterSearchShardsAction.NAME, TypesExistsAction.NAME, ValidateQueryAction.NAME + "*", GetSettingsAction.NAME,
             ExplainLifecycleAction.NAME);
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(PutFollowAction.NAME, UnfollowAction.NAME,
-        CloseIndexAction.NAME);
+        CloseIndexAction.NAME + "*");
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
 
     public static final IndexPrivilege NONE =                new IndexPrivilege("none",             Automatons.EMPTY);

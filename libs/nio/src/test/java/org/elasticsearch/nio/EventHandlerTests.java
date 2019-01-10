@@ -245,7 +245,7 @@ public class EventHandlerTests extends ESTestCase {
 
     public void testListenerExceptionCallsGenericExceptionHandler() throws IOException {
         RuntimeException listenerException = new RuntimeException();
-        handler.listenerException(listenerException);
+        handler.taskException(listenerException);
         verify(genericExceptionHandler).accept(listenerException);
     }
 

@@ -15,7 +15,9 @@ a `<clustername>_audit.log` file in the logs directory. This file is new to
 version 6.5 and prints audit entries as JSON documents. 
 
 For backwards compatibility purposes, a `<clustername>_access.log` with the old style of 
-formatting is also generated. See also <<breaking_65_settings_changes>>. 
+formatting is also generated. See also <<breaking_65_settings_changes>>. Due to this,
+the logging throughput effectively doubles. It is recommended to enable only the
+new audit format in production (adjust `log4j2.properties`).
 
 [float]
 === Discover the structure of text files

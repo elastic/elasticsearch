@@ -125,7 +125,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, LifecycleAction> actions = VALID_DELETE_ACTIONS
             .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         if (randomBoolean()) {
-            invalidAction = getTestAction(randomFrom("allocate", "rollover", "forcemerge", "shrink"));
+            invalidAction = getTestAction(randomFrom("allocate", "rollover", "forcemerge", "shrink", "unfollow"));
             actions.put(invalidAction.getWriteableName(), invalidAction);
         }
         Map<String, Phase> deletePhase = Collections.singletonMap("delete",

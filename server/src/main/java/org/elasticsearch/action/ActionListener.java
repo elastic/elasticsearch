@@ -141,13 +141,13 @@ public interface ActionListener<Response> {
      * Wraps a given listener and returns a new listener which executes the provided {@code runAfter}
      * callback when the listener is notified via either {@code #onResponse} or {@code #onFailure}.
      */
-    public static <Response> ActionListener<Response> runAfter(ActionListener<Response> delegate, Runnable runAfter) {
+    static <Response> ActionListener<Response> runAfter(ActionListener<Response> delegate, Runnable runAfter) {
         return new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
                 try {
                     delegate.onResponse(response);
-                }finally {
+                } finally {
                     runAfter.run();
                 }
             }
@@ -156,7 +156,7 @@ public interface ActionListener<Response> {
             public void onFailure(Exception e) {
                 try {
                     delegate.onFailure(e);
-                }finally {
+                } finally {
                     runAfter.run();
                 }
             }
@@ -167,7 +167,7 @@ public interface ActionListener<Response> {
      * Wraps a given listener and returns a new listener which makes sure {@link #onResponse(Object)}
      * and {@link #onFailure(Exception)} of the provided listener will be called at most once.
      */
-    public static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> delegate) {
+    static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> delegate) {
         return new NotifyOnceListener<Response>() {
             @Override
             protected void innerOnResponse(Response response) {

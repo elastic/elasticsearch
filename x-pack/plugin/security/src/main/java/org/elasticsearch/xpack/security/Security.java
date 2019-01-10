@@ -274,7 +274,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                     s -> s.keySet().contains(SecurityField.setting("audit.outputs"))
                             ? Collections.emptyList()
                             : Collections.singletonList(LoggingAuditTrail.NAME),
-                    Property.NodeScope);
+                    Property.NodeScope, Property.Deprecated);
 
     public static final Setting<Boolean> INDICES_ADMIN_FILTERED_FIELDS_SETTING = Setting.boolSetting("indices.admin.filtered_fields", true,
             Property.NodeScope, Property.Dynamic, Property.Deprecated);
@@ -431,6 +431,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                         auditTrails.add(new DeprecatedLoggingAuditTrail(settings, clusterService, threadPool));
                         break;
                     case IndexAuditTrail.NAME:
+                        new DeprecationLogger(LOGGER).deprecated("The [index] audit type is deprecated and will be removed in 7.0");
                         indexAuditTrail.set(new IndexAuditTrail(settings, client, threadPool, clusterService));
                         auditTrails.add(indexAuditTrail.get());
                         break;

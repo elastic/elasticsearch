@@ -123,7 +123,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
             .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(grokPattern, interimTimestampField,
-                bestTimestamp.v1().jodaTimestampFormats, needClientTimeZone))
+                bestTimestamp.v1().javaTimestampFormats, needClientTimeZone))
             .setMappings(mappings)
             .setFieldStats(fieldStats)
             .setExplanation(explanation)

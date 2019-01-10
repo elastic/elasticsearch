@@ -300,7 +300,7 @@ public class DeprecationLogger {
         deprecated(threadContexts, message, true, params);
     }
 
-    @SuppressLoggerChecks(reason = "safely delegates to logger")
+
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
 
@@ -320,9 +320,13 @@ public class DeprecationLogger {
         }
 
         if (log) {
-            AccessController.doPrivileged((PrivilegedAction<Void>)() -> {
-                logger.warn(message, params);
-                return null;
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @SuppressLoggerChecks(reason = "safely delegates to logger")
+                @Override
+                public Void run() {
+                    logger.warn(message, params);
+                    return null;
+                }
             });
         }
     }

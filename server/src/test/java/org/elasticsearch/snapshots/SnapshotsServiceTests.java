@@ -539,7 +539,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                 allocationService, masterService, () -> persistedState,
                 hostsResolver -> testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
                     .map(n -> n.node.getAddress()).collect(Collectors.toList()),
-                clusterService.getClusterApplierService(), random());
+                clusterService.getClusterApplierService(), Collections.emptyList(), random());
             masterService.setClusterStatePublisher(coordinator);
             coordinator.start();
             masterService.start();

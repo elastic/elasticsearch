@@ -204,7 +204,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         SchedulerEngine schedulerEngine = new SchedulerEngine(settings, Clock.systemUTC());
 
         // the job config manager should have been created
-        assert dataFrameJobConfigManager != null;
+        assert dataFrameJobConfigManager.get() != null;
         return Collections.singletonList(
                 new DataFrameJobPersistentTasksExecutor(client, dataFrameJobConfigManager.get(), schedulerEngine, threadPool));
     }

@@ -140,7 +140,7 @@ POST _xpack/watcher/watch/_execute
     "transform" : {
       "script" :
       """
-        def theDate = ZonedDateTime.ofInstant(ctx.execution_time.toInstant(), ZoneId.systemDefault());
+        def theDate = ZonedDateTime.ofInstant(ctx.execution_time.toInstant(), ctx.execution_time.getZone());
         return ['human_date': DateTimeFormatter.RFC_1123_DATE_TIME.format(theDate),
                 'aggregations': ctx.payload.aggregations]
       """

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.seqno;
 
+import java.util.Objects;
+
 /**
  * A "shard history retention lease" (or "retention lease" for short) is conceptually a marker containing a retaining sequence number such
  * that all operations with sequence number at least that retaining sequence number will be retained during merge operations (which could
@@ -81,16 +83,42 @@ public final class RetentionLease {
      * @param source                  the source of the retention lease
      */
     public RetentionLease(final String id, final long retainingSequenceNumber, final long timestamp, final String source) {
+        Objects.requireNonNull(id);
+        if (id.contains(":") || id.contains(";") || id.contains(",")) {
+            // retention lease IDs can not contain these characters because they are used as separators in index commits
+            throw new IllegalArgumentException("retention lease ID can not contain any of [:;,] but was [" + id + "]");
+        }
         if (retainingSequenceNumber < SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException("retention lease retaining sequence number [" + retainingSequenceNumber + "] out of range");
         }
         if (timestamp < 0) {
             throw new IllegalArgumentException("retention lease timestamp [" + timestamp + "] out of range");
         }
+        Objects.requireNonNull(source);
+        if (source.contains(":") || source.contains(";") || source.contains(",")) {
+            // retention lease sources can not contain these characters because they are used as separators in index commits
+            throw new IllegalArgumentException("retention lease source can not contain any of [:;,] but was [" + source + "]");
+        }
         this.id = id;
         this.retainingSequenceNumber = retainingSequenceNumber;
         this.timestamp = timestamp;
         this.source = source;
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final RetentionLease that = (RetentionLease) o;
+        return Objects.equals(id, that.id) &&
+                retainingSequenceNumber == that.retainingSequenceNumber &&
+                timestamp == that.timestamp &&
+                Objects.equals(source, that.source);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, retainingSequenceNumber, timestamp, source);
     }
 
     @Override

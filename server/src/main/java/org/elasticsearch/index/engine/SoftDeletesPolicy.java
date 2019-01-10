@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -45,6 +46,7 @@ final class SoftDeletesPolicy {
     private long retentionOperations;
     // The min seq_no value that is retained - ops after this seq# should exist in the Lucene index.
     private long minRetainedSeqNo;
+    private Collection<RetentionLease> retentionLeases;
     // provides the retention leases used to calculate the minimum sequence number to retain
     private final Supplier<Collection<RetentionLease>> retentionLeasesSupplier;
 
@@ -106,7 +108,11 @@ final class SoftDeletesPolicy {
      * Operations whose seq# is least this value should exist in the Lucene index.
      */
     synchronized long getMinRetainedSeqNo() {
-        // Do not advance if the retention lock is held
+        return getRetentionPolicy().v1();
+    }
+
+    public synchronized Tuple<Long, Collection<RetentionLease>> getRetentionPolicy() {
+        // do not advance if the retention lock is held
         if (retentionLockCount == 0) {
             /*
              * This policy retains operations for two purposes: peer-recovery and querying changes history.
@@ -119,8 +125,8 @@ final class SoftDeletesPolicy {
              */
 
             // calculate the minimum sequence number to retain based on retention leases
-            final long minimumRetainingSequenceNumber = retentionLeasesSupplier
-                    .get()
+            retentionLeases = retentionLeasesSupplier.get();
+            final long minimumRetainingSequenceNumber = retentionLeases
                     .stream()
                     .mapToLong(RetentionLease::retainingSequenceNumber)
                     .min()
@@ -139,7 +145,7 @@ final class SoftDeletesPolicy {
              */
             minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);
         }
-        return minRetainedSeqNo;
+        return Tuple.tuple(minRetainedSeqNo, retentionLeases);
     }
 
     /**

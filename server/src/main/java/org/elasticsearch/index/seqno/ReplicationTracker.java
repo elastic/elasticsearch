@@ -185,6 +185,17 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         retentionLeases.put(id, new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source));
     }
 
+    /**
+     * Updates retention leases on a replica.
+     *
+     * @param retentionLeases the retention leases
+     */
+    public synchronized void updateRetentionLeasesOnReplica(final Collection<RetentionLease> retentionLeases) {
+        assert primaryMode == false;
+        this.retentionLeases.clear();
+        this.retentionLeases.putAll(retentionLeases.stream().collect(Collectors.toMap(RetentionLease::id, Function.identity())));
+    }
+
     public static class CheckpointState implements Writeable {
 
         /**

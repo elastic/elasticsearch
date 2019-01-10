@@ -106,6 +106,7 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
@@ -140,6 +141,8 @@ import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -1416,6 +1419,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+        replicationTracker.updateRetentionLeasesOnReplica(getRetentionLeases(store.readLastCommittedSegmentsInfo()));
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
@@ -1433,6 +1437,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         onSettingsChanged();
         assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
+    }
+
+    static Collection<RetentionLease> getRetentionLeases(final SegmentInfos segmentInfos) {
+        final String committedRetentionLeases = segmentInfos.getUserData().get(Engine.RETENTION_LEASES);
+        if (committedRetentionLeases == null) {
+            return Collections.emptyList();
+        }
+        final String[] encodedRetentionLeases = committedRetentionLeases.split(",");
+        assert Arrays.stream(encodedRetentionLeases)
+                .allMatch(s -> s.matches("id:[^:;,]+;retaining_seq_no:\\d+;timestamp:\\d+;source:[^:;,]+"))
+                : Arrays.toString(encodedRetentionLeases);
+        final List<RetentionLease> retentionLeases = new ArrayList<>();
+        for (final String encodedRetentionLease : encodedRetentionLeases) {
+            final String[] fields = encodedRetentionLease.split(";");
+            assert fields.length == 4 : Arrays.toString(fields);
+            assert fields[0].matches("id:[^:;,]+") : fields[0];
+            final String id = fields[0].substring("id:".length());
+            assert fields[1].matches("retaining_seq_no:\\d+") : fields[1];
+            final long retainingSequenceNumber = Long.parseLong(fields[1].substring("retaining_seq_no:".length()));
+            assert fields[2].matches("timestamp:\\d+") : fields[2];
+            final long timestamp = Long.parseLong(fields[2].substring("timestamp:".length()));
+            assert fields[3].matches("source:[^:;,]+") : fields[3];
+            final String source = fields[3].substring("source:".length());
+            retentionLeases.add(new RetentionLease(id, retainingSequenceNumber, timestamp, source));
+        }
+        return retentionLeases;
     }
 
     private void trimUnsafeCommits() throws IOException {
@@ -1881,6 +1911,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     void addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert assertPrimaryMode();
         verifyNotClosed();
+        if (id.contains(",") || id.contains(":") || id.contains(";")) {
+            throw new IllegalArgumentException("retention lease ID can not contain any of [,:;] but was [" + id + "]");
+        }
+        if (source.contains(",") || source.contains(":") || source.contains(";")) {
+            throw new IllegalArgumentException("retention lease source can not contain any of [,:;] but was [" + source + "]");
+        }
         replicationTracker.addOrUpdateRetentionLease(id, retainingSequenceNumber, source);
     }
 

@@ -1452,7 +1452,7 @@ public class DateFormatters {
     static JavaDateFormatter merge(String pattern, List<DateFormatter> formatters) {
         assert formatters.size() > 0;
 
-        List<DateTimeFormatter> dateTimeFormatters = new ArrayList<>();
+        List<DateTimeFormatter> dateTimeFormatters = new ArrayList<>(formatters.size());
         DateTimeFormatter printer = null;
         for (DateFormatter formatter : formatters) {
             assert formatter instanceof JavaDateFormatter;
@@ -1464,7 +1464,7 @@ public class DateFormatters {
             dateTimeFormatters.add(dateTimeFormatter);
         }
 
-        return new JavaDateFormatter(pattern, printer, dateTimeFormatters.toArray(new DateTimeFormatter[]{}));
+        return new JavaDateFormatter(pattern, printer, dateTimeFormatters.toArray(new DateTimeFormatter[0]));
     }
 
     private static final ZonedDateTime EPOCH_ZONED_DATE_TIME = Instant.EPOCH.atZone(ZoneOffset.UTC);

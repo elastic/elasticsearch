@@ -30,6 +30,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.time.temporal.TemporalAccessor;
 import java.util.concurrent.TimeUnit;
 
 @Fork(3)
@@ -45,13 +46,13 @@ public class DateFormatterBenchmark {
     private final DateFormatter jodaFormatter = Joda.forPattern("year_month_day||ordinal_date||epoch_millis");
 
     @Benchmark
-    public void parseJavaDate() {
-        javaFormatter.parse("1234567890");
+    public TemporalAccessor parseJavaDate() {
+        return javaFormatter.parse("1234567890");
     }
 
     @Benchmark
-    public void parseJodaDate() {
-        jodaFormatter.parse("1234567890");
+    public TemporalAccessor parseJodaDate() {
+        return jodaFormatter.parse("1234567890");
     }
 }
 

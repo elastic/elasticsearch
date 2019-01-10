@@ -1346,6 +1346,9 @@ public class CoordinatorTests extends ESTestCase {
             return randomFrom(allLeaders);
         }
 
+        private final ConnectionStatus preferredUnknownNodeConnectionStatus =
+            randomFrom(ConnectionStatus.DISCONNECTED, ConnectionStatus.BLACK_HOLE);
+
         private ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination) {
             ConnectionStatus connectionStatus;
             if (blackholedNodes.contains(sender.getId()) || blackholedNodes.contains(destination.getId())) {
@@ -1355,7 +1358,8 @@ public class CoordinatorTests extends ESTestCase {
             } else if (nodeExists(sender) && nodeExists(destination)) {
                 connectionStatus = ConnectionStatus.CONNECTED;
             } else {
-                connectionStatus = ConnectionStatus.DISCONNECTED;
+                connectionStatus = usually() ? preferredUnknownNodeConnectionStatus :
+                    randomFrom(ConnectionStatus.DISCONNECTED, ConnectionStatus.BLACK_HOLE);
             }
             return connectionStatus;
         }

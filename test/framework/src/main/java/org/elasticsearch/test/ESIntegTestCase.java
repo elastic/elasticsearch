@@ -373,18 +373,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected final void beforeInternal() throws Exception {
         final Scope currentClusterScope = getCurrentClusterScope();
+        Callable<Void> setup = () -> {
+            cluster().beforeTest(random(), getPerTestTransportClientRatio());
+            cluster().wipe(excludeTemplates());
+            randomIndexTemplate();
+            return null;
+        };
         switch (currentClusterScope) {
             case SUITE:
                 assert SUITE_SEED != null : "Suite seed was not initialized";
                 currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED);
+                RandomizedContext.current().runWithPrivateRandomness(SUITE_SEED, setup);
                 break;
             case TEST:
                 currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
+                setup.call();
                 break;
         }
-        cluster().beforeTest(random(), getPerTestTransportClientRatio());
-        cluster().wipe(excludeTemplates());
-        randomIndexTemplate();
+
     }
 
     private void printTestMessage(String message) {

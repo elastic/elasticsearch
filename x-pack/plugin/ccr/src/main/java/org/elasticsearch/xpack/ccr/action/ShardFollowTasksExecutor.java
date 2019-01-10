@@ -94,12 +94,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                  PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask> taskInProgress,
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
-        final Client remoteClient;
-        if (params.getRemoteCluster() != null) {
-            remoteClient = wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
-        } else {
-            remoteClient = wrapClient(client, params.getHeaders());
-        }
         Client followerClient = wrapClient(client, params.getHeaders());
         BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> {
             try {
@@ -123,8 +117,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 Index followIndex = params.getFollowShardId().getIndex();
 
                 ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
-
-                remoteClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
+                CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
                     IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
                     if (indexMetaData.getMappings().isEmpty()) {
                         assert indexMetaData.getMappingVersion() == 1;
@@ -140,7 +133,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
                         putMappingResponse -> handler.accept(indexMetaData.getMappingVersion()),
                         errorHandler));
-                }, errorHandler));
+                };
+                try {
+                    remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
+                } catch (Exception e) {
+                    errorHandler.accept(e);
+                }
             }
 
             @Override
@@ -181,7 +179,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                         }
                     }
                 };
-                remoteClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
+                try {
+                    remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
+                } catch (Exception e) {
+                    errorHandler.accept(e);
+                }
             }
 
             private void closeIndexUpdateSettingsAndOpenIndex(String followIndex,
@@ -236,7 +238,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 request.setMaxBatchSize(params.getMaxReadRequestSize());
                 request.setPollTimeout(params.getReadPollTimeout());
                 try {
-                    remoteClient.execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
+                    remoteClient(params).execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
                 } catch (Exception e) {
                     errorHandler.accept(e);
                 }
@@ -249,6 +251,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         Map<String, String> ccrIndexMetadata = followIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         String[] recordedLeaderShardHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
         return recordedLeaderShardHistoryUUIDs[params.getLeaderShardId().id()];
+    }
+
+    private Client remoteClient(ShardFollowTask params) {
+        return wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
     }
 
     interface FollowerStatsInfoHandler {

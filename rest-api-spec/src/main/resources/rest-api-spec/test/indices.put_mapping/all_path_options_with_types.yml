@@ -14,6 +14,7 @@ setup:
 "put one mapping per index":
   - do:
       indices.put_mapping:
+        include_type_name: true
         index: test_index1
         type: test_type
         body:
@@ -24,6 +25,7 @@ setup:
                 analyzer: whitespace
   - do:
       indices.put_mapping:
+        include_type_name: true
         index: test_index2
         type: test_type
         body:
@@ -35,7 +37,8 @@ setup:
 
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: true
 
   - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
@@ -50,6 +53,7 @@ setup:
 
   - do:
       indices.put_mapping:
+        include_type_name: true
         index: _all
         type: test_type
         body:
@@ -60,7 +64,8 @@ setup:
                 analyzer: whitespace
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: true
 
   - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
@@ -75,6 +80,7 @@ setup:
 "put mapping in * index":
   - do:
       indices.put_mapping:
+        include_type_name: true
         index: "*"
         type: test_type
         body:
@@ -85,7 +91,8 @@ setup:
                 analyzer: whitespace
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: true
 
   - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
@@ -100,6 +107,7 @@ setup:
 "put mapping in prefix* index":
   - do:
       indices.put_mapping:
+        include_type_name: true
         index: "test_index*"
         type: test_type
         body:
@@ -110,7 +118,8 @@ setup:
                 analyzer: whitespace
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: true
 
   - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
@@ -124,6 +133,7 @@ setup:
 "put mapping in list of indices":
   - do:
       indices.put_mapping:
+        include_type_name: true
         index: [test_index1, test_index2]
         type: test_type
         body:
@@ -134,7 +144,8 @@ setup:
                 analyzer: whitespace
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: true
 
   - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
@@ -148,6 +159,7 @@ setup:
 "put mapping with blank index":
   - do:
       indices.put_mapping:
+        include_type_name: true
         type: test_type
         body:
           test_type:
@@ -157,7 +169,8 @@ setup:
                 analyzer: whitespace
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: true
 
   - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
@@ -174,13 +187,15 @@ setup:
 
   - do:
       catch: param
-      indices.put_mapping: {}
+      indices.put_mapping:
+        include_type_name: true
 
 ---
 "post a mapping with default analyzer twice":
 
   - do:
       indices.put_mapping:
+        include_type_name: true
         index: test_index1
         type: test_type
         body:
@@ -193,6 +208,7 @@ setup:
 
   - do:
       indices.put_mapping:
+        include_type_name: true
         index: test_index1
         type: test_type
         body:
@@ -204,7 +220,8 @@ setup:
                 type:     text
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: true
 
   - match: {test_index1.mappings.test_type.properties.text.type:     text}
  

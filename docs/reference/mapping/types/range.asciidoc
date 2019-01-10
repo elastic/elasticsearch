@@ -184,7 +184,7 @@ https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
 
 [source,js]
 --------------------------------------------------
-PUT range_index/_mapping/_doc
+PUT range_index/_mapping
 {
   "properties": {
     "ip_whitelist": {

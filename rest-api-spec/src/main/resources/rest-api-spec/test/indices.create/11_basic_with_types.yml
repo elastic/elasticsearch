@@ -10,6 +10,7 @@
 
   - do:
       indices.get_mapping:
+        include_type_name: true
         index: test_index
 
   - is_true: test_index.mappings.type_1

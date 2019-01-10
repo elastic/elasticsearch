@@ -136,7 +136,7 @@ public class SamlRealmTests extends SamlTestCase {
             .build();
         TestsSSLService sslService = new TestsSSLService(settings, TestEnvironment.newEnvironment(settings));
         try (MockWebServer proxyServer =
-                     new MockWebServer(sslService.sslContext(settings.getByPrefix("xpack.security.http.ssl.")), false)) {
+                     new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));

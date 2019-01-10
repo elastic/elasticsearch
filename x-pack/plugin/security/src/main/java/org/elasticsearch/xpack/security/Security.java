@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -267,7 +268,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 s -> s.keySet().contains(SecurityField.setting("audit.outputs"))
                         ? Collections.emptyList()
                         : Collections.singletonList(LoggingAuditTrail.NAME),
-                Property.NodeScope);
+                Property.NodeScope, Property.Deprecated);
 
     private final Settings settings;
     private final Environment env;
@@ -415,6 +416,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                         auditTrails.add(new LoggingAuditTrail(settings, clusterService, threadPool));
                         break;
                     case IndexAuditTrail.NAME:
+                        new DeprecationLogger(logger).deprecated("The [index] audit type is deprecated and will be removed in 7.0");
                         indexAuditTrail.set(new IndexAuditTrail(settings, client, threadPool, clusterService));
                         auditTrails.add(indexAuditTrail.get());
                         break;

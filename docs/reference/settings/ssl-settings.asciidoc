@@ -1,5 +1,11 @@
 
 ==== {component} TLS/SSL Settings
+ifeval::["{component}"=="Auditing"]
+deprecated[6.7.0, These settings configure the client used by the index audit
+output type which is deprecated and will be removed in 7.0. All the settings
+under the `xpack.security.audit.index` namespace are deprecated.]
+endif::[]
+
 You can configure the following TLS/SSL settings. If the settings are not configured,
 the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings]
 are used.

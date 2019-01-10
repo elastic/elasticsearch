@@ -1,0 +1,37 @@
+settingsEvaluated { settings ->
+    settings.pluginManagement {
+        repositories {
+            maven {
+                url "https://artifactory.elstc.co/artifactory/gradle-plugins/"
+                credentials {
+                    username System.env.ELASTIC_ARTIFACTORY_USERNAME
+                    password System.env.ELASTIC_ARTIFACTORY_PASSWORD
+                }
+            }
+        }
+    }
+}
+projectsLoaded {
+    allprojects {
+        buildscript {
+            repositories {
+                maven {
+                    url "https://artifactory.elstc.co/artifactory/gradle-release/"
+                    credentials {
+                        username System.env.ELASTIC_ARTIFACTORY_USERNAME
+                        password System.env.ELASTIC_ARTIFACTORY_PASSWORD
+                    }
+                }
+            }
+        }
+        repositories {
+            maven {
+                url "https://artifactory.elstc.co/artifactory/gradle-release/"
+                credentials {
+                    username System.env.ELASTIC_ARTIFACTORY_USERNAME
+                    password System.env.ELASTIC_ARTIFACTORY_PASSWORD
+                }
+            }
+        }
+    }
+}

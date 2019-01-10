@@ -9,7 +9,6 @@ import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.bouncycastle.util.io.Streams;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Request;
@@ -33,8 +32,9 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
-
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -77,7 +77,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
             if (value == null) {
                 try {
                     if (key.startsWith("xpack.security.transport.ssl.")) {
-                        byte[] file = Streams.readAll(secureSettings.getFile(key));
+                        byte[] file = toByteArray(secureSettings.getFile(key));
                         secureSettings.setFile(key.replace("xpack.security.transport.ssl.", "xpack.security.http.ssl."), file);
                     }
                 } catch (IOException e) {
@@ -176,5 +176,16 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize SSLContext", e);
         }
+    }
+
+    private byte[] toByteArray(InputStream is) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] internalBuffer = new byte[1024];
+        int read = is.read(internalBuffer);
+        while (read != -1) {
+            baos.write(internalBuffer, 0, read);
+            read = is.read(internalBuffer);
+        }
+        return baos.toByteArray();
     }
 }

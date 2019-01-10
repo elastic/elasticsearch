@@ -174,15 +174,15 @@ public class HttpClientTests extends ESTestCase {
         try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
             secureSettings = new MockSecureSettings();
             // We can't use the client created above for the server since it is only a truststore
-            secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
+            secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
             Settings settings2 = Settings.builder()
-                .put("xpack.security.transport.ssl.key", keyPath)
-                .put("xpack.security.transport.ssl.certificate", certPath)
+                .put("xpack.security.http.ssl.key", keyPath)
+                .put("xpack.security.http.ssl.certificate", certPath)
                 .setSecureSettings(secureSettings)
                 .build();
 
             TestsSSLService sslService = new TestsSSLService(settings2, environment);
-            testSslMockWebserver(client, sslService.sslContext("xpack.security.transport.ssl"), false);
+            testSslMockWebserver(client, sslService.sslContext("xpack.security.http.ssl"), false);
         }
     }
 
@@ -202,15 +202,15 @@ public class HttpClientTests extends ESTestCase {
         try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
             MockSecureSettings secureSettings = new MockSecureSettings();
             // We can't use the client created above for the server since it only defines a truststore
-            secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-no-subjaltname");
+            secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode-no-subjaltname");
             Settings settings2 = Settings.builder()
-                .put("xpack.security.transport.ssl.key", keyPath)
-                .put("xpack.security.transport.ssl.certificate", certPath)
+                .put("xpack.security.http.ssl.key", keyPath)
+                .put("xpack.security.http.ssl.certificate", certPath)
                 .setSecureSettings(secureSettings)
                 .build();
 
             TestsSSLService sslService = new TestsSSLService(settings2, environment);
-            testSslMockWebserver(client, sslService.sslContext("xpack.security.transport.ssl"), false);
+            testSslMockWebserver(client, sslService.sslContext("xpack.security.http.ssl"), false);
         }
     }
 

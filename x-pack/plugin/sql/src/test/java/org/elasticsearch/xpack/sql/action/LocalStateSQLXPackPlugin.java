@@ -6,16 +6,22 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 
 import java.nio.file.Path;
 
 public class LocalStateSQLXPackPlugin extends LocalStateCompositeXPackPlugin {
 
-    public LocalStateSQLXPackPlugin(Settings settings, Path configPath) throws Exception {
+    public LocalStateSQLXPackPlugin(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
-        plugins.add(new SqlPlugin(true, new SqlLicenseChecker((mode) -> {})));
+        LocalStateSQLXPackPlugin thisVar = this;
+        plugins.add(new SqlPlugin(settings) {
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return thisVar.getLicenseState();
+            }
+        });
     }
 }

@@ -26,16 +26,16 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
-public final class ParameterMap implements Map<String, Object> {
+public final class DeprecationMap implements Map<String, Object> {
 
     private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(ParameterMap.class));
+        new DeprecationLogger(LogManager.getLogger(DeprecationMap.class));
 
     private final Map<String, Object> params;
 
     private final Map<String, String> deprecations;
 
-    public ParameterMap(Map<String, Object> params, Map<String, String> deprecations) {
+    public DeprecationMap(Map<String, Object> params, Map<String, String> deprecations) {
         this.params = params;
         this.deprecations = deprecations;
     }

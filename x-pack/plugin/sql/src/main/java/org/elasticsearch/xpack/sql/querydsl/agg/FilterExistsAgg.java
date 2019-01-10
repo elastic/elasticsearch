@@ -5,18 +5,22 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 
-public class CardinalityAgg extends LeafAgg {
+/**
+ * Aggregation builder for a "filter" aggregation encapsulating an "exists" query.
+ */
+public class FilterExistsAgg extends LeafAgg {
 
-    public CardinalityAgg(String id, String fieldName) {
+    public FilterExistsAgg(String id, String fieldName) {
         super(id, fieldName);
     }
 
     @Override
     AggregationBuilder toBuilder() {
-        return cardinality(id()).field(fieldName());
+        return filter(id(), QueryBuilders.existsQuery(fieldName()));
     }
 }

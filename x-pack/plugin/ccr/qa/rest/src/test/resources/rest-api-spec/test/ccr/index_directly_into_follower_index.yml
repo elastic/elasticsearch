@@ -1,5 +1,5 @@
 ---
-"Test follow and unfollow an existing index":
+"Test indexing direcly into a follower index":
   - do:
       cluster.state: {}
 
@@ -45,14 +45,10 @@
   - is_true: index_following_started
 
   - do:
-      ccr.pause_follow:
+      catch: forbidden
+      index:
         index: bar
-  - is_true: acknowledged
-
-  - do:
-      ccr.resume_follow:
-        index: bar
-  - is_true: acknowledged
+        body: {}
 
   - do:
       ccr.pause_follow:

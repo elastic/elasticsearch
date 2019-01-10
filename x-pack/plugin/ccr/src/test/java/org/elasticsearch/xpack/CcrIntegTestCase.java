@@ -207,7 +207,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(NetworkModule.HTTP_ENABLED.getKey(), false);
         // Let cluster state api return quickly in order to speed up auto follow tests:
         builder.put(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
-        if (leaderSeedAddress != null) {
+        if (configureRemoteClusterViaNodeSettings() && leaderSeedAddress != null) {
             builder.put("cluster.remote.leader_cluster.seeds", leaderSeedAddress);
         }
         return new NodeConfigurationSource() {
@@ -249,6 +249,10 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected boolean reuseClusters() {
+        return true;
+    }
+
+    protected boolean configureRemoteClusterViaNodeSettings() {
         return true;
     }
 

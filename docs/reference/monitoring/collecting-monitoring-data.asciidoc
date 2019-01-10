@@ -91,7 +91,7 @@ xpack.monitoring.collection.indices: logstash-*, index1, test2
 You can prepend `-` to explicitly exclude index names or
 patterns. For example, to include all indices that start with `test` except 
 `test3`, you could specify `test*,-test3`. To include system indices such as
-.security and .kibana add `.*` to the list of included names.
+.security and .kibana, add `.*` to the list of included names.
 For example `.*,test*,-test3`
 --
 

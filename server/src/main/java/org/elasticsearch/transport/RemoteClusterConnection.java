@@ -119,6 +119,13 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             createConnectionManager(settings, clusterAlias, transportService));
     }
 
+    RemoteClusterConnection(Settings settings, String clusterAlias, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
+                            TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
+                            String proxyAddress, ConnectionProfile connectionProfile) {
+        this(settings, clusterAlias, seedNodes, transportService, maxNumRemoteConnections, nodePredicate, proxyAddress,
+            createConnectionManager(connectionProfile, transportService));
+    }
+
     // Public for tests to pass a StubbableConnectionManager
     RemoteClusterConnection(Settings settings, String clusterAlias, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
                             TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
@@ -754,7 +761,11 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                 TransportRequestOptions.Type.RECOVERY)
             .setCompressionEnabled(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .setPingInterval(REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings));
-        return new ConnectionManager(builder.build(), transportService.transport, transportService.threadPool);
+        return createConnectionManager(builder.build(), transportService);
+    }
+
+    private static ConnectionManager createConnectionManager(ConnectionProfile connectionProfile, TransportService transportService) {
+        return new ConnectionManager(connectionProfile, transportService.transport, transportService.threadPool);
     }
 
     ConnectionManager getConnectionManager() {

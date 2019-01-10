@@ -189,6 +189,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private final TransportService transportService;
     private final int numRemoteConnections;
     private volatile Map<String, RemoteClusterConnection> remoteClusters = Collections.emptyMap();
+    private volatile Map<String, ConnectionProfile> remoteClusterConnectionProfiles = Collections.emptyMap();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
@@ -391,6 +392,31 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         clusterSettings.addAffixUpdateConsumer(SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
     }
 
+    private synchronized void updateRemoteClusterPingSchedule(String clusterAlias, TimeValue timeValue) {
+        RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterAlias);
+        if (remoteClusterConnection != null) {
+            ConnectionProfile oldProfile = remoteClusterConnection.getConnectionManager().getConnectionProfile();
+            if (oldProfile.getPingInterval().equals(timeValue) == false) {
+                updateRemoteClusterConnectionProfile(clusterAlias);
+            }
+        }
+    }
+
+    private synchronized void updateRemoteClusterCompressionSetting(String clusterAlias, Boolean compressionEnabled) {
+        RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterAlias);
+        if (remoteClusterConnection != null) {
+            ConnectionProfile oldProfile = remoteClusterConnection.getConnectionManager().getConnectionProfile();
+            if (oldProfile.getCompressionEnabled().equals(compressionEnabled) == false) {
+                updateRemoteClusterConnectionProfile(clusterAlias);
+            }
+        }
+    }
+
+    private synchronized void updateRemoteClusterConnectionProfile(String clusterAlias) {
+
+
+    }
+
     synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
         if (remote != null) {
@@ -424,6 +450,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> seeds =
                 RemoteClusterAware.buildRemoteClustersDynamicConfig(settings);
+        initializeConnectionProfiles(seeds.keySet());
         updateRemoteClusters(seeds, future);
         try {
             future.get(timeValue.millis(), TimeUnit.MILLISECONDS);
@@ -434,6 +461,24 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         } catch (Exception e) {
             throw new IllegalStateException("failed to connect to remote clusters", e);
         }
+    }
+
+    private synchronized void initializeConnectionProfiles(Set<String> remoteClusters) {
+        Map<String, ConnectionProfile> connectionProfiles = new HashMap<>(remoteClusters.size());
+        for (String clusterName : remoteClusters) {
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder()
+                .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+                .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+                .addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING) // TODO make this configurable?
+                // we don't want this to be used for anything else but search
+                .addConnections(0, TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.STATE,
+                    TransportRequestOptions.Type.RECOVERY)
+                .setCompressionEnabled(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterName).get(settings))
+                .setPingInterval(REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterName).get(settings));
+            connectionProfiles.put(clusterName, builder.build());
+        }
+        this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);
     }
 
     @Override

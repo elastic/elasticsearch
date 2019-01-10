@@ -61,16 +61,15 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter im
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (nodeAndClusterIds.get() == null && nodeAndClusterIdsReference.get() != null) {
-            //received a value from the listener
-            toAppendTo.append(nodeAndClusterIdsReference.get());
-            nodeAndClusterIds.set(nodeAndClusterIdsReference.get());
-        } else if (nodeAndClusterIds.get() != null) {
+        if (nodeAndClusterIds.get() != null) {
             //using local value
             toAppendTo.append(nodeAndClusterIds.get());
+        } else if (nodeAndClusterIdsReference.get() != null) {
+            //reading a value from the listener for the first time
+            toAppendTo.append(nodeAndClusterIdsReference.get());
+            nodeAndClusterIds.set(nodeAndClusterIdsReference.get());
         }
         // nodeId/clusterUuid not received yet, not appending
-
     }
 
     @Override
@@ -78,10 +77,10 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter im
         DiscoveryNode localNode = event.state().getNodes().getLocalNode();
         String clusterUUID = event.state().getMetaData().clusterUUID();
         String nodeId = localNode.getId();
-        boolean wasSet = nodeAndClusterIdsReference.compareAndSet(null, formatIds(clusterUUID,nodeId));
+        boolean wasSet = nodeAndClusterIdsReference.compareAndSet(null, formatIds(clusterUUID, nodeId));
 
         if (wasSet) {
-            LOGGER.info("received first cluster state update. Setting nodeId={} and clusterUuid={}", nodeId,clusterUUID);
+            LOGGER.info("received first cluster state update. Setting nodeId={} and clusterUuid={}", nodeId, clusterUUID);
         }
     }
 

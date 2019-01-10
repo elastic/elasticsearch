@@ -19,7 +19,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ChainTaskExecutorTests extends ESTestCase {
+public class VoidChainTaskExecutorTests extends ESTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final CountDownLatch latch = new CountDownLatch(1);
@@ -36,18 +36,18 @@ public class ChainTaskExecutorTests extends ESTestCase {
 
     public void testExecute() throws InterruptedException {
         final List<String> strings = new ArrayList<>();
-        ActionListener<Void> finalListener = createBlockingListener(() -> strings.add("last"), e -> fail());
-        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.generic(), false);
-        chainTaskExecutor.add(listener -> {
+        ActionListener<List<Void>> finalListener = createBlockingListener(() -> strings.add("last"), e -> fail());
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(threadPool.generic(), false);
+        voidChainTaskExecutor.add(listener -> {
             strings.add("first");
             listener.onResponse(null);
         });
-        chainTaskExecutor.add(listener -> {
+        voidChainTaskExecutor.add(listener -> {
             strings.add("second");
             listener.onResponse(null);
         });
 
-        chainTaskExecutor.execute(finalListener);
+        voidChainTaskExecutor.execute(finalListener);
 
         latch.await();
 
@@ -56,22 +56,22 @@ public class ChainTaskExecutorTests extends ESTestCase {
 
     public void testExecute_GivenSingleFailureAndShortCircuit() throws InterruptedException {
         final List<String> strings = new ArrayList<>();
-        ActionListener<Void> finalListener = createBlockingListener(() -> fail(),
+        ActionListener<List<Void>> finalListener = createBlockingListener(() -> fail(),
                 e -> assertThat(e.getMessage(), equalTo("some error")));
-        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.generic(), true);
-        chainTaskExecutor.add(listener -> {
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(threadPool.generic(), true);
+        voidChainTaskExecutor.add(listener -> {
             strings.add("before");
             listener.onResponse(null);
         });
-        chainTaskExecutor.add(listener -> {
+        voidChainTaskExecutor.add(listener -> {
             throw new RuntimeException("some error");
         });
-        chainTaskExecutor.add(listener -> {
+        voidChainTaskExecutor.add(listener -> {
             strings.add("after");
             listener.onResponse(null);
         });
 
-        chainTaskExecutor.execute(finalListener);
+        voidChainTaskExecutor.execute(finalListener);
 
         latch.await();
 
@@ -80,21 +80,21 @@ public class ChainTaskExecutorTests extends ESTestCase {
 
     public void testExecute_GivenMultipleFailuresAndShortCircuit() throws InterruptedException {
         final List<String> strings = new ArrayList<>();
-        ActionListener<Void> finalListener = createBlockingListener(() -> fail(),
+        ActionListener<List<Void>> finalListener = createBlockingListener(() -> fail(),
                 e -> assertThat(e.getMessage(), equalTo("some error 1")));
-        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.generic(), true);
-        chainTaskExecutor.add(listener -> {
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(threadPool.generic(), true);
+        voidChainTaskExecutor.add(listener -> {
             strings.add("before");
             listener.onResponse(null);
         });
-        chainTaskExecutor.add(listener -> {
+        voidChainTaskExecutor.add(listener -> {
             throw new RuntimeException("some error 1");
         });
-        chainTaskExecutor.add(listener -> {
+        voidChainTaskExecutor.add(listener -> {
             throw new RuntimeException("some error 2");
         });
 
-        chainTaskExecutor.execute(finalListener);
+        voidChainTaskExecutor.execute(finalListener);
 
         latch.await();
 
@@ -103,21 +103,21 @@ public class ChainTaskExecutorTests extends ESTestCase {
 
     public void testExecute_GivenFailureAndNoShortCircuit() throws InterruptedException {
         final List<String> strings = new ArrayList<>();
-        ActionListener<Void> finalListener = createBlockingListener(() -> strings.add("last"), e -> fail());
-        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.generic(), false);
-        chainTaskExecutor.add(listener -> {
+        ActionListener<List<Void>> finalListener = createBlockingListener(() -> strings.add("last"), e -> fail());
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(threadPool.generic(), false);
+        voidChainTaskExecutor.add(listener -> {
             strings.add("before");
             listener.onResponse(null);
         });
-        chainTaskExecutor.add(listener -> {
+        voidChainTaskExecutor.add(listener -> {
             throw new RuntimeException("some error");
         });
-        chainTaskExecutor.add(listener -> {
+        voidChainTaskExecutor.add(listener -> {
             strings.add("after");
             listener.onResponse(null);
         });
 
-        chainTaskExecutor.execute(finalListener);
+        voidChainTaskExecutor.execute(finalListener);
 
         latch.await();
 
@@ -126,17 +126,17 @@ public class ChainTaskExecutorTests extends ESTestCase {
 
     public void testExecute_GivenNoTasksAdded() throws InterruptedException {
         final List<String> strings = new ArrayList<>();
-        ActionListener<Void> finalListener = createBlockingListener(() -> strings.add("last"), e -> fail());
-        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.generic(), false);
+        ActionListener<List<Void>> finalListener = createBlockingListener(() -> strings.add("last"), e -> fail());
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(threadPool.generic(), false);
 
-        chainTaskExecutor.execute(finalListener);
+        voidChainTaskExecutor.execute(finalListener);
 
         latch.await();
 
         assertThat(strings, contains("last"));
     }
 
-    private ActionListener<Void> createBlockingListener(Runnable runnable, Consumer<Exception> errorHandler) {
+    private ActionListener<List<Void>> createBlockingListener(Runnable runnable, Consumer<Exception> errorHandler) {
         return ActionListener.wrap(nullValue -> {
             runnable.run();
             latch.countDown();

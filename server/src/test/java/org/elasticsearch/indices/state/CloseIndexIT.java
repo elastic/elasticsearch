@@ -54,14 +54,14 @@ public class CloseIndexIT extends ESIntegTestCase {
 
     public void testCloseMissingIndex() {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareClose("test").get());
-        assertThat(e.getMessage(), is("no such index [test]"));
+        assertThat(e.getMessage(), is("no such index"));
     }
 
     public void testCloseOneMissingIndex() {
         createIndex("test1");
         final IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
             () -> client().admin().indices().prepareClose("test1", "test2").get());
-        assertThat(e.getMessage(), is("no such index [test2]"));
+        assertThat(e.getMessage(), is("no such index"));
     }
 
     public void testCloseOneMissingIndexIgnoreMissing() {
@@ -93,7 +93,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose(indexName));
         assertIndexIsClosed(indexName);
 
-        assertAcked(client().admin().indices().prepareOpen(indexName));
+        assertAcked(client().admin().indices().prepareOpen(indexName).setWaitForActiveShards(ActiveShardCount.DEFAULT));
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
     }
 
@@ -185,7 +185,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
 
         assertIndexIsClosed(indexName);
-        assertAcked(client().admin().indices().prepareOpen(indexName));
+        assertAcked(client().admin().indices().prepareOpen(indexName).setWaitForActiveShards(ActiveShardCount.DEFAULT));
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
     }
 
@@ -274,7 +274,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             threads.add(new Thread(() -> {
                 try {
                     waitForLatch.run();
-                    assertAcked(client().admin().indices().prepareOpen(indexName).get());
+                    assertAcked(client().admin().indices().prepareOpen(indexName).setWaitForActiveShards(ActiveShardCount.DEFAULT).get());
                 } catch (final Exception e) {
                     throw new AssertionError(e);
                 }
@@ -295,7 +295,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         if (clusterState.metaData().indices().get(indexName).getState() == IndexMetaData.State.CLOSE) {
             assertIndexIsClosed(indexName);
-            assertAcked(client().admin().indices().prepareOpen(indexName));
+            assertAcked(client().admin().indices().prepareOpen(indexName).setWaitForActiveShards(ActiveShardCount.DEFAULT));
         }
         refresh(indexName);
         assertIndexIsOpened(indexName);

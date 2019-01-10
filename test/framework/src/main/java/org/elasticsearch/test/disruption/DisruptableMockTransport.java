@@ -53,13 +53,13 @@ import static org.elasticsearch.test.ESTestCase.copyWriteable;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 
 public abstract class DisruptableMockTransport extends MockTransport {
+    private final DiscoveryNode localNode;
     private final Logger logger;
 
-    public DisruptableMockTransport(Logger logger) {
+    public DisruptableMockTransport(DiscoveryNode localNode, Logger logger) {
+        this.localNode = localNode;
         this.logger = logger;
     }
-
-    public abstract DiscoveryNode getLocalNode();
 
     protected abstract ConnectionStatus getConnectionStatus(DiscoveryNode destination);
 
@@ -75,6 +75,10 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             execute(runnable);
         }
+    }
+
+    public DiscoveryNode getLocalNode() {
+        return localNode;
     }
 
     @Override

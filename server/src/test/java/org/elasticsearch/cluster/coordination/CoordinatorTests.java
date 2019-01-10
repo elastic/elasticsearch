@@ -1454,12 +1454,7 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             private void setUp() {
-                mockTransport = new DisruptableMockTransport(logger) {
-                    @Override
-                    public DiscoveryNode getLocalNode() {
-                        return localNode;
-                    }
-
+                mockTransport = new DisruptableMockTransport(localNode, logger) {
                     @Override
                     protected void execute(Runnable runnable) {
                         deterministicTaskQueue.scheduleNow(onNode(runnable));

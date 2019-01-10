@@ -387,12 +387,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                         return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue);
                     }
                 });
-            mockTransport = new DisruptableMockTransport(logger) {
-                @Override
-                public DiscoveryNode getLocalNode() {
-                    return node;
-                }
-
+            mockTransport = new DisruptableMockTransport(node, logger) {
                 @Override
                 protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
                     return ConnectionStatus.CONNECTED;

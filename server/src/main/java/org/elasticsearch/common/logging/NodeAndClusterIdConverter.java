@@ -68,10 +68,9 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter im
         } else if (nodeAndClusterIds.get() != null) {
             //using local value
             toAppendTo.append(nodeAndClusterIds.get());
-        } else {
-            // no value received yet
-            toAppendTo.append("");
         }
+        // nodeId/clusterUuid not received yet, not appending
+
     }
 
     @Override
@@ -82,8 +81,7 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter im
         boolean wasSet = nodeAndClusterIdsReference.compareAndSet(null, formatIds(clusterUUID,nodeId));
 
         if (wasSet) {
-            LOGGER.info("received first cluster state update. Setting nodeId={}", nodeId);
-
+            LOGGER.info("received first cluster state update. Setting nodeId={} and clusterUuid={}", nodeId,clusterUUID);
         }
     }
 

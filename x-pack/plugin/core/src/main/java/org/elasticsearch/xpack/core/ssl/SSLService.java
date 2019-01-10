@@ -129,7 +129,7 @@ public class SSLService extends AbstractComponent {
             @Override
             SSLConfiguration sslConfiguration(Settings settings) {
                 SSLConfiguration sslConfiguration = super.sslConfiguration(settings);
-                SSLService.this.checkSSLConfigurationForFallback("monitoring exporter", settings, sslConfiguration);
+                SSLService.this.checkSSLConfigurationForFallback("monitoring.exporters", settings, sslConfiguration);
                 return sslConfiguration;
             }
 

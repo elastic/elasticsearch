@@ -144,7 +144,7 @@ include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-cl
 In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance
 will be referenced as `client`.
 
-[[java-rest-hight-getting-started-request-options]]
+[[java-rest-high-getting-started-request-options]]
 === RequestOptions
 
 All APIs in the `RestHighLevelClient` accept a `RequestOptions` which you can

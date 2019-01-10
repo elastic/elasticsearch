@@ -76,7 +76,7 @@ If you encounter an error during installation we would encourage you to open an 
 [[installation-cmd]]
 ==== Installation using the command line
 
-NOTE: The examples given below apply to installation of the 64 bit MSI package. To acheive the same result with the 32 bit MSI package you would instead use the filename suffix `windows-x86.msi`
+NOTE: The examples given below apply to installation of the 64 bit MSI package. To achieve the same result with the 32 bit MSI package you would instead use the filename suffix `windows-x86.msi`
 
 The `.msi` can also be installed via the command line. The simplest installation using the same defaults as the GUI is achieved by first navigating to the download directory, then running:
 

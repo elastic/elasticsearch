@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -70,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -126,6 +128,24 @@ public class CoordinatorTests extends ESTestCase {
     @Before
     public void resetPortCounterBeforeEachTest() {
         resetPortCounter();
+    }
+
+    // check that runRandomly leads to reproducible results
+    public void testRepeatableTests() throws Exception {
+        final Callable<Long> test = () -> {
+            final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+            cluster.runRandomly();
+            final long afterRunRandomly = value(cluster.getAnyNode().getLastAppliedClusterState());
+            cluster.stabilise();
+            final long afterStabilisation = value(cluster.getAnyNode().getLastAppliedClusterState());
+            return afterRunRandomly ^ afterStabilisation;
+        };
+        final long seed = randomLong();
+        logger.info("First run with seed [{}]", seed);
+        final long result1 = RandomizedContext.current().runWithPrivateRandomness(seed, test);
+        logger.info("Second run with seed [{}]", seed);
+        final long result2 = RandomizedContext.current().runWithPrivateRandomness(seed, test);
+        assertEquals(result1, result2);
     }
 
     public void testCanUpdateClusterStateAfterStabilisation() {
@@ -1246,12 +1266,12 @@ public class CoordinatorTests extends ESTestCase {
                     assertThat(nodeId + " has correct master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
                         equalTo(leader.getLocalNode()));
                     assertThat(nodeId + " has no NO_MASTER_BLOCK",
-                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID), equalTo(false));
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(false));
                 } else {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertThat(nodeId + " has no master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(), nullValue());
                     assertThat(nodeId + " has NO_MASTER_BLOCK",
-                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID), equalTo(true));
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(true));
                     assertFalse(nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
                 }

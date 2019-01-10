@@ -1,7 +1,7 @@
 [[java-rest-high-migration-get-assistance]]
 === Migration Get Assistance
 
-[[java-rest-high-migraton-get-assistance-request]]
+[[java-rest-high-migration-get-assistance-request]]
 ==== Index Upgrade Info Request
 
 An `IndexUpgradeInfoRequest` does not require any argument:

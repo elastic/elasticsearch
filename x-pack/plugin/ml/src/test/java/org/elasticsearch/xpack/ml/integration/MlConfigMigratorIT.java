@@ -311,7 +311,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
     public void assertSnapshot(MlMetadata expectedMlMetadata) throws IOException {
         SearchResponse searchResponse = client()
-            .prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+            .prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setTypes(ElasticsearchMappings.DOC_TYPE)
             .setSize(1)
             .setQuery(QueryBuilders.idsQuery().addIds("ml-config"))

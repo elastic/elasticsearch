@@ -68,7 +68,7 @@ public class UnusedStateRemover implements MlDataRemover {
     private List<String> findUnusedStateDocIds() {
         Set<String> jobIds = getJobIds();
         List<String> stateDocIdsToDelete = new ArrayList<>();
-        BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(client, AnomalyDetectorsIndex.jobStateIndexName());
+        BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(client, AnomalyDetectorsIndex.jobStateIndexPattern());
         while (stateDocIdsIterator.hasNext()) {
             Deque<String> stateDocIds = stateDocIdsIterator.next();
             for (String stateDocId : stateDocIds) {
@@ -103,7 +103,7 @@ public class UnusedStateRemover implements MlDataRemover {
     private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, ActionListener<Boolean> listener) {
         LOGGER.info("Found [{}] unused state documents; attempting to delete",
                 unusedDocIds.size());
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexName())
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
             .types(ElasticsearchMappings.DOC_TYPE)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(unusedDocIds.toArray(new String[0])));

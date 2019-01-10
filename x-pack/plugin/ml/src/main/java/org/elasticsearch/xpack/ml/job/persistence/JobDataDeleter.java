@@ -62,7 +62,7 @@ public class JobDataDeleter {
             return;
         }
 
-        String stateIndexName = AnomalyDetectorsIndex.jobStateIndexName();
+        String stateIndexName = AnomalyDetectorsIndex.jobStateIndexPattern();
 
         List<String> idsToDelete = new ArrayList<>();
         Set<String> indices = new HashSet<>();

@@ -63,7 +63,7 @@ public class StateStreamer {
      * @param restoreStream the stream to write the state to
      */
     public void restoreStateToStream(String jobId, ModelSnapshot modelSnapshot, OutputStream restoreStream) throws IOException {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
+        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
 
         // First try to restore model state.
         for (String stateDocId : modelSnapshot.stateDocumentIds()) {

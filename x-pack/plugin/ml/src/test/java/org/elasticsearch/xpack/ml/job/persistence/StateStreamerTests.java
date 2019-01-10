@@ -64,7 +64,7 @@ public class StateStreamerTests extends ESTestCase {
 
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
             .addClusterStatusYellowResponse()
-            .prepareSearches(AnomalyDetectorsIndex.jobStateIndexName(), builder1, builder2, builder3, builder4);
+            .prepareSearches(AnomalyDetectorsIndex.jobStateIndexPattern(), builder1, builder2, builder3, builder4);
 
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID).setSnapshotId(snapshotId).setSnapshotDocCount(2).build();
 

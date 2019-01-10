@@ -760,13 +760,7 @@ public final class SearchPhaseController {
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 return null;
             } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-                // NORELEASE The assertion below has been replaced by a runtime exception in order to debug
-                // https://github.com/elastic/elasticsearch/issues/37179.
-                // The assertion should be restored and the exception removed when this issue is solved.
-                // assert totalHitsRelation == Relation.EQUAL_TO;
-                if (totalHitsRelation != Relation.EQUAL_TO) {
-                    throw new IllegalStateException("Expected accurate total hits but got " + new TotalHits(totalHits, totalHitsRelation));
-                }
+                assert totalHitsRelation == Relation.EQUAL_TO;
                 return new TotalHits(totalHits, totalHitsRelation);
             } else {
                 if (totalHits < trackTotalHitsUpTo) {

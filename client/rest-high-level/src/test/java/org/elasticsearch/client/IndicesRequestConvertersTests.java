@@ -61,6 +61,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
@@ -364,6 +365,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
         RequestConvertersTests.setRandomLocal(getIndexRequest, expectedParams);
         RequestConvertersTests.setRandomHumanReadable(getIndexRequest, expectedParams);
+        // Force "include_type_name" parameter since responses need to be compatible when coming from 7.0 nodes
+        expectedParams.put(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         if (ESTestCase.randomBoolean()) {
             // the request object will not have include_defaults present unless it is set to

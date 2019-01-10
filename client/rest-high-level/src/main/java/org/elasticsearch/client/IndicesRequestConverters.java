@@ -312,6 +312,7 @@ final class IndicesRequestConverters {
         params.withIncludeDefaults(getIndexRequest.includeDefaults());
         params.withHuman(getIndexRequest.humanReadable());
         params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
+        params.withIncludeTypeName(true);
 
         return request;
     }

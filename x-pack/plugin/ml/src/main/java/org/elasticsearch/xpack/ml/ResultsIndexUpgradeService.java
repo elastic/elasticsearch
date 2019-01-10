@@ -63,7 +63,7 @@ public class ResultsIndexUpgradeService {
 
     // Adjust the following constants as necessary for various versions and backports.
     private static final int INDEX_VERSION = Version.CURRENT.major;
-    private static final Version MIN_REQUIRED_VERSION = Version.CURRENT.minimumCompatibilityVersion();
+    private static final Version MIN_REQUIRED_VERSION = Version.V_5_6_0;
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Predicate<IndexMetaData> shouldUpgrade;

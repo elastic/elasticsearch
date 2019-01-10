@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -88,7 +89,7 @@ public class MlUpgradeIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getTotalDocCount(job3Index), equalTo(job3Total));
 
         ClusterState state = admin().cluster().state(new ClusterStateRequest()).actionGet().getState();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
         String[] indices = indexNameExpressionResolver.concreteIndexNames(state,
             IndicesOptions.strictExpandOpenAndForbidClosed(),
             AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*");
@@ -120,7 +121,7 @@ public class MlUpgradeIT extends MlNativeAutodetectIntegTestCase {
         long job2Total = getJobResultsCount(job2.getId());
         long job3Total = getJobResultsCount(job3.getId());
 
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
 
         ResultsIndexUpgradeService resultsIndexUpgradeService = new ResultsIndexUpgradeService(indexNameExpressionResolver,
             ThreadPool.Names.SAME,
@@ -203,7 +204,7 @@ public class MlUpgradeIT extends MlNativeAutodetectIntegTestCase {
         String manuallyCreatedIndex = job1Index + "-" + Version.CURRENT.major;
         client().admin().indices().prepareCreate(manuallyCreatedIndex).execute().actionGet();
 
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
 
         ResultsIndexUpgradeService resultsIndexUpgradeService = new ResultsIndexUpgradeService(indexNameExpressionResolver,
             ThreadPool.Names.SAME,
@@ -257,7 +258,7 @@ public class MlUpgradeIT extends MlNativeAutodetectIntegTestCase {
         String alreadyMigratedWriteIndex = job1Index + "-" + Version.CURRENT.major;
         client().admin().indices().prepareCreate(alreadyMigratedWriteIndex).execute().actionGet();
 
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
 
         ResultsIndexUpgradeService resultsIndexUpgradeService = new ResultsIndexUpgradeService(indexNameExpressionResolver,
             ThreadPool.Names.SAME,
@@ -315,7 +316,7 @@ public class MlUpgradeIT extends MlNativeAutodetectIntegTestCase {
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.matchAllQuery())
             .execute().actionGet();
-        return searchResponse.getHits().getTotalHits().value;
+        return searchResponse.getHits().getTotalHits();
     }
 
     private long getJobResultsCount(String jobId) {

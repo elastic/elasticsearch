@@ -28,7 +28,8 @@ import java.util.Map;
 import java.util.Objects;
 
 
-public class MlUpgradeAction extends Action<AcknowledgedResponse> {
+public class MlUpgradeAction extends Action<MlUpgradeAction.Request, AcknowledgedResponse, MlUpgradeAction.RequestBuilder> {
+
     public static final MlUpgradeAction INSTANCE = new MlUpgradeAction();
     public static final String NAME = "cluster:admin/xpack/ml/upgrade";
 
@@ -39,6 +40,11 @@ public class MlUpgradeAction extends Action<AcknowledgedResponse> {
     @Override
     public AcknowledgedResponse newResponse() {
         return new AcknowledgedResponse();
+    }
+
+    @Override
+    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new RequestBuilder(client, this);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> implements ToXContentObject {
@@ -60,6 +66,7 @@ public class MlUpgradeAction extends Action<AcknowledgedResponse> {
 
         // for serialization
         public Request() {
+            super();
         }
 
         public Request(StreamInput in) throws IOException {
@@ -71,6 +78,12 @@ public class MlUpgradeAction extends Action<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeInt(reindexBatchSize);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            reindexBatchSize = in.readInt();
         }
 
         public String[] indices() {
@@ -152,8 +165,8 @@ public class MlUpgradeAction extends Action<AcknowledgedResponse> {
 
     public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
+        public RequestBuilder(ElasticsearchClient client, MlUpgradeAction action) {
+            super(client, action, new Request());
         }
     }
 

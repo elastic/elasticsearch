@@ -1,10 +1,10 @@
 {
-  "ml.upgrade": {
+  "xpack.ml.upgrade": {
     "documentation": "TODO",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/_upgrade",
-      "paths": [ "/_ml/_upgrade" ],
+      "path": "/_xpack/ml/_upgrade",
+      "paths": [ "/_xpack/ml/_upgrade" ],
       "params": {
         "wait_for_completion": {
           "type": "boolean",

@@ -2,7 +2,7 @@
 "Put job on the old cluster and post some data":
 
   - do:
-      ml.put_job:
+      xpack.ml.put_job:
         job_id: old-cluster-job-to-upgrade
         body:  >
           {
@@ -23,11 +23,11 @@
   - match: { job_id: old-cluster-job-to-upgrade }
 
   - do:
-      ml.open_job:
+      xpack.ml.open_job:
         job_id: old-cluster-job-to-upgrade
 
   - do:
-      ml.post_data:
+      xpack.ml.post_data:
         job_id: old-cluster-job-to-upgrade
         body:
           - airline: AAL
@@ -41,11 +41,11 @@
   - match: { processed_record_count: 2 }
 
   - do:
-      ml.close_job:
+      xpack.ml.close_job:
         job_id: old-cluster-job-to-upgrade
 
   - do:
-      ml.get_buckets:
+      xpack.ml.get_buckets:
         job_id: old-cluster-job-to-upgrade
   - match: { count: 1 }
 
@@ -59,7 +59,7 @@
 ---
 "Put job on the old cluster with a custom index":
   - do:
-      ml.put_job:
+      xpack.ml.put_job:
         job_id: old-cluster-job-to-upgrade-custom
         body:  >
           {
@@ -81,11 +81,11 @@
   - match: { job_id: old-cluster-job-to-upgrade-custom }
 
   - do:
-      ml.open_job:
+      xpack.ml.open_job:
         job_id: old-cluster-job-to-upgrade-custom
 
   - do:
-      ml.post_data:
+      xpack.ml.post_data:
         job_id: old-cluster-job-to-upgrade-custom
         body:
         - airline: AAL
@@ -103,11 +103,11 @@
   - match: { processed_record_count: 3 }
 
   - do:
-      ml.close_job:
+      xpack.ml.close_job:
         job_id: old-cluster-job-to-upgrade-custom
 
   - do:
-      ml.get_buckets:
+      xpack.ml.get_buckets:
         job_id: old-cluster-job-to-upgrade-custom
   - match: { count: 3 }
 

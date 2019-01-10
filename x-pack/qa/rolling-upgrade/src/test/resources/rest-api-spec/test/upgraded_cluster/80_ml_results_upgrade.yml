@@ -2,12 +2,12 @@
 "Migrate results data to latest index binary version":
   # Verify that all the results are there and the typical indices exist
   - do:
-      ml.get_buckets:
+      xpack.ml.get_buckets:
         job_id: old-cluster-job-to-upgrade
   - match: { count: 1 }
 
   - do:
-      ml.get_buckets:
+      xpack.ml.get_buckets:
         job_id: old-cluster-job-to-upgrade-custom
   - match: { count: 3 }
 
@@ -32,7 +32,7 @@
 
   # Do the upgrade
   - do:
-      ml.upgrade:
+      xpack.ml.upgrade:
         wait_for_completion: true
 
   - match: { acknowledged: true }
@@ -56,12 +56,12 @@
       indices.refresh: {}
 
   - do:
-      ml.get_buckets:
+      xpack.ml.get_buckets:
         job_id: old-cluster-job-to-upgrade
   - match: { count: 1 }
 
   - do:
-      ml.get_buckets:
+      xpack.ml.get_buckets:
         job_id: old-cluster-job-to-upgrade-custom
   - match: { count: 3 }
 
@@ -71,20 +71,20 @@
       indices.get_settings:
         index: .ml-anomalies-old-cluster-job-to-upgrade
         name: index.version.created
-  - match: { \.ml-anomalies-shared-7.settings.index.version.created: '/7\d+/' }
-  - match: { \.ml-anomalies-shared-7r.settings.index.version.created: '/7\d+/' }
+  - match: { \.ml-anomalies-shared-6.settings.index.version.created: '/6\d+/' }
+  - match: { \.ml-anomalies-shared-6r.settings.index.version.created: '/6\d+/' }
 
   - do:
       indices.get_settings:
         index: .ml-anomalies-old-cluster-job-to-upgrade-custom
         name: index.version.created
-  - match: { \.ml-anomalies-custom-old-cluster-job-to-upgrade-custom-7.settings.index.version.created: '/7\d+/' }
-  - match: { \.ml-anomalies-custom-old-cluster-job-to-upgrade-custom-7r.settings.index.version.created: '/7\d+/' }
+  - match: { \.ml-anomalies-custom-old-cluster-job-to-upgrade-custom-6.settings.index.version.created: '/6\d+/' }
+  - match: { \.ml-anomalies-custom-old-cluster-job-to-upgrade-custom-6r.settings.index.version.created: '/6\d+/' }
 
   # Create a new job to verify that the .ml-anomalies-shared index gets created again without issues
 
   - do:
-      ml.put_job:
+      xpack.ml.put_job:
         job_id: upgraded-cluster-job-should-not-upgrade
         body:  >
           {
@@ -105,11 +105,11 @@
   - match: { job_id: upgraded-cluster-job-should-not-upgrade }
 
   - do:
-      ml.open_job:
+      xpack.ml.open_job:
         job_id: upgraded-cluster-job-should-not-upgrade
 
   - do:
-      ml.post_data:
+      xpack.ml.post_data:
         job_id: upgraded-cluster-job-should-not-upgrade
         body:
         - airline: AAL
@@ -123,11 +123,11 @@
   - match: { processed_record_count: 2 }
 
   - do:
-      ml.close_job:
+      xpack.ml.close_job:
         job_id: upgraded-cluster-job-should-not-upgrade
 
   - do:
-      ml.get_buckets:
+      xpack.ml.get_buckets:
         job_id: upgraded-cluster-job-should-not-upgrade
   - match: { count: 1 }
 
@@ -142,11 +142,11 @@
         index: .ml-anomalies-shared
         name: index.version.created
 
-  - match: { \.ml-anomalies-shared.settings.index.version.created: '/7\d+/' }
+  - match: { \.ml-anomalies-shared.settings.index.version.created: '/6\d+/' }
 
   # Do the upgrade Again as nothing needs upgraded now
   - do:
-      ml.upgrade:
+      xpack.ml.upgrade:
         wait_for_completion: true
 
   - match: { acknowledged: true }

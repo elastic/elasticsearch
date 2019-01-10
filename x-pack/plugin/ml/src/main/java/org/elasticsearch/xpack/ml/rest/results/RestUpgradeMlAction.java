@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.results;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,18 +26,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpgradeMlAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestUpgradeMlAction.class));
-
     public RestUpgradeMlAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerWithDeprecatedHandler(
-            POST,
-            MachineLearning.BASE_PATH + "_upgrade",
-            this,
-            POST,
-            MachineLearning.PRE_V7_BASE_PATH + "_upgrade",
-            deprecationLogger);
+        controller.registerHandler(POST, MachineLearning.BASE_PATH + "_upgrade", this);
+        controller.registerHandler(POST,MachineLearning.V7_BASE_PATH + "_upgrade", this);
     }
 
     @Override

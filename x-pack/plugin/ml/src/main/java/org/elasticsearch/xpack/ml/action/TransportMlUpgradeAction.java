@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,11 +34,11 @@ public class TransportMlUpgradeAction
     private final ResultsIndexUpgradeService resultsIndexUpgradeService;
 
     @Inject
-    public TransportMlUpgradeAction(TransportService transportService, ClusterService clusterService,
+    public TransportMlUpgradeAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, ActionFilters actionFilters, Client client,
                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(MlUpgradeAction.NAME, transportService, clusterService, threadPool,
-            actionFilters, MlUpgradeAction.Request::new, indexNameExpressionResolver);
+        super(settings, MlUpgradeAction.NAME, transportService, clusterService, threadPool,
+            actionFilters, indexNameExpressionResolver, MlUpgradeAction.Request::new);
         this.client = client;
         this.resultsIndexUpgradeService = new ResultsIndexUpgradeService(indexNameExpressionResolver,
             executor(),

@@ -31,7 +31,7 @@ public abstract class AbstractSqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(LocalStateSQLXpackPlugin.class);
+        return Collections.singletonList(LocalStateSQLXPackPlugin.class);
     }
 
     @Override

@@ -12,9 +12,9 @@ import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 
 import java.nio.file.Path;
 
-public class LocalStateSQLXpackPlugin extends LocalStateCompositeXPackPlugin {
+class LocalStateSQLXPackPlugin extends LocalStateCompositeXPackPlugin {
 
-    public LocalStateSQLXpackPlugin(Settings settings, Path configPath) throws Exception {
+    LocalStateSQLXPackPlugin(Settings settings, Path configPath) throws Exception {
         super(settings, configPath);
         plugins.add(new SqlPlugin(true, new SqlLicenseChecker((mode) -> {})));
     }

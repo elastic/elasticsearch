@@ -76,6 +76,9 @@ forbiddenPatterns {
   exclude '**/system_key'
 }
 
+// Tests are pushed down to subprojects 
+testingConventions.enabled = false 
+
 /**
  * Subdirectories of this project are test rolling upgrades with various
  * configuration options based on their name.

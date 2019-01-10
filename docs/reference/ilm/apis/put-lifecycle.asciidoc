@@ -8,7 +8,8 @@
 
 beta[]
 
-Creates or updates lifecycle policy.
+Creates or updates lifecycle policy. See <<ilm-policy-definition,Policy phases and actions>>
+for definitions of policy components.
 
 ==== Request
 

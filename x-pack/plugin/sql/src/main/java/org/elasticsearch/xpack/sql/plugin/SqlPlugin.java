@@ -52,7 +52,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     private final boolean enabled;
     private final SqlLicenseChecker sqlLicenseChecker;
 
-    SqlPlugin(boolean enabled, SqlLicenseChecker sqlLicenseChecker) {
+    public SqlPlugin(boolean enabled, SqlLicenseChecker sqlLicenseChecker) {
         this.enabled = enabled;
         this.sqlLicenseChecker = sqlLicenseChecker;
     }

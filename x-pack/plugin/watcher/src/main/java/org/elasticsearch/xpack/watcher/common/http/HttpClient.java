@@ -124,7 +124,7 @@ public class HttpClient implements Closeable {
                 boolean isRedirected = super.isRedirected(request, response, context);
                 if (isRedirected) {
                     String host = response.getHeaders("Location")[0].getValue();
-                    if (isBlacklisted(host)) {
+                    if (isWhitelisted(host) == false) {
                         throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
                             HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
                     }
@@ -148,7 +148,7 @@ public class HttpClient implements Closeable {
                 host = wrapper.getOriginal().getRequestLine().getUri();
             }
 
-            if (isBlacklisted(host)) {
+            if (isWhitelisted(host) == false) {
                 throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
                     HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect");
             }
@@ -350,8 +350,8 @@ public class HttpClient implements Closeable {
 
     }
 
-    private boolean isBlacklisted(String host) {
-        return whitelistAutomaton.get().run(host) == false;
+    private boolean isWhitelisted(String host) {
+        return whitelistAutomaton.get().run(host);
     }
 
     private static final CharacterRunAutomaton MATCH_ALL_AUTOMATON = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton("*"));
@@ -363,7 +363,7 @@ public class HttpClient implements Closeable {
             return MATCH_ALL_AUTOMATON;
         }
 
-        Automaton whiteListAutomaton = Regex.simpleMatchToAutomaton(whiteListedHosts.toArray(new String[]{}));
+        Automaton whiteListAutomaton = Regex.simpleMatchToAutomaton(whiteListedHosts.toArray(Strings.EMPTY_ARRAY));
         whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
         return new CharacterRunAutomaton(whiteListAutomaton);
     }

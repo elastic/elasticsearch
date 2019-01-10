@@ -11,9 +11,13 @@ import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +48,7 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
@@ -682,31 +687,24 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testThatWhiteListingWorksForRedirects() throws Exception {
-        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
-        webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
-        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.HEAD);
-
-        if (method == HttpMethod.GET) {
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldBeRead"));
-        } else if (method == HttpMethod.HEAD) {
-            webServer.enqueue(new MockResponse().setResponseCode(200));
+        int numberOfRedirects = randomIntBetween(1, 10);
+        for (int i = 0; i < numberOfRedirects; i++) {
+            String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/redirect" + i;
+            webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         }
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldBeRead"));
 
         Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri() + "*").build();
 
         try (HttpClient client = new HttpClient(settings, new SSLService(environment.settings(), environment), null,
             mockClusterService())) {
             HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort()).path("/")
-                .method(method)
+                .method(HttpMethod.GET)
                 .build();
             HttpResponse response = client.execute(request);
 
-            assertThat(webServer.requests(), hasSize(2));
-            if (method == HttpMethod.GET) {
-                assertThat(response.body().utf8ToString(), is("shouldBeRead"));
-            } else if (method == HttpMethod.HEAD) {
-                assertThat(response.body(), is(nullValue()));
-            }
+            assertThat(webServer.requests(), hasSize(numberOfRedirects + 1));
+            assertThat(response.body().utf8ToString(), is("shouldBeRead"));
         }
     }
 
@@ -735,13 +733,19 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
-    public void testThatStandardWebHooksAreAlwaysWhiteListed() {
-        CharacterRunAutomaton automaton = HttpClient.createAutomaton(Collections.singletonList("https://example*"));
+    public void testAutomatonWhitelisting() {
+        CharacterRunAutomaton automaton = HttpClient.createAutomaton(Arrays.asList("https://example*", "https://bar.com/foo",
+            "htt*://www.test.org"));
         assertThat(automaton.run("https://example.org"), is(true));
         assertThat(automaton.run("https://example.com"), is(true));
         assertThat(automaton.run("https://examples.com"), is(true));
         assertThat(automaton.run("https://example-website.com"), is(true));
         assertThat(automaton.run("https://noexample.com"), is(false));
+        assertThat(automaton.run("https://bar.com/foo"), is(true));
+        assertThat(automaton.run("https://bar.com/foo2"), is(false));
+        assertThat(automaton.run("https://bar.com"), is(false));
+        assertThat(automaton.run("https://www.test.org"), is(true));
+        assertThat(automaton.run("http://www.test.org"), is(true));
     }
 
     public void testWhitelistEverythingByDefault() {

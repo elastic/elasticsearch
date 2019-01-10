@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
@@ -120,7 +121,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class, ReindexPlugin.class);
     }
 
     @Override

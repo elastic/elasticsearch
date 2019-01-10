@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
@@ -770,7 +771,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 List<Function> list = getList(seen, fName);
                 for (Function seenFunction : list) {
                     if (seenFunction != f && f.arguments().equals(seenFunction.arguments())) {
-                        return seenFunction;
+                        // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
+                        // matches the one from the unresolved function to be checked. 
+                        if (seenFunction instanceof Count) {
+                            if (seenFunction.equals(f)){
+                                return seenFunction;
+                            }
+                        } else {
+                            return seenFunction;
+                        }
                     }
                 }
                 list.add(f);
@@ -808,7 +817,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (!list.isEmpty()) {
                         for (Function seenFunction : list) {
                             if (uf.arguments().equals(seenFunction.arguments())) {
-                                return seenFunction;
+                                // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
+                                // matches the one from the unresolved function to be checked. 
+                                if (seenFunction instanceof Count) {
+                                    if (uf.sameAs((Count) seenFunction)) {
+                                        return seenFunction;
+                                    }
+                                } else {
+                                    return seenFunction;
+                                }
                             }
                         }
                     }

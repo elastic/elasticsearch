@@ -51,7 +51,7 @@ public abstract class GroupingFunction extends Function {
     @Override
     public GroupingFunctionAttribute toAttribute() {
         if (lazyAttribute == null) {
-            // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
+            // this is highly correlated with QueryFolder$FoldAggregate#addAggFunction (regarding the function name within the querydsl)
             lazyAttribute = new GroupingFunctionAttribute(location(), name(), dataType(), id(), functionId());
         }
         return lazyAttribute;

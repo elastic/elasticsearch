@@ -44,6 +44,7 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS), "HS256", "HS512")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "hybrid");
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
             new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
@@ -57,6 +58,7 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS), "HS256", "HS512")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
             new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
@@ -71,6 +73,7 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS), "HS256", "HS512")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
             new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
@@ -85,6 +88,7 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS), "HS256", "HS512")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
             new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
@@ -99,6 +103,7 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS), "HS256", "HS512")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
             new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
@@ -107,13 +112,29 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI)));
     }
 
+    public void testMissingAllowedAlgorithms() {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+        SettingsException exception = expectThrows(SettingsException.class, () -> {
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
+        });
+        assertThat(exception.getMessage(),
+            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS)));
+    }
+
     public void testMissingClientIdThrowsError() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
+            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS), "HS256", "HS512");
         SettingsException exception = expectThrows(SettingsException.class, () -> {
             new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
         });
@@ -128,6 +149,7 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS), "HS256", "HS512")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
             .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES),
                 Arrays.asList("openid", "scope1", "scope2"));
@@ -148,6 +170,7 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS), "HS256", "HS512")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
             .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES),
                 Arrays.asList("openid", "scope1", "scope2"));
@@ -167,6 +190,7 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS), "HS256", "HS512")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
             .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES),
                 Arrays.asList("openid", "scope1", "scope2"));
@@ -185,6 +209,7 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_ALLOWED_SIGNATURE_ALGORITHMS), "HS256", "HS512")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null);

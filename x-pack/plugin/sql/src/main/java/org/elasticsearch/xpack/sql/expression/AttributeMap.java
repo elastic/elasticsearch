@@ -175,7 +175,7 @@ public class AttributeMap<E> {
         delegate.putAll(other.delegate);
     }
 
-    public AttributeMap<E> substract(AttributeMap<E> other) {
+    public AttributeMap<E> subtract(AttributeMap<E> other) {
         AttributeMap<E> diff = new AttributeMap<>();
         for (Entry<AttributeWrapper, E> entry : this.delegate.entrySet()) {
             if (!other.delegate.containsKey(entry.getKey())) {

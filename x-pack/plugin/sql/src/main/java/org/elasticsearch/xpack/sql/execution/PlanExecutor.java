@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
+import org.elasticsearch.xpack.sql.plan.physical.CommandExec;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -66,8 +68,15 @@ public class PlanExecutor {
             if (exec instanceof EsQueryExec) {
                 EsQueryExec e = (EsQueryExec) exec;
                 listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
+            } else if (exec instanceof LocalExec) {
+                listener.onFailure(new PlanningException("Cannot generate a query DSL for an SQL query that either " +
+                    "its WHERE clause evaluates to FALSE or doesn't operate on a table (missing a FROM clause), sql statement: [{}]",
+                    sql));
+            } else if (exec instanceof CommandExec) {
+                listener.onFailure(new PlanningException("Cannot generate a query DSL for a special SQL command " +
+                    "(e.g.: DESCRIBE, SHOW), sql statement: [{}]", sql));
             } else {
-                listener.onFailure(new PlanningException("Cannot generate a query DSL for {}", sql));
+                listener.onFailure(new PlanningException("Cannot generate a query DSL, sql statement: [{}]", sql));
             }
         }, listener::onFailure));
     }

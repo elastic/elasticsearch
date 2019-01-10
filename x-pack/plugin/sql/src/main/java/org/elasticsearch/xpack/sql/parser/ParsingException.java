@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.sql.ClientSqlException;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
-import java.util.Locale;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class ParsingException extends ClientSqlException {
     private final int line;
@@ -22,19 +22,19 @@ public class ParsingException extends ClientSqlException {
     }
 
     ParsingException(String message, Object... args) {
-        this(Location.EMPTY, message, args);
+        this(Source.EMPTY, message, args);
     }
 
-    public ParsingException(Location nodeLocation, String message, Object... args) {
+    public ParsingException(Source source, String message, Object... args) {
         super(message, args);
-        this.line = nodeLocation.getLineNumber();
-        this.charPositionInLine = nodeLocation.getColumnNumber();
+        this.line = source.source().getLineNumber();
+        this.charPositionInLine = source.source().getColumnNumber();
     }
 
-    public ParsingException(Exception cause, Location nodeLocation, String message, Object... args) {
+    public ParsingException(Exception cause, Source source, String message, Object... args) {
         super(cause, message, args);
-        this.line = nodeLocation.getLineNumber();
-        this.charPositionInLine = nodeLocation.getColumnNumber();
+        this.line = source.source().getLineNumber();
+        this.charPositionInLine = source.source().getColumnNumber();
     }
 
     public int getLineNumber() {
@@ -56,6 +56,6 @@ public class ParsingException extends ClientSqlException {
 
     @Override
     public String getMessage() {
-        return String.format(Locale.ROOT, "line %s:%s: %s", getLineNumber(), getColumnNumber(), getErrorMessage());
+        return format("line {}:{}: {}", getLineNumber(), getColumnNumber(), getErrorMessage());
     }
 }

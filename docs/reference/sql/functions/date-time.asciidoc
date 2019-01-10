@@ -11,24 +11,20 @@ beta[]
 ==== Intervals
 
 A common requirement when dealing with date/time in general revolves around 
-the notion of ``interval``s, a topic that is worth exploring in the context of {es} and {es-sql}.
+the notion of `interval`, a topic that is worth exploring in the context of {es} and {es-sql}.
 
 {es} has comprehensive support for <<date-math, date math>> both inside <<date-math-index-names, index names>> and <<mapping-date-format, queries>>.
 Inside {es-sql} the former is supported as is by passing the expression in the table name, while the latter is supported through the standard SQL `INTERVAL`.
 
 The table below shows the mapping between {es} and {es-sql}:
 
-[cols="^m,^m",options="header"]
-
-|===
-|  {es}  | {es-sql}
-
+[cols="^m,^m"]
+|==========================
+s|{es}
+s|{es-sql}
 2+h| Index/Table date math
-
 2+|<index-{now/M{YYYY.MM}}>
-
 2+h| Query date math
-
 | 1y  | INTERVAL 1 YEAR
 | 2M  | INTERVAL 2 MONTH
 | 3w  | INTERVAL 21 DAY
@@ -36,8 +32,7 @@ The table below shows the mapping between {es} and {es-sql}:
 | 5h  | INTERVAL 5 HOUR
 | 6m  | INTERVAL 6 MINUTE
 | 7s  | INTERVAL 7 SECOND
-
-|===
+|==========================
 
 `INTERVAL` allows either `YEAR` and `MONTH` to be mixed together _or_ `DAY`, `HOUR`, `MINUTE` and `SECOND`.
 
@@ -45,11 +40,11 @@ TIP: {es-sql} accepts also the plural for each time unit (e.g. both `YEAR` and `
 
 Example of the possible combinations below:
 
-[cols="^,^",options="header"]
+[cols="^,^"]
 
 |===
-|  Interval                                     | Description
-                                              
+s|Interval
+s|Description
 | `INTERVAL '1-2' YEAR TO MONTH`                | 1 year and 2 months
 | `INTERVAL '3 4' DAYS TO HOURS`                | 3 days and 4 hours
 | `INTERVAL '5 6:12' DAYS TO MINUTES`           | 5 days, 6 hours and 12 minutes
@@ -58,7 +53,6 @@ Example of the possible combinations below:
 | `INTERVAL '123:45' HOUR TO MINUTES`           | 123 hours and 45 minutes
 | `INTERVAL '65:43:21.0123' HOUR TO SECONDS`    | 65 hours, 43 minutes, 21 seconds and 12300000 nanoseconds
 | `INTERVAL '45:01.23' MINUTES TO SECONDS`      | 45 minutes, 1 second and 230000000 nanoseconds
-
 |===
 
 ==== Operators
@@ -100,19 +94,18 @@ include-tagged::{sql-specs}/docs.csv-spec[dtIntervalMul]
 beta[]
 
 [[sql-functions-current-timestamp]]
-==== `CURRENT_TIMESTAMP`/`NOW`
+==== `CURRENT_TIMESTAMP`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
 CURRENT_TIMESTAMP
 CURRENT_TIMESTAMP(precision <1>)
-NOW()
 --------------------------------------------------
 
 *Input*:
 
-<1> fractional digits - optional
+<1> fractional digits; optional
 
 *Output*: date/time
 
@@ -139,7 +132,8 @@ include-tagged::{sql-specs}/docs.csv-spec[curTsFunction]
 include-tagged::{sql-specs}/docs.csv-spec[curTsFunctionPrecision]
 --------------------------------------------------
 
-Typically this function is used for relative date/time filtering:
+Typically, this function (as well as its twin <<sql-functions-now,NOW())>> function is used for
+relative date/time filtering:
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -147,7 +141,7 @@ include-tagged::{sql-specs}/docs.csv-spec[filterNow]
 --------------------------------------------------
 
 [[sql-functions-datetime-day]]
-==== `DAY_OF_MONTH`/`DOM`/`DAY`
+==== `DAY_OF_MONTH/DOM/DAY`
 
 .Synopsis:
 [source, sql]
@@ -171,7 +165,7 @@ include-tagged::{sql-specs}/docs.csv-spec[dayOfMonth]
 --------------------------------------------------
 
 [[sql-functions-datetime-dow]]
-==== `DAY_OF_WEEK`/`DAYOFWEEK`/`DOW`
+==== `DAY_OF_WEEK/DAYOFWEEK/DOW`
 
 .Synopsis:
 [source, sql]
@@ -195,7 +189,7 @@ include-tagged::{sql-specs}/docs.csv-spec[dayOfWeek]
 --------------------------------------------------
 
 [[sql-functions-datetime-doy]]
-==== `DAY_OF_YEAR`/`DOY`
+==== `DAY_OF_YEAR/DOY`
 
 .Synopsis:
 [source, sql]
@@ -219,7 +213,7 @@ include-tagged::{sql-specs}/docs.csv-spec[dayOfYear]
 --------------------------------------------------
 
 [[sql-functions-datetime-dayname]]
-==== `DAY_NAME`/`DAYNAME`
+==== `DAY_NAME/DAYNAME`
 
 .Synopsis:
 [source, sql]
@@ -243,7 +237,7 @@ include-tagged::{sql-specs}/docs.csv-spec[dayName]
 --------------------------------------------------
 
 [[sql-functions-datetime-hour]]
-==== `HOUR_OF_DAY`/`HOUR`
+==== `HOUR_OF_DAY/HOUR`
 
 .Synopsis:
 [source, sql]
@@ -267,7 +261,7 @@ include-tagged::{sql-specs}/docs.csv-spec[hourOfDay]
 --------------------------------------------------
 
 [[sql-functions-datetime-isodow]]
-==== `ISO_DAY_OF_WEEK`/`ISODAYOFWEEK`/`ISODOW`/`IDOW`
+==== `ISO_DAY_OF_WEEK/ISODAYOFWEEK/ISODOW/IDOW`
 
 .Synopsis:
 [source, sql]
@@ -292,7 +286,7 @@ include-tagged::{sql-specs}/docs.csv-spec[isoDayOfWeek]
 --------------------------------------------------
 
 [[sql-functions-datetime-isoweek]]
-==== `ISO_WEEK_OF_YEAR`/`ISOWEEKOFYEAR`/`ISOWEEK`/`IWOY`/`IW`
+==== `ISO_WEEK_OF_YEAR/ISOWEEKOFYEAR/ISOWEEK/IWOY/IW`
 
 .Synopsis:
 [source, sql]
@@ -341,7 +335,7 @@ include-tagged::{sql-specs}/docs.csv-spec[minuteOfDay]
 --------------------------------------------------
 
 [[sql-functions-datetime-minute]]
-==== `MINUTE_OF_HOUR`/`MINUTE`
+==== `MINUTE_OF_HOUR/MINUTE`
 
 .Synopsis:
 [source, sql]
@@ -365,7 +359,7 @@ include-tagged::{sql-specs}/docs.csv-spec[minuteOfHour]
 --------------------------------------------------
 
 [[sql-functions-datetime-month]]
-==== `MONTH_OF_YEAR`/`MONTH`
+==== `MONTH_OF_YEAR/MONTH`
 
 .Synopsis:
 [source, sql]
@@ -389,7 +383,7 @@ include-tagged::{sql-specs}/docs.csv-spec[monthOfYear]
 --------------------------------------------------
 
 [[sql-functions-datetime-monthname]]
-==== `MONTH_NAME`/`MONTHNAME`
+==== `MONTH_NAME/MONTHNAME`
 
 .Synopsis:
 [source, sql]
@@ -412,8 +406,39 @@ Extract the month from a datetime in text format (`January`, `February`...).
 include-tagged::{sql-specs}/docs.csv-spec[monthName]
 --------------------------------------------------
 
+[[sql-functions-now]]
+==== `NOW`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+NOW()
+--------------------------------------------------
+
+*Input*: _none_
+
+*Output*: date/time
+
+.Description:
+
+This function offers the same functionality as <<sql-functions-current-timestamp,CURRENT_TIMESTAMP()>> function: returns the date/time 
+when the current query reached the server. This method always returns the same value within a query.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[nowFunction]
+--------------------------------------------------
+
+Typically, this function (as well as its twin <<sql-functions-current-timestamp,CURRENT_TIMESTAMP())>> function is used for
+relative date/time filtering:
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[filterNow]
+--------------------------------------------------
+
 [[sql-functions-datetime-second]]
-==== `SECOND_OF_MINUTE`/`SECOND`
+==== `SECOND_OF_MINUTE/SECOND`
 
 .Synopsis:
 [source, sql]
@@ -461,7 +486,7 @@ include-tagged::{sql-specs}/docs.csv-spec[quarter]
 --------------------------------------------------
 
 [[sql-functions-datetime-week]]
-==== `WEEK_OF_YEAR`/`WEEK`
+==== `WEEK_OF_YEAR/WEEK`
 
 .Synopsis:
 [source, sql]

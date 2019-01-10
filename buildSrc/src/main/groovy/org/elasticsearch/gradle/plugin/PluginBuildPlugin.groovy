@@ -78,6 +78,19 @@ public class PluginBuildPlugin extends BuildPlugin {
                 skipIntegTestInDisguise = true
             }
         }
+        project.testingConventions {
+            naming.clear()
+            naming {
+                Tests {
+                    baseClass 'org.apache.lucene.util.LuceneTestCase'
+                }
+                IT {
+                    baseClass 'org.elasticsearch.test.ESIntegTestCase'
+                    baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+                    baseClass 'org.elasticsearch.test.ESSingleNodeTestCase'
+                }
+            }
+        }
         createIntegTestTask(project)
         createBundleTask(project)
         project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))

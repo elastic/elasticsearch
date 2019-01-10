@@ -720,7 +720,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
-                KeyStore keyStore = KeyStore.getInstance("jks");
+                final String keyStoreType = keystorePath.endsWith(".p12") ? "PKCS12" : "jks";
+                KeyStore keyStore = KeyStore.getInstance(keyStoreType);
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
                 }

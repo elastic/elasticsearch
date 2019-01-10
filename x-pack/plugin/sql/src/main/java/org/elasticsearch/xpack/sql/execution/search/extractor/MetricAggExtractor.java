@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
@@ -83,6 +84,9 @@ public class MetricAggExtractor implements BucketExtractor {
             //    throw new SqlIllegalArgumentException("Invalid innerKey {} specified for aggregation {}", innerKey, name);
             //}
             return ((InternalNumericMetricsAggregation.MultiValue) agg).value(property);
+        } else if (agg instanceof InternalFilter) {
+            // COUNT(expr) and COUNT(ALL expr) uses this type of aggregation to account for non-null values only
+            return ((InternalFilter) agg).getDocCount();
         }
 
         Object v = agg.getProperty(property);

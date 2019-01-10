@@ -151,6 +151,10 @@ public class JodaCompatibleZonedDateTime {
         return dt.getYear();
     }
 
+    public ZoneId getZone() {
+        return dt.getZone();
+    }
+
     public ZonedDateTime minus(TemporalAmount delta) {
         return dt.minus(delta);
     }

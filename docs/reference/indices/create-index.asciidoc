@@ -177,3 +177,28 @@ PUT test?wait_for_active_shards=2
 
 A detailed explanation of `wait_for_active_shards` and its possible values can be found
 <<index-wait-for-active-shards,here>>.
+
+[float]
+=== Skipping types
+
+Types are being removed from Elasticsearch: in 7.0, the `mappings` element will no
+longer take the type name as a top-level key by default. You can already opt in for
+this behavior by setting `include_type_name=false` and putting mappings directly under
+`mappings` in the index creation call, without specifying a type name.
+
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+PUT test?include_type_name=false
+{
+  "mappings": {
+    "properties": {
+      "foo": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE

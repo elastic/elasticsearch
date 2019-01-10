@@ -41,3 +41,51 @@ GET /_mapping
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+
+[float]
+=== Skipping types
+
+Types are being removed from Elasticsearch: in 7.0, the `mappings` element will no
+longer return the type name as a top-level key by default. You can already opt in for
+this behavior by setting `include_type_name=false` on the request.
+
+NOTE: Such calls will be rejected on indices that have multiple types as it
+introduces ambiguity as to which mapping should be returned. Only indices
+created by Elasticsearch 5.x may have multiple types.
+
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+PUT test?include_type_name=false
+{
+  "mappings": {
+    "properties": {
+      "foo": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+GET test/_mappings?include_type_name=false
+--------------------------------------------------
+// CONSOLE
+
+which returns
+
+[source,js]
+--------------------------------------------------
+{
+  "test": {
+    "mappings": {
+      "properties": {
+        "foo": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

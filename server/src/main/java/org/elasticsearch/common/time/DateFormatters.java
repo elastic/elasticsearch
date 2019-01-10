@@ -365,31 +365,32 @@ public class DateFormatters {
      * Returns a basic formatter that combines a basic weekyear date and time
      * without millis, separated by a 'T' (xxxx'W'wwe'T'HHmmssX).
      */
-    private static final DateFormatter STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS = new JavaDateFormatter("strict_basic_week_date_time_no_millis",
-        new DateTimeFormatterBuilder()
-            .append(STRICT_BASIC_WEEK_DATE_PRINTER)
-            .appendLiteral("T")
-            .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendZoneOrOffsetId()
-            .toFormatter(Locale.ROOT),
-        new DateTimeFormatterBuilder()
-            .append(STRICT_BASIC_WEEK_DATE_PRINTER)
-            .appendLiteral("T")
-            .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendZoneOrOffsetId()
-            .toFormatter(Locale.ROOT),
-        new DateTimeFormatterBuilder()
-            .append(STRICT_BASIC_WEEK_DATE_PRINTER)
-            .appendLiteral("T")
-            .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .append(TIME_ZONE_FORMATTER_NO_COLON)
-            .toFormatter(Locale.ROOT)
+    private static final DateFormatter STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS =
+        new JavaDateFormatter("strict_basic_week_date_time_no_millis",
+            new DateTimeFormatterBuilder()
+                .append(STRICT_BASIC_WEEK_DATE_PRINTER)
+                .appendLiteral("T")
+                .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendZoneOrOffsetId()
+                .toFormatter(Locale.ROOT),
+            new DateTimeFormatterBuilder()
+                .append(STRICT_BASIC_WEEK_DATE_PRINTER)
+                .appendLiteral("T")
+                .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendZoneOrOffsetId()
+                .toFormatter(Locale.ROOT),
+            new DateTimeFormatterBuilder()
+                .append(STRICT_BASIC_WEEK_DATE_PRINTER)
+                .appendLiteral("T")
+                .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+                .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+                .append(TIME_ZONE_FORMATTER_NO_COLON)
+                .toFormatter(Locale.ROOT)
     );
 
     /*

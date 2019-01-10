@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.joda.time.DateTimeZone;
 
-import java.time.zone.ZoneRulesException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -84,9 +84,9 @@ public class ConfigTests extends ESTestCase {
     }
 
     public void testUnkownTimeZone() {
-        ZoneRulesException e = expectThrows(ZoneRulesException.class,
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "FOO"));
-        assertThat(e.getMessage(), equalTo("Unknown time-zone ID: FOO"));
+        assertThat(e.getMessage(), equalTo("The datetime zone id 'FOO' is not recognised"));
     }
 
     public void testObsoleteTimeZone() {

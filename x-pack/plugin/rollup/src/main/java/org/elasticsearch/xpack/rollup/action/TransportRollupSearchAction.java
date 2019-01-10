@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.rollup.RollupResponseTranslator;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -340,8 +341,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
                         // If the cap is for a date_histo, and the query is a range, the timezones need to match
                         if (type.equals(DateHistogramAggregationBuilder.NAME) && timeZone != null) {
-                            boolean matchingTZ = ((String)agg.get(DateHistogramGroupConfig.TIME_ZONE))
-                                .equalsIgnoreCase(timeZone);
+                            boolean matchingTZ = ZoneId.of((String)agg.get(DateHistogramGroupConfig.TIME_ZONE), ZoneId.SHORT_IDS)
+                                .getRules().equals(ZoneId.of(timeZone, ZoneId.SHORT_IDS).getRules());
                             if (matchingTZ == false) {
                                 incompatibleTimeZones.add((String)agg.get(DateHistogramGroupConfig.TIME_ZONE));
                             }

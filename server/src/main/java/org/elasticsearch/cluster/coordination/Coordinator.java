@@ -301,7 +301,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private static Optional<Join> joinWithDestination(Optional<Join> lastJoin, DiscoveryNode leader, long term) {
         if (lastJoin.isPresent()
-            && lastJoin.get().getTargetNode().getId().equals(leader.getId())
+            && lastJoin.get().matchesTarget(leader)
             && lastJoin.get().getTerm() == term) {
             return lastJoin;
         }

@@ -2,7 +2,7 @@
 "Create index with mappings":
   - skip:
       version: " - 6.6.99"
-      reason: include_type_name was introduced in 6.7
+      reason: include_type_name was introduced in 6.7.0
   - do:
       indices.create:
         include_type_name: false
@@ -22,7 +22,7 @@
 "Create index with settings":
   - skip:
       version: " - 6.6.99"
-      reason: include_type_name was introduced in 6.7
+      reason: include_type_name was introduced in 6.7.0
   - do:
       indices.create:
         include_type_name: false
@@ -41,7 +41,7 @@
 "Create index":
   - skip:
       version: " - 6.6.99"
-      reason: include_type_name was introduced in 6.7
+      reason: include_type_name was introduced in 6.7.0
   - do:
       indices.create:
         include_type_name: false
@@ -54,7 +54,7 @@
 "Create index with wait_for_active_shards set to all":
   - skip:
       version: " - 6.6.99"
-      reason: include_type_name was introduced in 6.7
+      reason: include_type_name was introduced in 6.7.0
   - do:
       indices.create:
         include_type_name: false
@@ -71,7 +71,7 @@
 "Create index with aliases":
   - skip:
       version: " - 6.6.99"
-      reason: include_type_name was introduced in 6.7
+      reason: include_type_name was introduced in 6.7.0
   - do:
       indices.create:
         include_type_name: false

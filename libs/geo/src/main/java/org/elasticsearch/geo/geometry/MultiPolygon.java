@@ -28,7 +28,6 @@ public class MultiPolygon extends GeometryCollection<Polygon> {
     public static final MultiPolygon EMPTY = new MultiPolygon();
 
     private MultiPolygon() {
-
     }
 
     public MultiPolygon(List<Polygon> polygons) {

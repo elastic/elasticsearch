@@ -28,7 +28,6 @@ public class MultiLine extends GeometryCollection<Line> {
     public static final MultiLine EMPTY = new MultiLine();
 
     private MultiLine() {
-
     }
 
     public MultiLine(List<Line> lines) {

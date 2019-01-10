@@ -217,7 +217,10 @@ public class WellKnownText {
             tokenizer.wordChars('-', '-');
             tokenizer.wordChars('+', '+');
             tokenizer.wordChars('.', '.');
-            tokenizer.whitespaceChars(0, ' ');
+            tokenizer.whitespaceChars(' ', ' ');
+            tokenizer.whitespaceChars('\t', '\t');
+            tokenizer.whitespaceChars('\r', '\r');
+            tokenizer.whitespaceChars('\n', '\n');
             tokenizer.commentChar('#');
             return parseGeometry(tokenizer);
         } finally {

@@ -20,7 +20,7 @@
 package org.elasticsearch.geo.geometry;
 
 /**
- * Support class for creating of geometry Visitors.
+ * Support class for creating Geometry Visitors.
  * <p>
  * This is an implementation of the Visitor pattern. The basic idea is to simplify adding new operations on Geometries, without
  * constantly modifying and adding new functionality to the Geometry hierarchy and keeping it as lightweight as possible.

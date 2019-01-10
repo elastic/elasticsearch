@@ -27,9 +27,7 @@ package org.elasticsearch.geo.geometry;
 public class LinearRing extends Line {
     public static final LinearRing EMPTY = new LinearRing();
 
-
     private LinearRing() {
-
     }
 
     public LinearRing(double[] lats, double[] lons) {

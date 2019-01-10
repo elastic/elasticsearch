@@ -278,13 +278,14 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public List<String> loadAuthorizedIndices(Authentication authentication, String action, AuthorizationInfo authorizationInfo,
-                                              Map<String, AliasOrIndex> aliasAndIndexLookup) {
+    public void loadAuthorizedIndices(Authentication authentication, String action, AuthorizationInfo authorizationInfo,
+                                      Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            return resolveAuthorizedIndicesFromRole(role, action, aliasAndIndexLookup);
+            listener.onResponse(resolveAuthorizedIndicesFromRole(role, action, aliasAndIndexLookup));
         } else {
-            throw new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName());
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
         }
     }
 

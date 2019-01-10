@@ -31,10 +31,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testAuthorizedIndicesUserWithoutRoles() {
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(
-            () -> RBACEngine.resolveAuthorizedIndicesFromRole(Role.EMPTY, "", MetaData.EMPTY_META_DATA.getAliasAndIndexLookup()));
-        List<String> list = authorizedIndices.get();
-        assertTrue(list.isEmpty());
+        List<String> authorizedIndices = 
+            RBACEngine.resolveAuthorizedIndicesFromRole(Role.EMPTY, "", MetaData.EMPTY_META_DATA.getAliasAndIndexLookup());
+        assertTrue(authorizedIndices.isEmpty());
     }
 
     public void testAuthorizedIndicesUserWithSomeRoles() {
@@ -60,9 +59,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
         CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
         Role roles = future.actionGet();
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(
-            () -> RBACEngine.resolveAuthorizedIndicesFromRole(roles, SearchAction.NAME, metaData.getAliasAndIndexLookup()));
-        List<String> list = authorizedIndices.get();
+        List<String> list =
+            RBACEngine.resolveAuthorizedIndicesFromRole(roles, SearchAction.NAME, metaData.getAliasAndIndexLookup());
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
         assertFalse(list.contains("bbbbb"));
         assertFalse(list.contains("ba"));
@@ -70,10 +68,9 @@ public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testAuthorizedIndicesUserWithSomeRolesEmptyMetaData() {
         Role role = Role.builder("role").add(IndexPrivilege.ALL, "*").build();
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(
-            () -> RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, MetaData.EMPTY_META_DATA.getAliasAndIndexLookup()));
-        List<String> list = authorizedIndices.get();
-        assertTrue(list.isEmpty());
+        List<String> authorizedIndices = 
+            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, MetaData.EMPTY_META_DATA.getAliasAndIndexLookup());
+        assertTrue(authorizedIndices.isEmpty());
     }
 
     public void testSecurityIndicesAreRemovedFromRegularUser() {
@@ -86,10 +83,9 @@ public class AuthorizedIndicesTests extends ESTestCase {
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(
-            () -> RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup()));
-        List<String> list = authorizedIndices.get();
-        assertThat(list, containsInAnyOrder("an-index", "another-index"));
+        List<String> authorizedIndices = 
+            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup());
+        assertThat(authorizedIndices, containsInAnyOrder("an-index", "another-index"));
     }
 
     public void testSecurityIndicesAreNotRemovedFromSuperUsers() {
@@ -102,9 +98,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(
-            () -> RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup()));
-        List<String> list = authorizedIndices.get();
-        assertThat(list, containsInAnyOrder("an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME));
+        List<String> authorizedIndices = 
+            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup());
+        assertThat(authorizedIndices, containsInAnyOrder("an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME));
     }
 }

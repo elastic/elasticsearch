@@ -34,8 +34,8 @@ public interface AuthorizationEngine {
                               Function<String, AliasOrIndex> aliasOrIndexFunction,
                               ActionListener<IndexAuthorizationResult> listener);
 
-    List<String> loadAuthorizedIndices(Authentication authentication, String action, AuthorizationInfo info,
-                                       Map<String, AliasOrIndex> aliasAndIndexLookup);
+    void loadAuthorizedIndices(Authentication authentication, String action, AuthorizationInfo info,
+                               Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener);
 
     interface AuthorizationInfo {
 

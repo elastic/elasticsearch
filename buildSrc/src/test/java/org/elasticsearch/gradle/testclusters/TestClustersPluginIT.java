@@ -21,11 +21,9 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
-import org.junit.Ignore;
 
 import java.util.Arrays;
 
-@Ignore // https://github.com/elastic/elasticsearch/issues/37218
 public class TestClustersPluginIT extends GradleIntegrationTestCase {
 
     public void testListClusters() {
@@ -117,21 +115,6 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         result = getTestClustersRunner("clean", ":user1").build();
         assertTaskSuccessful(result, ":user1");
         assertStartedAndStoppedOnce(result);
-    }
-
-    public void testIllegalAccess() {
-        BuildResult result = getTestClustersRunner(":illegalFileEdit").buildAndFail();
-        assertTaskFailed(result, ":illegalFileEdit");
-        assertStartedAndStoppedOnce(result);
-        assertOutputContains(
-            result.getOutput(),
-            "Execution failed for task ':illegalFileEdit'."
-        );
-        assertTrue(
-                "The build did not get a permission denied exception as expected\nOutput is\n" + result.getOutput(),
-                result.getOutput().contains("Permission denied") || // Linux
-                    result.getOutput().contains("(Access is denied)") // Windows
-        );
     }
 
     public void testUseClusterByFailingOne() {

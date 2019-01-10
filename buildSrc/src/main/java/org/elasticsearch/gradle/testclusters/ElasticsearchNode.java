@@ -37,21 +37,14 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.AclEntry;
-import java.nio.file.attribute.AclEntryPermission;
-import java.nio.file.attribute.AclFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -375,39 +368,10 @@ public class ElasticsearchNode {
         // There's some latency in Windows between when a cluster running here previously releases the files so we can
         // can clean them up. Make sure we can run the same clusters in quick succession.
         removeWithRetry(destinationRoot);
-        try (Stream<Path> stream = Files.walk(sourceRoot)) {
-            stream.forEach(source -> {
-                Path destination = destinationRoot.resolve(sourceRoot.relativize(source));
-                if (Files.isDirectory(source)) {
-                    try {
-                        Files.createDirectories(destination);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
-                    }
-                } else {
-                    try {
-                        Files.createDirectories(destination.getParent());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
-                    }
-                    try {
-                        Files.createLink(destination, source);
-                    } catch (IOException e) {
-                        // Note does not work for network drives, e.x. Vagrant
-                        throw new UncheckedIOException(
-                            "Failed to create hard link " + destination + " pointing to " + source, e
-                        );
-                    }
-                    try {
-                        setPermissionsReadOnly(source, destination);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(
-                            "Failed to set permissions " + destination + " pointing to " + source, e
-                        );
-                    }
-                }
-            });
-        }
+        services.sync(action -> {
+           action.from(sourceRoot);
+           action.into(destinationRoot);
+        });
     }
 
     private void removeWithRetry(Path destinationRoot) {
@@ -438,38 +402,6 @@ public class ElasticsearchNode {
                     Thread.currentThread().interrupt();
                 }
             }
-        }
-    }
-
-    private void setPermissionsReadOnly(Path source, Path destination) throws IOException {
-        // Since we create hard links, if anyone writes to any of the destinations it will reflect all across, we need
-        // to remove write permissions to prevent this.
-        Set<String> attributeViews = destination.getFileSystem().supportedFileAttributeViews();
-        if (destination.getFileSystem().supportedFileAttributeViews().contains("posix")) {
-            Set<PosixFilePermission> permissions = new HashSet<>(Files.getPosixFilePermissions(source));
-            permissions.remove(PosixFilePermission.OWNER_WRITE);
-            permissions.remove(PosixFilePermission.GROUP_WRITE);
-            permissions.remove(PosixFilePermission.OTHERS_WRITE);
-            Files.setPosixFilePermissions(destination, permissions);
-        } else if (attributeViews.contains("acl")) {
-            AclFileAttributeView view = Files.getFileAttributeView(destination, AclFileAttributeView.class);
-            List<AclEntry> entries = new ArrayList<>();
-            for (AclEntry acl : view.getAcl()) {
-                Set<AclEntryPermission> perms = new LinkedHashSet<>(acl.permissions());
-                perms.remove(AclEntryPermission.WRITE_DATA);
-                perms.remove(AclEntryPermission.APPEND_DATA);
-                entries.add(
-                    AclEntry.newBuilder()
-                        .setType(acl.type())
-                        .setPrincipal(acl.principal())
-                        .setPermissions(perms)
-                        .setFlags(acl.flags())
-                        .build()
-                );
-            }
-            view.setAcl(entries);
-        } else {
-            throw new TestClustersException("Unsupported file attribute view: " + attributeViews);
         }
     }
 

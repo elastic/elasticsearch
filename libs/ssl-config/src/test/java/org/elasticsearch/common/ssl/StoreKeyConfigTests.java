@@ -197,7 +197,6 @@ public class StoreKeyConfigTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("keystore"));
         assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
         assertThat(exception.getCause(), instanceOf(IOException.class));
-        assertThat(exception.getCause().getMessage(), containsString("tampered"));
     }
 
     private void assertFileNotFound(StoreKeyConfig keyConfig, Path file) {

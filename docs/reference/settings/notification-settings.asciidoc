@@ -64,7 +64,7 @@ request is aborted.
 Specifies the maximum size an HTTP response is allowed to have, defaults to
 `10mb`, the maximum configurable value is `50mb`.
 
-`xpack.http.hosts.whitelist`::
+`xpack.http.whitelist`::
 A list of hosts, that are allowed to connect to using the HTTP client used in
 Alerting. This client is used in the HTTP input, the webhook, the slack,
 pagerduty, hipchat and jira actions. This setting can be updated dynamically.

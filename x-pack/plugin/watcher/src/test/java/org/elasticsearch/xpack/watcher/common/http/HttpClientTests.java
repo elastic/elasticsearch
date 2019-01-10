@@ -654,7 +654,7 @@ public class HttpClientTests extends ESTestCase {
                 .build();
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
             assertThat(e.getMessage(), is("host [http://blocked.domain.org:" + webServer.getPort() +
-                "] is not whitelisted in setting [xpack.http.hosts.whitelist], will not connect"));
+                "] is not whitelisted in setting [xpack.http.whitelist], will not connect"));
         }
     }
 
@@ -677,7 +677,7 @@ public class HttpClientTests extends ESTestCase {
                 .method(method)
                 .build();
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
-            assertThat(e.getMessage(), is("host [" + redirectUrl + "] is not whitelisted in setting [xpack.http.hosts.whitelist], " +
+            assertThat(e.getMessage(), is("host [" + redirectUrl + "] is not whitelisted in setting [xpack.http.whitelist], " +
                 "will not redirect"));
         }
     }

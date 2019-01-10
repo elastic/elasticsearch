@@ -63,7 +63,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 /**
@@ -362,21 +361,18 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps,
-                                             Consumer<Exception> onComplete) throws IOException {
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         indexShard().openEngineAndSkipTranslogRecovery();
-        onComplete.accept(null);
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint, final Consumer<Exception> onComplete) throws IOException {
+    public void finalizeRecovery(final long globalCheckpoint) throws IOException {
         final IndexShard indexShard = indexShard();
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
         // Persist the global checkpoint.
         indexShard.sync();
         indexShard.finalizeRecovery();
-        onComplete.accept(null);
     }
 
     @Override

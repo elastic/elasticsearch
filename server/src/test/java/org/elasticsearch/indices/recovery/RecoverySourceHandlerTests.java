@@ -192,8 +192,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
         final long requiredStartingSeqNo = randomIntBetween((int) startingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
         final long endingSeqNo = randomIntBetween((int) requiredStartingSeqNo - 1, numberOfDocsWithValidSequenceNumbers - 1);
-        PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
-        handler.phase2(startingSeqNo, requiredStartingSeqNo, endingSeqNo, new Translog.Snapshot() {
+        RecoverySourceHandler.SendSnapshotResult result = handler.phase2(startingSeqNo, requiredStartingSeqNo,
+            endingSeqNo, new Translog.Snapshot() {
                 @Override
                 public void close() {
 
@@ -210,8 +210,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 public Translog.Operation next() throws IOException {
                     return operations.get(counter++);
                 }
-            }, randomNonNegativeLong(), randomNonNegativeLong(), future);
-        RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
+            }, randomNonNegativeLong(), randomNonNegativeLong());
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         assertThat(result.totalOperations, equalTo(expectedOps));
         final ArgumentCaptor<List> shippedOpsCaptor = ArgumentCaptor.forClass(List.class);
@@ -231,14 +230,16 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             List<Translog.Operation> requiredOps = operations.subList(0, operations.size() - 1).stream() // remove last null marker
                 .filter(o -> o.seqNo() >= requiredStartingSeqNo && o.seqNo() <= endingSeqNo).collect(Collectors.toList());
             List<Translog.Operation> opsToSkip = randomSubsetOf(randomIntBetween(1, requiredOps.size()), requiredOps);
-            expectThrows(IllegalStateException.class, () -> {
-                PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> fut = new PlainActionFuture<>();
+            expectThrows(IllegalStateException.class, () ->
                 handler.phase2(startingSeqNo, requiredStartingSeqNo,
                     endingSeqNo, new Translog.Snapshot() {
                         @Override
                         public void close() {
+
                         }
+
                         private int counter = 0;
+
                         @Override
                         public int totalOperations() {
                             return operations.size() - 1 - opsToSkip.size();
@@ -252,9 +253,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                             } while (op != null && opsToSkip.contains(op));
                             return op;
                         }
-                    }, randomNonNegativeLong(), randomNonNegativeLong(), fut);
-                future.actionGet();
-            });
+                    }, randomNonNegativeLong(), randomNonNegativeLong()));
         }
     }
 
@@ -415,28 +414,28 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 recoverySettings.getChunkSize().bytesAsInt()) {
 
             @Override
-            public void phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps, ActionListener<SendFileResult> listener) {
+            public SendFileResult phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
                 phase1Called.set(true);
-                super.phase1(snapshot, translogOps, listener);
+                return super.phase1(snapshot, translogOps);
             }
 
             @Override
-            void prepareTargetForTranslog(boolean fileBasedRecovery,
-                                          int totalTranslogOps, ActionListener<TimeValue> listener) throws IOException {
+            TimeValue prepareTargetForTranslog(final boolean fileBasedRecovery, final int totalTranslogOps) throws IOException {
                 prepareTargetForTranslogCalled.set(true);
-                super.prepareTargetForTranslog(fileBasedRecovery, totalTranslogOps, listener);
+                return super.prepareTargetForTranslog(fileBasedRecovery, totalTranslogOps);
             }
 
             @Override
-            void phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
-                        long maxSeenAutoIdTimestamp, long msu, ActionListener<SendSnapshotResult> listener) throws IOException {
+            SendSnapshotResult phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
+                                      long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) throws IOException {
                 phase2Called.set(true);
-                super.phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot, maxSeenAutoIdTimestamp, msu, listener);
+                return super.phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot,
+                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
             }
 
         };
+        PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
         expectThrows(IndexShardRelocatedException.class, () -> {
-            PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
             handler.recoverToTarget(future);
             future.actionGet();
         });

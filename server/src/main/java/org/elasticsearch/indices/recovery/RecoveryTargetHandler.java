@@ -26,7 +26,6 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Consumer;
 
 
 public interface RecoveryTargetHandler {
@@ -36,7 +35,7 @@ public interface RecoveryTargetHandler {
      *  @param fileBasedRecovery whether or not this call is part of an file based recovery
      * @param totalTranslogOps    total translog operations expected to be sent
      */
-    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, Consumer<Exception> onComplete) throws IOException;
+    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException;
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
@@ -44,7 +43,7 @@ public interface RecoveryTargetHandler {
      *
      * @param globalCheckpoint the global checkpoint on the recovery source
      */
-    void finalizeRecovery(long globalCheckpoint, Consumer<Exception> onComplete) throws IOException;
+    void finalizeRecovery(long globalCheckpoint) throws IOException;
 
     /**
      * Blockingly waits for cluster state with at least clusterStateVersion to be available

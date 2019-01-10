@@ -431,8 +431,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel,
                                     Task task) throws Exception {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                recoveryRef.target().prepareForTranslogOperations(request.isFileBasedRecovery(), request.totalTranslogOps(), e -> {});
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            )) {
+                recoveryRef.target().prepareForTranslogOperations(request.isFileBasedRecovery(), request.totalTranslogOps());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -444,7 +445,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel, Task task) throws Exception {
             try (RecoveryRef recoveryRef =
                      onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                recoveryRef.target().finalizeRecovery(request.globalCheckpoint(), e -> {});
+                recoveryRef.target().finalizeRecovery(request.globalCheckpoint());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

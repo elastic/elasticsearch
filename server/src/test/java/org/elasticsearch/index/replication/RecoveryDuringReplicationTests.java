@@ -68,7 +68,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -848,13 +847,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public void finalizeRecovery(long globalCheckpoint, Consumer<Exception> onComplete) throws IOException {
+        public void finalizeRecovery(long globalCheckpoint) throws IOException {
             if (hasBlocked() == false) {
                 // it maybe that not ops have been transferred, block now
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
             blockIfNeeded(RecoveryState.Stage.FINALIZE);
-            super.finalizeRecovery(globalCheckpoint, onComplete);
+            super.finalizeRecovery(globalCheckpoint);
         }
 
     }

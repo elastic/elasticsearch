@@ -67,7 +67,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.hamcrest.Matchers.anyOf;
@@ -199,14 +198,13 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             Future<Void> fut = shards.asyncRecoverReplica(replica,
                 (shard, node) -> new RecoveryTarget(shard, node, recoveryListener, v -> {}){
                     @Override
-                    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps,
-                                                             Consumer<Exception> onComplete) throws IOException {
+                    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
                         try {
                             indexedOnPrimary.await();
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
-                        super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, onComplete);
+                        super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
                     }
                 });
             fut.get();

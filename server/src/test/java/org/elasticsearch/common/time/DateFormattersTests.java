@@ -145,4 +145,16 @@ public class DateFormattersTests extends ESTestCase {
         DateFormatter formatter = DateFormatter.forPattern("8date_optional_time||ww-MM-dd");
         assertThat(formatter, instanceOf(JavaDateFormatter.class));
     }
+
+    public void testParsingStrictNanoDates() {
+        DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time_nanos");
+        formatter.format(formatter.parse("2016-01-01T00:00:00.000"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56+0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56+01:00"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789+0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789+01:00"));
+    }
 }

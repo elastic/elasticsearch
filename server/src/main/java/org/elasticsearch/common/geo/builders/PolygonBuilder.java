@@ -357,7 +357,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         double[] x = new double[shell.length];
         double[] y = new double[shell.length];
         for (int i = 0; i < shell.length; ++i) {
-            x[i] = normalizeLon(shell[i].x);
+            x[i] = Math.abs(shell[i].x) > 180 ? normalizeLon(shell[i].x) : shell[i].x;
             y[i] = normalizeLat(shell[i].y);
         }
 

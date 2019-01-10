@@ -75,7 +75,6 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
             .build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36779")
     public void testDisruptionOnSnapshotInitialization() throws Exception {
         final String idxName = "test";
         final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(3);
@@ -180,7 +179,11 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
 
         logger.info("--> verify that snapshot eventually will be created due to retries");
         assertBusy(() -> {
-            assertSnapshotExists("test-repo", "test-snap-2");
+            try {
+                assertSnapshotExists("test-repo", "test-snap-2");
+            } catch (SnapshotMissingException ex) {
+                throw new AssertionError(ex);
+            }
         }, 1, TimeUnit.MINUTES);
     }
 

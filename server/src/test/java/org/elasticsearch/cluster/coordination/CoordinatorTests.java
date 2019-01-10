@@ -1376,10 +1376,10 @@ public class CoordinatorTests extends ESTestCase {
 
             MockPersistedState(Settings settings, DiscoveryNode localNode) throws IOException {
                 if (rarely()) {
-                        NodeEnvironment nodeEnvironment = newNodeEnvironment();
-                        nodeEnvironments.add(nodeEnvironment);
-                        delegate =  new MockGatewayMetaState(settings, nodeEnvironment, xContentRegistry(), localNode)
-                                .getPersistedState(settings, null);
+                    NodeEnvironment nodeEnvironment = newNodeEnvironment();
+                    nodeEnvironments.add(nodeEnvironment);
+                    delegate = new MockGatewayMetaState(settings, nodeEnvironment, xContentRegistry(), localNode)
+                            .getPersistedState(settings, null);
                 } else {
                     delegate = new InMemoryPersistedState(0L,
                             clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L));

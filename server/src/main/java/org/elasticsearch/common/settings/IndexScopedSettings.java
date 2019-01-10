@@ -133,6 +133,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_GC_DELETES_SETTING,
         IndexSettings.INDEX_SOFT_DELETES_SETTING,
         IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING,
+        IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING,
         IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
         UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING,
         EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,

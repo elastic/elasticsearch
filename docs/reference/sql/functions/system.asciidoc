@@ -16,7 +16,7 @@ These functions return metadata type of information about the system being queri
 DATABASE()
 --------------------------------------------------
 
-*Input*:
+*Input*: _none_
 
 *Output*: string
 
@@ -39,14 +39,14 @@ include-tagged::{sql-specs}/docs.csv-spec[database]
 --------------------------------------------------
 USER()
 --------------------------------------------------
-*Input*:
+*Input*: _none_
 
 *Output*: string
 
 .Description:
 
 Returns the username of the authenticated user executing the query. This function can
-return `null` in case Security is disabled.
+return `null` in case {stack-ov}/elasticsearch-security.html[Security] is disabled.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------

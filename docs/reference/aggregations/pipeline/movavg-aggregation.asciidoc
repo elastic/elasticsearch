@@ -263,7 +263,7 @@ image::images/pipeline_movavg/linear_100window.png[]
 The `ewma` model (aka "single-exponential") is similar to the `linear` model, except older data-points become exponentially less important,
 rather than linearly less important.  The speed at which the importance decays can be controlled with an `alpha`
 setting.  Small values make the weight decay slowly, which provides greater smoothing and takes into account a larger
-portion of the window.  Larger valuers make the weight decay quickly, which reduces the impact of older values on the
+portion of the window.  Larger values make the weight decay quickly, which reduces the impact of older values on the
 moving average.  This tends to make the moving average track the data more closely but with less smoothing.
 
 The default value of `alpha` is `0.3`, and the setting accepts any float from 0-1 inclusive.

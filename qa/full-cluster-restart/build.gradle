@@ -19,7 +19,6 @@
 
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-test'

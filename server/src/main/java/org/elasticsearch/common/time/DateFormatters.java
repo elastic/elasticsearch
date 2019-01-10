@@ -74,58 +74,6 @@ public class DateFormatters {
         .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
         .toFormatter(Locale.ROOT);
 
-    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_1 = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-        .optionalStart()
-        .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .optionalStart()
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
-        .optionalEnd()
-        .optionalStart()
-        .appendZoneOrOffsetId()
-        .optionalEnd()
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
-
-    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_2 = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-        .optionalStart()
-        .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .optionalStart()
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
-        .optionalEnd()
-        .optionalStart()
-        .appendOffset("+HHmm", "Z")
-        .optionalEnd()
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
-
-    /**
-     * Returns a generic ISO datetime parser where the date is mandatory and the time is optional.
-     */
-    private static final DateFormatter STRICT_DATE_OPTIONAL_TIME =
-        new JavaDateFormatter("strict_date_optional_time", STRICT_DATE_OPTIONAL_TIME_FORMATTER_1,
-            STRICT_DATE_OPTIONAL_TIME_FORMATTER_1, STRICT_DATE_OPTIONAL_TIME_FORMATTER_2);
-
-    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_1 = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-        .optionalStart()
-        .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
-        .optionalEnd()
-        .optionalStart()
-        .appendZoneOrOffsetId()
-        .optionalEnd()
-        .optionalStart()
-        .appendOffset("+HHmm", "Z")
-        .optionalEnd()
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
-
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER = new DateTimeFormatterBuilder()
         .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
         .appendLiteral('T')
@@ -136,11 +84,51 @@ public class DateFormatters {
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .optionalStart()
+        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .optionalEnd()
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_NO_COLON)
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    /**
+     * Returns a generic ISO datetime parser where the date is mandatory and the time is optional.
+     */
+    private static final DateFormatter STRICT_DATE_OPTIONAL_TIME =
+        new JavaDateFormatter("strict_date_optional_time", STRICT_DATE_OPTIONAL_TIME_PRINTER, STRICT_DATE_OPTIONAL_TIME_FORMATTER);
+
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .optionalStart()
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .optionalEnd()
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_NO_COLON)
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
     /**
      * Returns a generic ISO datetime parser where the date is mandatory and the time is optional with nanosecond resolution.
      */
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = new JavaDateFormatter("strict_date_optional_time_nanos",
-        STRICT_DATE_OPTIONAL_TIME_PRINTER, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_1);
+        STRICT_DATE_OPTIONAL_TIME_PRINTER, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS);
 
     /////////////////////////////////////////
     //
@@ -816,7 +804,7 @@ public class DateFormatters {
      * yyyy-MM-dd'T'HH:mm:ss.SSSZ
      */
     private static final DateFormatter DATE_OPTIONAL_TIME = new JavaDateFormatter("date_optional_time",
-        STRICT_DATE_OPTIONAL_TIME_FORMATTER_1,
+        STRICT_DATE_OPTIONAL_TIME_PRINTER,
         new DateTimeFormatterBuilder()
             .append(DATE_FORMATTER)
             .optionalStart()
@@ -834,26 +822,6 @@ public class DateFormatters {
             .appendFraction(MILLI_OF_SECOND, 1, 3, true)
             .optionalEnd()
             .optionalStart().appendZoneOrOffsetId().optionalEnd()
-            .optionalEnd()
-            .optionalEnd()
-            .optionalEnd()
-            .toFormatter(Locale.ROOT),
-        new DateTimeFormatterBuilder()
-            .append(DATE_FORMATTER)
-            .optionalStart()
-            .appendLiteral('T')
-            .optionalStart()
-            .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
-            .optionalStart()
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
-            .optionalStart()
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
-            .optionalEnd()
-            .optionalStart()
-            .appendFraction(MILLI_OF_SECOND, 1, 3, true)
-            .optionalEnd()
             .optionalStart().appendOffset("+HHmm", "Z").optionalEnd()
             .optionalEnd()
             .optionalEnd()
@@ -1004,7 +972,7 @@ public class DateFormatters {
      * (yyyy-MM-dd'T'HH:mm:ss.SSSZZ).
      */
     private static final DateFormatter DATE_TIME = new JavaDateFormatter("date_time",
-        STRICT_DATE_OPTIONAL_TIME_FORMATTER_1,
+        STRICT_DATE_OPTIONAL_TIME_PRINTER,
         new DateTimeFormatterBuilder().append(DATE_TIME_FORMATTER).appendZoneOrOffsetId().toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().append(DATE_TIME_FORMATTER).append(TIME_ZONE_FORMATTER_NO_COLON).toFormatter(Locale.ROOT)
     );

@@ -54,7 +54,7 @@ public abstract class UpdateScript {
     public UpdateScript(Map<String, Object> params, Map<String, Object> ctx) {
         Map<String, Object> paramsWithCtx = new HashMap<>(params);
         paramsWithCtx.put("ctx", ctx);
-        this.params = new ParameterMap(paramsWithCtx, DEPRECATIONS);
+        this.params = new DeprecationMap(paramsWithCtx, DEPRECATIONS);
         this.ctx = ctx;
     }
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.dataframe.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -27,17 +26,21 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction.Request;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction.Response;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobTask;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameJobConfigManager;
 
 import java.util.List;
 
 public class TransportDeleteDataFrameJobAction extends TransportTasksAction<DataFrameJobTask, Request, Response, Response> {
 
+    private final DataFrameJobConfigManager jobConfigManager;
+
     @Inject
     public TransportDeleteDataFrameJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
-            ClusterService clusterService) {
+            ClusterService clusterService, DataFrameJobConfigManager jobConfigManager) {
         super(DeleteDataFrameJobAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new,
                 ThreadPool.Names.SAME);
+        this.jobConfigManager = jobConfigManager;
     }
 
     @Override
@@ -51,11 +54,13 @@ public class TransportDeleteDataFrameJobAction extends TransportTasksAction<Data
 
     @Override
     protected void taskOperation(Request request, DataFrameJobTask task, ActionListener<Response> listener) {
-        assert task.getConfig().getId().equals(request.getId());
+        assert task.getJobId().equals(request.getId());
         IndexerState state = task.getState().getIndexerState();
         if (state.equals(IndexerState.STOPPED)) {
             task.onCancelled();
-            listener.onResponse(new Response(true));
+            jobConfigManager.deleteJobConfiguration(request.getId(), ActionListener.wrap(r -> {
+                listener.onResponse(new Response(true));
+            }, listener::onFailure));
         } else {
             listener.onFailure(new IllegalStateException("Could not delete job [" + request.getId() + "] because " + "indexer state is ["
                     + state + "].  Job must be [" + IndexerState.STOPPED + "] before deletion."));
@@ -71,9 +76,13 @@ public class TransportDeleteDataFrameJobAction extends TransportTasksAction<Data
             if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
                 super.doExecute(task, request, listener);
             } else {
-                // If we couldn't find the job in the persistent task CS, it means it was deleted prior to this call,
-                // no need to go looking for the allocated task
-                listener.onFailure(new ResourceNotFoundException("the task with id [" + request.getId() + "] doesn't exist"));
+                // we couldn't find the job in the persistent task CS, but maybe the job exists in the configuration index,
+                // if so delete the orphaned document and do not throw (for the normal case we want to stop the task first,
+                // than delete the configuration document if and only if the data frame job is in stopped state)
+                jobConfigManager.deleteJobConfiguration(request.getId(), ActionListener.wrap(r -> {
+                    listener.onResponse(new Response(true));
+                    return;
+                }, listener::onFailure));
             }
         } else {
             // Delegates DeleteJob to elected master node, so it becomes the coordinating node.

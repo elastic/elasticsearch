@@ -51,7 +51,7 @@ public class TransportStopDataFrameJobAction extends
     @Override
     protected void taskOperation(StopDataFrameJobAction.Request request, DataFrameJobTask jobTask,
             ActionListener<StopDataFrameJobAction.Response> listener) {
-        if (jobTask.getConfig().getId().equals(request.getId())) {
+        if (jobTask.getJobId().equals(request.getId())) {
             if (request.waitForCompletion() == false) {
                 jobTask.stop(listener);
             } else {
@@ -89,7 +89,7 @@ public class TransportStopDataFrameJobAction extends
                 jobTask.stop(blockingListener);
             }
         } else {
-            listener.onFailure(new RuntimeException("ID of data frame indexer task [" + jobTask.getConfig().getId()
+            listener.onFailure(new RuntimeException("ID of data frame indexer task [" + jobTask.getJobId()
                     + "] does not match request's ID [" + request.getId() + "]"));
         }
     }

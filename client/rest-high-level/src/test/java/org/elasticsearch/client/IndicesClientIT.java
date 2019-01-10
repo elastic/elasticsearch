@@ -1352,7 +1352,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(template2.settings().get("index.number_of_replicas"), equalTo("0"));
 
         List<String> names = randomBoolean()
-            ? Arrays.asList("*-1", "template-2")
+            ? Arrays.asList("*plate-1", "template-2")
             : Arrays.asList("template-*");
         GetIndexTemplatesRequest getBothRequest = new GetIndexTemplatesRequest(names);
         GetIndexTemplatesResponse getBoth = execute(getBothRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync);

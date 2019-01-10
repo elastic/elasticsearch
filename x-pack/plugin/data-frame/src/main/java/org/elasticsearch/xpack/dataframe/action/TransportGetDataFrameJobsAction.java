@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsAction.Request;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsAction.Response;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobConfig;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobTask;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameJobConfigManager;
 import org.elasticsearch.xpack.dataframe.persistence.DataFramePersistentTaskUtils;
 
 import java.util.Collection;
@@ -38,10 +39,14 @@ public class TransportGetDataFrameJobsAction extends
         GetDataFrameJobsAction.Response,
         GetDataFrameJobsAction.Response> {
 
+    private final DataFrameJobConfigManager jobConfigManager;
+
     @Inject
-    public TransportGetDataFrameJobsAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+    public TransportGetDataFrameJobsAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
+            DataFrameJobConfigManager jobConfigManager) {
         super(GetDataFrameJobsAction.NAME, clusterService, transportService, actionFilters, GetDataFrameJobsAction.Request::new,
                 GetDataFrameJobsAction.Response::new, GetDataFrameJobsAction.Response::new, ThreadPool.Names.SAME);
+        this.jobConfigManager = jobConfigManager;
     }
 
     @Override
@@ -54,16 +59,18 @@ public class TransportGetDataFrameJobsAction extends
 
     @Override
     protected void taskOperation(Request request, DataFrameJobTask task, ActionListener<Response> listener) {
-        List<DataFrameJobConfig> configs = Collections.emptyList();
-
-        assert task.getConfig().getId().equals(request.getId()) || request.getId().equals(MetaData.ALL);
-
-        // Little extra insurance, make sure we only return jobs that aren't cancelled
+        assert task.getJobId().equals(request.getId()) || request.getId().equals(MetaData.ALL);
+        // Little extra insurance, make sure we only return jobs that aren't
+        // cancelled
         if (task.isCancelled() == false) {
-            configs = Collections.singletonList(task.getConfig());
+            jobConfigManager.getJobConfiguration(task.getJobId(), ActionListener.wrap(config -> {
+                listener.onResponse(new Response(Collections.singletonList(config)));
+            }, e -> {
+                listener.onFailure(new RuntimeException("failed to retrieve...", e));
+            }));
+        } else {
+            listener.onResponse(new Response(Collections.emptyList()));
         }
-
-        listener.onResponse(new Response(configs));
     }
 
     @Override

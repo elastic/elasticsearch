@@ -14,7 +14,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
+import org.elasticsearch.xpack.dataframe.job.DataFrameJobConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,9 +33,9 @@ public final class DataframeIndex {
     private DataframeIndex() {
     }
 
-    public static void createDestinationIndex(Client client, DataFrameJob job, Map<String, String> mappings,
+    public static void createDestinationIndex(Client client, DataFrameJobConfig jobConfig, Map<String, String> mappings,
             final ActionListener<Boolean> listener) {
-        CreateIndexRequest request = new CreateIndexRequest(job.getConfig().getDestinationIndex());
+        CreateIndexRequest request = new CreateIndexRequest(jobConfig.getDestinationIndex());
 
         // TODO: revisit number of shards, number of replicas
         request.settings(Settings.builder() // <1>
@@ -45,8 +46,8 @@ public final class DataframeIndex {
         client.execute(CreateIndexAction.INSTANCE, request, ActionListener.wrap(createIndexResponse -> {
             listener.onResponse(true);
         }, e -> {
-            String message = "Could not create destination index [" + job.getConfig().getDestinationIndex() + "] for job["
-                    + job.getConfig().getId() + "]";
+            String message = DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_CREATE_DESTINATION_INDEX,
+                    jobConfig.getDestinationIndex(), jobConfig.getId());
             logger.error(message);
             listener.onFailure(new RuntimeException(message, e));
         }));

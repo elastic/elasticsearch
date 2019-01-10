@@ -56,11 +56,11 @@ public class TransportGetDataFrameJobsStatsAction extends
     protected void taskOperation(Request request, DataFrameJobTask task, ActionListener<Response> listener) {
         List<DataFrameJobStateAndStats> jobsStateAndStats = Collections.emptyList();
 
-        assert task.getConfig().getId().equals(request.getId()) || request.getId().equals(MetaData.ALL);
+        assert task.getJobId().equals(request.getId()) || request.getId().equals(MetaData.ALL);
 
         // Little extra insurance, make sure we only return jobs that aren't cancelled
         if (task.isCancelled() == false) {
-            DataFrameJobStateAndStats jobStateAndStats = new DataFrameJobStateAndStats(task.getConfig().getId(), task.getState(),
+            DataFrameJobStateAndStats jobStateAndStats = new DataFrameJobStateAndStats(task.getJobId(), task.getState(),
                     task.getStats());
             jobsStateAndStats = Collections.singletonList(jobStateAndStats);
         }

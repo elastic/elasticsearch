@@ -354,8 +354,8 @@ public class IndexResolver {
 
                 // lack of parent implies the field is an alias
                 if (map == null) {
-                    // as such, mock the field caps entry
-                    fieldFunction = s -> createField(s, DataType.OBJECT.name(), new TreeMap<>(), false, true);
+                    // as such, create the field manually
+                    fieldFunction = s -> createField(s, DataType.OBJECT.name(), new TreeMap<>(), false);
                 } else {
                     FieldCapabilities parentCap = map.values().iterator().next();
                     fieldFunction = s -> createField(s, parentCap.getType(), new TreeMap<>(), parentCap.isAggregatable());

@@ -53,6 +53,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1033,13 +1034,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             // GET mappings
             Request getMappingsRequest = new Request("GET", index + "/_mappings");
-            getMappingsRequest.addParameter("include_type_name", "false");
+            getMappingsRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "false");
             ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(getMappingsRequest));
             assertThat(EntityUtils.toString(ex.getResponse().getEntity()), Matchers.containsString("has multiple mappings"));
             
             // PUT mappings
             Request putMappingsRequest = new Request("PUT", index + "/_mappings");
-            putMappingsRequest.addParameter("include_type_name", "false");
+            putMappingsRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "false");
             String mapping = Strings.toString(JsonXContent.contentBuilder()
                     .startObject()
                         .startObject("properties")
@@ -1079,7 +1080,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             // PUT mappings
             Request putMappingsRequest = new Request("PUT", index + "/_mappings");
-            putMappingsRequest.addParameter("include_type_name", "false");
+            putMappingsRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "false");
             String mapping = Strings.toString(JsonXContent.contentBuilder()
                     .startObject()
                         .startObject("properties")
@@ -1093,7 +1094,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             // GET mappings
             Request getMappingsRequest = new Request("GET", index + "/_mappings");
-            getMappingsRequest.addParameter("include_type_name", "false");
+            getMappingsRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "false");
             if (getOldClusterVersion().before(Version.V_6_0_0)) {
                 ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(getMappingsRequest));
                 assertThat(EntityUtils.toString(ex.getResponse().getEntity()), Matchers.containsString("has multiple mappings"));

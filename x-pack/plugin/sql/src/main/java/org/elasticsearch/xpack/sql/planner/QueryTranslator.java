@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AndAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.CardinalityAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.ExtendedStatsAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.FilterExistsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByNumericHistogram;
@@ -135,7 +136,7 @@ final class QueryTranslator {
             new MatrixStatsAggs(),
             new PercentilesAggs(),
             new PercentileRanksAggs(),
-            new DistinctCounts(),
+            new CountAggs(),
             new DateTimes()
             );
 
@@ -429,7 +430,13 @@ final class QueryTranslator {
     static String field(AggregateFunction af) {
         Expression arg = af.field();
         if (arg instanceof FieldAttribute) {
-            return ((FieldAttribute) arg).name();
+            FieldAttribute field = (FieldAttribute) arg;
+            // COUNT(DISTINCT) uses cardinality aggregation which works on exact values (not changed by analyzers or normalizers)
+            if (af instanceof Count && ((Count) af).distinct()) {
+                // use the `keyword` version of the field, if there is one
+                return field.isInexact() ? field.exactAttribute().name() : field.name();
+            }
+            return field.name();
         }
         if (arg instanceof Literal) {
             return String.valueOf(((Literal) arg).value());
@@ -772,15 +779,16 @@ final class QueryTranslator {
     //
     // Agg translators
     //
-
-    static class DistinctCounts extends SingleValueAggTranslator<Count> {
+    
+    static class CountAggs extends SingleValueAggTranslator<Count> {
 
         @Override
         protected LeafAgg toAgg(String id, Count c) {
-            if (!c.distinct()) {
-                return null;
+            if (c.distinct()) {
+                return new CardinalityAgg(id, field(c));
+            } else {
+                return new FilterExistsAgg(id, field(c));
             }
-            return new CardinalityAgg(id, field(c));
         }
     }
 

@@ -1,0 +1,21 @@
+{
+  "ml.upgrade": {
+    "documentation": "TODO",
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_ml/_upgrade",
+      "paths": [ "/_ml/_upgrade" ],
+      "params": {
+        "wait_for_completion": {
+          "type": "boolean",
+          "description": "Should this request wait until the operation has completed before returning",
+          "default": false
+        }
+      }
+    },
+    "body": {
+      "description" : "Upgrade options",
+      "required" : false
+    }
+  }
+}

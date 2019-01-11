@@ -179,7 +179,11 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
 
         logger.info("--> verify that snapshot eventually will be created due to retries");
         assertBusy(() -> {
-            assertSnapshotExists("test-repo", "test-snap-2");
+            try {
+                assertSnapshotExists("test-repo", "test-snap-2");
+            } catch (SnapshotMissingException ex) {
+                throw new AssertionError(ex);
+            }
         }, 1, TimeUnit.MINUTES);
     }
 

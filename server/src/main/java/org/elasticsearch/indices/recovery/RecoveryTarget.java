@@ -31,6 +31,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -367,12 +368,15 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint) throws IOException {
-        final IndexShard indexShard = indexShard();
-        indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
-        // Persist the global checkpoint.
-        indexShard.sync();
-        indexShard.finalizeRecovery();
+    public void finalizeRecovery(final long globalCheckpoint, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            final IndexShard indexShard = indexShard();
+            indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
+            // Persist the global checkpoint.
+            indexShard.sync();
+            indexShard.finalizeRecovery();
+            return null;
+        });
     }
 
     @Override

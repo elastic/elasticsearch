@@ -32,6 +32,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.StopWatch;
@@ -71,6 +72,8 @@ import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
@@ -134,6 +137,9 @@ public class RecoverySourceHandler {
                 IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
                 throw e;
             });
+            final Consumer<Exception> onFailure = e ->
+                IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
+
             runUnderPrimaryPermit(() -> {
                 final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
                 ShardRouting targetShardRouting = routingTable.getByAllocationId(request.targetAllocationId());
@@ -232,16 +238,19 @@ public class RecoverySourceHandler {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
             }
 
-            finalizeRecovery(sendSnapshotResult.targetLocalCheckpoint);
-            final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
-            assert resources.isEmpty() : "not every resource is released [" + resources + "]";
-            IOUtils.close(resources);
-            wrappedListener.onResponse(
-                new RecoveryResponse(sendFileResult.phase1FileNames, sendFileResult.phase1FileSizes,
-                    sendFileResult.phase1ExistingFileNames, sendFileResult.phase1ExistingFileSizes, sendFileResult.totalSize,
-                    sendFileResult.existingTotalSize, sendFileResult.took.millis(), phase1ThrottlingWaitTime, prepareEngineTime.millis(),
-                    sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis())
-            );
+            final StepListener<Void> finalizeStep = new StepListener<>();
+            finalizeRecovery(sendSnapshotResult.targetLocalCheckpoint, finalizeStep);
+            finalizeStep.whenComplete(r -> {
+                assert resources.isEmpty() : "not every resource is released [" + resources + "]";
+                IOUtils.close(resources);
+                final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
+                wrappedListener.onResponse(
+                    new RecoveryResponse(sendFileResult.phase1FileNames, sendFileResult.phase1FileSizes,
+                        sendFileResult.phase1ExistingFileNames, sendFileResult.phase1ExistingFileSizes, sendFileResult.totalSize,
+                        sendFileResult.existingTotalSize, sendFileResult.took.millis(), phase1ThrottlingWaitTime,
+                        prepareEngineTime.millis(), sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis())
+                );
+            }, onFailure);
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
         }
@@ -585,10 +594,7 @@ public class RecoverySourceHandler {
         return new SendSnapshotResult(targetLocalCheckpoint.get(), totalSentOps, tookTime);
     }
 
-    /*
-     * finalizes the recovery process
-     */
-    public void finalizeRecovery(final long targetLocalCheckpoint) throws IOException {
+    void finalizeRecovery(final long targetLocalCheckpoint, final ActionListener<Void> listener) throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -604,21 +610,26 @@ public class RecoverySourceHandler {
         runUnderPrimaryPermit(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
             shardId + " marking " + request.targetAllocationId() + " as in sync", shard, cancellableThreads, logger);
         final long globalCheckpoint = shard.getGlobalCheckpoint();
-        cancellableThreads.executeIO(() -> recoveryTarget.finalizeRecovery(globalCheckpoint));
-        runUnderPrimaryPermit(() -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
-            shardId + " updating " + request.targetAllocationId() + "'s global checkpoint", shard, cancellableThreads, logger);
+        final StepListener<Void> finalizeListener = new StepListener<>();
+        cancellableThreads.executeIO(() -> recoveryTarget.finalizeRecovery(globalCheckpoint, finalizeListener));
+        finalizeListener.whenComplete(r -> {
+            runUnderPrimaryPermit(() -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
+                shardId + " updating " + request.targetAllocationId() + "'s global checkpoint", shard, cancellableThreads, logger);
 
-        if (request.isPrimaryRelocation()) {
-            logger.trace("performing relocation hand-off");
-            // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
-            cancellableThreads.execute(() -> shard.relocated(recoveryTarget::handoffPrimaryContext));
-            /*
-             * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
-             * target are failed (see {@link IndexShard#updateRoutingEntry}).
-             */
-        }
-        stopWatch.stop();
-        logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
+            if (request.isPrimaryRelocation()) {
+                logger.trace("performing relocation hand-off");
+                // TODO: make relocated async
+                // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
+                cancellableThreads.execute(() -> shard.relocated(recoveryTarget::handoffPrimaryContext));
+                /*
+                 * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
+                 * target are failed (see {@link IndexShard#updateRoutingEntry}).
+                 */
+            }
+            stopWatch.stop();
+            logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
+            listener.onResponse(null);
+        }, listener::onFailure);
     }
 
     static final class SendSnapshotResult {

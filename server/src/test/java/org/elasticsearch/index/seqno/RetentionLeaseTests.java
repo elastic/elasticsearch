@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
 public class RetentionLeaseTests extends ESTestCase {
@@ -65,6 +66,15 @@ public class RetentionLeaseTests extends ESTestCase {
         assertThat(
                 e,
                 hasToString(containsString("retention lease source can not contain any of [:;,] but was [" + source + "]")));
+    }
+
+    public void testRetentionLeaseEncoding() {
+        final String id = randomAlphaOfLength(8);
+        final long retainingSequenceNumber = randomNonNegativeLong();
+        final long timestamp = randomNonNegativeLong();
+        final String source = randomAlphaOfLength(8);
+        final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
+        assertThat(RetentionLease.decodeRetentionLease(RetentionLease.encodeRetentionLease(retentionLease)), equalTo(retentionLease));
     }
 
 }

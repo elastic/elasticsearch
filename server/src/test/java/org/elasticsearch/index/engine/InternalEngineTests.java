@@ -5293,16 +5293,7 @@ public class InternalEngineTests extends EngineTestCase {
                 if (leases.isEmpty()) {
                     assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES), equalTo(""));
                 } else {
-                    final String expected = leases
-                            .stream()
-                            .map(lease -> String.format(
-                                    Locale.ROOT,
-                                    "id:%s;retaining_seq_no:%d;timestamp:%d;source:%s",
-                                    lease.id(),
-                                    lease.retainingSequenceNumber(),
-                                    lease.timestamp(),
-                                    lease.source()))
-                            .collect(Collectors.joining(","));
+                    final String expected = leases.stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(","));
                     assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES), equalTo(expected));
                 }
             }

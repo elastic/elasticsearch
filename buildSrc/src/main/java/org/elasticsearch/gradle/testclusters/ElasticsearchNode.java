@@ -224,7 +224,8 @@ public class ElasticsearchNode {
         }
         logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
-        stopHandle(esProcess.toHandle());
+        // Test clusters are not reused, don't spend time on a graceful shutdown
+        stopHandle(esProcess.toHandle(), true);
         if (tailLogs) {
             logFileContents("Standard output of node", getStdoutFile());
             logFileContents("Standard error of node", getStdErrFile());
@@ -232,14 +233,21 @@ public class ElasticsearchNode {
         esProcess = null;
     }
 
-    private void stopHandle(ProcessHandle processHandle) {
+    private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
         // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
         if (processHandle.isAlive()) {
-            processHandle.children().forEach(this::stopHandle);
+            processHandle.children().forEach(each -> stopHandle(each, forcibly));
         }
-        logProcessInfo("Terminating elasticsearch process:", processHandle.info());
+        logProcessInfo(
+            "Terminating elasticsearch process" + (forcibly ? " forcibly " : "gratefully") + ":",
+            processHandle.info()
+        );
         if (processHandle.isAlive()) {
-            processHandle.destroy();
+            if (forcibly) {
+                processHandle.destroyForcibly();
+            } else {
+                processHandle.destroy();
+            }
         } else {
             logger.info("Process was not running when we tried to terminate it.");
         }

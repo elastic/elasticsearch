@@ -19,13 +19,13 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.document.RestBulkAction;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -145,7 +145,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
     }
 
-    private void bulk(String index, String valueSuffix, int count) throws IOException {
+    private static void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
             b.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"_doc\"}}\n");

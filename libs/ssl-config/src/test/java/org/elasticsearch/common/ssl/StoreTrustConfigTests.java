@@ -26,7 +26,6 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -37,6 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StoreTrustConfigTests extends ESTestCase {
 
@@ -149,7 +149,7 @@ public class StoreTrustConfigTests extends ESTestCase {
         assertThat(exception.getMessage(), Matchers.containsString("file does not exist"));
         assertThat(exception.getMessage(), Matchers.containsString("keystore"));
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
-        assertThat(exception.getCause(), Matchers.instanceOf(NoSuchFileException.class));
+        assertThat(exception.getCause(), nullValue());
     }
 
     private void assertPasswordIsIncorrect(StoreTrustConfig trustConfig, Path key) {

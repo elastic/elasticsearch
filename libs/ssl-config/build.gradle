@@ -22,7 +22,7 @@ archivesBaseName = 'elasticsearch-ssl-config'
 dependencies {
     compile "org.elasticsearch:elasticsearch-core:${version}"
 
-    if (isEclipse == false || project.path == ":libs:dissect-tests") {
+    if (isEclipse == false || project.path == ":libs:ssl-config-tests") {
         testCompile("org.elasticsearch.test:framework:${version}") {
             exclude group: 'org.elasticsearch', module: 'elasticsearch-ssl-config'
         }
@@ -33,7 +33,6 @@ dependencies {
     testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
 }
 
-jarHell.enabled = false
 forbiddenApisMain {
     replaceSignatureFiles 'jdk-signatures'
 }

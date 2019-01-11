@@ -160,7 +160,7 @@ public abstract class SslConfigurationLoader {
      * The setting should be returned as a string, and this class will convert it to the relevant type.
      *
      * @throws Exception If a {@link RuntimeException} is thrown, it will be rethrown unwrapped. All checked exceptions are wrapped in
-     *                    {@link SslConfigException} before being rethrown.
+     *                   {@link SslConfigException} before being rethrown.
      */
     protected abstract String getSettingAsString(String key) throws Exception;
 
@@ -170,7 +170,7 @@ public abstract class SslConfigurationLoader {
      * {@link SslConfigurationKeys#getSecureStringKeys() secure} settings.
      *
      * @throws Exception If a {@link RuntimeException} is thrown, it will be rethrown unwrapped. All checked exceptions are wrapped in
-     *                    {@link SslConfigException} before being rethrown.
+     *                   {@link SslConfigException} before being rethrown.
      */
     protected abstract char[] getSecureSetting(String key) throws Exception;
 
@@ -181,7 +181,7 @@ public abstract class SslConfigurationLoader {
      * The setting should be returned as a list of strings, and this class will convert the values to the relevant type.
      *
      * @throws Exception If a {@link RuntimeException} is thrown, it will be rethrown unwrapped. All checked exceptions are wrapped in
-     *                    {@link SslConfigException} before being rethrown.
+     *                   {@link SslConfigException} before being rethrown.
      */
     protected abstract List<String> getSettingAsList(String key) throws Exception;
 
@@ -190,7 +190,6 @@ public abstract class SslConfigurationLoader {
      *
      * @param basePath The base path to use for any settings that represent file paths. Typically points to the Elasticsearch
      *                 configuration directory.
-     *
      * @throws SslConfigException For any problems with the configuration, or with loading the required SSL classes.
      */
     public SslConfiguration load(Path basePath) {
@@ -203,6 +202,12 @@ public abstract class SslConfigurationLoader {
         final SslTrustConfig trustConfig = buildTrustConfig(basePath, verificationMode);
         final SslKeyConfig keyConfig = buildKeyConfig(basePath);
 
+        if (protocols == null || protocols.isEmpty()) {
+            throw new SslConfigException("no protocols configured in [" + settingPrefix + PROTOCOLS + "]");
+        }
+        if (ciphers == null || ciphers.isEmpty()) {
+            throw new SslConfigException("no cipher suites configured in [" + settingPrefix + CIPHERS + "]");
+        }
         return new SslConfiguration(trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
     }
 

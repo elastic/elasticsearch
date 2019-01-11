@@ -71,7 +71,7 @@ public final class PemTrustConfig implements SslTrustConfig {
     public X509ExtendedTrustManager createTrustManager() {
         try {
             final List<Certificate> certificates = loadCertificates();
-            KeyStore store = KeyStoreUtil.buildKeyStore(certificates);
+            KeyStore store = KeyStoreUtil.buildTrustStore(certificates);
             return KeyStoreUtil.createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
         } catch (GeneralSecurityException e) {
             throw new SslConfigException("cannot create trust using PEM certificates [" + caPathsAsString() + "]", e);

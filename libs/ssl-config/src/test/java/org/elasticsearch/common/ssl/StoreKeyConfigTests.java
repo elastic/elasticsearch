@@ -26,7 +26,6 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.GeneralSecurityException;
@@ -204,7 +203,7 @@ public class StoreKeyConfigTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("keystore"));
         assertThat(exception.getMessage(), containsString(file.toAbsolutePath().toString()));
         assertThat(exception.getMessage(), containsString("does not exist"));
-        assertThat(exception.getCause(), instanceOf(NoSuchFileException.class));
+        assertThat(exception.getCause(), nullValue());
     }
 
     private void assertNoPrivateKeyEntries(StoreKeyConfig keyConfig, Path file) {

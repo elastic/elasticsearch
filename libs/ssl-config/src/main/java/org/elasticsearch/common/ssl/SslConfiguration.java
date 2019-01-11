@@ -23,6 +23,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -48,10 +49,16 @@ public class SslConfiguration {
 
     public SslConfiguration(SslTrustConfig trustConfig, SslKeyConfig keyConfig, SslVerificationMode verificationMode,
                             SslClientAuthenticationMode clientAuth, List<String> ciphers, List<String> supportedProtocols) {
-        this.trustConfig = trustConfig;
-        this.keyConfig = keyConfig;
-        this.verificationMode = verificationMode;
-        this.clientAuth = clientAuth;
+        if (ciphers == null || ciphers.isEmpty()) {
+            throw new SslConfigException("cannot configure SSL/TLS without any supported cipher suites");
+        }
+        if (supportedProtocols == null || supportedProtocols.isEmpty()) {
+            throw new SslConfigException("cannot configure SSL/TLS without any supported protocols");
+        }
+        this.trustConfig = Objects.requireNonNull(trustConfig, "trust config cannot be null");
+        this.keyConfig = Objects.requireNonNull(keyConfig, "key config cannot be null");
+        this.verificationMode = Objects.requireNonNull(verificationMode, "verification mode cannot be null");
+        this.clientAuth = Objects.requireNonNull(clientAuth, "client authentication cannot be null");
         this.ciphers = Collections.unmodifiableList(ciphers);
         this.supportedProtocols = Collections.unmodifiableList(supportedProtocols);
     }
@@ -98,27 +105,24 @@ public class SslConfiguration {
      * return ssl-contexts with different configurations.
      */
     public SSLContext createSslContext() {
+        final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager();
+        final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         try {
-            final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager();
-            final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
-            SSLContext sslContext = SSLContext.getInstance(contextAlgorithm());
+            SSLContext sslContext = SSLContext.getInstance(contextProtocol());
             sslContext.init(new X509ExtendedKeyManager[] { keyManager }, new X509ExtendedTrustManager[] { trustManager }, null);
             return sslContext;
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
+        } catch (GeneralSecurityException e) {
             throw new SslConfigException("cannot create ssl context", e);
         }
     }
 
     /**
-     * Picks the best (highest security / most recent standard) SSL/TLS algorithm that is supported by the
+     * Picks the best (highest security / most recent standard) SSL/TLS protocol (/version) that is supported by the
      * {@link #getSupportedProtocols() configured protocols}.
      */
-    private String contextAlgorithm() {
+    private String contextProtocol() {
         if (supportedProtocols.isEmpty()) {
-            // shouldn't happen...
-            return "TLSv1.2";
+            throw new SslConfigException("no SSL/TLS protocols have been configured");
         }
         for (String tryProtocol : Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1", "SSLv3")) {
             if (supportedProtocols.contains(tryProtocol)) {

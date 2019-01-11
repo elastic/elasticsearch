@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.ssl;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -81,11 +82,14 @@ public enum SslVerificationMode {
      */
     public abstract boolean isCertificateVerificationEnabled();
 
-    private static final Map<String, SslVerificationMode> LOOKUP = new LinkedHashMap<>(3);
-    static {
-        LOOKUP.put("none", NONE);
-        LOOKUP.put("certificate", CERTIFICATE);
-        LOOKUP.put("full", FULL);
+    private static final Map<String, SslVerificationMode> LOOKUP = Collections.unmodifiableMap(buildLookup());
+
+    private static Map<String, SslVerificationMode> buildLookup() {
+        Map<String, SslVerificationMode> map = new LinkedHashMap<>(3);
+        map.put("none", NONE);
+        map.put("certificate", CERTIFICATE);
+        map.put("full", FULL);
+        return map;
     }
 
     public static SslVerificationMode parse(String value) {

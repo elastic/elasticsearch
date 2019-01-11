@@ -56,14 +56,12 @@ public final class PemKeyConfig implements SslKeyConfig {
 
     @Override
     public X509ExtendedKeyManager createKeyManager() {
+        PrivateKey privateKey = getPrivateKey();
+        List<Certificate> certificates = getCertificates();
         try {
-            PrivateKey privateKey = getPrivateKey();
-            List<Certificate> certificates = getCertificates();
             final KeyStore keyStore = KeyStoreUtil.buildKeyStore(certificates, privateKey, keyPassword);
             return KeyStoreUtil.createKeyManager(keyStore, keyPassword, KeyManagerFactory.getDefaultAlgorithm());
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
+        } catch (GeneralSecurityException e) {
             throw new SslConfigException("failed to load a KeyManager for certificate/key pair [" + certificate + "], [" + key + "]", e);
         }
     }

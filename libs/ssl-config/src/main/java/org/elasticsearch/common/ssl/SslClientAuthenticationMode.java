@@ -19,6 +19,7 @@
 package org.elasticsearch.common.ssl;
 
 import javax.net.ssl.SSLParameters;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -78,11 +79,14 @@ public enum SslClientAuthenticationMode {
      */
     public abstract void configure(SSLParameters sslParameters);
 
-    private static final Map<String, SslClientAuthenticationMode> LOOKUP = new LinkedHashMap<>(3);
-    static {
-        LOOKUP.put("none", NONE);
-        LOOKUP.put("optional", OPTIONAL);
-        LOOKUP.put("required", REQUIRED);
+    private static final Map<String, SslClientAuthenticationMode> LOOKUP = Collections.unmodifiableMap(buildLookup());
+
+    static Map<String, SslClientAuthenticationMode> buildLookup() {
+        final Map<String, SslClientAuthenticationMode> map = new LinkedHashMap<>(3);
+        map.put("none", NONE);
+        map.put("optional", OPTIONAL);
+        map.put("required", REQUIRED);
+        return map;
     }
 
     public static SslClientAuthenticationMode parse(String value) {

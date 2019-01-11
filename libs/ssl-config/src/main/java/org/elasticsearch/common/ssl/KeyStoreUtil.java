@@ -27,11 +27,9 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
@@ -71,15 +69,16 @@ final class KeyStoreUtil {
      * @throws GeneralSecurityException If there is a problem with the keystore contents
      */
     static KeyStore readKeyStore(Path path, String type, char[] password) throws GeneralSecurityException {
+        if (Files.notExists(path)) {
+            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath()
+                + "] because the file does not exist");
+        }
         try {
             KeyStore keyStore = KeyStore.getInstance(type);
             try (InputStream in = Files.newInputStream(path)) {
                 keyStore.load(in, password);
             }
             return keyStore;
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath()
-                + "] because the file does not exist", e);
         } catch (IOException e) {
             throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + e.getMessage(),
                 e);
@@ -87,18 +86,25 @@ final class KeyStoreUtil {
     }
 
     /**
-     * Construct an in-memory keystore for the provided certificates and the associated private key.
+     * Construct an in-memory keystore with a single key entry.
+     * @param certificateChain A certificate chain (ordered from subject to issuer)
+     * @param privateKey The private key that corresponds to the subject certificate (index 0 of {@code certificateChain})
+     * @param password The password for the private key
      *
      * @throws GeneralSecurityException If there is a problem with the provided certificates/key
      */
-    static KeyStore buildKeyStore(Collection<Certificate> certificates, PrivateKey privateKey, char[] password)
+    static KeyStore buildKeyStore(Collection<Certificate> certificateChain, PrivateKey privateKey, char[] password)
         throws GeneralSecurityException {
         KeyStore keyStore = buildNewKeyStore();
-        keyStore.setKeyEntry("key", privateKey, password, certificates.toArray(new Certificate[0]));
+        keyStore.setKeyEntry("key", privateKey, password, certificateChain.toArray(new Certificate[0]));
         return keyStore;
     }
 
-    static KeyStore buildKeyStore(Iterable<Certificate> certificates) throws GeneralSecurityException {
+    /**
+     * Construct an in-memory keystore with multiple trusted cert entries.
+     * @param certificates The root certificates to trust
+     */
+    static KeyStore buildTrustStore(Iterable<Certificate> certificates) throws GeneralSecurityException {
         assert certificates != null : "Cannot create keystore with null certificates";
         KeyStore store = buildNewKeyStore();
         int counter = 0;

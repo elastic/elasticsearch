@@ -107,6 +107,13 @@ public final class RetentionLease {
         this.source = source;
     }
 
+    /**
+     * Encodes a retention lease as a string. This encoding can be decoded by {@link #decodeRetentionLease(String)}. The retention lease is
+     * encoded in the format <code>id:{id};retaining_seq_no:{retainingSequenecNumber};timestamp:{timestamp};source:{source}</code>.
+     *
+     * @param retentionLease an encoding of the retention lease
+     * @return the encoded retention lease
+     */
     public static String encodeRetentionLease(final RetentionLease retentionLease) {
         return String.format(
                 Locale.ROOT,
@@ -117,6 +124,12 @@ public final class RetentionLease {
                 retentionLease.source());
     }
 
+    /**
+     * Decodes a retention lease encoded by {@link #encodeRetentionLease(RetentionLease)}.
+     *
+     * @param encodedRetentionLease an encoded retention lease
+     * @return the decoded retention lease
+     */
     public static RetentionLease decodeRetentionLease(final String encodedRetentionLease) {
         final String[] fields = encodedRetentionLease.split(";");
         assert fields.length == 4 : Arrays.toString(fields);

@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -154,10 +155,8 @@ public class HttpRequest implements ToXContentObject {
             builder.field(Field.PARAMS.getPreferredName(), this.params);
         }
         if (headers.isEmpty() == false) {
-            if (WatcherParams.hideSecrets(toXContentParams) && headers.containsKey("Authorization")) {
-                Map<String, String> sanitizedHeaders = new HashMap<>(headers);
-                sanitizedHeaders.put("Authorization", WatcherXContentParser.REDACTED_PASSWORD);
-                builder.field(Field.HEADERS.getPreferredName(), sanitizedHeaders);
+            if (WatcherParams.hideSecrets(toXContentParams)) {
+                builder.field(Field.HEADERS.getPreferredName(), sanitizeHeaders(headers));
             } else {
                 builder.field(Field.HEADERS.getPreferredName(), headers);
             }
@@ -182,6 +181,15 @@ public class HttpRequest implements ToXContentObject {
             proxy.toXContent(builder, toXContentParams);
         }
         return builder.endObject();
+    }
+
+    private Map<String, String> sanitizeHeaders(Map<String, String> headers) {
+        if (headers.containsKey("Authorization") == false) {
+            return headers;
+        }
+        Map<String, String> sanitizedHeaders = new HashMap<>(headers);
+        sanitizedHeaders.put("Authorization", WatcherXContentParser.REDACTED_PASSWORD);
+        return sanitizedHeaders;
     }
 
     @Override
@@ -220,16 +228,9 @@ public class HttpRequest implements ToXContentObject {
         sb.append("port=[").append(port).append("], ");
         sb.append("path=[").append(path).append("], ");
         if (!headers.isEmpty()) {
-            sb.append(", headers=[");
-            boolean first = true;
-            for (Map.Entry<String, String> header : headers.entrySet()) {
-                if (!first) {
-                    sb.append(", ");
-                }
-                sb.append("[").append(header.getKey()).append(": ").append(header.getValue()).append("]");
-                first = false;
-            }
-            sb.append("], ");
+            sb.append(sanitizeHeaders(headers).entrySet().stream()
+                .map(header -> header.getKey() + ": " + header.getValue())
+                .collect(Collectors.joining(", ", "headers=[", "], ")));
         }
         if (auth != null) {
             sb.append("auth=[").append(BasicAuth.TYPE).append("], ");

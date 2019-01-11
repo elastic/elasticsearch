@@ -22,6 +22,17 @@ setup:
       cluster.health:
         wait_for_status: green
 
+teardown:
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_restore_1
+        snapshot: test_snapshot
+
+  - do:
+      indices.delete:
+        index: test_index
+
 ---
 "Create a source only snapshot and then restore it":
 
@@ -40,6 +51,7 @@ setup:
         repository: test_repo_restore_1
         snapshot: test_snapshot
         wait_for_completion: true
+        body:   { indices: test_index }
 
   - match: { snapshot.snapshot: test_snapshot }
   - match: { snapshot.state : SUCCESS }

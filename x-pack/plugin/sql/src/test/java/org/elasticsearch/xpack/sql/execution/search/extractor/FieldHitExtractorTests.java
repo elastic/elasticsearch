@@ -265,6 +265,14 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         assertEquals(value, fe.extractFromSource(map));
     }
 
+    public void testExtractSourceIncorrectPathWithFieldWithDots() {
+        FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d.e", null, false);
+        Object value = randomNonNullValue();
+        Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d", value)));
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        assertThat(ex.getMessage(), is("Cannot extract value [a.b.c.d.e] from source"));
+    }
+
     private Object randomValue() {
         Supplier<Object> value = randomFrom(Arrays.asList(
                 () -> randomAlphaOfLength(10),

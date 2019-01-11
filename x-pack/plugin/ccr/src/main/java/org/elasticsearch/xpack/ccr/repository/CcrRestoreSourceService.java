@@ -143,7 +143,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     public synchronized Reader getSessionReader(String sessionUUID, String fileName) throws IOException {
         RestoreContext restore = onGoingRestores.get(sessionUUID);
         if (restore == null) {
-            logger.info("could not get session [{}] because session not found", sessionUUID);
+            logger.debug("could not get session [{}] because session not found", sessionUUID);
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
         return restore.getFileReader(fileName);
@@ -179,7 +179,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             }
             sessionLocked = true;
             if (cachedInput != null) {
-                if (fileName.equals(cachedInput.name)) {
+                if (fileName.equals(cachedInput.getName())) {
                     return new Reader(session, cachedInput, lockRelease);
                 } else {
                     cachedInput.decRef();
@@ -189,7 +189,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             } else {
                 openNewIndexInput(fileName);
                 return new Reader(session, cachedInput, lockRelease);
-
             }
         }
 
@@ -223,12 +222,10 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     private static class RefCountedCloseable<T extends Closeable> extends AbstractRefCounted {
 
-        private final String name;
         private final T object;
 
         private RefCountedCloseable(String name, T object) {
             super(name);
-            this.name = name;
             this.object = object;
         }
 
@@ -268,13 +265,13 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             IndexInput in = input.object;
             BytesRefIterator refIterator = reference.iterator();
             BytesRef ref;
-            int bytesWritten = 0;
+            int bytesRead = 0;
             while ((ref = refIterator.next()) != null) {
                 byte[] refBytes = ref.bytes;
                 in.readBytes(refBytes, 0, refBytes.length);
-                bytesWritten += ref.length;
+                bytesRead += ref.length;
             }
-            return bytesWritten;
+            return bytesRead;
         }
 
         @Override

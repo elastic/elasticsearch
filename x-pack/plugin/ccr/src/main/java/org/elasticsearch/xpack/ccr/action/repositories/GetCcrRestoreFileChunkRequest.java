@@ -17,7 +17,7 @@ import java.io.IOException;
 
 public class GetCcrRestoreFileChunkRequest extends ActionRequest implements RemoteClusterAwareRequest {
 
-    private DiscoveryNode node;
+    private final DiscoveryNode node;
     private final String sessionUUID;
     private final String fileName;
     private final int size;
@@ -28,8 +28,8 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
     }
 
     public GetCcrRestoreFileChunkRequest(DiscoveryNode node, String sessionUUID, String fileName, int size) {
-        this.sessionUUID = sessionUUID;
         this.node = node;
+        this.sessionUUID = sessionUUID;
         this.fileName = fileName;
         this.size = size;
         assert size > -1 : "The file chunk request size must be positive. Found: [" + size + "].";
@@ -37,6 +37,7 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
 
     GetCcrRestoreFileChunkRequest(StreamInput in) throws IOException {
         super(in);
+        node = null;
         sessionUUID = in.readString();
         fileName = in.readString();
         size = in.readVInt();

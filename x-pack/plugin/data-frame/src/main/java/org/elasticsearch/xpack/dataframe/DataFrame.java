@@ -45,6 +45,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.job.DataFrameJobState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsAction;
@@ -60,7 +61,6 @@ import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameJobAction
 import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobPersistentTasksExecutor;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJobState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameJobConfigManager;
 import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameJobAction;

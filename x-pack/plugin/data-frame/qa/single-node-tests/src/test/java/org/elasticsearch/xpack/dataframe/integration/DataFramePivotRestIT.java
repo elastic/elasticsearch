@@ -6,21 +6,16 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.junit.AfterClass;
 import org.junit.Before;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataFramePivotRestIT extends DataFrameRestTestCase {
@@ -34,112 +29,22 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     @Before
-    public void createReviewsIndex() throws IOException {
+    public void createIndexes() throws IOException {
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
             return;
         }
 
-        int[] distributionTable = {5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3, 2, 1, 1, 1};
-
-        final int numDocs = 1000;
-
-        // create mapping
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            {
-                builder.startObject("mappings")
-                    .startObject("_doc")
-                      .startObject("properties")
-                        .startObject("user_id")
-                          .field("type", "keyword")
-                        .endObject()
-                        .startObject("business_id")
-                          .field("type", "keyword")
-                        .endObject()
-                        .startObject("stars")
-                          .field("type", "integer")
-                        .endObject()
-                      .endObject()
-                    .endObject()
-                  .endObject();
-            }
-            builder.endObject();
-            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT", "reviews");
-            req.setEntity(entity);
-            client().performRequest(req);
-        }
-
-        // create index
-        final StringBuilder bulk = new StringBuilder();
-        for (int i = 0; i < numDocs; i++) {
-            bulk.append("{\"index\":{\"_index\":\"reviews\",\"_type\":\"_doc\"}}\n");
-            long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
-            int stars = distributionTable[(i * 33) % distributionTable.length];
-            long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
-            bulk.append("{\"user_id\":\"")
-                .append("user_")
-                .append(user)
-                .append("\",\"business_id\":\"")
-                .append("business_")
-                .append(business)
-                .append("\",\"stars\":")
-                .append(stars)
-                .append("}\n");
-
-            if (i % 50 == 0) {
-                bulk.append("\r\n");
-                final Request bulkRequest = new Request("POST", "/_bulk");
-                bulkRequest.addParameter("refresh", "true");
-                bulkRequest.setJsonEntity(bulk.toString());
-                client().performRequest(bulkRequest);
-                // clear the builder
-                bulk.setLength(0);
-            }
-        }
-        bulk.append("\r\n");
-
-        final Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.setJsonEntity(bulk.toString());
-        client().performRequest(bulkRequest);
+        createReviewsIndex();
         indicesCreated = true;
-    }
-
-    @AfterClass
-    public static void removeIndices() throws Exception {
-        wipeDataFrameJobs();
-        waitForPendingDataFrameTasks();
-        // we disabled wiping indices, but now its time to get rid of them
-        // note: can not use super.cleanUpCluster() as this method must be static
-        wipeIndices();
     }
 
     public void testSimplePivot() throws Exception {
         String jobId = "simplePivot";
         String dataFrameIndex = "pivot_reviews";
 
-        final Request createDataframeJobRequest = new Request("PUT", DATAFRAME_ENDPOINT + jobId);
-        createDataframeJobRequest.setJsonEntity("{"
-                + " \"index_pattern\": \"reviews\","
-                + " \"destination_index\": \"" + dataFrameIndex + "\","
-                + " \"sources\": {"
-                + "   \"sources\": [ {"
-                + "     \"reviewer\": {"
-                + "       \"terms\": {"
-                + "         \"field\": \"user_id\""
-                + " } } } ] },"
-                + " \"aggregations\": {"
-                + "   \"avg_rating\": {"
-                + "     \"avg\": {"
-                + "       \"field\": \"stars\""
-                + " } } }"
-                + "}");
-        Map<String, Object> createDataframeJobResponse = entityAsMap(client().performRequest(createDataframeJobRequest));
-        assertThat(createDataframeJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
+        createPivotReviewsJob(jobId, dataFrameIndex);
 
         // start the job
         final Request startJobRequest = new Request("POST", DATAFRAME_ENDPOINT + jobId + "/_start");

@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
+import org.elasticsearch.xpack.core.dataframe.job.DataFrameIndexerJobStats;
 
 import java.util.Collection;
 import java.util.HashMap;

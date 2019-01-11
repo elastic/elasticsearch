@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilde
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.dataframe.job.DataFrameIndexerJobStats;
 
 import java.io.IOException;
 import java.util.Collection;

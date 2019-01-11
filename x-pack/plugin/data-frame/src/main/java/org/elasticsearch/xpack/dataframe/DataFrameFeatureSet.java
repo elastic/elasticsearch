@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.dataframe;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -15,17 +17,24 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
+import org.elasticsearch.xpack.core.dataframe.job.DataFrameIndexerJobStats;
+import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsStatsAction;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class DataFrameFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
+    private final Client client;
     private final XPackLicenseState licenseState;
 
     @Inject
-    public DataFrameFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState) {
+    public DataFrameFeatureSet(Settings settings, Client client, @Nullable XPackLicenseState licenseState) {
         this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
+        this.client = Objects.requireNonNull(client);
         this.licenseState = licenseState;
     }
 
@@ -56,7 +65,24 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        // TODO retrieve and send something useful
-        listener.onResponse(new DataFrameFeatureSetUsage(available(), enabled()));
+        if (enabled == false) {
+            listener.onResponse(
+                    new DataFrameFeatureSetUsage(available(), enabled(), Collections.emptyMap(), new DataFrameIndexerJobStats()));
+            return;
+        }
+
+        GetDataFrameJobsStatsAction.Request jobStatsRequest = new GetDataFrameJobsStatsAction.Request(MetaData.ALL);
+
+        client.execute(GetDataFrameJobsStatsAction.INSTANCE, jobStatsRequest, ActionListener.wrap(jobStatsResponse -> {
+            Map<String, Long> jobCountByState = new HashMap<>();
+            DataFrameIndexerJobStats accumulatedStats = new DataFrameIndexerJobStats();
+
+            jobStatsResponse.getJobsStateAndStats().stream().forEach(singleResult -> {
+                jobCountByState.merge(singleResult.getJobState().getIndexerState().value(), 1L, Long::sum);
+                accumulatedStats.merge(singleResult.getJobStats());
+            });
+
+            listener.onResponse(new DataFrameFeatureSetUsage(available(), enabled(), jobCountByState, accumulatedStats));
+        }, listener::onFailure));
     }
 }

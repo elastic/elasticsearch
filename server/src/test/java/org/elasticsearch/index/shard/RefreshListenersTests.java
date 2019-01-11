@@ -71,6 +71,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -279,7 +280,7 @@ public class RefreshListenersTests extends ESTestCase {
                 if (immediate) {
                     assertNotNull(listener.forcedRefresh.get());
                 } else {
-                    assertBusy(() -> assertNotNull(listener.forcedRefresh.get()));
+                    assertBusy(() -> assertNotNull(listener.forcedRefresh.get()), 1, TimeUnit.MINUTES);
                 }
                 assertFalse(listener.forcedRefresh.get());
                 listener.assertNoError();
@@ -314,7 +315,7 @@ public class RefreshListenersTests extends ESTestCase {
 
                         DummyRefreshListener listener = new DummyRefreshListener();
                         listeners.addOrNotify(index.getTranslogLocation(), listener);
-                        assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()));
+                        assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()), 1, TimeUnit.MINUTES);
                         if (threadCount < maxListeners) {
                             assertFalse(listener.forcedRefresh.get());
                         }

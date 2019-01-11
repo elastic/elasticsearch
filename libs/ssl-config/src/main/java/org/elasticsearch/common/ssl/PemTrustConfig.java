@@ -80,9 +80,7 @@ public final class PemTrustConfig implements SslTrustConfig {
 
     private List<Certificate> loadCertificates() throws CertificateException {
         try {
-            final List<Certificate> certificates = PemUtils.readCertificates(this.certificateAuthorities);
-            System.err.printf("Loaded certificates: %s from %s\n", certificates, this.certificateAuthorities);
-            return certificates;
+            return PemUtils.readCertificates(this.certificateAuthorities);
         } catch (FileNotFoundException | NoSuchFileException e) {
             throw new SslConfigException("cannot configure trust using PEM certificates [" + caPathsAsString()
                 + "] because one or more files do not exist", e);

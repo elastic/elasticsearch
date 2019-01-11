@@ -5,14 +5,11 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -41,23 +38,17 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_RESPONSE_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES;
 
-public class OpenIdConnectRealm extends Realm implements Releasable {
+public class OpenIdConnectRealm extends Realm {
 
     public static final String CONTEXT_TOKEN_DATA = "_oidc_tokendata";
     private static final SecureRandom RANDOM_INSTANCE = new SecureRandom();
-    private static final Logger logger = LogManager.getLogger(OpenIdConnectRealm.class);
-    private final OPConfiguration opConfiguration;
-    private final RPConfiguration rpConfiguration;
+    private final OpenIdConnectProviderConfiguration opConfiguration;
+    private final RelyingPartyConfiguration rpConfiguration;
 
     public OpenIdConnectRealm(RealmConfig config) {
         super(config);
         this.rpConfiguration = buildRPConfiguration(config);
         this.opConfiguration = buildOPConfiguration(config);
-    }
-
-    @Override
-    public void close() {
-
     }
 
     @Override
@@ -80,24 +71,24 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
     }
 
-    private RPConfiguration buildRPConfiguration(RealmConfig config) {
+    private RelyingPartyConfiguration buildRPConfiguration(RealmConfig config) {
         String redirectUri = require(config, RP_REDIRECT_URI);
         String clientId = require(config, RP_CLIENT_ID);
         String responseType = require(config, RP_RESPONSE_TYPE);
         List<String> requestedScopes = config.hasSetting(RP_REQUESTED_SCOPES) ?
             config.getSetting(RP_REQUESTED_SCOPES) : Collections.emptyList();
 
-        return new RPConfiguration(clientId, redirectUri, responseType, requestedScopes);
+        return new RelyingPartyConfiguration(clientId, redirectUri, responseType, requestedScopes);
     }
 
-    private OPConfiguration buildOPConfiguration(RealmConfig config) {
+    private OpenIdConnectProviderConfiguration buildOPConfiguration(RealmConfig config) {
         String providerName = require(config, OP_NAME);
         String authorizationEndpoint = require(config, OP_AUTHORIZATION_ENDPOINT);
         String issuer = require(config, OP_ISSUER);
         String tokenEndpoint = config.getSetting(OP_TOKEN_ENDPOINT, () -> null);
         String userinfoEndpoint = config.getSetting(OP_USERINFO_ENDPOINT, () -> null);
 
-        return new OPConfiguration(providerName, issuer, authorizationEndpoint, tokenEndpoint, userinfoEndpoint);
+        return new OpenIdConnectProviderConfiguration(providerName, issuer, authorizationEndpoint, tokenEndpoint, userinfoEndpoint);
     }
 
     static String require(RealmConfig config, Setting.AffixSetting<String> setting) {

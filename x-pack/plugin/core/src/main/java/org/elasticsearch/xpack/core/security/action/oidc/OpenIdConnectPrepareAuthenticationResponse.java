@@ -24,7 +24,9 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse {
         this.state = state;
     }
 
-    public OpenIdConnectPrepareAuthenticationResponse() {
+    public OpenIdConnectPrepareAuthenticationResponse(StreamInput in) throws IOException {
+        super.readFrom(in);
+        authenticationRequestUrl = in.readString();
     }
 
     public String getAuthenticationRequestUrl() {
@@ -37,8 +39,7 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        authenticationRequestUrl = in.readString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

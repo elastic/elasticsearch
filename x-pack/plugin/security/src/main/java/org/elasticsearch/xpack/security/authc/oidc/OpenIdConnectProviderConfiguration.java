@@ -12,15 +12,15 @@ import java.util.Objects;
 /**
  * A Class that contains all the OpenID Connect Provider configuration
  */
-public class OPConfiguration {
+public class OpenIdConnectProviderConfiguration {
     private final String providerName;
     private final String authorizationEndpoint;
     private final String tokenEndpoint;
     private final String userinfoEndpoint;
     private final String issuer;
 
-    public OPConfiguration(String providerName, String issuer, String authorizationEndpoint, @Nullable String tokenEndpoint,
-                           @Nullable String userinfoEndpoint) {
+    public OpenIdConnectProviderConfiguration(String providerName, String issuer, String authorizationEndpoint,
+                                              @Nullable String tokenEndpoint, @Nullable String userinfoEndpoint) {
         this.providerName = Objects.requireNonNull(providerName, "OP Name must be provided");
         this.authorizationEndpoint = Objects.requireNonNull(authorizationEndpoint, "Authorization Endpoint must be provided");
         this.tokenEndpoint = tokenEndpoint;

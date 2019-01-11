@@ -27,8 +27,7 @@ public class OpenIdConnectAuthenticateRequestTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
 
-        final OpenIdConnectAuthenticateRequest unserialized = new OpenIdConnectAuthenticateRequest();
-        unserialized.readFrom(out.bytes().streamInput());
+        final OpenIdConnectAuthenticateRequest unserialized = new OpenIdConnectAuthenticateRequest(out.bytes().streamInput());
         assertThat(unserialized.getRedirectUri(), equalTo(redirectUri));
         assertThat(unserialized.getState(), equalTo(state));
         assertThat(unserialized.getNonce(), equalTo(nonce));

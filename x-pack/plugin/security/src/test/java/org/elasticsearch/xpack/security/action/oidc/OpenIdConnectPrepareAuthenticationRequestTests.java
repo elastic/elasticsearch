@@ -27,8 +27,8 @@ public class OpenIdConnectPrepareAuthenticationRequestTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
 
-        final OpenIdConnectPrepareAuthenticationRequest unserialized = new OpenIdConnectPrepareAuthenticationRequest();
-        unserialized.readFrom(out.bytes().streamInput());
+        final OpenIdConnectPrepareAuthenticationRequest unserialized =
+            new OpenIdConnectPrepareAuthenticationRequest(out.bytes().streamInput());
         assertThat(unserialized.getRealmName(), equalTo("oidc-realm1"));
         assertThat(unserialized.getState(), equalTo(state));
         assertThat(unserialized.getNonce(), equalTo(nonce));

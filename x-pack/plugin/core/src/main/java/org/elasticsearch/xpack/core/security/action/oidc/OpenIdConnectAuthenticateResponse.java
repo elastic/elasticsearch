@@ -25,7 +25,12 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         this.expiresIn = expiresIn;
     }
 
-    public OpenIdConnectAuthenticateResponse() {
+    public OpenIdConnectAuthenticateResponse(StreamInput in) throws IOException {
+        super.readFrom(in);
+        principal = in.readString();
+        accessTokenString = in.readString();
+        refreshTokenString = in.readString();
+        expiresIn = in.readTimeValue();
     }
 
     public String getPrincipal() {
@@ -45,12 +50,8 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        principal = in.readString();
-        accessTokenString = in.readString();
-        refreshTokenString = in.readString();
-        expiresIn = in.readTimeValue();
+    public void readFrom(StreamInput in) {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

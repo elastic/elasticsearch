@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Action for initiating an authentication process using OpenID Connect
@@ -15,11 +16,17 @@ public final class OpenIdConnectAuthenticateAction extends Action<OpenIdConnectA
     public static final OpenIdConnectAuthenticateAction INSTANCE = new OpenIdConnectAuthenticateAction();
     public static final String NAME = "cluster:admin/xpack/security/oidc/authenticate";
 
-    protected OpenIdConnectAuthenticateAction() {
+    private OpenIdConnectAuthenticateAction() {
         super(NAME);
     }
 
+    @Override
     public OpenIdConnectAuthenticateResponse newResponse() {
-        return new OpenIdConnectAuthenticateResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<OpenIdConnectAuthenticateResponse> getResponseReader() {
+        return OpenIdConnectAuthenticateResponse::new;
     }
 }

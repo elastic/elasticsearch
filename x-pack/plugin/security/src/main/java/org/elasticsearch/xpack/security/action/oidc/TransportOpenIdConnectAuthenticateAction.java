@@ -26,9 +26,10 @@ import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectToken;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
-public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAction<OpenIdConnectAuthenticateRequest,
-    OpenIdConnectAuthenticateResponse> {
+public class TransportOpenIdConnectAuthenticateAction
+    extends HandledTransportAction<OpenIdConnectAuthenticateRequest, OpenIdConnectAuthenticateResponse> {
 
     private final ThreadPool threadPool;
     private final AuthenticationService authenticationService;
@@ -38,7 +39,8 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
     public TransportOpenIdConnectAuthenticateAction(ThreadPool threadPool, TransportService transportService,
                                                     ActionFilters actionFilters, AuthenticationService authenticationService,
                                                     TokenService tokenService) {
-        super(OpenIdConnectAuthenticateAction.NAME, transportService, actionFilters, OpenIdConnectAuthenticateRequest::new);
+        super(OpenIdConnectAuthenticateAction.NAME, transportService, actionFilters,
+            (Supplier<OpenIdConnectAuthenticateRequest>) OpenIdConnectAuthenticateRequest::new);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;

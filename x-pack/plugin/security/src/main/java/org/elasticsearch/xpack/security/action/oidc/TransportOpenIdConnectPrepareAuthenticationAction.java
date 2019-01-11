@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTransportAction<OpenIdConnectPrepareAuthenticationRequest,
@@ -32,7 +33,7 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
     public TransportOpenIdConnectPrepareAuthenticationAction(TransportService transportService,
                                                              ActionFilters actionFilters, Realms realms) {
         super(OpenIdConnectPrepareAuthenticationAction.NAME, transportService, actionFilters,
-            OpenIdConnectPrepareAuthenticationRequest::new);
+            (Supplier<OpenIdConnectPrepareAuthenticationRequest>) OpenIdConnectPrepareAuthenticationRequest::new);
         this.realms = realms;
     }
 

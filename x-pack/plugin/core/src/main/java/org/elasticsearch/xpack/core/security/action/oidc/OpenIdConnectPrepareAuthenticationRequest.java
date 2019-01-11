@@ -16,7 +16,7 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Represents a request to prepare an OAuth 2.0 authentication request
+ * Represents a request to prepare an OAuth 2.0 authorization request
  */
 public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
 
@@ -48,6 +48,16 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         this.nonce = nonce;
     }
 
+    public OpenIdConnectPrepareAuthenticationRequest() {
+    }
+
+    public OpenIdConnectPrepareAuthenticationRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
+        realmName = in.readString();
+        state = in.readOptionalString();
+        nonce = in.readOptionalString();
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -66,11 +76,8 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        realmName = in.readString();
-        state = in.readOptionalString();
-        nonce = in.readOptionalString();
+    public void readFrom(StreamInput in) {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public String toString() {

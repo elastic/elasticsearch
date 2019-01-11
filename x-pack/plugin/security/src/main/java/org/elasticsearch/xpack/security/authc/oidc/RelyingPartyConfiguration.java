@@ -15,13 +15,13 @@ import java.util.Objects;
 /**
  * A Class that contains all the OpenID Connect Relying Party configuration
  */
-public class RPConfiguration {
+public class RelyingPartyConfiguration {
     private final String clientId;
     private final String redirectUri;
     private final String responseType;
     private final List<String> requestedScopes;
 
-    public RPConfiguration(String clientId, String redirectUri, String responseType, @Nullable List<String> requestedScopes) {
+    public RelyingPartyConfiguration(String clientId, String redirectUri, String responseType, @Nullable List<String> requestedScopes) {
         this.clientId = Objects.requireNonNull(clientId, "RP Client ID must be provided");
         this.redirectUri = Objects.requireNonNull(redirectUri, "RP Redirect URI must be provided");
         if (Strings.hasText(responseType) == false) {

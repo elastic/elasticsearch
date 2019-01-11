@@ -265,6 +265,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertThat(newHistoryUUIds, hasSize(1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37345")
     public void testForceStaleReplicaToBePromotedToPrimaryOnWrongNode() throws Exception {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);

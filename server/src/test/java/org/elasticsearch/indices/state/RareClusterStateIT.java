@@ -399,6 +399,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         assertBusy(() -> assertTrue(client().prepareGet("index", "type", "1").get().isExists()));
 
+        // index another document, this time using dynamic mappings.
+        // The ack timeout of 0 on dynamic mapping updates makes it possible for the document to be indexed on the primary, even
+        // if the dynamic mapping update is not applied on the replica yet.
         ActionFuture<IndexResponse> dynamicMappingsFut = client().prepareIndex("index", "type", "2").setSource("field2", 42).execute();
 
         // ...and wait for second mapping to be available on master

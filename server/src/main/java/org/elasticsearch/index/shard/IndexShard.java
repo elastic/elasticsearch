@@ -1911,12 +1911,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     void addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert assertPrimaryMode();
         verifyNotClosed();
-        if (id.contains(",") || id.contains(":") || id.contains(";")) {
-            throw new IllegalArgumentException("retention lease ID can not contain any of [,:;] but was [" + id + "]");
-        }
-        if (source.contains(",") || source.contains(":") || source.contains(";")) {
-            throw new IllegalArgumentException("retention lease source can not contain any of [,:;] but was [" + source + "]");
-        }
         replicationTracker.addOrUpdateRetentionLease(id, retainingSequenceNumber, source);
     }
 

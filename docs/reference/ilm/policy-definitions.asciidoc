@@ -579,6 +579,43 @@ PUT _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 
+[[ilm-unfullow-action]]
+==== Unfollow
+
+This action turns a ccr follower index into a regular index.
+This can be desired when moving follower indices into the
+next phase. Also certain actions like shrink and rollover
+can then be performed safely on follower indices.
+
+If the unfollow action encounters a follower index then
+the following operations will be performed on it:
+
+* Pauses indexing following for the follower index.
+* Closes the follower index.
+* Unfollows the follower index.
+* Opens the follower index (which is at this point is a regular index).
+
+The unfollow action does not have any options and
+if it encounters a non follower index, then the
+unfollow action leaves that index untouched and
+lets the next action operate on this index.
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "unfollow" : {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
 
 === Full Policy
 

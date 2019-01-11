@@ -63,13 +63,13 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
         String[] dataValues = {"42.0"};
-        DataFrameDataExtractor.Row row = newRow(newHit("1", dataDoc), dataValues);
+        DataFrameDataExtractor.Row row = newRow(newHit(dataDoc), dataValues, 1);
         givenSingleDataFrameBatch(Arrays.asList(row));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
         resultFields.put("b", "2");
-        AnalyticsResult result = new AnalyticsResult("some_hash", resultFields);
+        AnalyticsResult result = new AnalyticsResult(1, resultFields);
         givenProcessResults(Arrays.asList(result));
 
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
@@ -90,6 +90,28 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(indexedDocSource.get("b"), equalTo("2"));
     }
 
+    public void testProcess_GivenSingleRowAndResultWithMismatchingIdHash() throws IOException {
+        givenClientHasNoFailures();
+
+        String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
+        String[] dataValues = {"42.0"};
+        DataFrameDataExtractor.Row row = newRow(newHit(dataDoc), dataValues, 1);
+        givenSingleDataFrameBatch(Arrays.asList(row));
+
+        Map<String, Object> resultFields = new HashMap<>();
+        resultFields.put("a", "1");
+        resultFields.put("b", "2");
+        AnalyticsResult result = new AnalyticsResult(2, resultFields);
+        givenProcessResults(Arrays.asList(result));
+
+        AnalyticsResultProcessor resultProcessor = createResultProcessor();
+
+        resultProcessor.process(process);
+        resultProcessor.awaitForCompletion();
+
+        verifyNoMoreInteractions(client);
+    }
+
     private void givenProcessResults(List<AnalyticsResult> results) {
         when(process.readAnalyticsResults()).thenReturn(results.iterator());
     }
@@ -99,16 +121,17 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         when(dataExtractor.next()).thenReturn(Optional.of(batch)).thenReturn(Optional.empty());
     }
 
-    private static SearchHit newHit(String id, String json) {
-        SearchHit hit = new SearchHit(42, id, new Text("doc"), Collections.emptyMap());
+    private static SearchHit newHit(String json) {
+        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10), new Text("doc"), Collections.emptyMap());
         hit.sourceRef(new BytesArray(json));
         return hit;
     }
 
-    private static DataFrameDataExtractor.Row newRow(SearchHit hit, String[] values) {
+    private static DataFrameDataExtractor.Row newRow(SearchHit hit, String[] values, int checksum) {
         DataFrameDataExtractor.Row row = mock(DataFrameDataExtractor.Row.class);
         when(row.getHit()).thenReturn(hit);
         when(row.getValues()).thenReturn(values);
+        when(row.getChecksum()).thenReturn(checksum);
         return row;
     }
 

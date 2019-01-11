@@ -17,27 +17,27 @@ import java.util.Objects;
 public class AnalyticsResult implements ToXContentObject {
 
     public static final ParseField TYPE = new ParseField("analytics_result");
-    public static final ParseField ID_HASH = new ParseField("id_hash");
+    public static final ParseField CHECKSUM = new ParseField("checksum");
     public static final ParseField RESULTS = new ParseField("results");
 
     static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-            a -> new AnalyticsResult((String) a[0], (Map<String, Object>) a[1]));
+            a -> new AnalyticsResult((Integer) a[0], (Map<String, Object>) a[1]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_HASH);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), CHECKSUM);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, context) -> p.map(), RESULTS);
     }
 
-    private final String idHash;
+    private final int checksum;
     private final Map<String, Object> results;
 
-    public AnalyticsResult(String idHash, Map<String, Object> results) {
-        this.idHash = Objects.requireNonNull(idHash);
+    public AnalyticsResult(int checksum, Map<String, Object> results) {
+        this.checksum = Objects.requireNonNull(checksum);
         this.results = Objects.requireNonNull(results);
     }
 
-    public String getIdHash() {
-        return idHash;
+    public int getChecksum() {
+        return checksum;
     }
 
     public Map<String, Object> getResults() {
@@ -47,7 +47,7 @@ public class AnalyticsResult implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ID_HASH.getPreferredName(), idHash);
+        builder.field(CHECKSUM.getPreferredName(), checksum);
         builder.field(RESULTS.getPreferredName(), results);
         builder.endObject();
         return builder;
@@ -63,11 +63,11 @@ public class AnalyticsResult implements ToXContentObject {
         }
 
         AnalyticsResult that = (AnalyticsResult) other;
-        return Objects.equals(idHash, that.idHash) && Objects.equals(results, that.results);
+        return checksum == that.checksum && Objects.equals(results, that.results);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(idHash, results);
+        return Objects.hash(checksum, results);
     }
 }

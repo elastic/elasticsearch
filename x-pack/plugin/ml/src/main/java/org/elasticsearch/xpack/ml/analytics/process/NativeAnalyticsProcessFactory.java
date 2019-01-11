@@ -45,8 +45,8 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId,
                 true, false, true, true, false, false);
 
-        // The extra 1 is the control field
-        int numberOfFields = analyticsProcessConfig.cols() + 1;
+        // The extra 2 are for the checksum and the control field
+        int numberOfFields = analyticsProcessConfig.cols() + 2;
 
         createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
 

@@ -12,6 +12,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +89,28 @@ public class DataFrameDataExtractorFactoryTests extends ESTestCase {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> DataFrameDataExtractorFactory.detectExtractedFields(fieldCapabilities));
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected"));
+    }
+
+    public void testDetectExtractedFields_ShouldSortFieldsAlphabetically() {
+        int fieldCount = randomIntBetween(10, 20);
+        List<String> fields = new ArrayList<>();
+        for (int i = 0; i < fieldCount; i++) {
+            fields.add(randomAlphaOfLength(20));
+        }
+        List<String> sortedFields = new ArrayList<>(fields);
+        Collections.sort(sortedFields);
+
+        MockFieldCapsResponseBuilder mockFieldCapsResponseBuilder = new MockFieldCapsResponseBuilder();
+        for (String field : fields) {
+            mockFieldCapsResponseBuilder.addAggregatableField(field, "float");
+        }
+        FieldCapabilitiesResponse fieldCapabilities = mockFieldCapsResponseBuilder.build();
+
+        ExtractedFields extractedFields = DataFrameDataExtractorFactory.detectExtractedFields(fieldCapabilities);
+
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, equalTo(sortedFields));
     }
 
     private static class MockFieldCapsResponseBuilder {

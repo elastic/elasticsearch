@@ -16,7 +16,7 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
 
     @Override
     protected AnalyticsResult createTestInstance() {
-        String idHash = randomAlphaOfLength(20);
+        int checksum = randomInt();
         Map<String, Object> results = new HashMap<>();
         int resultsSize = randomIntBetween(1, 10);
         for (int i = 0; i < resultsSize; i++) {
@@ -24,7 +24,7 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
             Object resultValue = randomBoolean() ? randomAlphaOfLength(20) : randomDouble();
             results.put(resultField, resultValue);
         }
-        return new AnalyticsResult(idHash, results);
+        return new AnalyticsResult(checksum, results);
     }
 
     @Override

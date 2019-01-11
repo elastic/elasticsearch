@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -237,6 +238,10 @@ public class DataFrameDataExtractor {
 
         public boolean shouldSkip() {
             return values == null;
+        }
+
+        public int getChecksum() {
+            return Arrays.hashCode(values);
         }
     }
 }

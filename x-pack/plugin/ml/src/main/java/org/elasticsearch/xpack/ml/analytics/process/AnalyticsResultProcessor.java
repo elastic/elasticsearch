@@ -96,6 +96,8 @@ public class AnalyticsResultProcessor {
                 continue;
             }
             AnalyticsResult result = currentResults.get(i);
+            checkChecksumsMatch(row, result);
+
             SearchHit hit = row.getHit();
             Map<String, Object> source = new LinkedHashMap(hit.getSourceAsMap());
             source.putAll(result.getResults());
@@ -110,6 +112,16 @@ public class AnalyticsResultProcessor {
                 LOGGER.error("Failures while writing data frame");
                 // TODO Better error handling
             }
+        }
+    }
+
+    private void checkChecksumsMatch(DataFrameDataExtractor.Row row, AnalyticsResult result) {
+        if (row.getChecksum() != result.getChecksum()) {
+            String msg = "Detected checksum mismatch for document with id [" + row.getHit().getId() + "]; ";
+            msg += "expected [" + row.getChecksum() + "] but result had [" + result.getChecksum() + "]; ";
+            msg += "this implies the data frame index [" + row.getHit().getIndex() + "] was modified while the analysis was running. ";
+            msg += "We rely on this index being immutable during a running analysis and so the results will be unreliable.";
+            throw new IllegalStateException(msg);
         }
     }
 }

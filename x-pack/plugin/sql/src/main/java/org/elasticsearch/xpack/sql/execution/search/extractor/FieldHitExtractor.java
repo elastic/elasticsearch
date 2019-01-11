@@ -155,6 +155,8 @@ public class FieldHitExtractor implements HitExtractor {
                 if (value == null) { // Try to extract field with dots (e.g.: "b.c")
                     StringBuilder sb = new StringBuilder(node);
                     int j = i + 1;
+                    // Try to find a valid value in the map by tying all the combinations
+                    // remaining from position i until the end of the `path`. e.g.: "b.c", "b.c.d", etc.
                     while (value == null && j < path.length) {
                         sb.append(".").append(path[j]);
                         value = map.get(sb.toString());
@@ -162,8 +164,12 @@ public class FieldHitExtractor implements HitExtractor {
                     }
                     if (value != null) {
                         if (value instanceof Map) {
+                            // If it is a nested object advance `i` to the current index in the `path`.
+                            // e.g.: if the hierarchy is {"a" : { "b.c" : { "d" : "value" }}} then i was
+                            // previously 0 and it becomes 2 since "a" and "b.c" are consumed.
                             i = j - 1;
                         } else {
+                            // if it it's a simple value return it
                             return unwrapMultiValue(value);
                         }
                     }

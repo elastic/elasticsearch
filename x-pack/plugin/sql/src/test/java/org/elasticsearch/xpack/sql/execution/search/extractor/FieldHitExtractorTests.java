@@ -275,7 +275,6 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         }
         FieldHitExtractor fe = new FieldHitExtractor(sj.toString(), null, false);
 
-
         List<String> paths = new ArrayList<>(path.length);
         int start = 0;
         while (start < path.length) {

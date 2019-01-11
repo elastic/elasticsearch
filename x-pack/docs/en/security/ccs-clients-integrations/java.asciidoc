@@ -1,9 +1,9 @@
 [[java-clients]]
-=== Java Client and Security
+=== Java Client and security
 
 deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client] and will be removed in Elasticsearch 8.0. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
 
-{security} supports the Java http://www.elastic.co/guide/en/elasticsearch/client/java-api/current/transport-client.html[transport client] for Elasticsearch.
+The {es} {security-features} support the Java http://www.elastic.co/guide/en/elasticsearch/client/java-api/current/transport-client.html[transport client] for Elasticsearch.
 The transport client uses the same transport protocol that the cluster nodes use
 for inter-node communication. It is very efficient as it does not have to marshall
 and unmarshall JSON requests like a typical REST client.
@@ -21,7 +21,8 @@ To use the transport client with a secured cluster, you need to:
 . {ref}/setup-xpack-client.html[Configure the {xpack} transport client].
 
 . Configure a user with the privileges required to start the transport client.
-A default `transport_client` role is built-in to {xpack} that grants the
+A default `transport_client` role is built-in to the {es} {security-features},
+which grants the
 appropriate cluster permissions for the transport client to work with the secured
 cluster. The transport client uses the _Nodes Info API_ to fetch information about
 the nodes in the cluster.
@@ -137,7 +138,7 @@ TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
 
 [float]
 [[disabling-client-auth]]
-===== Disabling Client Authentication
+===== Disabling client authentication
 
 If you want to disable client authentication, you can use a client-specific
 transport protocol. For more information see <<separating-node-client-traffic, Separating Node to Node and Client Traffic>>.
@@ -167,7 +168,7 @@ NOTE: If you are using a public CA that is already trusted by the Java runtime,
 
 [float]
 [[connecting-anonymously]]
-===== Connecting Anonymously
+===== Connecting anonymously
 
 To enable the transport client to connect anonymously, you must assign the
 anonymous user the privileges defined in the <<java-transport-client-role,transport_client>>
@@ -176,14 +177,14 @@ see <<anonymous-access,Enabling Anonymous Access>>.
 
 [float]
 [[security-client]]
-==== Security Client
+==== Security client
 
-{security} exposes its own API through the `SecurityClient` class. To get a hold
-of a `SecurityClient` you'll first need to create the `XPackClient`, which is a
-wrapper around the existing Elasticsearch clients (any client class implementing
+The {stack} {security-features} expose an API through the `SecurityClient` class.
+To get a hold of a `SecurityClient` you first need to create the `XPackClient`,
+which is a wrapper around the existing {es} clients (any client class implementing
 `org.elasticsearch.client.Client`).
 
-The following example shows how you can clear {security}'s realm caches using
+The following example shows how you can clear the realm caches using
 the `SecurityClient`:
 
 [source,java]

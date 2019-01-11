@@ -83,7 +83,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
     }
 
     private void createTestData(int documents) throws UnsupportedCharsetException, IOException {
-        Request request = new Request("PUT", "/test/test/_bulk");
+        Request request = new Request("PUT", "/test/_bulk");
         request.addParameter("refresh", "true");
 
         StringBuilder bulk = new StringBuilder();

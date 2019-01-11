@@ -60,7 +60,6 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -72,7 +71,7 @@ import static java.util.Collections.unmodifiableMap;
 public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, DateHistogramAggregationBuilder>
         implements MultiBucketAggregationBuilder {
     public static final String NAME = "date_histogram";
-    private static DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis", Locale.ROOT).toDateMathParser();
+    private static DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;
 

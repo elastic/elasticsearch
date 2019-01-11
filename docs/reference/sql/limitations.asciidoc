@@ -1,0 +1,92 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-limitations]]
+== SQL Limitations
+
+beta[]
+
+[float]
+=== Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE`
+
+{es} has a special type of relationship fields called `nested` fields. In {es-sql} they can be used by referencing their inner
+sub-fields. Even though `SYS COLUMNS` and `DESCRIBE TABLE` will still display them as having the type `NESTED`, they cannot
+be used in a query. One can only reference its sub-fields in the form:
+
+[source, sql]
+--------------------------------------------------
+[nested_field_name].[sub_field_name]
+--------------------------------------------------
+
+For example:
+
+[source, sql]
+--------------------------------------------------
+SELECT dep.dep_name.keyword FROM test_emp GROUP BY languages;
+--------------------------------------------------
+
+[float]
+=== Multi-nested fields
+
+{es-sql} doesn't support multi-nested documents, so a query cannot reference more than one nested field in an index.
+This applies to multi-level nested fields, but also multiple nested fields defined on the same level. For example, for this index:
+
+[source, sql]
+----------------------------------------------------
+       column         |     type      |    mapping
+----------------------+---------------+-------------
+nested_A              |STRUCT         |NESTED
+nested_A.nested_X     |STRUCT         |NESTED
+nested_A.nested_X.text|VARCHAR        |KEYWORD
+nested_A.text         |VARCHAR        |KEYWORD
+nested_B              |STRUCT         |NESTED
+nested_B.text         |VARCHAR        |KEYWORD
+----------------------------------------------------
+
+`nested_A` and `nested_B` cannot be used at the same time, nor `nested_A`/`nested_B` and `nested_A.nested_X` combination.
+For such situations, {es-sql} will display an error message.
+
+[float]
+=== Paginating nested inner hits
+
+When SELECTing a nested field, pagination will not work as expected, {es-sql} will return __at least__ the page size records. 
+This is because of the way nested queries work in {es}: the root nested field will be returned and it's matching inner nested fields as well,
+pagination taking place on the **root nested document and not on its inner hits**.
+
+[float]
+=== Normalized `keyword` fields
+
+`keyword` fields in {es} can be normalized by defining a `normalizer`. Such fields are not supported in {es-sql}.
+
+[float]
+=== Array type of fields
+
+Array fields are not supported due to the "invisible" way in which {es} handles an array of values: the mapping doesn't indicate whether
+a field is an array (has multiple values) or not, so without reading all the data, {es-sql} cannot know whether a field is a single or multi value.
+
+[float]
+=== Sorting by aggregation
+
+When doing aggregations (`GROUP BY`) {es-sql} relies on {es}'s `composite` aggregation for its support for paginating results.
+But this type of aggregation does come with a limitation: sorting can only be applied on the key used for the aggregation's buckets. This
+means that queries like `SELECT * FROM test GROUP BY age ORDER BY COUNT(*)` are not possible.
+
+[float]
+=== Using a sub-select
+
+Using sub-selects (`SELECT X FROM (SELECT Y)`) is **supported to a small degree**: any sub-select that can be "flattened" into a single
+`SELECT` is possible with {es-sql}. For example:
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[limitationSubSelect]
+--------------------------------------------------
+
+The query above is possible because it is equivalent with:
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[limitationSubSelectRewritten]
+--------------------------------------------------
+
+But, if the sub-select would include a `GROUP BY` or `HAVING` or the enclosing `SELECT` would be more complex than `SELECT X
+FROM (SELECT ...) WHERE [simple_condition]`, this is currently **un-supported**.

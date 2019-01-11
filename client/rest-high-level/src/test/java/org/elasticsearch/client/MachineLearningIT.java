@@ -538,7 +538,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         while(pastCopy < now) {
             IndexRequest doc = new IndexRequest();
             doc.index(indexName);
-            doc.type("_doc");
             doc.id("id" + i);
             doc.source("{\"total\":" +randomInt(1000) + ",\"timestamp\":"+ pastCopy +"}", XContentType.JSON);
             bulk.add(doc);
@@ -558,7 +557,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Arrays.asList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
@@ -748,7 +746,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             Integer total = randomInt(1000);
             IndexRequest doc = new IndexRequest();
             doc.index(indexName);
-            doc.type("_doc");
             doc.id("id" + i);
             doc.source("{\"total\":" + total + ",\"timestamp\":"+ thePast +"}", XContentType.JSON);
             bulk.add(doc);
@@ -768,7 +765,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Collections.singletonList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
@@ -809,7 +805,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             long timestamp = nowMillis - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
             int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
             for (int point = 0; point < bucketRate; point++) {
-                IndexRequest indexRequest = new IndexRequest(indexId, "_doc");
+                IndexRequest indexRequest = new IndexRequest(indexId);
                 indexRequest.source(XContentType.JSON, "timestamp", timestamp, "total", randomInt(1000));
                 bulk.add(indexRequest);
             }
@@ -819,7 +815,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         {
             // Index a randomly named unused state document
             String docId = "non_existing_job_" + randomFrom("model_state_1234567#1", "quantiles", "categorizer_state#1");
-            IndexRequest indexRequest = new IndexRequest(".ml-state", "_doc", docId);
+            IndexRequest indexRequest = new IndexRequest(".ml-state").id(docId);
             indexRequest.source(Collections.emptyMap(), XContentType.JSON);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
@@ -1403,7 +1399,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Arrays.asList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         highLevelClient().machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
         return datafeedId;

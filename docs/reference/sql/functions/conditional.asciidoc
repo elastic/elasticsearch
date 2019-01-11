@@ -10,10 +10,10 @@ Functions that return one of their arguments by evaluating in an if-else manner.
 [[sql-functions-conditional-coalesce]]
 ==== `COALESCE`
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-COALESCE ( expression<1>, expression<2>, ... )
+COALESCE(expression<1>, expression<2>, ...)
 ----
 
 *Input*:
@@ -51,10 +51,10 @@ include-tagged::{sql-specs}/docs.csv-spec[coalesceReturnNull]
 [[sql-functions-conditional-ifnull]]
 ==== `IFNULL`
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-IFNULL ( expression<1>, expression<2> )
+IFNULL(expression<1>, expression<2>)
 ----
 
 *Input*:
@@ -88,10 +88,10 @@ include-tagged::{sql-specs}/docs.csv-spec[ifNullReturnSecond]
 [[sql-functions-conditional-isnull]]
 ==== `ISNULL`
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-ISNULL ( expression<1>, expression<2> )
+ISNULL(expression<1>, expression<2>)
 ----
 
 *Input*:
@@ -125,10 +125,10 @@ include-tagged::{sql-specs}/docs.csv-spec[isNullReturnSecond]
 [[sql-functions-conditional-nvl]]
 ==== `NVL`
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-NVL ( expression<1>, expression<2> )
+NVL(expression<1>, expression<2>)
 ----
 
 *Input*:
@@ -162,10 +162,10 @@ include-tagged::{sql-specs}/docs.csv-spec[nvlReturnSecond]
 [[sql-functions-conditional-nullif]]
 ==== `NULLIF`
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-NULLIF ( expression<1>, expression<2> )
+NULLIF(expression<1>, expression<2>)
 ----
 
 *Input*:
@@ -197,10 +197,10 @@ include-tagged::{sql-specs}/docs.csv-spec[nullIfReturnNull]
 [[sql-functions-conditional-greatest]]
 ==== `GREATEST`
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-GREATEST ( expression<1>, expression<2>, ... )
+GREATEST(expression<1>, expression<2>, ...)
 ----
 
 *Input*:
@@ -239,10 +239,10 @@ include-tagged::{sql-specs}/docs.csv-spec[greatestReturnNull]
 [[sql-functions-conditional-least]]
 ==== `LEAST`
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-LEAST ( expression<1>, expression<2>, ... )
+LEAST(expression<1>, expression<2>, ...)
 ----
 
 *Input*:

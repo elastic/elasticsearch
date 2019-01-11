@@ -12,24 +12,24 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -42,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -57,11 +57,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
-
-    @Before
-    public void waitForMlTemplates() throws Exception {
-        XPackRestTestHelper.waitForMlTemplates(client());
-    }
 
     @Override
     protected Settings restClientSettings() {
@@ -80,7 +75,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Tests that a single document survives. Super basic smoke test.
      */
     public void testSingleDoc() throws IOException {
-        String docLocation = "/testsingledoc/_doc/1";
+        String docLocation = "/testsingledoc/doc/1";
         String doc = "{\"test\": \"test\"}";
 
         if (isRunningAgainstOldCluster()) {
@@ -90,7 +85,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createDoc);
         }
 
-        assertThat(toStr(client().performRequest(new Request("GET", docLocation))), containsString(doc));
+        Request getRequest = new Request("GET", docLocation);
+        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
     }
 
     @SuppressWarnings("unchecked")
@@ -248,7 +245,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // index documents for the rollup job
             final StringBuilder bulk = new StringBuilder();
             for (int i = 0; i < numDocs; i++) {
-                bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"_doc\"}}\n");
+                bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"doc\"}}\n");
                 String date = String.format(Locale.ROOT, "%04d-01-01T00:%02d:00Z", year, i);
                 bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
             }
@@ -306,7 +303,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assumeTrue("Rollup ID scheme changed in 6.4", getOldClusterVersion().before(Version.V_6_4_0));
         if (isRunningAgainstOldCluster()) {
 
-            final Request indexRequest = new Request("POST", "/id-test-rollup/_doc/1");
+            final Request indexRequest = new Request("POST", "/id-test-rollup/doc/1");
             indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-01T00:00:01\",\"value\":123}");
             client().performRequest(indexRequest);
 
@@ -349,7 +346,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
                 if (isRunningAgainstOldCluster() == false) {
-                    searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                    searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
                 }
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
@@ -367,8 +364,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         } else {
 
-            final Request indexRequest = new Request("POST", "/id-test-rollup/_doc/2");
+            final Request indexRequest = new Request("POST", "/id-test-rollup/doc/2");
             indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-02T00:00:01\",\"value\":345}");
+            indexRequest.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             client().performRequest(indexRequest);
 
             assertRollUpJob("rollup-id-test");
@@ -391,7 +389,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
                 if (isRunningAgainstOldCluster() == false) {
-                    searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                    searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
                 }
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
@@ -502,7 +500,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(basic, hasEntry(is("password"), anyOf(startsWith("::es_encrypted::"), is("::es_redacted::"))));
         Request searchRequest = new Request("GET", ".watcher-history*/_search");
         if (isRunningAgainstOldCluster() == false) {
-            searchRequest.addParameter(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
+            searchRequest.addParameter(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, "true");
         }
         Map<String, Object> history = entityAsMap(client().performRequest(searchRequest));
         Map<String, Object> hits = (Map<String, Object>) history.get("hits");

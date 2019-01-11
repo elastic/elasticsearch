@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMultiGetAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestMultiGetAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
         " Specifying types in multi get requests is deprecated.";
 
     private final boolean allowExplicitIndex;
@@ -51,6 +51,8 @@ public class RestMultiGetAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_mget", this);
         controller.registerHandler(GET, "/{index}/_mget", this);
         controller.registerHandler(POST, "/{index}/_mget", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/_mget", this);
         controller.registerHandler(POST, "/{index}/{type}/_mget", this);
 
@@ -65,7 +67,7 @@ public class RestMultiGetAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.param("type") != null) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("mget_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         MultiGetRequest multiGetRequest = new MultiGetRequest();

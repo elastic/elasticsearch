@@ -303,6 +303,9 @@ public class SimpleJodaTests extends ESTestCase {
             formatter.parseJoda("-1234567890.9999");
             formatter.parseJoda("-1234567890123456.9999");
         }
+
+        assertWarnings("Use of negative values" +
+            " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
     }
 
     public void testForInvalidDatesInEpochSecond() {
@@ -346,11 +349,11 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testThatEpochParserIsPrinter() {
-        JodaDateFormatter formatter = Joda.forPattern("epoch_millis", Locale.ROOT);
+        JodaDateFormatter formatter = Joda.forPattern("epoch_millis");
         assertThat(formatter.parser.isPrinter(), is(true));
         assertThat(formatter.printer.isPrinter(), is(true));
 
-        JodaDateFormatter epochSecondFormatter = Joda.forPattern("epoch_second", Locale.ROOT);
+        JodaDateFormatter epochSecondFormatter = Joda.forPattern("epoch_second");
         assertThat(epochSecondFormatter.parser.isPrinter(), is(true));
         assertThat(epochSecondFormatter.printer.isPrinter(), is(true));
     }
@@ -734,6 +737,41 @@ public class SimpleJodaTests extends ESTestCase {
                 } catch (Exception e) {}
             }
         }
+    }
+
+    public void testDeprecatedFormatSpecifiers() {
+        Joda.forPattern("CC");
+        assertWarnings("Use of 'C' (century-of-era) is deprecated and will not be supported in the" +
+            " next major version of Elasticsearch.");
+        Joda.forPattern("YYYY");
+        assertWarnings("Use of 'Y' (year-of-era) will change to 'y' in the" +
+            " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
+        Joda.forPattern("xxxx");
+        assertWarnings("Use of 'x' (week-based-year) will change" +
+            " to 'Y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
+        // multiple deprecations
+        Joda.forPattern("CC-YYYY");
+        assertWarnings("Use of 'C' (century-of-era) is deprecated and will not be supported in the" +
+            " next major version of Elasticsearch.", "Use of 'Y' (year-of-era) will change to 'y' in the" +
+            " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
+    }
+
+    public void testDeprecatedEpochScientificNotation() {
+        assertValidDateFormatParsing("epoch_second", "1.234e5", "123400");
+        assertWarnings("Use of scientific notation" +
+            " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+        assertValidDateFormatParsing("epoch_millis", "1.234e5", "123400");
+        assertWarnings("Use of scientific notation" +
+            " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+    }
+
+    public void testDeprecatedEpochNegative() {
+        assertValidDateFormatParsing("epoch_second", "-12345", "-12345");
+        assertWarnings("Use of negative values" +
+            " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+        assertValidDateFormatParsing("epoch_millis", "-12345", "-12345");
+        assertWarnings("Use of negative values" +
+            " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
     }
 
     private void assertValidDateFormatParsing(String pattern, String dateToParse) {

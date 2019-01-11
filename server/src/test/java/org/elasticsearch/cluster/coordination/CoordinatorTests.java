@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -62,6 +63,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -70,7 +72,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -105,13 +109,13 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -126,6 +130,24 @@ public class CoordinatorTests extends ESTestCase {
     @Before
     public void resetPortCounterBeforeEachTest() {
         resetPortCounter();
+    }
+
+    // check that runRandomly leads to reproducible results
+    public void testRepeatableTests() throws Exception {
+        final Callable<Long> test = () -> {
+            final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+            cluster.runRandomly();
+            final long afterRunRandomly = value(cluster.getAnyNode().getLastAppliedClusterState());
+            cluster.stabilise();
+            final long afterStabilisation = value(cluster.getAnyNode().getLastAppliedClusterState());
+            return afterRunRandomly ^ afterStabilisation;
+        };
+        final long seed = randomLong();
+        logger.info("First run with seed [{}]", seed);
+        final long result1 = RandomizedContext.current().runWithPrivateRandomness(seed, test);
+        logger.info("Second run with seed [{}]", seed);
+        final long result2 = RandomizedContext.current().runWithPrivateRandomness(seed, test);
+        assertEquals(result1, result2);
     }
 
     public void testCanUpdateClusterStateAfterStabilisation() {
@@ -946,11 +968,73 @@ public class CoordinatorTests extends ESTestCase {
         cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing setting update");
 
         leader.disconnect();
-        cluster.runFor(defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "detecting disconnection");
+        cluster.runFor(defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING) + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "detecting disconnection");
 
-        assertThat(leader.clusterApplier.lastAppliedClusterState.blocks().global(), contains(expectedBlock));
+        assertThat(leader.clusterApplier.lastAppliedClusterState.blocks().global(), hasItem(expectedBlock));
 
         // TODO reboot the leader and verify that the same block is applied when it restarts
+    }
+
+    public void testNodeCannotJoinIfJoinValidationFailsOnMaster() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 3));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        // check that if node join validation fails on master, the nodes can't join
+        List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
+        final Set<DiscoveryNode> validatedNodes = new HashSet<>();
+        cluster.getAnyLeader().extraJoinValidators.add((discoveryNode, clusterState) -> {
+            validatedNodes.add(discoveryNode);
+            throw new IllegalArgumentException("join validation failed");
+        });
+        final long previousClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
+        cluster.runFor(10000, "failing join validation");
+        assertEquals(validatedNodes, addedNodes.stream().map(ClusterNode::getLocalNode).collect(Collectors.toSet()));
+        assertTrue(addedNodes.stream().allMatch(ClusterNode::isCandidate));
+        final long newClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
+        assertEquals(previousClusterStateVersion, newClusterStateVersion);
+
+        cluster.getAnyLeader().extraJoinValidators.clear();
+        cluster.stabilise();
+    }
+
+    public void testNodeCannotJoinIfJoinValidationFailsOnJoiningNode() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 3));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        // check that if node join validation fails on joining node, the nodes can't join
+        List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
+        final Set<DiscoveryNode> validatedNodes = new HashSet<>();
+        addedNodes.stream().forEach(cn -> cn.extraJoinValidators.add((discoveryNode, clusterState) -> {
+            validatedNodes.add(discoveryNode);
+            throw new IllegalArgumentException("join validation failed");
+        }));
+        final long previousClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
+        cluster.runFor(10000, "failing join validation");
+        assertEquals(validatedNodes, addedNodes.stream().map(ClusterNode::getLocalNode).collect(Collectors.toSet()));
+        assertTrue(addedNodes.stream().allMatch(ClusterNode::isCandidate));
+        final long newClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
+        assertEquals(previousClusterStateVersion, newClusterStateVersion);
+
+        addedNodes.stream().forEach(cn -> cn.extraJoinValidators.clear());
+        cluster.stabilise();
+    }
+
+    public void testClusterCannotFormWithFailingJoinValidation() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        // fail join validation on a majority of nodes in the initial configuration
+        randomValueOtherThanMany(nodes ->
+            cluster.initialConfiguration.hasQuorum(
+                nodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getId).collect(Collectors.toSet())) == false,
+            () -> randomSubsetOf(cluster.clusterNodes))
+        .forEach(cn -> cn.extraJoinValidators.add((discoveryNode, clusterState) -> {
+            throw new IllegalArgumentException("join validation failed");
+        }));
+        cluster.bootstrapIfNecessary();
+        cluster.runFor(10000, "failing join validation");
+        assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
     }
 
     private static long defaultMillis(Setting<TimeValue> setting) {
@@ -1040,8 +1124,8 @@ public class CoordinatorTests extends ESTestCase {
                 initialNodeCount, masterEligibleNodeIds, initialConfiguration);
         }
 
-        void addNodesAndStabilise(int newNodesCount) {
-            addNodes(newNodesCount);
+        List<ClusterNode> addNodesAndStabilise(int newNodesCount) {
+            final List<ClusterNode> addedNodes = addNodes(newNodesCount);
             stabilise(
                 // The first pinging discovers the master
                 defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
@@ -1051,16 +1135,20 @@ public class CoordinatorTests extends ESTestCase {
                     // followup reconfiguration
                     + newNodesCount * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
             // TODO Investigate whether 4 publications is sufficient due to batching? A bound linear in the number of nodes isn't great.
+            return addedNodes;
         }
 
-        void addNodes(int newNodesCount) {
+        List<ClusterNode> addNodes(int newNodesCount) {
             logger.info("--> adding {} nodes", newNodesCount);
 
             final int nodeSizeAtStart = clusterNodes.size();
+            final List<ClusterNode> addedNodes = new ArrayList<>();
             for (int i = 0; i < newNodesCount; i++) {
                 final ClusterNode clusterNode = new ClusterNode(nodeSizeAtStart + i, true);
-                clusterNodes.add(clusterNode);
+                addedNodes.add(clusterNode);
             }
+            clusterNodes.addAll(addedNodes);
+            return addedNodes;
         }
 
         int size() {
@@ -1198,15 +1286,7 @@ public class CoordinatorTests extends ESTestCase {
                 deterministicTaskQueue.getExecutionDelayVariabilityMillis(), lessThanOrEqualTo(DEFAULT_DELAY_VARIABILITY));
             assertFalse("stabilisation requires stable storage", disruptStorage);
 
-            if (clusterNodes.stream().allMatch(ClusterNode::isNotUsefullyBootstrapped)) {
-                assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
-                assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
-                runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
-                final ClusterNode bootstrapNode = getAnyMasterEligibleNode();
-                bootstrapNode.applyInitialConfiguration();
-            } else {
-                logger.info("setting initial configuration not required");
-            }
+            bootstrapIfNecessary();
 
             runFor(stabilisationDurationMillis, "stabilising");
 
@@ -1245,12 +1325,12 @@ public class CoordinatorTests extends ESTestCase {
                     assertThat(nodeId + " has correct master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
                         equalTo(leader.getLocalNode()));
                     assertThat(nodeId + " has no NO_MASTER_BLOCK",
-                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID), equalTo(false));
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(false));
                 } else {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertThat(nodeId + " has no master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(), nullValue());
                     assertThat(nodeId + " has NO_MASTER_BLOCK",
-                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(NO_MASTER_BLOCK_ID), equalTo(true));
+                        clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(true));
                     assertFalse(nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
                 }
@@ -1270,6 +1350,18 @@ public class CoordinatorTests extends ESTestCase {
                 lastAcceptedState.getLastCommittedConfiguration(), equalTo(lastAcceptedState.getLastAcceptedConfiguration()));
             assertThat("current configuration is already optimal",
                 leader.improveConfiguration(lastAcceptedState), sameInstance(lastAcceptedState));
+        }
+
+        void bootstrapIfNecessary() {
+            if (clusterNodes.stream().allMatch(ClusterNode::isNotUsefullyBootstrapped)) {
+                assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
+                assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
+                runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
+                final ClusterNode bootstrapNode = getAnyMasterEligibleNode();
+                bootstrapNode.applyInitialConfiguration();
+            } else {
+                logger.info("setting initial configuration not required");
+            }
         }
 
         void runFor(long runDurationMillis, String description) {
@@ -1400,6 +1492,7 @@ public class CoordinatorTests extends ESTestCase {
             private AckedFakeThreadPoolMasterService masterService;
             private TransportService transportService;
             private DisruptableMockTransport mockTransport;
+            private List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
             private ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
 
             ClusterNode(int nodeIndex, boolean masterEligible) {
@@ -1474,9 +1567,11 @@ public class CoordinatorTests extends ESTestCase {
                 transportService = mockTransport.createTransportService(
                     settings, deterministicTaskQueue.getThreadPool(runnable -> onNode(localNode, runnable)), NOOP_TRANSPORT_INTERCEPTOR,
                     a -> localNode, null, emptySet());
+                final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators =
+                    Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
                 coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
                     ESAllocationTestCase.createAllocationService(Settings.EMPTY), masterService, this::getPersistedState,
-                    Cluster.this::provideUnicastHosts, clusterApplier, Randomness.get());
+                    Cluster.this::provideUnicastHosts, clusterApplier, onJoinValidators, Randomness.get());
                 masterService.setClusterStatePublisher(coordinator);
 
                 transportService.start();
@@ -1500,6 +1595,10 @@ public class CoordinatorTests extends ESTestCase {
 
             boolean isLeader() {
                 return coordinator.getMode() == LEADER;
+            }
+
+            boolean isCandidate() {
+                return coordinator.getMode() == CANDIDATE;
             }
 
             ClusterState improveConfiguration(ClusterState currentState) {
@@ -1697,7 +1796,7 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    private static Runnable onNode(DiscoveryNode node, Runnable runnable) {
+    public static Runnable onNode(DiscoveryNode node, Runnable runnable) {
         final String nodeId = "{" + node.getId() + "}{" + node.getEphemeralId() + "}";
         return new Runnable() {
             @Override

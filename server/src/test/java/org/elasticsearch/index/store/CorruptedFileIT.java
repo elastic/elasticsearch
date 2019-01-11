@@ -21,7 +21,10 @@ package org.elasticsearch.index.store;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -104,7 +107,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class CorruptedFileIT extends ESIntegTestCase {
 
     @Override
@@ -475,7 +478,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * TODO once checksum verification on snapshotting is implemented this test needs to be fixed or split into several
      * parts... We should also corrupt files on the actual snapshot and check that we don't restore the corrupted shard.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36526")
     public void testCorruptFileThenSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -645,18 +647,26 @@ public class CorruptedFileIT extends ESIntegTestCase {
             Path file = PathUtils.get(path)
                 .resolve("indices").resolve(test.getUUID()).resolve(Integer.toString(shardRouting.getId())).resolve("index");
             if (Files.exists(file)) { // multi data path might only have one path in use
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
-                    for (Path item : stream) {
-                        if (Files.isRegularFile(item) && "write.lock".equals(item.getFileName().toString()) == false) {
-                            if (includePerCommitFiles || isPerSegmentFile(item.getFileName().toString())) {
-                                files.add(item);
+                try (Directory dir = FSDirectory.open(file)) {
+                    SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(dir);
+                    if (includePerCommitFiles) {
+                        files.add(file.resolve(segmentCommitInfos.getSegmentsFileName()));
+                    }
+                    for (SegmentCommitInfo commitInfo : segmentCommitInfos) {
+                        if (commitInfo.getDelCount() + commitInfo.getSoftDelCount() == commitInfo.info.maxDoc()) {
+                            // don't corrupt fully deleted segments - they might be removed on snapshot
+                            continue;
+                        }
+                        for (String commitFile : commitInfo.files()) {
+                            if (includePerCommitFiles || isPerSegmentFile(commitFile)) {
+                                files.add(file.resolve(commitFile));
                             }
                         }
                     }
+
                 }
             }
         }
-        pruneOldDeleteGenerations(files);
         CorruptionUtils.corruptFile(random(), files.toArray(new Path[0]));
         return shardRouting;
     }
@@ -668,44 +678,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     private static boolean isPerSegmentFile(String fileName) {
         return isPerCommitFile(fileName) == false;
-    }
-
-    /**
-     * prunes the list of index files such that only the latest del generation files are contained.
-     */
-    private void pruneOldDeleteGenerations(Set<Path> files) {
-        final TreeSet<Path> delFiles = new TreeSet<>();
-        for (Path file : files) {
-            if (file.getFileName().toString().endsWith(".liv")) {
-                delFiles.add(file);
-            }
-        }
-        Path last = null;
-        for (Path current : delFiles) {
-            if (last != null) {
-                final String newSegmentName = IndexFileNames.parseSegmentName(current.getFileName().toString());
-                final String oldSegmentName = IndexFileNames.parseSegmentName(last.getFileName().toString());
-                if (newSegmentName.equals(oldSegmentName)) {
-                    int oldGen =
-                        Integer.parseInt(
-                            IndexFileNames.stripExtension(
-                                IndexFileNames.stripSegmentName(last.getFileName().toString())).replace("_", ""),
-                            Character.MAX_RADIX
-                        );
-                    int newGen = Integer.parseInt(
-                        IndexFileNames.stripExtension(
-                            IndexFileNames.stripSegmentName(current.getFileName().toString())).replace("_", ""),
-                        Character.MAX_RADIX);
-                    if (newGen > oldGen) {
-                        files.remove(last);
-                    } else {
-                        files.remove(current);
-                        continue;
-                    }
-                }
-            }
-            last = current;
-        }
     }
 
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {

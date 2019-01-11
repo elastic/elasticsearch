@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
@@ -262,6 +263,36 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d.e", null, false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d.e", value)));
+        assertEquals(value, fe.extractFromSource(map));
+    }
+
+    public void testNestedFieldsWithDotsAndRandomHiearachy() {
+        String[] path = new String[100];
+        StringJoiner sj = new StringJoiner(".");
+        for (int i = 0; i < 100; i++) {
+            path[i] = randomAlphaOfLength(randomIntBetween(1, 10));
+            sj.add(path[i]);
+        }
+        FieldHitExtractor fe = new FieldHitExtractor(sj.toString(), null, false);
+
+
+        List<String> paths = new ArrayList<>(path.length);
+        int start = 0;
+        while (start < path.length) {
+            int end = randomIntBetween(start + 1, path.length);
+            sj = new StringJoiner(".");
+            for (int j = start; j < end; j++) {
+                sj.add(path[j]);
+            }
+            paths.add(sj.toString());
+            start = end;
+        }
+
+        Object value = randomValue();
+        Map<String, Object> map = singletonMap(paths.get(paths.size() - 1), value);
+        for (int i = paths.size() - 2; i >= 0; i--) {
+            map = singletonMap(paths.get(i), map);
+        }
         assertEquals(value, fe.extractFromSource(map));
     }
 

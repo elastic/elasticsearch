@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -51,7 +50,30 @@ import static java.util.Collections.emptyList;
 public class SqlPlugin extends Plugin implements ActionPlugin {
 
     private final boolean enabled;
-    private final SetOnce<SqlLicenseChecker> sqlLicenseChecker = new SetOnce<>();
+    private final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker(
+        (mode) -> {
+            XPackLicenseState licenseState = getLicenseState();
+            switch (mode) {
+                case JDBC:
+                    if (licenseState.isJdbcAllowed() == false) {
+                        throw LicenseUtils.newComplianceException("jdbc");
+                    }
+                    break;
+                case ODBC:
+                    if (licenseState.isOdbcAllowed() == false) {
+                        throw LicenseUtils.newComplianceException("odbc");
+                    }
+                    break;
+                case PLAIN:
+                    if (licenseState.isSqlAllowed() == false) {
+                        throw LicenseUtils.newComplianceException(XPackField.SQL);
+                    }
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown SQL mode " + mode);
+            }
+        }
+    );
 
     public SqlPlugin(Settings settings) {
         this.enabled = XPackSettings.SQL_ENABLED.get(settings);
@@ -77,31 +99,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             return emptyList();
         }
         IndexResolver indexResolver = new IndexResolver(client, clusterName);
-        sqlLicenseChecker.set(new SqlLicenseChecker(
-            (mode) -> {
-                XPackLicenseState licenseState = getLicenseState();
-                switch (mode) {
-                    case JDBC:
-                        if (licenseState.isJdbcAllowed() == false) {
-                            throw LicenseUtils.newComplianceException("jdbc");
-                        }
-                        break;
-                    case ODBC:
-                        if (licenseState.isOdbcAllowed() == false) {
-                            throw LicenseUtils.newComplianceException("odbc");
-                        }
-                        break;
-                    case PLAIN:
-                        if (licenseState.isSqlAllowed() == false) {
-                            throw LicenseUtils.newComplianceException(XPackField.SQL);
-                        }
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unknown SQL mode " + mode);
-                }
-            }
-        ));
-        return Arrays.asList(sqlLicenseChecker.get(), indexResolver, new PlanExecutor(client, indexResolver, namedWriteableRegistry));
+        return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver, namedWriteableRegistry));
     }
 
     @Override

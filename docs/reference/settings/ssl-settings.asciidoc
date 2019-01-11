@@ -156,3 +156,13 @@ Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a keys
 
 +{ssl-prefix}.truststore.type+::
 Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a truststore.
+
+[NOTE]
+When configuring the PKCS#11 token that your JVM is configured to use as
+a keystore or a truststore for Elasticsearch, the PIN for the token can be
+configured by setting the appropriate value to `ssl.truststore.password`
+or `ssl.truststore.secure_password` in the context that you are configuring.
+Since there can only be one PKCS#11 token configured, only one keystore and
+truststore will be usable for configuration in {es}. This in turn means
+that only one certificate can be used for TLS both in the transport and the
+http layer.

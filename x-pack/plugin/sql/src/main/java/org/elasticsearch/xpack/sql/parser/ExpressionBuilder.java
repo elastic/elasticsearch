@@ -215,7 +215,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         PredicateContext pCtx = ctx.predicate();
-        Source source = source(pCtx);
+        Source source = source(ctx.valueExpression(), ctx);
 
         Expression e = null;
         switch (pCtx.kind.getType()) {

@@ -1,31 +1,45 @@
 plugins {
     id 'elasticsearch.testclusters'
+    id 'base'
 }
 
-testClusters {
-    myTestCluster {
-        distribution = 'ZIP'
-        version = System.getProperty("test.version_under_test")
+allprojects { all ->
+    repositories {
+        maven {
+            url System.getProperty("local.repo.path")
+        }
+        String luceneSnapshotRevision = System.getProperty("test.lucene-snapshot-revision")
+        if (luceneSnapshotRevision != null) {
+            maven {
+                url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision
+            }
+        }
+        jcenter()
     }
-}
 
-repositories {
-    maven {
-        url System.getProperty("local.repo.path")
-    }
-}
+    if (project == rootProject || project.name == "alpha" || project.name == "bravo") {
+        apply plugin: 'elasticsearch.testclusters'
 
-task user1 {
-    useCluster testClusters.myTestCluster
-    doLast {
-        println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
-    }
-}
+        all.testClusters {
+            myTestCluster {
+                distribution = 'ZIP'
+                version = System.getProperty("test.version_under_test")
+                javaHome = file(System.getProperty('java.home'))
+            }
+        }
 
-task user2 {
-    useCluster testClusters.myTestCluster
-    doLast {
-        println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+        task user1 {
+            useCluster testClusters.myTestCluster
+            doFirst {
+                println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+            }
+        }
+        task user2 {
+            useCluster testClusters.myTestCluster
+            doFirst {
+                println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+            }
+        }
     }
 }
 

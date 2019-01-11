@@ -37,7 +37,7 @@ import java.util.Map;
 public class ESJsonLayout extends AbstractStringLayout {
 
     /**
-     * type - the name of the appender
+     * type - the type of logs. These represent appenders and help docker distinguish log streams.
      * timestamp - ISO8601 with additional timezone ID
      * level - INFO, WARN etc
      * component - logger name, most of the times class name

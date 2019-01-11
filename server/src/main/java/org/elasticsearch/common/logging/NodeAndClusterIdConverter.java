@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.logging;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
@@ -41,8 +43,9 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter im
     private static LazyInitializable<NodeAndClusterIdConverter, Exception> INSTANCE =
         new LazyInitializable(() -> new NodeAndClusterIdConverter());
 
-    private AtomicReference<String> nodeAndClusterIdsReference = new AtomicReference<>();
-    private CloseableThreadLocal<String> nodeAndClusterIds = new CloseableThreadLocal();
+    private final Logger logger = LogManager.getLogger(getClass());
+    private final AtomicReference<String> nodeAndClusterIdsReference = new AtomicReference<>();
+    private final CloseableThreadLocal<String> nodeAndClusterIds = new CloseableThreadLocal();
 
     /**
      * Called by log4j2 to initialize this converter.
@@ -80,7 +83,7 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter im
         boolean wasSet = nodeAndClusterIdsReference.compareAndSet(null, formatIds(clusterUUID, nodeId));
 
         if (wasSet) {
-            LOGGER.info("received first cluster state update. Setting nodeId={} and clusterUuid={}", nodeId, clusterUUID);
+            logger.info("received first cluster state update. Setting nodeId={} and clusterUuid={}", nodeId, clusterUUID);
         }
     }
 

@@ -91,7 +91,6 @@ public class JsonLoggerTests extends ESTestCase {
         setupLogging("json_layout");
 
         Logger shardIdLogger = Loggers.getLogger("shardIdLogger", ShardId.fromString("[indexName][123]"));
-
         shardIdLogger.info("This is an info message with a shardId");
 
         Logger prefixLogger = new PrefixLogger(LogManager.getLogger("prefixLogger"), "PREFIX");
@@ -143,8 +142,6 @@ public class JsonLoggerTests extends ESTestCase {
         setupLogging("json_layout");
 
         final Logger testLogger = LogManager.getLogger("test");
-
-
         testLogger.error("error message", new Exception("exception message", new RuntimeException("cause message")));
 
         final String path = System.getProperty("es.logs.base_path") +

@@ -400,7 +400,7 @@ public class UnicastZenPingTests extends ESTestCase {
             Collections.singletonList("127.0.0.1"),
             limitPortCounts,
             transportService,
-            TimeValue.timeValueSeconds(1));
+            TimeValue.timeValueSeconds(30));
         assertThat(transportAddresses, hasSize(limitPortCounts));
         final Set<Integer> ports = new HashSet<>();
         for (final TransportAddress address : transportAddresses) {
@@ -443,7 +443,7 @@ public class UnicastZenPingTests extends ESTestCase {
             Collections.singletonList(NetworkAddress.format(loopbackAddress)),
             10,
             transportService,
-            TimeValue.timeValueSeconds(1));
+            TimeValue.timeValueSeconds(30));
         assertThat(transportAddresses, hasSize(7));
         final Set<Integer> ports = new HashSet<>();
         for (final TransportAddress address : transportAddresses) {
@@ -493,7 +493,7 @@ public class UnicastZenPingTests extends ESTestCase {
             Arrays.asList(hostname),
             1,
             transportService,
-            TimeValue.timeValueSeconds(1)
+            TimeValue.timeValueSeconds(30)
         );
 
         assertThat(transportAddresses, empty());
@@ -543,7 +543,7 @@ public class UnicastZenPingTests extends ESTestCase {
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null,
                 Collections.emptySet());
         closeables.push(transportService);
-        final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 3));
+        final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(3, 5));
         try {
             final List<TransportAddress> transportAddresses = UnicastZenPing.resolveHostsLists(
                 executorService,
@@ -718,7 +718,7 @@ public class UnicastZenPingTests extends ESTestCase {
             Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301"),
             1,
             transportService,
-            TimeValue.timeValueSeconds(1));
+            TimeValue.timeValueSeconds(30));
         assertThat(transportAddresses, hasSize(1)); // only one of the two is valid and will be used
         assertThat(transportAddresses.get(0).getAddress(), equalTo("127.0.0.1"));
         assertThat(transportAddresses.get(0).getPort(), equalTo(9301));

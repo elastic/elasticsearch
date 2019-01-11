@@ -36,6 +36,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -251,6 +252,31 @@ public class MlConfigMigrator {
                 listener.onResponse(null);
             }
         });
+    }
+
+    public static ClusterState rewritePersistentTaskParams(Map<String, Job> jobs, ClusterState currentState) {
+
+        PersistentTasksCustomMetaData persistentTasks = currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedJobTasks =
+                MlTasks.unallocatedJobTasks(persistentTasks, currentState.nodes());
+
+        for (PersistentTasksCustomMetaData.PersistentTask jobTask : unallocatedJobTasks) {
+            OpenJobAction.JobParams params = (OpenJobAction.JobParams) jobTask.getParams();
+            if (params.getJob() == null) {
+                Job job = jobs.get(params.getJobId());
+                if (job != null) {
+                    params.setJob(job);
+                } else {
+                    logger.error("cannot find job for task [{}]", jobTask.getId());
+                }
+            }
+        }
+
+        ClusterState.Builder newState = ClusterState.builder(currentState);
+        newState.metaData(MetaData.builder(currentState.getMetaData())
+                .putCustom(PersistentTasksCustomMetaData.TYPE, persistentTasks)
+                .build());
+        return newState.build();
     }
 
     static class RemovalResult {

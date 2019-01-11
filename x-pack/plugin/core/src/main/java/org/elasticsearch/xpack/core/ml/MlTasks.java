@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -153,6 +154,19 @@ public final class MlTasks {
                 .filter(task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes))
                 .map(t -> t.getId().substring(JOB_TASK_ID_PREFIX.length()))
                 .collect(Collectors.toSet());
+    }
+
+    public static Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedJobTasks(
+            @Nullable PersistentTasksCustomMetaData tasks,
+            DiscoveryNodes nodes) {
+        if (tasks == null) {
+            return Collections.emptySet();
+        }
+
+        return tasks.findTasks(JOB_TASK_NAME, task -> true)
+                .stream()
+                .filter(task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes))
+                .collect(Collectors.toList());
     }
 
     /**

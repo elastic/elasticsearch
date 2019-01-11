@@ -269,7 +269,7 @@ public class ElasticsearchNode {
         logger.error("{} `{}`", description, this);
         try (BufferedReader reader = new BufferedReader(new FileReader(from))) {
             reader.lines()
-                .map(line -> "  [" + name + "]" + line)
+                .map(line -> "  " + line)
                 .forEach(logger::error);
         } catch (IOException e) {
             throw new TestClustersException("Error reading " + description, e);
@@ -324,8 +324,9 @@ public class ElasticsearchNode {
         getConfPathSharedData().mkdirs();
         getConfPathLogs().mkdirs();
         LinkedHashMap<String, String> config = new LinkedHashMap<>();
-        config.put("cluster.name", "cluster-" + safeName(name));
-        config.put("node.name", "node-" + safeName(name));
+        String name = safeName(path.equals(":") ? "" : path + ":" + this.name);
+        config.put("cluster.name", "c-" + name);
+        config.put("node.name", "n-" + name);
         config.put("path.repo", getConfPathRepo().getAbsolutePath());
         config.put("path.data", getConfPathData().getAbsolutePath());
         config.put("path.logs", getConfPathLogs().getAbsolutePath());

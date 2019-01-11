@@ -55,9 +55,6 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -228,31 +225,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 Collection<PersistentTasksCustomMetaData.PersistentTask<?>> assignedTasks = persistentTasks.findTasks(
                         MlTasks.JOB_TASK_NAME, task -> node.getId().equals(task.getExecutorNode()));
                 for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedTasks) {
-                    JobTaskState jobTaskState = (JobTaskState) assignedTask.getState();
-                    JobState jobState;
-                    if (jobTaskState == null) {
-                        // executor node didn't have the chance to set job status to OPENING
-                        ++numberOfAllocatingJobs;
-                        jobState = JobState.OPENING;
-                    } else {
-                        jobState = jobTaskState.getState();
-                        if (jobTaskState.isStatusStale(assignedTask)) {
-                            // the job is re-locating
-                            if (jobState == JobState.CLOSING) {
-                                // previous executor node failed while the job was closing - it won't
-                                // be reopened, so consider it CLOSED for resource usage purposes
-                                jobState = JobState.CLOSED;
-                            } else if (jobState != JobState.FAILED) {
-                                // previous executor node failed and current executor node didn't
-                                // have the chance to set job status to OPENING
-                                ++numberOfAllocatingJobs;
-                                jobState = JobState.OPENING;
-                            }
-                        }
-                    }
+                    JobState jobState = MlTasks.getJobStateModifiedForReassignments(assignedTask);
                     if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                         // Don't count CLOSED or FAILED jobs, as they don't consume native memory
                         ++numberOfAssignedJobs;
+                        if (jobState == JobState.OPENING) {
+                            ++numberOfAllocatingJobs;
+                        }
                         OpenJobAction.JobParams params = (OpenJobAction.JobParams) assignedTask.getParams();
                         Long jobMemoryRequirement = memoryTracker.getJobMemoryRequirement(params.getJobId());
                         if (jobMemoryRequirement == null) {
@@ -540,50 +519,16 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             );
 
             // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
-            ActionListener<PutJobAction.Response> jobUpdateListener = ActionListener.wrap(
+            ActionListener<Boolean> jobUpdateListener = ActionListener.wrap(
                 response -> memoryTracker.refreshJobMemoryAndAllOthers(jobParams.getJobId(), memoryRequirementRefreshListener),
                 listener::onFailure
-            );
-
-            // Increase the model memory limit for 6.1 - 6.3 jobs
-            ActionListener<Boolean> missingMappingsListener = ActionListener.wrap(
-                    response -> {
-                        Job job = jobParams.getJob();
-                        if (job != null) {
-                            Version jobVersion = job.getJobVersion();
-                            if (jobVersion != null &&
-                                    (jobVersion.onOrAfter(Version.V_6_1_0) && jobVersion.before(Version.V_6_3_0))) {
-                                // Increase model memory limit if < 512MB
-                                if (job.getAnalysisLimits() != null && job.getAnalysisLimits().getModelMemoryLimit() != null &&
-                                        job.getAnalysisLimits().getModelMemoryLimit() < 512L) {
-
-                                    long updatedModelMemoryLimit = (long) (job.getAnalysisLimits().getModelMemoryLimit() * 1.3);
-                                    AnalysisLimits limits = new AnalysisLimits(updatedModelMemoryLimit,
-                                            job.getAnalysisLimits().getCategorizationExamplesLimit());
-
-                                    JobUpdate update = new JobUpdate.Builder(job.getId()).setJobVersion(Version.CURRENT)
-                                            .setAnalysisLimits(limits).build();
-                                    UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(job.getId(), update);
-                                    executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
-                                            jobUpdateListener);
-                                } else {
-                                    jobUpdateListener.onResponse(null);
-                                }
-                            }
-                            else {
-                                jobUpdateListener.onResponse(null);
-                            }
-                        } else {
-                            jobUpdateListener.onResponse(null);
-                        }
-                    }, listener::onFailure
             );
 
             // Try adding state doc mapping
             ActionListener<Boolean> resultsPutMappingHandler = ActionListener.wrap(
                     response -> {
                         addDocMappingIfMissing(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings::stateMapping,
-                                state, missingMappingsListener);
+                                state, jobUpdateListener);
                     }, listener::onFailure
             );
 

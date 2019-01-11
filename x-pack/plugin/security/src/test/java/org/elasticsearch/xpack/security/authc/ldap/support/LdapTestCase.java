@@ -44,6 +44,7 @@ import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import java.security.AccessController;
 import java.security.KeyStore;
@@ -86,8 +87,9 @@ public abstract class LdapTestCase extends ESTestCase {
                 X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(ks, ldapPassword, KeyManagerFactory.getDefaultAlgorithm());
                 final SSLContext context = SSLContext.getInstance("TLSv1.2");
                 context.init(new KeyManager[] { keyManager }, null, null);
-                SSLServerSocketFactory socketFactory = context.getServerSocketFactory();
-                listeners.add(InMemoryListenerConfig.createLDAPSConfig("ldaps", socketFactory));
+                SSLServerSocketFactory serverSocketFactory = context.getServerSocketFactory();
+                SSLSocketFactory clientSocketFactory = context.getSocketFactory();
+                listeners.add(InMemoryListenerConfig.createLDAPSConfig("ldaps", null, 0, serverSocketFactory, clientSocketFactory));
             }
             serverConfig.setListenerConfigs(listeners);
             InMemoryDirectoryServer ldapServer = new InMemoryDirectoryServer(serverConfig);

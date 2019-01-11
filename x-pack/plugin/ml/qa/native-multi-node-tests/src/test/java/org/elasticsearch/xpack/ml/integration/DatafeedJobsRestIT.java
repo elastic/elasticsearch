@@ -13,6 +13,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
@@ -1177,7 +1178,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Response build() throws IOException {
             Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
             request.setJsonEntity("{"
-                    + "\"job_id\": \"" + jobId + "\",\"indexes\":[\"" + index + "\"],\"types\":[\"" + type + "\"]"
+                    + "\"job_id\": \"" + jobId + "\",\"indexes\":[\"" + index + "\"]"
                     + (source ? ",\"_source\":true" : "")
                     + (scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields)
                     + (aggregations == null ? "" : ",\"aggs\":" + aggregations)
@@ -1196,6 +1197,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         bulkRequest.setJsonEntity(bulk);
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.addParameter("pretty", null);
+        bulkRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         String bulkResponse = EntityUtils.toString(client().performRequest(bulkRequest).getEntity());
         assertThat(bulkResponse, not(containsString("\"errors\": false")));
     }

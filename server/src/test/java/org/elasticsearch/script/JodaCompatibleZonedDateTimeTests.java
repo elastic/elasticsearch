@@ -152,6 +152,10 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
         assertThat(javaTime.getYear(), equalTo(jodaTime.getYear()));
     }
 
+    public void testZone() {
+        assertThat(javaTime.getZone().getId(), equalTo(jodaTime.getZone().getID()));
+    }
+
     public void testMillis() {
         assertMethodDeprecation(() -> assertThat(javaTime.getMillis(), equalTo(jodaTime.getMillis())),
             "getMillis()", "toInstant().toEpochMilli()");

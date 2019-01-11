@@ -87,14 +87,14 @@ public class TransportRunAnalyticsAction extends HandledTransportAction<RunAnaly
     @Override
     protected void doExecute(Task task, RunAnalyticsAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         DiscoveryNode localNode = clusterService.localNode();
-        if (isMlNode(localNode)) {
+        if (MachineLearning.isMlNode(localNode)) {
             reindexDataframeAndStartAnalysis(request.getIndex(), listener);
             return;
         }
 
         ClusterState clusterState = clusterService.state();
         for (DiscoveryNode node : clusterState.getNodes()) {
-            if (isMlNode(node)) {
+            if (MachineLearning.isMlNode(node)) {
                 transportService.sendRequest(node, actionName, request,
                     new ActionListenerResponseHandler<>(listener, inputStream -> {
                             AcknowledgedResponse response = new AcknowledgedResponse();
@@ -105,12 +105,6 @@ public class TransportRunAnalyticsAction extends HandledTransportAction<RunAnaly
             }
         }
         listener.onFailure(ExceptionsHelper.badRequestException("No ML node to run on"));
-    }
-
-    private boolean isMlNode(DiscoveryNode node) {
-        Map<String, String> nodeAttributes = node.getAttributes();
-        String enabled = nodeAttributes.get(MachineLearning.ML_ENABLED_NODE_ATTR);
-        return Boolean.valueOf(enabled);
     }
 
     private void reindexDataframeAndStartAnalysis(String index, ActionListener<AcknowledgedResponse> listener) {

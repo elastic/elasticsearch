@@ -139,7 +139,13 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo((long) expectedVal1));
         });
 
+        // Delete auto follow pattern and make sure that in the background the auto follower has stopped
+        // then the leader index created after that should never be auto followed:
         deleteAutoFollowPatternSetting();
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getAutoFollowedClusters().size(), equalTo(0));
+        });
         createLeaderIndex("logs-does-not-count", leaderIndexSettings);
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});

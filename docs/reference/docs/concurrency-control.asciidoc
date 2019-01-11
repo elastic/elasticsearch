@@ -14,8 +14,8 @@ operation performed to a document is assigned a sequence number by the primary
 shard that coordinates that change. The sequence number is increased with each
 operation and thus newer operations are guaranteed to have a higher sequence
 number than older operations. Elasticsearch can then use the sequence number of
-operations to make sure they never override a newer document version is never
-overridden by a change that has a smaller sequence number assigned to it.
+operations to make sure a newer document version is never overridden by
+a change that has a smaller sequence number assigned to it.
 
 For example, the following indexing command will create a document and assign it
 an initial sequence number and primary term:

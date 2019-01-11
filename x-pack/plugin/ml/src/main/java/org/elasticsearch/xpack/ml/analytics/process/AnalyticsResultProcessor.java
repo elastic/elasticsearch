@@ -119,7 +119,7 @@ public class AnalyticsResultProcessor {
         if (row.getChecksum() != result.getChecksum()) {
             String msg = "Detected checksum mismatch for document with id [" + row.getHit().getId() + "]; ";
             msg += "expected [" + row.getChecksum() + "] but result had [" + result.getChecksum() + "]; ";
-            msg += "this implies the data frame index was modified while the analysis was running. ";
+            msg += "this implies the data frame index [" + row.getHit().getIndex() + "] was modified while the analysis was running. ";
             msg += "We rely on this index being immutable during a running analysis and so the results will be unreliable.";
             throw new IllegalStateException(msg);
         }

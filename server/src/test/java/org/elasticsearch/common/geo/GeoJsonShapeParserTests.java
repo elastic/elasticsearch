@@ -1107,7 +1107,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
             ),
             new org.apache.lucene.geo.Polygon(
                 new double[] {12.142857142857142d, -12.142857142857142d, -10d, 10d, 12.142857142857142d},
-                new double[] {180d, 180d, -177d, -177d, 180d}
+                new double[] {-180d, -180d, -177d, -177d, -180d}
             )
         };
         assertGeometryEquals(luceneExpected, geometryCollectionGeoJson, false);

@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -52,6 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.eq;
@@ -308,12 +310,17 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
     }
 
     public void assertSnapshot(MlMetadata expectedMlMetadata) throws IOException {
-        GetResponse getResponse = client()
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE, "ml-config").get();
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern()).execute();
+        SearchResponse searchResponse = client()
+            .prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .setTypes(ElasticsearchMappings.DOC_TYPE)
+            .setSize(1)
+            .setQuery(QueryBuilders.idsQuery().addIds("ml-config"))
+            .get();
 
-        assertTrue(getResponse.isExists());
+        assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
 
-        try (InputStream stream = getResponse.getSourceAsBytesRef().streamInput();
+        try (InputStream stream = searchResponse.getHits().getAt(0).getSourceRef().streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             MlMetadata recoveredMeta = MlMetadata.LENIENT_PARSER.apply(parser, null).build();

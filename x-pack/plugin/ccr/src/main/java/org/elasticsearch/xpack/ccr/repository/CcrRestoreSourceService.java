@@ -14,8 +14,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -28,7 +28,6 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,7 +39,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     private static final Logger logger = LogManager.getLogger(CcrRestoreSourceService.class);
 
-    private final Map<String, RestoreContext> onGoingRestores = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, RestoreSession> onGoingRestores = ConcurrentCollections.newConcurrentMap();
     private final Map<IndexShard, HashSet<String>> sessionsForShard = new HashMap<>();
     private final CopyOnWriteArrayList<Consumer<String>> openSessionListeners = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<Consumer<String>> closeSessionListeners = new CopyOnWriteArrayList<>();
@@ -55,8 +54,8 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             HashSet<String> sessions = sessionsForShard.remove(indexShard);
             if (sessions != null) {
                 for (String sessionUUID : sessions) {
-                    RestoreContext restore = onGoingRestores.remove(sessionUUID);
-                    IOUtils.closeWhileHandlingException(restore);
+                    RestoreSession restore = onGoingRestores.remove(sessionUUID);
+                    restore.decRef();
                 }
             }
         }
@@ -75,7 +74,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     @Override
     protected synchronized void doClose() throws IOException {
         sessionsForShard.clear();
-        IOUtils.closeWhileHandlingException(onGoingRestores.values());
+        onGoingRestores.values().forEach(AbstractRefCounted::decRef);
         onGoingRestores.clear();
     }
 
@@ -95,7 +94,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     }
 
     // default visibility for testing
-    synchronized RestoreContext getOngoingRestore(String sessionUUID) {
+    synchronized RestoreSession getOngoingRestore(String sessionUUID) {
         return onGoingRestores.get(sessionUUID);
     }
 
@@ -103,7 +102,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     //  complete. Or it could be for session to have been touched.
     public synchronized Store.MetadataSnapshot openSession(String sessionUUID, IndexShard indexShard) throws IOException {
         boolean success = false;
-        RestoreContext restore = null;
+        RestoreSession restore = null;
         try {
             if (onGoingRestores.containsKey(sessionUUID)) {
                 logger.debug("not opening new session [{}] as it already exists", sessionUUID);
@@ -113,170 +112,116 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 if (indexShard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(indexShard.shardId(), "cannot open ccr restore session if shard closed");
                 }
-                restore = new RestoreContext(sessionUUID, indexShard, indexShard.acquireSafeIndexCommit());
+                restore = new RestoreSession(sessionUUID, indexShard, indexShard.acquireSafeIndexCommit());
                 onGoingRestores.put(sessionUUID, restore);
                 openSessionListeners.forEach(c -> c.accept(sessionUUID));
-                HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) ->  new HashSet<>());
+                HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) -> new HashSet<>());
                 sessions.add(sessionUUID);
             }
             Store.MetadataSnapshot metaData = restore.getMetaData();
             success = true;
             return metaData;
         } finally {
-            if (success ==  false) {
+            if (success == false) {
                 onGoingRestores.remove(sessionUUID);
-                IOUtils.closeWhileHandlingException(restore);
+                if (restore != null) {
+                    restore.decRef();
+                }
             }
         }
     }
 
     public synchronized void closeSession(String sessionUUID) {
         closeSessionListeners.forEach(c -> c.accept(sessionUUID));
-        RestoreContext restore = onGoingRestores.remove(sessionUUID);
+        RestoreSession restore = onGoingRestores.remove(sessionUUID);
         if (restore == null) {
             logger.info("could not close session [{}] because session not found", sessionUUID);
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
-        IOUtils.closeWhileHandlingException(restore);
+        restore.decRef();
     }
 
-    public synchronized Reader getSessionReader(String sessionUUID, String fileName) throws IOException {
-        RestoreContext restore = onGoingRestores.get(sessionUUID);
+    public synchronized RestoreSession getRestoreSession(String sessionUUID) {
+        RestoreSession restore = onGoingRestores.get(sessionUUID);
         if (restore == null) {
             logger.debug("could not get session [{}] because session not found", sessionUUID);
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
-        return restore.getFileReader(fileName);
+        restore.incRef();
+        return restore;
     }
 
-    private class RestoreContext implements Closeable {
+    public class RestoreSession extends AbstractRefCounted {
 
         private final String sessionUUID;
         private final IndexShard indexShard;
-        private final RefCountedCloseable<Engine.IndexCommitRef> session;
-        private RefCountedCloseable<IndexInput> cachedInput;
-        private volatile boolean sessionLocked = false;
-        private Releasable lockRelease = () -> sessionLocked = false;
+        private final Engine.IndexCommitRef commitRef;
+        private volatile Tuple<String, IndexInput> cachedInput;
 
-        private RestoreContext(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef) {
+        private RestoreSession(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef) {
+            super("restore-session");
             this.sessionUUID = sessionUUID;
             this.indexShard = indexShard;
-            this.session = new RefCountedCloseable<>("commit-ref", commitRef);
+            this.commitRef = commitRef;
         }
 
-        Store.MetadataSnapshot getMetaData() throws IOException {
+        private Store.MetadataSnapshot getMetaData() throws IOException {
             indexShard.store().incRef();
             try {
-                return indexShard.store().getMetadata(session.object.getIndexCommit());
+                return indexShard.store().getMetadata(commitRef.getIndexCommit());
             } finally {
                 indexShard.store().decRef();
             }
         }
 
-        Reader getFileReader(String fileName) throws IOException {
-            if (sessionLocked) {
-                throw new IllegalStateException("Session is currently locked by another get file chunk request");
-            }
-            sessionLocked = true;
+        public synchronized void readFileBytes(String fileName, BytesReference reference) throws IOException {
+            // Should not access this method while holding global lock as that might block the cluster state
+            // update thread on IO if it calls afterIndexShardClosed
+            assert Thread.holdsLock(CcrRestoreSourceService.this) == false : "Should not hold CcrRestoreSourceService lock";
             if (cachedInput != null) {
-                if (fileName.equals(cachedInput.getName())) {
-                    return new Reader(session, cachedInput, lockRelease);
-                } else {
-                    cachedInput.decRef();
+                if (fileName.equals(cachedInput.v2()) == false) {
+                    cachedInput.v2().close();
                     openNewIndexInput(fileName);
-                    return new Reader(session, cachedInput, lockRelease);
                 }
             } else {
                 openNewIndexInput(fileName);
-                return new Reader(session, cachedInput, lockRelease);
             }
-        }
-
-        @Override
-        public void close() {
-            assert Thread.holdsLock(CcrRestoreSourceService.this);
-            removeSessionForShard(sessionUUID, indexShard);
-            if (cachedInput != null) {
-                cachedInput.decRef();
+            BytesRefIterator refIterator = reference.iterator();
+            BytesRef ref;
+            IndexInput in = cachedInput.v2();
+            while ((ref = refIterator.next()) != null) {
+                byte[] refBytes = ref.bytes;
+                in.readBytes(refBytes, 0, refBytes.length);
             }
-            session.decRef();
         }
 
         private void openNewIndexInput(String fileName) throws IOException {
-            Engine.IndexCommitRef commitRef = session.object;
-            IndexInput indexInput = commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE);
-            cachedInput = new RefCountedCloseable<>(fileName, indexInput);
-        }
-
-        private void removeSessionForShard(String sessionUUID, IndexShard indexShard) {
-            logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
-            HashSet<String> sessions = sessionsForShard.get(indexShard);
-            if (sessions != null) {
-                sessions.remove(sessionUUID);
-                if (sessions.isEmpty()) {
-                    sessionsForShard.remove(indexShard);
-                }
-            }
-        }
-    }
-
-    private static class RefCountedCloseable<T extends Closeable> extends AbstractRefCounted {
-
-        private final T object;
-
-        private RefCountedCloseable(String name, T object) {
-            super(name);
-            this.object = object;
+            IndexInput in = commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE);
+            cachedInput = new Tuple<>(fileName, in);
         }
 
         @Override
         protected void closeInternal() {
-            IOUtils.closeWhileHandlingException(object);
-        }
-    }
-
-    public static class Reader implements Closeable {
-
-        private final RefCountedCloseable<Engine.IndexCommitRef> session;
-        private final RefCountedCloseable<IndexInput> input;
-        private final Releasable lockRelease;
-
-        private Reader(RefCountedCloseable<Engine.IndexCommitRef> session, RefCountedCloseable<IndexInput> input, Releasable lockRelease) {
-            this.session = session;
-            this.input = input;
-            this.lockRelease = lockRelease;
-            boolean sessionRefIncremented = false;
-            boolean inputRefIncremented = false;
             try {
-                session.incRef();
-                sessionRefIncremented = true;
-                input.incRef();
-                inputRefIncremented = true;
+                removeSessionForShard(sessionUUID, indexShard);
             } finally {
-                if (sessionRefIncremented == false) {
-                    IOUtils.closeWhileHandlingException(lockRelease);
-                } else if (inputRefIncremented == false) {
-                    IOUtils.closeWhileHandlingException(session::decRef, lockRelease);
+                if (cachedInput != null) {
+                    IOUtils.closeWhileHandlingException(cachedInput.v2());
                 }
             }
         }
 
-        public int readFileBytes(BytesReference reference) throws IOException {
-            IndexInput in = input.object;
-            BytesRefIterator refIterator = reference.iterator();
-            BytesRef ref;
-            int bytesRead = 0;
-            while ((ref = refIterator.next()) != null) {
-                byte[] refBytes = ref.bytes;
-                in.readBytes(refBytes, 0, refBytes.length);
-                bytesRead += ref.length;
+        private void removeSessionForShard(String sessionUUID, IndexShard indexShard) {
+            synchronized (CcrRestoreSourceService.this) {
+                logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
+                HashSet<String> sessions = sessionsForShard.get(indexShard);
+                if (sessions != null) {
+                    sessions.remove(sessionUUID);
+                    if (sessions.isEmpty()) {
+                        sessionsForShard.remove(indexShard);
+                    }
+                }
             }
-            return bytesRead;
-        }
-
-        @Override
-        public void close() {
-            IOUtils.closeWhileHandlingException(input::decRef, session::decRef, lockRelease);
         }
     }
 }

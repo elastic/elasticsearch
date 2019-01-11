@@ -150,8 +150,11 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         }
 
         BytesArray byteArray = new BytesArray(actualBytes);
-        try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID1, fileName)) {
-            reader.readFileBytes(byteArray);
+        CcrRestoreSourceService.RestoreSession session = restoreSourceService.getRestoreSession(sessionUUID1);
+        try {
+            session.readFileBytes(fileName, byteArray);
+        } finally {
+            session.decRef();
         }
 
         assertArrayEquals(expectedBytes, actualBytes);
@@ -172,40 +175,23 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         ArrayList<StoreFileMetaData> files = new ArrayList<>();
         indexShard.snapshotStoreMetadata().forEach(files::add);
-        try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID1, files.get(0).name())) {
-            // Using try with close to ensure that reader is closed.
-            assertNotNull(reader);
+        CcrRestoreSourceService.RestoreSession session = restoreSourceService.getRestoreSession(sessionUUID1);
+        try {
+            session.readFileBytes(files.get(0).name(), new BytesArray(new byte[10]));
+        } finally {
+            session.decRef();
         }
 
         // Request a second file to ensure that original file is not leaked
-        try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID1, files.get(1).name())) {
-            // Using try with close to ensure that reader is closed.
-            assertNotNull(reader);
+        session = restoreSourceService.getRestoreSession(sessionUUID1);
+        try {
+            session.readFileBytes(files.get(0).name(), new BytesArray(new byte[10]));
+        } finally {
+            session.decRef();
         }
 
         restoreSourceService.closeSession(sessionUUID1);
         closeShards(indexShard);
         // Exception will be thrown if file is not closed.
-    }
-
-    public void testCannotAccessTwoSessionReadersAtOnce() throws IOException {
-        IndexShard indexShard = newStartedShard(true);
-        final String sessionUUID1 = UUIDs.randomBase64UUID();
-
-        restoreSourceService.openSession(sessionUUID1, indexShard);
-
-        ArrayList<StoreFileMetaData> files = new ArrayList<>();
-        indexShard.snapshotStoreMetadata().forEach(files::add);
-
-        StoreFileMetaData fileMetaData = files.get(0);
-        String fileName = fileMetaData.name();
-
-        indexShard.snapshotStoreMetadata().forEach(files::add);
-        try (CcrRestoreSourceService.Reader reader = restoreSourceService.getSessionReader(sessionUUID1, fileName)) {
-            expectThrows(IllegalStateException.class, () -> restoreSourceService.getSessionReader(sessionUUID1, fileName));
-        }
-
-        restoreSourceService.closeSession(sessionUUID1);
-        closeShards(indexShard);
     }
 }

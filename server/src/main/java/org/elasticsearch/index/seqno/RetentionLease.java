@@ -81,6 +81,12 @@ public final class RetentionLease {
      * @param source                  the source of the retention lease
      */
     public RetentionLease(final String id, final long retainingSequenceNumber, final long timestamp, final String source) {
+        if (retainingSequenceNumber < SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("retention lease retaining sequence number [" + retainingSequenceNumber + "] out of range");
+        }
+        if (timestamp < 0) {
+            throw new IllegalArgumentException("retention lease timestamp [" + timestamp + "] out of range");
+        }
         this.id = id;
         this.retainingSequenceNumber = retainingSequenceNumber;
         this.timestamp = timestamp;

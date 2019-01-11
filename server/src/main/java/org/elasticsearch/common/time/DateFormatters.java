@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 
 import java.time.DateTimeException;
@@ -31,7 +30,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
-import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.format.SignStyle;
 import java.time.temporal.ChronoField;
@@ -40,10 +38,9 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.time.temporal.WeekFields;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.DAY_OF_WEEK;
@@ -77,58 +74,6 @@ public class DateFormatters {
         .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
         .toFormatter(Locale.ROOT);
 
-    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_1 = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-        .optionalStart()
-        .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .optionalStart()
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
-        .optionalEnd()
-        .optionalStart()
-        .appendZoneOrOffsetId()
-        .optionalEnd()
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
-
-    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_2 = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-        .optionalStart()
-        .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .optionalStart()
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
-        .optionalEnd()
-        .optionalStart()
-        .appendOffset("+HHmm", "Z")
-        .optionalEnd()
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
-
-    /**
-     * Returns a generic ISO datetime parser where the date is mandatory and the time is optional.
-     */
-    private static final DateFormatter STRICT_DATE_OPTIONAL_TIME =
-        new JavaDateFormatter("strict_date_optional_time", STRICT_DATE_OPTIONAL_TIME_FORMATTER_1,
-            STRICT_DATE_OPTIONAL_TIME_FORMATTER_1, STRICT_DATE_OPTIONAL_TIME_FORMATTER_2);
-
-    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_1 = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-        .optionalStart()
-        .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
-        .optionalEnd()
-        .optionalStart()
-        .appendZoneOrOffsetId()
-        .optionalEnd()
-        .optionalStart()
-        .appendOffset("+HHmm", "Z")
-        .optionalEnd()
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
-
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER = new DateTimeFormatterBuilder()
         .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
         .appendLiteral('T')
@@ -139,11 +84,52 @@ public class DateFormatters {
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .optionalStart()
+        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .optionalEnd()
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_NO_COLON)
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    /**
+     * Returns a generic ISO datetime parser where the date is mandatory and the time is optional.
+     */
+    private static final DateFormatter STRICT_DATE_OPTIONAL_TIME =
+        new JavaDateFormatter("strict_date_optional_time", STRICT_DATE_OPTIONAL_TIME_PRINTER, STRICT_DATE_OPTIONAL_TIME_FORMATTER);
+
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .optionalStart()
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .optionalEnd()
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_NO_COLON)
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
     /**
      * Returns a generic ISO datetime parser where the date is mandatory and the time is optional with nanosecond resolution.
      */
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = new JavaDateFormatter("strict_date_optional_time_nanos",
-        STRICT_DATE_OPTIONAL_TIME_PRINTER, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_1);
+        STRICT_DATE_OPTIONAL_TIME_PRINTER, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS);
+
     /////////////////////////////////////////
     //
     // BEGIN basic time formatters
@@ -818,7 +804,7 @@ public class DateFormatters {
      * yyyy-MM-dd'T'HH:mm:ss.SSSZ
      */
     private static final DateFormatter DATE_OPTIONAL_TIME = new JavaDateFormatter("date_optional_time",
-        STRICT_DATE_OPTIONAL_TIME_FORMATTER_1,
+        STRICT_DATE_OPTIONAL_TIME_PRINTER,
         new DateTimeFormatterBuilder()
             .append(DATE_FORMATTER)
             .optionalStart()
@@ -836,26 +822,6 @@ public class DateFormatters {
             .appendFraction(MILLI_OF_SECOND, 1, 3, true)
             .optionalEnd()
             .optionalStart().appendZoneOrOffsetId().optionalEnd()
-            .optionalEnd()
-            .optionalEnd()
-            .optionalEnd()
-            .toFormatter(Locale.ROOT),
-        new DateTimeFormatterBuilder()
-            .append(DATE_FORMATTER)
-            .optionalStart()
-            .appendLiteral('T')
-            .optionalStart()
-            .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
-            .optionalStart()
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
-            .optionalStart()
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
-            .optionalEnd()
-            .optionalStart()
-            .appendFraction(MILLI_OF_SECOND, 1, 3, true)
-            .optionalEnd()
             .optionalStart().appendOffset("+HHmm", "Z").optionalEnd()
             .optionalEnd()
             .optionalEnd()
@@ -1006,7 +972,7 @@ public class DateFormatters {
      * (yyyy-MM-dd'T'HH:mm:ss.SSSZZ).
      */
     private static final DateFormatter DATE_TIME = new JavaDateFormatter("date_time",
-        STRICT_DATE_OPTIONAL_TIME_FORMATTER_1,
+        STRICT_DATE_OPTIONAL_TIME_PRINTER,
         new DateTimeFormatterBuilder().append(DATE_TIME_FORMATTER).appendZoneOrOffsetId().toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().append(DATE_TIME_FORMATTER).append(TIME_ZONE_FORMATTER_NO_COLON).toFormatter(Locale.ROOT)
     );
@@ -1483,90 +1449,22 @@ public class DateFormatters {
         }
     }
 
-    static class MergedDateFormatter implements DateFormatter {
+    static JavaDateFormatter merge(String pattern, List<DateFormatter> formatters) {
+        assert formatters.size() > 0;
 
-        private final String pattern;
-        // package private for tests
-        final List<DateFormatter> formatters;
-        private final List<DateMathParser> dateMathParsers;
-
-        MergedDateFormatter(String pattern, List<DateFormatter> formatters) {
-            assert formatters.size() > 0;
-            this.pattern = pattern;
-            this.formatters = Collections.unmodifiableList(formatters);
-            this.dateMathParsers = formatters.stream().map(DateFormatter::toDateMathParser).collect(Collectors.toList());
-        }
-
-        @Override
-        public TemporalAccessor parse(String input) {
-            IllegalArgumentException failure = null;
-            for (DateFormatter formatter : formatters) {
-                try {
-                    return formatter.parse(input);
-                    // TODO: remove DateTimeParseException when JavaDateFormatter throws IAE
-                } catch (IllegalArgumentException | DateTimeParseException e) {
-                    if (failure == null) {
-                        // wrap so the entire multi format is in the message
-                        failure = new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + pattern + "]",
-                            e);
-                    } else {
-                        failure.addSuppressed(e);
-                    }
-                }
+        List<DateTimeFormatter> dateTimeFormatters = new ArrayList<>(formatters.size());
+        DateTimeFormatter printer = null;
+        for (DateFormatter formatter : formatters) {
+            assert formatter instanceof JavaDateFormatter;
+            JavaDateFormatter javaDateFormatter = (JavaDateFormatter) formatter;
+            DateTimeFormatter dateTimeFormatter = javaDateFormatter.getParser();
+            if (printer == null) {
+                printer = javaDateFormatter.getPrinter();
             }
-            throw failure;
+            dateTimeFormatters.add(dateTimeFormatter);
         }
 
-        @Override
-        public DateFormatter withZone(ZoneId zoneId) {
-            return new MergedDateFormatter(pattern, formatters.stream().map(f -> f.withZone(zoneId)).collect(Collectors.toList()));
-        }
-
-        @Override
-        public DateFormatter withLocale(Locale locale) {
-            return new MergedDateFormatter(pattern, formatters.stream().map(f -> f.withLocale(locale)).collect(Collectors.toList()));
-        }
-
-        @Override
-        public String format(TemporalAccessor accessor) {
-            return formatters.get(0).format(accessor);
-        }
-
-        @Override
-        public String pattern() {
-            return pattern;
-        }
-
-        @Override
-        public Locale locale() {
-            return formatters.get(0).locale();
-        }
-
-        @Override
-        public ZoneId zone() {
-            return formatters.get(0).zone();
-        }
-
-        @Override
-        public DateMathParser toDateMathParser() {
-            return (text, now, roundUp, tz) -> {
-                ElasticsearchParseException failure = null;
-                for (DateMathParser parser : dateMathParsers) {
-                    try {
-                        return parser.parse(text, now, roundUp, tz);
-                    } catch (ElasticsearchParseException e) {
-                        if (failure == null) {
-                            // wrap so the entire multi format is in the message
-                            failure = new ElasticsearchParseException("failed to parse date field [" + text + "] with format ["
-                                + pattern + "]", e);
-                        } else {
-                            failure.addSuppressed(e);
-                        }
-                    }
-                }
-                throw failure;
-            };
-        }
+        return new JavaDateFormatter(pattern, printer, dateTimeFormatters.toArray(new DateTimeFormatter[0]));
     }
 
     private static final ZonedDateTime EPOCH_ZONED_DATE_TIME = Instant.EPOCH.atZone(ZoneOffset.UTC);

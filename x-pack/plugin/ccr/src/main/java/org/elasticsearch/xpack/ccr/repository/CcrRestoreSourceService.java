@@ -56,6 +56,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             if (sessions != null) {
                 for (String sessionUUID : sessions) {
                     RestoreSession restore = onGoingRestores.remove(sessionUUID);
+                    assert restore != null;
                     restore.decRef();
                 }
             }
@@ -132,12 +133,24 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
     }
 
-    public synchronized void closeSession(String sessionUUID) {
-        closeSessionListeners.forEach(c -> c.accept(sessionUUID));
-        RestoreSession restore = onGoingRestores.remove(sessionUUID);
-        if (restore == null) {
-            logger.info("could not close session [{}] because session not found", sessionUUID);
-            throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
+    public void closeSession(String sessionUUID) {
+        final RestoreSession restore;
+        synchronized (this) {
+            closeSessionListeners.forEach(c -> c.accept(sessionUUID));
+            restore = onGoingRestores.remove(sessionUUID);
+            if (restore == null) {
+                logger.debug("could not close session [{}] because session not found", sessionUUID);
+                throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
+            }
+            HashSet<String> sessions = sessionsForShard.get(restore.indexShard);
+            assert sessions != null;
+            if (sessions != null) {
+                boolean removed = sessions.remove(sessionUUID);
+                assert removed;
+                if (sessions.isEmpty()) {
+                    sessionsForShard.remove(restore.indexShard);
+                }
+            }
         }
         restore.decRef();
     }
@@ -151,7 +164,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         return new SessionReader(restore);
     }
 
-    private class RestoreSession extends AbstractRefCounted {
+    private static class RestoreSession extends AbstractRefCounted {
 
         private final String sessionUUID;
         private final IndexShard indexShard;
@@ -177,7 +190,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         private synchronized void readFileBytes(String fileName, BytesReference reference) throws IOException {
             // Should not access this method while holding global lock as that might block the cluster state
             // update thread on IO if it calls afterIndexShardClosed
-            assert Thread.holdsLock(CcrRestoreSourceService.this) == false : "Should not hold CcrRestoreSourceService lock";
             if (cachedInput != null) {
                 if (fileName.equals(cachedInput.v2()) == false) {
                     cachedInput.v2().close();
@@ -202,25 +214,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
         @Override
         protected void closeInternal() {
-            try {
-                removeSessionForShard(sessionUUID, indexShard);
-            } finally {
-                if (cachedInput != null) {
-                    IOUtils.closeWhileHandlingException(cachedInput.v2());
-                }
-            }
-        }
-
-        private void removeSessionForShard(String sessionUUID, IndexShard indexShard) {
-            synchronized (CcrRestoreSourceService.this) {
-                logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
-                HashSet<String> sessions = sessionsForShard.get(indexShard);
-                if (sessions != null) {
-                    sessions.remove(sessionUUID);
-                    if (sessions.isEmpty()) {
-                        sessionsForShard.remove(indexShard);
-                    }
-                }
+            logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
+            if (cachedInput != null) {
+                IOUtils.closeWhileHandlingException(cachedInput.v2());
             }
         }
     }
@@ -234,7 +230,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             restoreSession.incRef();
         }
 
-        public synchronized void readFileBytes(String fileName, BytesReference reference) throws IOException {
+        public void readFileBytes(String fileName, BytesReference reference) throws IOException {
             restoreSession.readFileBytes(fileName, reference);
         }
 

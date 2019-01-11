@@ -330,7 +330,7 @@ public class QueryTranslatorTests extends ESTestCase {
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals(
                 "Line 1:52: Comparisons against variables are not (currently) supported; "
-                        + "offender [keyword] in [IN ('foo', 'bar', keyword)]",
+                        + "offender [keyword] in [keyword IN ('foo', 'bar', keyword)]",
                 ex.getMessage());
     }
 

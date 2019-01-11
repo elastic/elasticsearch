@@ -90,7 +90,6 @@ public class ReindexFailureTests extends ReindexTestCase {
      * the whole process. We do lose some information about how far along the
      * process got, but its important that they see these failures.
      */
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/28053")
     public void testResponseOnSearchFailure() throws Exception {
         /*
          * Attempt to trigger a reindex failure by deleting the source index out

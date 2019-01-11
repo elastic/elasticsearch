@@ -608,7 +608,7 @@ public abstract class EngineTestCase extends ESTestCase {
             retentionLeasesSupplier = replicationTracker::getRetentionLeases;
         } else {
             globalCheckpointSupplier = maybeGlobalCheckpointSupplier;
-            retentionLeasesSupplier = Collections::emptySet;
+            retentionLeasesSupplier = Collections::emptyList;
         }
         EngineConfig config = new EngineConfig(shardId, allocationId.getId(), threadPool, indexSettings, null, store,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,

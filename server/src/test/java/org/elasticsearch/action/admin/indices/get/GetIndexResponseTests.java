@@ -80,7 +80,9 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index: indices) {
-            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex());
+            // rarely have no types
+            int typeCount = rarely() ? 0 : 1;
+            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount));
 
             List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
@@ -190,5 +192,4 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
 
         Assert.assertEquals(TEST_6_3_0_RESPONSE_BYTES, base64OfResponse);
     }
-
 }

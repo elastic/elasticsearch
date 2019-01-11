@@ -204,6 +204,7 @@ public class MlConfigMigrator {
         addDatafeedIndexRequests(datafeedsToMigrate, bulkRequestBuilder);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
+        logger.debug("writing migrated configs to index");
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, bulkRequestBuilder.request(),
                 ActionListener.<BulkResponse>wrap(
                         bulkResponse -> {

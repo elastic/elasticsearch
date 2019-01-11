@@ -20,7 +20,10 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.index.mapper.MapperService.DEFAULT_MAPPING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 
 public class IndexDeprecationChecksTests extends ESTestCase {
 
@@ -36,9 +39,100 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Index created before 6.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                 "breaking-changes-7.0.html",
-            "this index was created using version: " + createdWith);
+            "This index was created using version: " + createdWith);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
         assertEquals(singletonList(expected), issues);
+    }
+
+    public void testMultipleTypesCheckWithDefaultMapping() throws IOException {
+        String mappingName1 = randomAlphaOfLengthBetween(2, 5);
+        String mappingJson1 = "{\n" +
+            "  \"properties\": {\n" +
+            "    \"field_a\": {\n" +
+            "      \"type\": \"text\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+        String defaultMappingJson = "{\n" +
+            "  \"properties\": {\n" +
+            "    \"field_b\": {\n" +
+            "      \"type\": \"keyword\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+
+        Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+            VersionUtils.getPreviousVersion(Version.V_6_0_0));
+        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+            .putMapping(mappingName1, mappingJson1)
+            .putMapping(DEFAULT_MAPPING, defaultMappingJson)
+            .settings(settings(createdWith))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "Index created before 6.0",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                "breaking-changes-7.0.html",
+            "This index was created using version: " + createdWith);
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testMultipleTypesCheck() throws IOException {
+        String mappingName1 = randomAlphaOfLengthBetween(2, 5);
+        String mappingJson1 = "{\n" +
+            "  \"properties\": {\n" +
+            "    \"field_a\": {\n" +
+            "      \"type\": \"text\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+        String mappingName2 = randomAlphaOfLengthBetween(6, 10);
+        String mappingJson2 = "{\n" +
+            "  \"properties\": {\n" +
+            "    \"field_b\": {\n" +
+            "      \"type\": \"keyword\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+
+        Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+            VersionUtils.getPreviousVersion(Version.V_6_0_0));
+        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder("test")
+            .putMapping(mappingName1, mappingJson1)
+            .putMapping(mappingName2, mappingJson2)
+            .settings(settings(createdWith))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+
+        if (randomBoolean()) {
+            String defaultMappingJson = "{\n" +
+                "  \"properties\": {\n" +
+                "    \"field_c\": {\n" +
+                "      \"type\": \"keyword\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+            indexMetaDataBuilder.putMapping(DEFAULT_MAPPING, defaultMappingJson);
+        }
+
+        IndexMetaData indexMetaData = indexMetaDataBuilder.build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        assertEquals(1, issues.size());
+        DeprecationIssue issue = issues.get(0);
+        assertEquals("Index has more than one mapping type", issue.getMessage());
+        assertEquals(DeprecationIssue.Level.CRITICAL, issue.getLevel());
+        assertEquals(
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html" +
+                "#_migrating_multi_type_indices_to_single_type",
+            issue.getUrl());
+        assertThat(issue.getDetails(), allOf(
+            containsString("This index has more than one mapping type, which is not supported in 7.0. " +
+                "This index must be reindexed into one or more single-type indices. Mapping types in use: ["),
+            containsString(mappingName1),
+            containsString(mappingName2)));
     }
 
     public void testDelimitedPayloadFilterCheck() {

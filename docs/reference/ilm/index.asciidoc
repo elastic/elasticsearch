@@ -5,7 +5,6 @@
 
 [partintro]
 --
-beta[]
 
 WARNING: {ilm-cap} is currently not supported by
 {stack-ov}/ccr-getting-started.html#ccr-getting-started-leader-index[leader indices] and

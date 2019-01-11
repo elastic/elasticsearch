@@ -312,6 +312,8 @@ final class IndicesRequestConverters {
         params.withIncludeDefaults(getIndexRequest.includeDefaults());
         params.withHuman(getIndexRequest.humanReadable());
         params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
+        // Force "include_type_name" parameter since responses need to be compatible when coming from 7.0 nodes
+        params.withIncludeTypeName(true);
 
         return request;
     }

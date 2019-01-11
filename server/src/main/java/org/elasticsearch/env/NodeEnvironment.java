@@ -311,8 +311,8 @@ public final class NodeEnvironment  implements Closeable {
                 ensureAtomicMoveSupported(nodePaths);
             }
 
-            if (!DiscoveryNode.isDataNode(settings)) {
-                ensureNoIndexData(nodePaths);
+            if (DiscoveryNode.isDataNode(settings) == false) {
+                ensureNoShardData(nodePaths);
             }
 
             success = true;
@@ -1036,8 +1036,8 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
-    private void ensureNoIndexData(final NodePath[] nodePaths) throws IOException {
-        List<Path> badDataPaths = new ArrayList<>();
+    private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
+        List<Path> shardDataPaths = new ArrayList<>();
         for (NodePath nodePath : nodePaths) {
             Path indicesPath = nodePath.indicesPath;
             if (Files.isDirectory(indicesPath)) {
@@ -1046,7 +1046,8 @@ public final class NodeEnvironment  implements Closeable {
                         if (Files.isDirectory(indexPath)) {
                             try (Stream<Path> shardStream = Files.list(indexPath)) {
                                 shardStream.filter(this::isShardPath)
-                                    .forEach(badDataPaths::add);
+                                    .map(Path::toAbsolutePath)
+                                    .forEach(shardDataPaths::add);
                             }
                         }
                     }
@@ -1054,11 +1055,11 @@ public final class NodeEnvironment  implements Closeable {
             }
         }
 
-        if (!badDataPaths.isEmpty()) {
-            throw new IllegalArgumentException("Node is started with "
+        if (shardDataPaths.isEmpty() == false) {
+            throw new IllegalStateException("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
-                + "=false, but found shard data: "
-                + badDataPaths);
+                + "=false, but has shard data: "
+                + shardDataPaths);
         }
     }
 
@@ -1067,13 +1068,13 @@ public final class NodeEnvironment  implements Closeable {
             && path.getFileName().toString().chars().allMatch(Character::isDigit);
     }
 
-        /**
-         * Resolve the custom path for a index's shard.
-         * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
-         * the root path for the index.
-         *
-         * @param indexSettings settings for the index
-         */
+    /**
+     * Resolve the custom path for a index's shard.
+     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
+     * the root path for the index.
+     *
+     * @param indexSettings settings for the index
+     */
     public static Path resolveBaseCustomLocation(IndexSettings indexSettings, Path sharedDataPath, int nodeLockId) {
         String customDataDir = indexSettings.customDataPath();
         if (customDataDir != null) {

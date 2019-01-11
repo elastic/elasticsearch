@@ -25,52 +25,39 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeEnvironmentIT extends ESIntegTestCase {
     public void testStartFailureOnDataForNonDataNode() throws Exception {
-        logger.info("--> starting two nodes");
+        final String indexName = "test-fail-on-data";
 
-        final String node_1 = internalCluster().startNodes(1).get(0);
+        logger.info("--> starting one node");
+        internalCluster().startNodes(1);
 
         logger.info("--> creating index");
-        prepareCreate("test", Settings.builder()
+        prepareCreate(indexName, Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
         ).get();
+        final String indexUUID = resolveIndex(indexName).getUUID();
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify 1 doc in the index");
-        for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
-        }
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+        client().prepareIndex(indexName, "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 
         logger.info("--> restarting the node with node.data=true");
-        internalCluster().restartNode(node_1, new InternalTestCluster.RestartCallback());
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
+        internalCluster().restartRandomDataNode();
 
         logger.info("--> restarting the node with node.data=false");
-        try {
-            internalCluster().restartNode(node_1, new InternalTestCluster.RestartCallback() {
-                @Override
-                public Settings onNodeStopped(String nodeName) throws Exception {
-                    return Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build();
-                }
-            });
-            fail("Starting a node with node.data=false that has index/shard data must fail");
-        } catch (IllegalArgumentException e) {
-            // EXPECTED
-        }
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+            "Node started with node.data=false and existing shard data must fail",
+            () ->
+                internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+                    @Override
+                    public Settings onNodeStopped(String nodeName) {
+                        return Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build();
+                    }
+                }));
+        assertThat(ex.getMessage(), containsString(indexUUID));
     }
 }

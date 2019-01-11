@@ -471,35 +471,12 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    public void testFailOnDataForNonDataNode() throws IOException {
+    public void testEnsureNoShardData() throws IOException {
         Settings settings = buildEnvSettings(Settings.EMPTY);
-        final NodeEnvironment env = newNodeEnvironment(settings);
+        NodeEnvironment env = newNodeEnvironment(settings);
 
-        Index badIndex = new Index("bad", "badUUID");
-        for (Path path : env.indexPaths(badIndex)) {
-            Files.createDirectories(path.resolve("0"));
-        }
-
-        env.close();
-
-        try {
-            Settings noDataSettings = Settings.builder()
-                .put(settings)
-                .put(Node.NODE_DATA_SETTING.getKey(), false).build();
-            newNodeEnvironment(noDataSettings).close();
-            fail("Must fail creating NodeEnvironment on a data path that has shard data if node.data=false");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString(env.indexPaths(badIndex)[0].resolve("0").getFileName().toString()));
-        }
-    }
-
-    public void testSucceedOnMetaOnlyForNonDataNode() throws IOException {
-        Settings settings = buildEnvSettings(Settings.EMPTY);
-        final NodeEnvironment env = newNodeEnvironment(settings);
-
-        Index goodIndex = new Index("good", "goodUUID");
-
-        for (Path path : env.indexPaths(goodIndex)) {
+        Index index = new Index("test", "testUUID");
+        for (Path path : env.indexPaths(index)) {
             Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
         }
 
@@ -509,32 +486,25 @@ public class NodeEnvironmentTests extends ESTestCase {
             .put(settings)
             .put(Node.NODE_DATA_SETTING.getKey(), false).build();
 
-        // test that this succeeds
-        newNodeEnvironment(noDataSettings).close();
-    }
+        // test that we can create data=false env with only meta information
+        env = newNodeEnvironment(noDataSettings);
 
-    public void testSucceedOnDataForDataNode() throws IOException {
-        Settings settings = buildEnvSettings(Settings.EMPTY);
-        final NodeEnvironment env = newNodeEnvironment(settings);
-
-        Index goodIndex = new Index("good", "goodUUID");
-
-        for (Path path : env.indexPaths(goodIndex)) {
-            Files.createDirectories(path.resolve("0"));
+        String shardDir = Integer.toString(randomInt(10));
+        for (Path path : env.indexPaths(index)) {
+            Files.createDirectories(path.resolve(shardDir));
         }
 
         env.close();
 
-        // test that this succeeds
-        newNodeEnvironment(settings).close();
-    }
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+            "Must fail creating NodeEnvironment on a data path that has shard data if node.data=false",
+            () -> newNodeEnvironment(noDataSettings).close());
 
-    private String[] pathsToStrings(Path[] paths) {
-        String[] result = new String[paths.length];
-        for (int i = 0; i < paths.length; i++) {
-            result[i] = paths[i].toString();
-        }
-        return result;
+        assertThat(ex.getMessage(),
+            containsString(env.indexPaths(index)[0].resolve(shardDir).toAbsolutePath().toString()));
+
+        // test that we can create data=true env
+        newNodeEnvironment(settings).close();
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

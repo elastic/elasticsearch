@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.plan.logical.With;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringJoiner;
 
 import static java.util.Collections.nCopies;
 import static java.util.stream.Collectors.toList;
@@ -65,6 +66,27 @@ public class SqlParserTests extends ESTestCase {
     public void testSelectRightFunction() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT RIGHT()")), UnresolvedFunction.class);
         assertEquals("RIGHT", f.functionName());
+    }
+
+    public void testsSelectNonReservedKeywords() {
+        String[] reserved = new String[] {
+            "ANALYZE", "ANALYZED", "CATALOGS", "COLUMNS", "CURRENT", "DAY", "DEBUG", "EXECUTABLE", "EXPLAIN",
+            "FIRST", "FORMAT", "FULL", "FUNCTIONS", "GRAPHVIZ", "HOUR", "INTERVAL", "LAST", "LIMIT",
+            "MAPPED", "MINUTE", "MONTH", "OPTIMIZED", "PARSED", "PHYSICAL", "PLAN", "QUERY", "RLIKE",
+            "SCHEMAS", "SECOND", "SHOW", "SYS", "TABLES", "TEXT", "TYPE", "TYPES", "VERIFY", "YEAR"};
+        StringJoiner sj = new StringJoiner(",");
+        for (String s : reserved) {
+            sj.add(s);
+        }
+
+        Project project = project(parseStatement("SELECT " + sj.toString() + " FROM foo"));
+        assertEquals(reserved.length, project.projections().size());
+
+        for (int i = 0; i < project.projections().size(); i++) {
+            NamedExpression ne = project.projections().get(i);
+            assertEquals(UnresolvedAttribute.class, ne.getClass());
+            assertEquals(reserved[i], ne.name());
+        }
     }
 
     public void testOrderByField() {

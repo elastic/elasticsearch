@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +40,7 @@ public class FieldHitExtractor implements HitExtractor {
      */
     private static String[] sourcePath(String name, boolean useDocValue, String hitName) {
         return useDocValue ? Strings.EMPTY_ARRAY : Strings
-                .tokenizeToStringArray(hitName == null ? name : name.substring(hitName.length() + 1), ".");
+            .tokenizeToStringArray(hitName == null ? name : name.substring(hitName.length() + 1), ".");
     }
 
     private final String fieldName, hitName;
@@ -144,17 +145,42 @@ public class FieldHitExtractor implements HitExtractor {
         Object value = map;
         boolean first = true;
         // each node is a key inside the map
-        for (String node : path) {
+        for (int i = 0; i < path.length; i++) {
+            String node = path[i];
             if (value == null) {
                 return null;
             } else if (first || value instanceof Map) {
                 first = false;
-                value = ((Map<String, Object>) value).get(node);
+                map = ((Map<String, Object>) value);
+                value = map.get(node);
+                if (value == null) { // Try to extract field with dots (e.g.: "b.c")
+                    Tuple<Object, Integer> tuple = extractAsDottedField(map, i, node);
+                    value = tuple.v1();
+                    if (value != null) {
+                        if (value instanceof Map) {
+                            i = tuple.v2();
+                        } else {
+                            return unwrapMultiValue(value);
+                        }
+                    }
+                }
             } else {
                 throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
             }
         }
         return unwrapMultiValue(value);
+    }
+
+    private Tuple<Object, Integer> extractAsDottedField(Map<String, Object> map, int idx, String node) {
+        Object value = null;
+        StringBuilder sb = new StringBuilder(node);
+        int i = idx + 1;
+        while (value == null && i < path.length) {
+            sb.append(".").append(path[i]);
+            value = map.get(sb.toString());
+            i++;
+        }
+        return new Tuple<>(value, i - 1);
     }
 
     @Override
@@ -178,8 +204,8 @@ public class FieldHitExtractor implements HitExtractor {
         }
         FieldHitExtractor other = (FieldHitExtractor) obj;
         return fieldName.equals(other.fieldName)
-                && hitName.equals(other.hitName)
-                && useDocValue == other.useDocValue;
+            && hitName.equals(other.hitName)
+            && useDocValue == other.useDocValue;
     }
 
     @Override

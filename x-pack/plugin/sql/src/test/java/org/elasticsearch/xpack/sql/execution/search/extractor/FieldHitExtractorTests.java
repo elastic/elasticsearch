@@ -47,7 +47,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     @Override
-    protected FieldHitExtractor mutateInstance(FieldHitExtractor instance) throws IOException {
+    protected FieldHitExtractor mutateInstance(FieldHitExtractor instance) {
         return new FieldHitExtractor(instance.fieldName() + "mutated", null, true, instance.hitName());
     }
 
@@ -237,7 +237,35 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
     }
 
-    public Object randomValue() {
+    public void testFieldWithDots() {
+        FieldHitExtractor fe = new FieldHitExtractor("a.b", null, false);
+        Object value = randomValue();
+        Map<String, Object> map = singletonMap("a.b", value);
+        assertEquals(value, fe.extractFromSource(map));
+    }
+
+    public void testNestedFieldWithDots() {
+        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", null, false);
+        Object value = randomValue();
+        Map<String, Object> map = singletonMap("a", singletonMap("b.c", value));
+        assertEquals(value, fe.extractFromSource(map));
+    }
+
+    public void testNestedFieldWithDotsWithNestedField() {
+        FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d", null, false);
+        Object value = randomValue();
+        Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d", value)));
+        assertEquals(value, fe.extractFromSource(map));
+    }
+
+    public void testNestedFieldWithDotsWithNestedFieldWithDots() {
+        FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d.e", null, false);
+        Object value = randomValue();
+        Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d.e", value)));
+        assertEquals(value, fe.extractFromSource(map));
+    }
+
+    private Object randomValue() {
         Supplier<Object> value = randomFrom(Arrays.asList(
                 () -> randomAlphaOfLength(10),
                 ESTestCase::randomLong,
@@ -246,7 +274,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         return value.get();
     }
 
-    public Object randomNonNullValue() {
+    private Object randomNonNullValue() {
         Supplier<Object> value = randomFrom(Arrays.asList(
                 () -> randomAlphaOfLength(10),
                 ESTestCase::randomLong,

@@ -1,10 +1,24 @@
 [[recovery]]
 === Indices Recovery
 
-The following _expert_ setting can be set to manage the recovery policy.
+<<cat-recovery,Peer recovery>> is the process used to build a new copy of a
+shard on a node by copying data from the primary. {es} uses this peer recovery
+process to rebuild shard copies that were lost if a node has failed, and uses
+the same process when migrating a shard copy between nodes to rebalance the
+cluster or to honor any changes to the <<modules-cluster,shard allocation
+settings>>.
+
+The following _expert_ setting can be set to manage the resources consumed by
+peer recoveries:
 
 `indices.recovery.max_bytes_per_sec`::
-    Defaults to `40mb`.
+    Limits the total inbound and outbound peer recovery traffic on each node.
+    Since this limit applies on each node, but there may be many nodes
+    performing peer recoveries concurrently, the total amount of peer recovery
+    traffic within a cluster may be much higher than this limit. If you set
+    this limit too high then there is a risk that ongoing peer recoveries will
+    consume an excess of bandwidth (or other resources) which could destabilize
+    the cluster. Defaults to `40mb`.
 
 This setting can be dynamically updated on a live cluster with the
-<<cluster-update-settings,cluster-update-settings>> API:
+<<cluster-update-settings,cluster-update-settings>> API.

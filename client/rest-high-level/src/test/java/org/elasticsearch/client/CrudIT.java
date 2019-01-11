@@ -65,6 +65,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
@@ -449,7 +450,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         bulk.add(new IndexRequest("index", "type", "id2")
             .source("{\"field\":\"value2\"}", XContentType.JSON));
 
-        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+        highLevelClient().bulk(bulk, expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.add("index", "id1");
         multiGetRequest.add("index", "type", "id2");
@@ -819,7 +820,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             }
         }
 
-        BulkResponse bulkResponse = execute(bulkRequest, highLevelClient()::bulk, highLevelClient()::bulkAsync);
+        BulkResponse bulkResponse = execute(bulkRequest, highLevelClient()::bulk, highLevelClient()::bulkAsync, RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
         assertTrue(bulkResponse.getTook().getMillis() > 0);
         assertEquals(nbItems, bulkResponse.getItems().length);
@@ -875,7 +876,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // test1: create one doc in dest
             UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
             updateByQueryRequest.indices(sourceIndex);
-            updateByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1").types("_doc"));
+            updateByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1"));
             updateByQueryRequest.setRefresh(true);
             BulkByScrollResponse bulkResponse =
                 execute(updateByQueryRequest, highLevelClient()::updateByQuery, highLevelClient()::updateByQueryAsync);
@@ -917,7 +918,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // test update-by-query rethrottling
             UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
             updateByQueryRequest.indices(sourceIndex);
-            updateByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1").types("_doc"));
+            updateByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1"));
             updateByQueryRequest.setRefresh(true);
 
             // this following settings are supposed to halt reindexing after first document
@@ -987,7 +988,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // test1: delete one doc
             DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
             deleteByQueryRequest.indices(sourceIndex);
-            deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1").types("_doc"));
+            deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1"));
             deleteByQueryRequest.setRefresh(true);
             BulkByScrollResponse bulkResponse =
                 execute(deleteByQueryRequest, highLevelClient()::deleteByQuery, highLevelClient()::deleteByQueryAsync);
@@ -1009,7 +1010,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             // test delete-by-query rethrottling
             DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
             deleteByQueryRequest.indices(sourceIndex);
-            deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("2", "3").types("_doc"));
+            deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("2", "3"));
             deleteByQueryRequest.setRefresh(true);
 
             // this following settings are supposed to halt reindexing after first document
@@ -1080,7 +1081,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         };
 
         try (BulkProcessor processor = BulkProcessor.builder(
-                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener)
+                (request, bulkListener) -> highLevelClient().bulkAsync(request, 
+                        RequestOptions.DEFAULT, bulkListener), listener)
                 .setConcurrentRequests(0)
                 .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))
                 .setBulkActions(nbItems + 1)

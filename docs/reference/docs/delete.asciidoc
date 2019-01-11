@@ -36,6 +36,16 @@ The result of the above delete operation is:
 // TESTRESPONSE[s/"_seq_no" : 5/"_seq_no" : $body._seq_no/]
 
 [float]
+[[optimistic-concurrency-control-delete]]
+=== Optimistic concurrency control
+
+Delete operations can be made optional and only be performed if the last
+modification to the document was assigned the sequence number and primary 
+term specified by the `if_seq_no` and `if_primary_term` parameters. If a
+mismatch is detected, the operation will result in a `VersionConflictException`
+and a status code of 409. See <<optimistic-concurrency-control>> for more details. 
+
+[float]
 [[delete-versioning]]
 === Versioning
 

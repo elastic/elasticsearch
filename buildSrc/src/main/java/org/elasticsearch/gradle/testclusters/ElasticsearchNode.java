@@ -324,9 +324,9 @@ public class ElasticsearchNode {
         getConfPathSharedData().mkdirs();
         getConfPathLogs().mkdirs();
         LinkedHashMap<String, String> config = new LinkedHashMap<>();
-        String name = safeName(path.equals(":") ? "" : path + ":" + this.name);
-        config.put("cluster.name", "c-" + name);
-        config.put("node.name", "n-" + name);
+        String name = safeName((path.equals(":") ? "" : path + ":") + this.name);
+        config.put("cluster.name", name);
+        config.put("node.name", name);
         config.put("path.repo", getConfPathRepo().getAbsolutePath());
         config.put("path.data", getConfPathData().getAbsolutePath());
         config.put("path.logs", getConfPathLogs().getAbsolutePath());

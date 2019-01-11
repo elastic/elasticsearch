@@ -2342,10 +2342,7 @@ public class InternalEngine extends Engine {
                 if (softDeleteEnabled) {
                     final Tuple<Long, Collection<RetentionLease>> retentionPolicy = softDeletesPolicy.getRetentionPolicy();
                     commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(retentionPolicy.v1()));
-                    final Collection<RetentionLease> retentionLeases = retentionPolicy.v2();
-                    final String encodedRetentionLeases =
-                            retentionLeases.stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(","));
-                    commitData.put(Engine.RETENTION_LEASES, encodedRetentionLeases);
+                    commitData.put(Engine.RETENTION_LEASES, RetentionLease.encodeRetentionLeases(retentionPolicy.v2()));
                 }
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();

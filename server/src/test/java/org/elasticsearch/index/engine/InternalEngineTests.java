@@ -5292,8 +5292,9 @@ public class InternalEngineTests extends EngineTestCase {
                 if (leases.isEmpty()) {
                     assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES), equalTo(""));
                 } else {
-                    final String expected = leases.stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(","));
-                    assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES), equalTo(expected));
+                    assertThat(
+                            engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES),
+                            equalTo(RetentionLease.encodeRetentionLeases(leases)));
                 }
             }
             if (rarely()) {

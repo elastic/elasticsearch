@@ -1444,11 +1444,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (committedRetentionLeases == null) {
             return Collections.emptyList();
         }
-        final String[] encodedRetentionLeases = committedRetentionLeases.split(",");
-        assert Arrays.stream(encodedRetentionLeases)
-                .allMatch(s -> s.matches("id:[^:;,]+;retaining_seq_no:\\d+;timestamp:\\d+;source:[^:;,]+"))
-                : Arrays.toString(encodedRetentionLeases);
-        return Arrays.stream(encodedRetentionLeases).map(RetentionLease::decodeRetentionLease).collect(Collectors.toList());
+        return RetentionLease.decodeRetentionLeases(committedRetentionLeases);
     }
 
     private void trimUnsafeCommits() throws IOException {

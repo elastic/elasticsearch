@@ -305,7 +305,10 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 .put("index.number_of_replicas", 1)).get());
         ensureGreen();
         createStaleReplicaScenario(master);
-        internalCluster().startDataOnlyNodes(2);
+        // Ensure the stopped primary's data is deleted so that it doesn't get picked up by the next datanode we start
+        internalCluster().wipePendingDataDirectories();
+        internalCluster().startDataOnlyNodes(1);
+        ensureStableCluster(3, master);
         final int shardId = 0;
         final List<String> nodeNames = new ArrayList<>(Arrays.asList(internalCluster().getNodeNames()));
         nodeNames.remove(master);
@@ -320,6 +323,25 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertThat(
             iae.getMessage(),
             equalTo("No data for shard [" + shardId + "] of index [" + idxName + "] found on node [" + nodeWithoutData + ']'));
+    }
+
+    public void testForceStaleReplicaToBePromotedForGreenIndex() {
+        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        final String idxName = "test";
+        assertAcked(client().admin().indices().prepareCreate(idxName)
+            .setSettings(Settings.builder().put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)).get());
+        ensureGreen();
+        final String nodeWithoutData = randomFrom(dataNodes);
+        final int shardId = 0;
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().cluster().prepareReroute()
+                .add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true)).get());
+        assertThat(
+            iae.getMessage(),
+            equalTo("[allocate_stale_primary] primary [" + idxName+ "][" + shardId + "] is already assigned"));
     }
 
     public void testForceStaleReplicaToBePromotedForMissingIndex() {

@@ -114,7 +114,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                         for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
                             final String index = entry.getKey();
                             final ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> indexStatus = status.get(index);
-                            assert indexStatus != null;
+                            if (indexStatus == null) {
+                                // The index in the stale primary allocation request was green and hence filtered out by the store status
+                                // request. We ignore it here since the relevant exception will be thrown by the reroute action later on.
+                                continue;
+                            }
                             for (AbstractAllocateAllocationCommand command : entry.getValue()) {
                                 final List<IndicesShardStoresResponse.StoreStatus> shardStatus =
                                     indexStatus.get(command.shardId());

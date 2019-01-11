@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.seqno;
 
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -85,7 +87,7 @@ public final class RetentionLease {
     public RetentionLease(final String id, final long retainingSequenceNumber, final long timestamp, final String source) {
         Objects.requireNonNull(id);
         if (id.contains(":") || id.contains(";") || id.contains(",")) {
-            // retention lease IDs can not contain these characters because they are used as separators in index commits
+            // retention lease IDs can not contain these characters because they are used in encoding retention leases
             throw new IllegalArgumentException("retention lease ID can not contain any of [:;,] but was [" + id + "]");
         }
         if (retainingSequenceNumber < SequenceNumbers.UNASSIGNED_SEQ_NO) {
@@ -96,13 +98,37 @@ public final class RetentionLease {
         }
         Objects.requireNonNull(source);
         if (source.contains(":") || source.contains(";") || source.contains(",")) {
-            // retention lease sources can not contain these characters because they are used as separators in index commits
+            // retention lease sources can not contain these characters because they are used in encoding retention leases
             throw new IllegalArgumentException("retention lease source can not contain any of [:;,] but was [" + source + "]");
         }
         this.id = id;
         this.retainingSequenceNumber = retainingSequenceNumber;
         this.timestamp = timestamp;
         this.source = source;
+    }
+
+    public static String encodeRetentionLease(final RetentionLease retentionLease) {
+        return String.format(
+                Locale.ROOT,
+                "id:%s;retaining_seq_no:%d;timestamp:%d;source:%s",
+                retentionLease.id(),
+                retentionLease.retainingSequenceNumber(),
+                retentionLease.timestamp(),
+                retentionLease.source());
+    }
+
+    public static RetentionLease decodeRetentionLease(final String encodedRetentionLease) {
+        final String[] fields = encodedRetentionLease.split(";");
+        assert fields.length == 4 : Arrays.toString(fields);
+        assert fields[0].matches("id:[^:;,]+") : fields[0];
+        final String id = fields[0].substring("id:".length());
+        assert fields[1].matches("retaining_seq_no:\\d+") : fields[1];
+        final long retainingSequenceNumber = Long.parseLong(fields[1].substring("retaining_seq_no:".length()));
+        assert fields[2].matches("timestamp:\\d+") : fields[2];
+        final long timestamp = Long.parseLong(fields[2].substring("timestamp:".length()));
+        assert fields[3].matches("source:[^:;,]+") : fields[3];
+        final String source = fields[3].substring("source:".length());
+        return new RetentionLease(id, retainingSequenceNumber, timestamp, source);
     }
 
     @Override

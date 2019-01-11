@@ -2343,16 +2343,8 @@ public class InternalEngine extends Engine {
                     final Tuple<Long, Collection<RetentionLease>> retentionPolicy = softDeletesPolicy.getRetentionPolicy();
                     commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(retentionPolicy.v1()));
                     final Collection<RetentionLease> retentionLeases = retentionPolicy.v2();
-                    final String encodedRetentionLeases = retentionLeases
-                            .stream()
-                            .map(retentionLease -> String.format(
-                                    Locale.ROOT,
-                                    "id:%s;retaining_seq_no:%d;timestamp:%d;source:%s",
-                                    retentionLease.id(),
-                                    retentionLease.retainingSequenceNumber(),
-                                    retentionLease.timestamp(),
-                                    retentionLease.source()))
-                            .collect(Collectors.joining(","));
+                    final String encodedRetentionLeases =
+                            retentionLeases.stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(","));
                     commitData.put(Engine.RETENTION_LEASES, encodedRetentionLeases);
                 }
                 logger.trace("committing writer with commit data [{}]", commitData);

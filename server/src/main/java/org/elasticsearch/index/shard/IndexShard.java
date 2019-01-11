@@ -1448,21 +1448,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert Arrays.stream(encodedRetentionLeases)
                 .allMatch(s -> s.matches("id:[^:;,]+;retaining_seq_no:\\d+;timestamp:\\d+;source:[^:;,]+"))
                 : Arrays.toString(encodedRetentionLeases);
-        final List<RetentionLease> retentionLeases = new ArrayList<>();
-        for (final String encodedRetentionLease : encodedRetentionLeases) {
-            final String[] fields = encodedRetentionLease.split(";");
-            assert fields.length == 4 : Arrays.toString(fields);
-            assert fields[0].matches("id:[^:;,]+") : fields[0];
-            final String id = fields[0].substring("id:".length());
-            assert fields[1].matches("retaining_seq_no:\\d+") : fields[1];
-            final long retainingSequenceNumber = Long.parseLong(fields[1].substring("retaining_seq_no:".length()));
-            assert fields[2].matches("timestamp:\\d+") : fields[2];
-            final long timestamp = Long.parseLong(fields[2].substring("timestamp:".length()));
-            assert fields[3].matches("source:[^:;,]+") : fields[3];
-            final String source = fields[3].substring("source:".length());
-            retentionLeases.add(new RetentionLease(id, retainingSequenceNumber, timestamp, source));
-        }
-        return retentionLeases;
+        return Arrays.stream(encodedRetentionLeases).map(RetentionLease::decodeRetentionLease).collect(Collectors.toList());
     }
 
     private void trimUnsafeCommits() throws IOException {

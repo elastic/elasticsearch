@@ -212,9 +212,6 @@ public class CancellableThreadsTests extends ESTestCase {
                                     Matchers.instanceOf(exceptionClass)
                             ));
                 } else {
-                    if (exceptions[i].getSuppressed().length == 1) {
-                        System.err.println("what");
-                    }
                     assertThat(exceptions[i].getSuppressed(), Matchers.emptyArray());
                 }
             }

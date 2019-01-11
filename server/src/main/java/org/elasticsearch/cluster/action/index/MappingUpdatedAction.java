@@ -67,7 +67,7 @@ public class MappingUpdatedAction {
             throw new IllegalArgumentException("_default_ mapping should not be updated");
         }
         return client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString(), XContentType.JSON)
-                .setMasterNodeTimeout(timeout).setTimeout(timeout);
+                .setMasterNodeTimeout(timeout).setTimeout(TimeValue.ZERO);
     }
 
     /**
@@ -84,8 +84,6 @@ public class MappingUpdatedAction {
      * been applied to the master node and propagated to data nodes.
      */
     public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, TimeValue timeout) {
-        if (updateMappingRequest(index, type, mappingUpdate, timeout).get().isAcknowledged() == false) {
-            throw new ElasticsearchTimeoutException("Failed to acknowledge mapping update within [" + timeout + "]");
-        }
+        updateMappingRequest(index, type, mappingUpdate, timeout).get();
     }
 }

@@ -64,7 +64,7 @@ For example:
 
 [source,js]
 -----------------------------------
-PUT my_index <1>
+PUT my_index?include_type_name=true <1>
 {
   "mappings": {
     "_doc": {

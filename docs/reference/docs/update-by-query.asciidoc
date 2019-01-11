@@ -637,7 +637,7 @@ added a mapping value to pick up more fields from the data:
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=true
 {
   "mappings": {
     "_doc": {

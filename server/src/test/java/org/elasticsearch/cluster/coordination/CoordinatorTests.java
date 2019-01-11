@@ -54,6 +54,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
@@ -77,6 +78,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -1097,6 +1099,11 @@ public class CoordinatorTests extends ESTestCase {
             assertThat("may reconnect disconnected nodes, probably unexpected", disconnectedNodes, empty());
             assertThat("may reconnect blackholed nodes, probably unexpected", blackholedNodes, empty());
 
+            final List<Runnable> cleanupActions = new ArrayList<>();
+            cleanupActions.add(disconnectedNodes::clear);
+            cleanupActions.add(blackholedNodes::clear);
+            cleanupActions.add(() -> disruptStorage = false);
+
             final int randomSteps = scaledRandomIntBetween(10, 10000);
             logger.info("--> start of safety phase of at least [{}] steps", randomSteps);
 
@@ -1138,8 +1145,14 @@ public class CoordinatorTests extends ESTestCase {
                         final ClusterNode clusterNode = getAnyNode();
                         logger.debug("----> [runRandomly {}] rebooting [{}]", thisStep, clusterNode.getId());
                         clusterNode.close();
-                        clusterNodes.forEach(cn -> cn.onNode(
-                            () -> cn.transportService.disconnectFromNode(clusterNode.getLocalNode())).run());
+                        clusterNodes.forEach(
+                            cn -> {
+                                final Runnable disconnectAction = new RunOnce(() -> cn.onNode(
+                                    () -> cn.transportService.disconnectFromNode(clusterNode.getLocalNode())).run());
+                                cleanupActions.add(disconnectAction);
+                                deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() +
+                                    scaledRandomIntBetween(0, Math.toIntExact(TimeUnit.SECONDS.toMillis(60))), disconnectAction);
+                            });
                         clusterNodes.replaceAll(cn -> cn == clusterNode ? cn.restartedNode() : cn);
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNode();
@@ -1196,9 +1209,9 @@ public class CoordinatorTests extends ESTestCase {
                 assertConsistentStates();
             }
 
-            disconnectedNodes.clear();
-            blackholedNodes.clear();
-            disruptStorage = false;
+            logger.debug("running {} cleanup actions", cleanupActions.size());
+            cleanupActions.forEach(Runnable::run);
+            logger.debug("finished running cleanup actions");
         }
 
         private void assertConsistentStates() {

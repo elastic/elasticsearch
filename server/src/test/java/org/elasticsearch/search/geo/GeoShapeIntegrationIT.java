@@ -197,48 +197,48 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         ).get();
 
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().totalHits, equalTo(1L));
 
         searchResponse = client().prepareSearch("quad").setQuery(
             geoShapeQuery("shape", new PointBuilder(90, 1))
         ).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(searchResponse.getHits().totalHits, equalTo(0L));
 
         searchResponse = client().prepareSearch("quad").setQuery(
             geoShapeQuery("shape", new PointBuilder(-180, 1))
         ).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().totalHits, equalTo(1L));
         searchResponse = client().prepareSearch("quad").setQuery(
             geoShapeQuery("shape", new PointBuilder(180, 1))
         ).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().totalHits, equalTo(1L));
 
         searchResponse = client().prepareSearch("vector").setQuery(
             geoShapeQuery("shape", new PointBuilder(90, 1))
         ).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(searchResponse.getHits().totalHits, equalTo(0L));
 
         searchResponse = client().prepareSearch("vector").setQuery(
             geoShapeQuery("shape", new PointBuilder(-179.75, 1))
         ).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().totalHits, equalTo(1L));
 
         searchResponse = client().prepareSearch("vector").setQuery(
             geoShapeQuery("shape", new PointBuilder(-180, 1))
         ).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().totalHits, equalTo(1L));
 
         searchResponse = client().prepareSearch("vector").setQuery(
             geoShapeQuery("shape", new PointBuilder(180, 1))
         ).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().totalHits, equalTo(1L));
     }
 
     private String findNodeName(String index) {

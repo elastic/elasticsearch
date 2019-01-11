@@ -26,6 +26,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
@@ -254,6 +255,14 @@ final class SecurityRequestConverters {
         request.setEntity(createEntity(putRoleRequest, REQUEST_BODY_CONTENT_TYPE));
         final RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(putRoleRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request createApiKey(final CreateApiKeyRequest createApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_security/api_key");
+        request.setEntity(createEntity(createApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
+        final RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(createApiKeyRequest.getRefreshPolicy());
         return request;
     }
 }

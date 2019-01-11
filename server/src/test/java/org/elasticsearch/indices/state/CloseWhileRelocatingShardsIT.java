@@ -64,6 +64,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
         return 1;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37274")
     public void testCloseWhileRelocatingShards() throws Exception {
         final String[] indices = new String[randomIntBetween(1, 3)];
         final Map<String, Long> docsPerIndex = new HashMap<>();

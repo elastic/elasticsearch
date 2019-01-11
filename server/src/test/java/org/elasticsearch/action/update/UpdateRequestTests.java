@@ -524,9 +524,18 @@ public class UpdateRequestTests extends ESTestCase {
 
             assertThat(validate, nullValue());
         }
-
         {
-            UpdateRequest request = new UpdateRequest("index", randomBoolean() ? "" : null, randomBoolean() ? "" : null);
+            // Null types are defaulted to "_doc"
+            UpdateRequest request = new UpdateRequest("index", null, randomBoolean() ? "" : null);
+            request.doc("{}", XContentType.JSON);
+            ActionRequestValidationException validate = request.validate();
+
+            assertThat(validate, not(nullValue()));
+            assertThat(validate.validationErrors(), hasItems("id is missing"));
+        }
+        {
+            // Non-null types are accepted but fail validation
+            UpdateRequest request = new UpdateRequest("index", "", randomBoolean() ? "" : null);
             request.doc("{}", XContentType.JSON);
             ActionRequestValidationException validate = request.validate();
 

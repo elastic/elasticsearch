@@ -15,3 +15,63 @@ alias or wildcard expression is required.
 
 The get index API can also be applied to more than one index, or on
 all indices by using `_all` or `*` as index.
+
+[float]
+=== Skipping types
+
+Types are scheduled to be fully removed in Elasticsearch 8.0 and will not appear
+in requests or responses anymore. You can opt in for this future behaviour by
+setting `include_type_name=false` in the request, which will return mappings
+directly under `mappings` without keying by the type name.
+
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+PUT test?include_type_name=false
+{
+  "mappings": {
+    "properties": {
+      "foo": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+GET test?include_type_name=false
+--------------------------------------------------
+// CONSOLE
+
+which returns
+
+[source,js]
+--------------------------------------------------
+{
+    "test": {
+        "aliases": {},
+        "mappings": {
+            "properties": {
+                "foo": {
+                    "type": "keyword"
+                }
+            }
+        },
+        "settings": {
+            "index": {
+                "creation_date": "1547028674905",
+                "number_of_shards": "1",
+                "number_of_replicas": "1",
+                "uuid": "u1YpkPqLSqGIn3kNAvY8cA",
+                "version": {
+                    "created": ...
+                },
+                "provided_name": "test"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/1547028674905/$body.test.settings.index.creation_date/]
+// TESTRESPONSE[s/u1YpkPqLSqGIn3kNAvY8cA/$body.test.settings.index.uuid/]
+// TESTRESPONSE[s/"created": \.\.\./"created": $body.test.settings.index.version.created/]

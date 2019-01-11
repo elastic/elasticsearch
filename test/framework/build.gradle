@@ -47,7 +47,7 @@ forbiddenApisMain {
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   // classes are missing
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
@@ -61,8 +61,8 @@ thirdPartyAudit.excludes = [
   'org.apache.tools.ant.types.FileSet',
   'org.easymock.EasyMock',
   'org.easymock.IArgumentMatcher',
-  'org.jmock.core.Constraint',
-]
+  'org.jmock.core.Constraint'
+)
 
 task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
   checkForTestsInMain = true

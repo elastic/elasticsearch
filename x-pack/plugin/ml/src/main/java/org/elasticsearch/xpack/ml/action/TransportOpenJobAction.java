@@ -410,7 +410,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     static List<String> verifyIndicesPrimaryShardsAreActive(String resultsIndex, ClusterState clusterState) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(Settings.EMPTY);
         String[] indices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indicesOfInterest(resultsIndex));
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {

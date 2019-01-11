@@ -102,7 +102,7 @@ public class ClientYamlTestExecutionContext {
         // in REST tests that need to be manually converted to typeless calls. As a temporary measure, we
         // specify include_type_name=true in indices.create calls, unless the parameter has been set otherwise.
         // This workaround will be removed once we convert all index creations to be typeless.
-        if (apiName.equals("indices.create") && !requestParams.containsKey(INCLUDE_TYPE_NAME_PARAMETER)) {
+        if (apiName.equals("indices.create") && requestParams.containsKey(INCLUDE_TYPE_NAME_PARAMETER) == false) {
             requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
 

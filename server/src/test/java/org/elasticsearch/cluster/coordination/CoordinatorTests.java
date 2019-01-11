@@ -54,7 +54,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
@@ -78,7 +77,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -1146,13 +1144,18 @@ public class CoordinatorTests extends ESTestCase {
                         logger.debug("----> [runRandomly {}] rebooting [{}]", thisStep, clusterNode.getId());
                         clusterNode.close();
                         clusterNodes.forEach(
-                            cn -> {
-                                final Runnable disconnectAction = new RunOnce(() -> cn.onNode(
-                                    () -> cn.transportService.disconnectFromNode(clusterNode.getLocalNode())).run());
-                                cleanupActions.add(disconnectAction);
-                                final int delay = scaledRandomIntBetween(0, Math.toIntExact(TimeUnit.MINUTES.toMillis(rarely() ? 15 : 1)));
-                                deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + delay, disconnectAction);
-                            });
+                            cn -> deterministicTaskQueue.scheduleNow(cn.onNode(
+                                new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        cn.transportService.disconnectFromNode(clusterNode.getLocalNode());
+                                    }
+
+                                    @Override
+                                    public String toString() {
+                                        return "disconnect from " + clusterNode.getLocalNode() + " after shutdown";
+                                    }
+                                })));
                         clusterNodes.replaceAll(cn -> cn == clusterNode ? cn.restartedNode() : cn);
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNode();

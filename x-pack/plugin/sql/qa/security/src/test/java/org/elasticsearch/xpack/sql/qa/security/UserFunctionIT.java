@@ -203,7 +203,7 @@ public class UserFunctionIT extends ESRestTestCase {
     }
 
     private void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {

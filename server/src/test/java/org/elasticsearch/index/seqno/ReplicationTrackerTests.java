@@ -406,7 +406,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     private AtomicLong updatedGlobalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
 
     private ReplicationTracker newTracker(final AllocationId allocationId) {
-        return newTracker(allocationId, updatedGlobalCheckpoint::set);
+        return newTracker(allocationId, updatedGlobalCheckpoint::set, () -> 0L);
     }
 
     public void testWaitForAllocationIdToBeInSyncCanBeInterrupted() throws BrokenBarrierException, InterruptedException {
@@ -683,10 +683,10 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final AllocationId primaryAllocationId = clusterState.routingTable.primaryShard().allocationId();
         final LongConsumer onUpdate = updatedGlobalCheckpoint -> {};
         final long globalCheckpoint = UNASSIGNED_SEQ_NO;
-        ReplicationTracker oldPrimary =
-                new ReplicationTracker(shardId, primaryAllocationId.getId(), indexSettings, globalCheckpoint, onUpdate);
-        ReplicationTracker newPrimary =
-                new ReplicationTracker(shardId, primaryAllocationId.getRelocationId(), indexSettings, globalCheckpoint, onUpdate);
+        ReplicationTracker oldPrimary = new ReplicationTracker(
+                        shardId, primaryAllocationId.getId(), indexSettings, globalCheckpoint, onUpdate, () -> 0L);
+        ReplicationTracker newPrimary = new ReplicationTracker(
+                shardId, primaryAllocationId.getRelocationId(), indexSettings, globalCheckpoint, onUpdate, () -> 0L);
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
 

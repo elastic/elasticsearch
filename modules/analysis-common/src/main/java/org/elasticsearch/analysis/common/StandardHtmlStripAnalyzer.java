@@ -37,7 +37,10 @@ public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
     public StandardHtmlStripAnalyzer() {
         super(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
     }
-
+    /**
+     * @deprecated in 6.5, can not create in 7.0, and we remove this in 8.0
+     */
+    @Deprecated
     StandardHtmlStripAnalyzer(CharArraySet stopwords) {
         super(stopwords);
     }

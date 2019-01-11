@@ -246,6 +246,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
             };
             newAutoFollowers.put(remoteCluster, autoFollower);
+            LOGGER.info("starting auto follower for remote cluster [{}]", remoteCluster);
             autoFollower.start();
         }
 
@@ -256,9 +257,10 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             boolean exist = autoFollowMetadata.getPatterns().values().stream()
                 .anyMatch(pattern -> pattern.getRemoteCluster().equals(remoteCluster));
             if (exist == false) {
+                LOGGER.info("removing auto follower for remote cluster [{}]", remoteCluster);
                 removedRemoteClusters.add(remoteCluster);
             } else if (autoFollower.remoteClusterConnectionMissing) {
-                LOGGER.info("Retrying auto follower [{}] after remote cluster connection was missing", remoteCluster);
+                LOGGER.info("retrying auto follower [{}] after remote cluster connection was missing", remoteCluster);
                 autoFollower.remoteClusterConnectionMissing = false;
                 autoFollower.start();
             }

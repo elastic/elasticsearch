@@ -125,7 +125,7 @@ public class RefreshListenersTests extends ESTestCase {
             indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
             eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
             TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null,
-            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, Collections::emptySet,
+            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, Collections::emptyList,
                 () -> primaryTerm, EngineTestCase.tombstoneDocSupplier());
         engine = new InternalEngine(config);
         engine.initializeMaxSeqNoOfUpdatesOrDeletes();
@@ -264,6 +264,7 @@ public class RefreshListenersTests extends ESTestCase {
      * adding listeners. This can catch the situation where a refresh happens right as the listener is being added such that the listener
      * misses the refresh and has to catch the next one. If the listener wasn't able to properly catch the next one then this would fail.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37261")
     public void testConcurrentRefresh() throws Exception {
         AtomicBoolean run = new AtomicBoolean(true);
         Thread refresher = new Thread(() -> {

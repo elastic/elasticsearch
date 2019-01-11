@@ -602,13 +602,13 @@ public abstract class EngineTestCase extends ESTestCase {
         final LongSupplier globalCheckpointSupplier;
         final Supplier<Collection<RetentionLease>> retentionLeasesSupplier;
         if (maybeGlobalCheckpointSupplier == null) {
-            final ReplicationTracker replicationTracker =
-                    new ReplicationTracker(shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED, update -> {});
+            final ReplicationTracker replicationTracker = new ReplicationTracker(
+                    shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED, update -> {}, () -> 0L);
             globalCheckpointSupplier = replicationTracker;
             retentionLeasesSupplier = replicationTracker::getRetentionLeases;
         } else {
             globalCheckpointSupplier = maybeGlobalCheckpointSupplier;
-            retentionLeasesSupplier = Collections::emptySet;
+            retentionLeasesSupplier = Collections::emptyList;
         }
         EngineConfig config = new EngineConfig(shardId, allocationId.getId(), threadPool, indexSettings, null, store,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,

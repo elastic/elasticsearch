@@ -490,6 +490,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
                 anonymousUser, tokenService, apiKeyService));
         components.add(authcService.get());
+        securityIndex.get().addIndexStateListener(authcService.get()::onSecurityIndexStateChange);
 
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser, apiKeyService, fieldPermissionsCache);

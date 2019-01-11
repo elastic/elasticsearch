@@ -20,10 +20,10 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -50,35 +50,20 @@ import java.util.function.Consumer;
  */
 
 public final class StepListener<Response> implements ActionListener<Response> {
-    private volatile boolean done = false;
-    private volatile Response result = null;
-    private volatile Exception error = null;
-    private final List<ActionListener<Response>> listeners = new ArrayList<>();
+    private final ListenableFuture<Response> delegate;
+
+    public StepListener() {
+        this.delegate = new ListenableFuture<>();
+    }
 
     @Override
     public void onResponse(Response response) {
-        if (onComplete(response, null)) {
-            ActionListener.onResponse(listeners, response);
-        }
+        delegate.onResponse(response);
     }
 
     @Override
     public void onFailure(Exception e) {
-        if (onComplete(null, e)) {
-            ActionListener.onFailure(listeners, e);
-        }
-    }
-
-    /** Returns {@code true} if this method changed the state of this step listener */
-    private synchronized boolean onComplete(Response response, Exception e) {
-        if (done == false) {
-            this.error = e;
-            this.result = response;
-            this.done = true;
-            return true;
-        } else {
-            return false;
-        }
+        delegate.onFailure(e);
     }
 
     /**
@@ -89,34 +74,16 @@ public final class StepListener<Response> implements ActionListener<Response> {
      * @param onFailure  is called when this step is completed with a failure
      */
     public void whenComplete(CheckedConsumer<Response, Exception> onResponse, Consumer<Exception> onFailure) {
-        final ActionListener<Response> listener = ActionListener.wrap(onResponse, onFailure);
-        final boolean ready;
-        synchronized (this) {
-            ready = done;
-            if (ready == false) {
-                listeners.add(listener);
-            }
-        }
-        if (ready) {
-            if (error == null) {
-                ActionListener.onResponse(Collections.singletonList(listener), result);
-            } else {
-                ActionListener.onFailure(Collections.singletonList(listener), error);
-            }
-        }
+        delegate.addListener(ActionListener.wrap(onResponse, onFailure), EsExecutors.newDirectExecutorService(), null);
     }
 
     /**
-     * Gets the result of this step. This method will throw {@link IllegalArgumentException}
-     * if this step is not completed yet or completed with a failure.
+     * Gets the result of this step. This method will throw {@link IllegalStateException} if this step is not completed yet.
      */
     public Response result() {
-        if (done == false) {
+        if (delegate.isDone() == false) {
             throw new IllegalStateException("step is not completed yet");
         }
-        if (error != null) {
-            throw new IllegalStateException("step is completed with a failure", error);
-        }
-        return result;
+        return FutureUtils.get(delegate);
     }
 }

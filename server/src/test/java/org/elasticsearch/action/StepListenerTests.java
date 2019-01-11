@@ -90,15 +90,16 @@ public class StepListenerTests extends ESTestCase {
         step2.whenComplete(length -> latch.countDown(), onFailure);
         latch.await();
         assertThat(failureNotified.get(), equalTo(1));
+
         if (failedStep == 1) {
-            assertThat(expectThrows(IllegalStateException.class, step1::result).getMessage(),
-                equalTo("step is completed with a failure"));
-            assertThat(expectThrows(IllegalStateException.class, step2::result).getMessage(),
+            assertThat(expectThrows(RuntimeException.class, step1::result).getMessage(),
+                equalTo("failed at step 1"));
+            assertThat(expectThrows(RuntimeException.class, step2::result).getMessage(),
                 equalTo("step is not completed yet"));
         } else {
             assertThat(step1.result(), equalTo("hello"));
-            assertThat(expectThrows(IllegalStateException.class, step2::result).getMessage(),
-                equalTo("step is completed with a failure"));
+            assertThat(expectThrows(RuntimeException.class, step2::result).getMessage(),
+                equalTo("failed at step 2"));
         }
     }
 

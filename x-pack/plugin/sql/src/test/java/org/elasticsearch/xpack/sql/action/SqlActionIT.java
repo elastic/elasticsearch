@@ -18,8 +18,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class SqlActionIT extends AbstractSqlIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37191")
-    public void testSqlAction() throws Exception {
+    public void testSqlAction() {
         assertAcked(client().admin().indices().prepareCreate("test").get());
         client().prepareBulk()
                 .add(new IndexRequest("test", "doc", "1").source("data", "bar", "count", 42))

@@ -34,7 +34,7 @@ import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialBasicS
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialOrPlatinumMode;
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37191")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37320")
 public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     @Override
     protected boolean ignoreExternalCluster() {

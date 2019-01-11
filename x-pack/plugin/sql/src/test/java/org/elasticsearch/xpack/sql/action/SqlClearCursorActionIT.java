@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -17,10 +16,9 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37191")
 public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
-    public void testSqlClearCursorAction() throws Exception {
+    public void testSqlClearCursorAction() {
         assertAcked(client().admin().indices().prepareCreate("test").get());
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         int indexSize = randomIntBetween(100, 300);
@@ -50,7 +48,7 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
         assertEquals(0, getNumberOfSearchContexts());
     }
 
-    public void testAutoCursorCleanup() throws Exception {
+    public void testAutoCursorCleanup() {
         assertAcked(client().admin().indices().prepareCreate("test").get());
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         int indexSize = randomIntBetween(100, 300);
@@ -77,7 +75,7 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
         do {
             sqlQueryResponse = client().prepareExecute(SqlQueryAction.INSTANCE).cursor(sqlQueryResponse.cursor()).get();
             fetched += sqlQueryResponse.size();
-        } while (sqlQueryResponse.cursor().equals("") == false);
+        } while (sqlQueryResponse.cursor().isEmpty() == false);
         assertEquals(indexSize, fetched);
 
         SqlClearCursorResponse cleanCursorResponse = client().prepareExecute(SqlClearCursorAction.INSTANCE)

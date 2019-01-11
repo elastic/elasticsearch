@@ -201,10 +201,11 @@ chunks, as this will slow things down.
 [[bulk-optimistic-concurrency-control]]
 === Optimistic Concurrency Control
 
-Each index and delete bulk item can include the `if_seq_no` and `if_primary_term`
-parameters in their respective action and meta data lines. These parameters
-allow controlling how these operations will be performed based on the last
-modification to existing documents. See <<optimistic-concurrency-control>> for more details.
+Each `index` and `delete` action within a bulk API call may include the
+`if_seq_no` and `if_primary_term` parameters in their respective action
+and meta data lines. The `if_seq_no` and `if_primary_term` parameters control
+how operations are executed, based on the last modification to existing
+documents. See <<optimistic-concurrency-control>> for more details.
 
 
 [float]

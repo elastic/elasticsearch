@@ -304,7 +304,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ensureGreen();
         final String nodeWithoutData = randomFrom(dataNodes);
         final int shardId = 0;
-        Throwable iae = expectThrows(
+        IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> client().admin().cluster().prepareReroute()
                 .add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true)).get());

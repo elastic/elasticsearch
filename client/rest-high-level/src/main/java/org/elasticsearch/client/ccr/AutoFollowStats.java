@@ -47,7 +47,9 @@ public final class AutoFollowStats {
     static final ParseField LAST_SEEN_METADATA_VERSION = new ParseField("last_seen_metadata_version");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<AutoFollowStats, Void> STATS_PARSER = new ConstructingObjectParser<>("auto_follow_stats",
+    static final ConstructingObjectParser<AutoFollowStats, Void> STATS_PARSER = new ConstructingObjectParser<>(
+        "auto_follow_stats",
+        true,
         args -> new AutoFollowStats(
             (Long) args[0],
             (Long) args[1],
@@ -65,11 +67,13 @@ public final class AutoFollowStats {
     static final ConstructingObjectParser<Map.Entry<String, Tuple<Long, ElasticsearchException>>, Void> AUTO_FOLLOW_EXCEPTIONS_PARSER =
         new ConstructingObjectParser<>(
             "auto_follow_stats_errors",
+            true,
             args -> new AbstractMap.SimpleEntry<>((String) args[0], Tuple.tuple((Long) args[1], (ElasticsearchException) args[2])));
 
     private static final ConstructingObjectParser<Map.Entry<String, AutoFollowedCluster>, Void> AUTO_FOLLOWED_CLUSTERS_PARSER =
         new ConstructingObjectParser<>(
             "auto_followed_clusters",
+            true,
             args -> new AbstractMap.SimpleEntry<>((String) args[0], new AutoFollowedCluster((Long) args[1], (Long) args[2])));
 
     static {

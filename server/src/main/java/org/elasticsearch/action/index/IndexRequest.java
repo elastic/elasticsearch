@@ -31,6 +31,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -82,7 +83,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     static final int MAX_SOURCE_LENGTH_IN_TOSTRING = 2048;
 
-    private String type = MapperService.SINGLE_MAPPING_NAME;
+    // Set to null initially so we can know to override in bulk requests that have a default type.
+    private String type;
     private String id;
     @Nullable
     private String routing;
@@ -152,11 +154,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (type == null) {
-            validationException = addValidationError("type is missing", validationException);
-        }
         if (source == null) {
             validationException = addValidationError("source is missing", validationException);
+        }
+        if (Strings.isEmpty(type())) {
+            validationException = addValidationError("type is missing", validationException);
         }
         if (contentType == null) {
             validationException = addValidationError("content type is missing", validationException);
@@ -239,6 +241,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Deprecated
     @Override
     public String type() {
+        if (type == null) {
+            return MapperService.SINGLE_MAPPING_NAME;                    
+        }
         return type;
     }
 
@@ -253,6 +258,20 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * Set the default type supplied to a bulk
+     * request if this individual request's type is null
+     * or empty
+     * @deprecated Types are in the process of being removed.
+     */
+    @Deprecated
+    @Override
+    public IndexRequest defaultTypeIfNull(String defaultType) {
+        if (Strings.isNullOrEmpty(type)) {
+            type = defaultType;
+        }
+        return this;
+    }      
     /**
      * The id of the indexed document. If not set, will be automatically generated.
      */
@@ -563,7 +582,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (mappingMd != null) {
             // might as well check for routing here
             if (mappingMd.routing().required() && routing == null) {
-                throw new RoutingMissingException(concreteIndex, type, id);
+                throw new RoutingMissingException(concreteIndex, type(), id);
             }
         }
 
@@ -629,7 +648,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(type);
+        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
+        // So we use the type accessor method here to make the type non-null (will default it to "_doc"). 
+        out.writeOptionalString(type());
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         if (out.getVersion().before(Version.V_7_0_0)) {
@@ -679,7 +700,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } catch (Exception e) {
             // ignore
         }
-        return "index {[" + index + "][" + type + "][" + id + "], source[" + sSource + "]}";
+        return "index {[" + index + "][" + type() + "][" + id + "], source[" + sSource + "]}";
     }
 
 

@@ -74,7 +74,7 @@ public class SearchIT extends AbstractRollingTestCase {
             search("single-old");
         }
         if (CLUSTER_TYPE == ClusterType.MIXED) {
-            waitForGreen();
+            waitForGreen("single-old");
             if (indexExists("single-mixed") == false) {
                 index("single-mixed");
             }
@@ -82,7 +82,7 @@ public class SearchIT extends AbstractRollingTestCase {
             search("single-mixed");
         }
         if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            waitForGreen();
+            waitForGreen("single-old,single-mixed");
             index("single-upgraded");
             search("single-old");
             search("single-mixed");
@@ -103,7 +103,7 @@ public class SearchIT extends AbstractRollingTestCase {
             index("multi-old", document);
         }
         if (CLUSTER_TYPE == ClusterType.MIXED) {
-            waitForGreen();
+            waitForGreen("multi-old");
             if (indexExists("multi-mixed") == false) {
                 createIndex("multi-mixed", Settings.builder().put("index.number_of_shards", randomBoolean() ? 1 : 2)
                     .put("index.number_of_replicas", 0).build());
@@ -112,7 +112,7 @@ public class SearchIT extends AbstractRollingTestCase {
             }
         }
         if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            waitForGreen();
+            waitForGreen("multi-old,multi-mixed");
             createIndex("multi-upgraded", Settings.builder().put("index.similarity.default.type", "LegacyBM25").build());
             //index the last document in an index created after the upgrade, which has explicitly set LegacyBM25
             indexNewDocs("multi-upgraded", 1);
@@ -136,8 +136,8 @@ public class SearchIT extends AbstractRollingTestCase {
         return client().performRequest(existsRequest).getStatusLine().getStatusCode() == 200;
     }
 
-    private static void waitForGreen() throws IOException {
-        Request waitForGreen = new Request("GET", "/_cluster/health");
+    private static void waitForGreen(String index) throws IOException {
+        Request waitForGreen = new Request("GET", "/_cluster/health/" + index);
         waitForGreen.addParameter("wait_for_nodes", "3");
         waitForGreen.addParameter("wait_for_status", "green");
         waitForGreen.addParameter("timeout", "70s");

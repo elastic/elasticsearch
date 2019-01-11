@@ -1239,7 +1239,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     public void testSingleValueWithMultipleDateFormatsFromMapping() throws Exception {
         String mappingJson = Strings.toString(jsonBuilder().startObject()
                 .startObject("type").startObject("properties")
-                .startObject("date").field("type", "date").field("format", "dateOptionalTime||dd-MM-yyyy")
+                .startObject("date").field("type", "date").field("format", "strict_date_optional_time||dd-MM-yyyy")
                 .endObject().endObject().endObject().endObject());
         prepareCreate("idx2").addMapping("type", mappingJson, XContentType.JSON).get();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];

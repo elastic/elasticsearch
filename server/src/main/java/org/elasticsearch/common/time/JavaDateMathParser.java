@@ -21,7 +21,6 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
 
-import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalTime;
@@ -220,7 +219,7 @@ public class JavaDateMathParser implements DateMathParser {
 
                 return DateFormatters.toZonedDateTime(accessor).withZoneSameLocal(timeZone).toInstant();
             }
-        } catch (IllegalArgumentException | DateTimeException e) {
+        } catch (IllegalArgumentException e) {
             throw new ElasticsearchParseException("failed to parse date field [{}]: [{}]", e, value, e.getMessage());
         }
     }

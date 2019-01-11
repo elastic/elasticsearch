@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class JodaDateMathParserTests extends ESTestCase {
 
-    DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime||epoch_millis");
+    DateFormatter formatter = Joda.forPattern("dateOptionalTime||epoch_millis");
     DateMathParser parser = formatter.toDateMathParser();
 
     void assertDateMathEquals(String toTest, String expected) {

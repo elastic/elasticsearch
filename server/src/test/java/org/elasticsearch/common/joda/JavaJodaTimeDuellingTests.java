@@ -81,8 +81,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     public void testDuellingFormatsValidParsing() {
         assertSameDate("1522332219", "epoch_second");
-        assertSameDate("1522332219.", "epoch_second");
-        assertSameDate("1522332219.0", "epoch_second");
         assertSameDate("0", "epoch_second");
         assertSameDate("1", "epoch_second");
         assertSameDate("1522332219321", "epoch_millis");
@@ -144,10 +142,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-12-31T12:12:12.1", "date_hour_minute_second_millis");
         assertSameDate("2018-12-31T12:12:12.1", "date_hour_minute_second_fraction");
 
-        assertSameDate("10000", "date_optional_time");
-        assertSameDate("10000T", "date_optional_time");
-        assertSameDate("2018", "date_optional_time");
-        assertSameDate("2018T", "date_optional_time");
+        // this is valid anymore when using java time, you need at least a month
+//        assertSameDate("10000", "date_optional_time");
+//        assertSameDate("10000T", "date_optional_time");
+//        assertSameDate("2018", "date_optional_time");
+//        assertSameDate("2018T", "date_optional_time");
         assertSameDate("2018-05", "date_optional_time");
         assertSameDate("2018-05-30", "date_optional_time");
         assertSameDate("2018-05-30T20", "date_optional_time");
@@ -627,10 +626,19 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     public void testSeveralTimeFormats() {
-        DateFormatter jodaFormatter = Joda.forPattern("year_month_day||ordinal_date");
-        DateFormatter javaFormatter = DateFormatter.forPattern("year_month_day||ordinal_date");
-        assertSameDate("2018-12-12", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
-        assertSameDate("2018-128", "year_month_day||ordinal_date", jodaFormatter, javaFormatter);
+        {
+            String format = "year_month_day||ordinal_date";
+            DateFormatter jodaFormatter = Joda.forPattern(format);
+            DateFormatter javaFormatter = DateFormatter.forPattern(format);
+            assertSameDate("2018-12-12", format, jodaFormatter, javaFormatter);
+            assertSameDate("2018-128", format, jodaFormatter, javaFormatter);
+        }
+        {
+            String format = "strictDateOptionalTime||dd-MM-yyyy";
+            DateFormatter jodaFormatter = Joda.forPattern(format);
+            DateFormatter javaFormatter = DateFormatter.forPattern(format);
+            assertSameDate("31-01-2014", format, jodaFormatter, javaFormatter);
+        }
     }
 
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {

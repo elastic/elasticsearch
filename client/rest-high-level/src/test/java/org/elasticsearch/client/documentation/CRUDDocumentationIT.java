@@ -701,7 +701,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new IndexRequest("posts").id("4")  // <3>
                     .source(XContentType.JSON,"field", "baz"));
             // end::bulk-request-with-mixed-operations
-            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
+            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT); 
             assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
 
@@ -758,7 +758,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::bulk-request-routing
 
             // tag::bulk-request-index-type
-            BulkRequest defaulted = new BulkRequest("posts","_doc"); // <1>
+            BulkRequest defaulted = new BulkRequest("posts"); // <1>
             // end::bulk-request-index-type
 
             // tag::bulk-execute-listener

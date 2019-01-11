@@ -78,7 +78,7 @@ public class AnalyticsProcessManager {
     }
 
     private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess process) throws IOException {
-        // The extra fields are for the id hash and the control field (should be an empty string)
+        // The extra fields are for the doc hash and the control field (should be an empty string)
         String[] record = new String[dataExtractor.getFieldNames().size() + 2];
         // The value of the control field should be an empty string for data frame rows
         record[record.length - 1] = "";
@@ -90,7 +90,7 @@ public class AnalyticsProcessManager {
                     if (row.shouldSkip() == false) {
                         String[] rowValues = row.getValues();
                         System.arraycopy(rowValues, 0, record, 0, rowValues.length);
-                        record[record.length - 2] = row.getIdHash();
+                        record[record.length - 2] = String.valueOf(row.getChecksum());
                         process.writeRecord(record);
                     }
                 }
@@ -102,7 +102,7 @@ public class AnalyticsProcessManager {
         List<String> fieldNames = dataExtractor.getFieldNames();
 
         // We add 2 extra fields, both named dot:
-        //   - the document id hash
+        //   - the document hash
         //   - the control message
         String[] headerRecord = new String[fieldNames.size() + 2];
         for (int i = 0; i < fieldNames.size(); i++) {

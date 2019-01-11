@@ -109,7 +109,10 @@ public class DataFrameDataExtractorFactory {
         Set<String> fields = fieldCapabilitiesResponse.get().keySet();
         fields.removeAll(IGNORE_FIELDS);
         removeFieldsWithIncompatibleTypes(fields, fieldCapabilitiesResponse);
-        ExtractedFields extractedFields = ExtractedFields.build(new ArrayList<>(fields), Collections.emptySet(), fieldCapabilitiesResponse)
+        List<String> sortedFields = new ArrayList<>(fields);
+        // We sort the fields to ensure the checksum for each document is deterministic
+        Collections.sort(sortedFields);
+        ExtractedFields extractedFields = ExtractedFields.build(sortedFields, Collections.emptySet(), fieldCapabilitiesResponse)
                 .filterFields(ExtractedField.ExtractionMethod.DOC_VALUE);
         if (extractedFields.getAllFields().isEmpty()) {
             throw ExceptionsHelper.badRequestException("No compatible fields could be detected");

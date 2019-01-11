@@ -96,7 +96,7 @@ public class AnalyticsResultProcessor {
                 continue;
             }
             AnalyticsResult result = currentResults.get(i);
-            checkIdHashesMatch(row, result);
+            checkChecksumsMatch(row, result);
 
             SearchHit hit = row.getHit();
             Map<String, Object> source = new LinkedHashMap(hit.getSourceAsMap());
@@ -115,13 +115,13 @@ public class AnalyticsResultProcessor {
         }
     }
 
-    private void checkIdHashesMatch(DataFrameDataExtractor.Row row, AnalyticsResult result) {
-        if (row.getIdHash().equals(result.getIdHash()) == false) {
-            StringBuilder msg = new StringBuilder();
-            msg.append("Detected id hash mismatch for document with id [" + row.getHit().getId() + "]; ");
-            msg.append("expected hash was [" + row.getIdHash() + "] but result had [" + result.getIdHash() + "]; ");
-            msg.append("this implies that the data frame index copy has been modified externally while analysis was running");
-            throw new IllegalStateException(msg.toString());
+    private void checkChecksumsMatch(DataFrameDataExtractor.Row row, AnalyticsResult result) {
+        if (row.getChecksum() != result.getChecksum()) {
+            String msg = "Detected checksum mismatch for document with id [" + row.getHit().getId() + "]; ";
+            msg += "expected [" + row.getChecksum() + "] but result had [" + result.getChecksum() + "]; ";
+            msg += "this implies the data frame index was modified while the analysis was running. ";
+            msg += "We rely on this index being immutable during a running analysis and so the results will be unreliable.";
+            throw new IllegalStateException(msg);
         }
     }
 }

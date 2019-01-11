@@ -342,6 +342,10 @@ public class ElasticsearchNode {
         if (Version.fromString(version).getMajor() >= 6) {
             config.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         }
+        if (Version.fromString(version).onOrAfter(Version.fromString("6.5.0"))) {
+            config.put("discovery.type", "zen2");
+            config.put("cluster.initial_master_nodes", "1");
+        }
         try {
             Files.write(
                 getConfigFile().toPath(),

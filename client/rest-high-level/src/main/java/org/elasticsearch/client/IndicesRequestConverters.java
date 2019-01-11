@@ -105,6 +105,7 @@ final class IndicesRequestConverters {
         parameters.withTimeout(createIndexRequest.timeout());
         parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
         parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
+        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         request.setEntity(RequestConverters.createEntity(createIndexRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;

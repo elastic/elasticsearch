@@ -3,6 +3,7 @@
 
   - do:
       indices.create:
+        include_type_name: true
         index: test_index
         body:
           mappings:
@@ -60,6 +61,7 @@
 
   - do:
       indices.create:
+        include_type_name: true
         index: test_index
         body:
           mappings:
@@ -116,6 +118,7 @@
   - do:
       catch: /illegal_argument_exception/
       indices.create:
+        include_type_name: true
         index: test_index
         body:
           mappings:
@@ -126,6 +129,7 @@
   - do:
       catch: /illegal_argument_exception/
       indices.create:
+        include_type_name: true
         index: test_index
         body:
           mappings:

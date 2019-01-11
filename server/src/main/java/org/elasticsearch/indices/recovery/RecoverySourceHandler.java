@@ -34,7 +34,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lease.Releasable;
@@ -72,7 +71,6 @@ import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -99,27 +97,7 @@ public class RecoverySourceHandler {
     private final StartRecoveryRequest request;
     private final int chunkSizeInBytes;
     private final RecoveryTargetHandler recoveryTarget;
-    private final AtomicReference<Consumer<Exception>> onCancel = new AtomicReference<>();
-
-    private final CancellableThreads cancellableThreads = new CancellableThreads() {
-        @Override
-        protected void onCancel(String reason, @Nullable Exception suppressedException) {
-            RuntimeException e;
-            if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
-                e = new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
-            } else {
-                e = new ExecutionCancelledException("recovery was canceled reason [" + reason + "]");
-            }
-            if (suppressedException != null) {
-                e.addSuppressed(suppressedException);
-            }
-            final Consumer<Exception> onCancelAction = onCancel.getAndSet(null);
-            if (onCancelAction != null) {
-                onCancelAction.accept(e);
-            }
-            throw e;
-        }
-    };
+    private final CancellableThreads cancellableThreads = new CancellableThreads();
 
     public RecoverySourceHandler(final IndexShard shard, RecoveryTargetHandler recoveryTarget,
                                  final StartRecoveryRequest request,
@@ -140,16 +118,22 @@ public class RecoverySourceHandler {
      * performs the recovery from the local engine to the target
      */
     public void recoverToTarget(ActionListener<RecoveryResponse> listener) {
-        final ActionListener<RecoveryResponse> wrappedListener = ActionListener.notifyOnce(listener);
         final List<Closeable> resources = new CopyOnWriteArrayList<>();
-        final Consumer<Exception> onFailure = e -> {
-            try {
-                wrappedListener.onFailure(e);
-            } finally {
-                IOUtils.closeWhileHandlingException(resources);
+        final ActionListener<RecoveryResponse> wrappedListener = ActionListener.notifyOnce(listener);
+        cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
+            final RuntimeException e;
+            if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
+                e = new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
+            } else {
+                e = new CancellableThreads.ExecutionCancelledException("recovery was canceled reason [" + reason + "]");
             }
-        };
-        onCancel.set(onFailure);
+            if (beforeCancelEx != null) {
+                e.addSuppressed(beforeCancelEx);
+            }
+            IOUtils.closeWhileHandlingException(resources);
+            wrappedListener.onFailure(e);
+            throw e;
+        });
         try {
             runUnderPrimaryPermit(() -> {
                 final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
@@ -260,7 +244,8 @@ public class RecoverySourceHandler {
                     sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis())
             );
         } catch (Exception e) {
-            onFailure.accept(e);
+            IOUtils.closeWhileHandlingException(resources);
+            wrappedListener.onFailure(e);
         }
     }
 

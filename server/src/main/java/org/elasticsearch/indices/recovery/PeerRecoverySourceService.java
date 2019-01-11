@@ -103,15 +103,7 @@ public class PeerRecoverySourceService implements IndexEventListener {
         RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);
         logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(),
             request.targetNode());
-        Runnable removeRecoveryHandler = () -> ongoingRecoveries.remove(shard, handler);
-        try {
-            handler.recoverToTarget(ActionListener.runAfter(listener, removeRecoveryHandler));
-            removeRecoveryHandler = null;
-        } finally {
-            if (removeRecoveryHandler != null) {
-                removeRecoveryHandler.run();
-            }
-        }
+        handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.remove(shard, handler)));
     }
 
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {

@@ -20,10 +20,12 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -31,7 +33,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -41,6 +46,14 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestGetIndicesAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetIndicesAction.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get indices requests will change in "
+            + "the next major version. Please start using the `include_type_name` parameter set to `false` in the request to "
+            + "move to the new, typeless response format that will be the default in 7.0.";
+
+    private static final Set<String> allowedResponseParameters = Collections
+            .unmodifiableSet(Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())
+                    .collect(Collectors.toSet()));
 
     public RestGetIndicesAction(
             final Settings settings,
@@ -58,6 +71,9 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        if (request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+            deprecationLogger.deprecatedAndMaybeLog("get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
         final GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(indices);
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
@@ -68,9 +84,12 @@ public class RestGetIndicesAction extends BaseRestHandler {
         return channel -> client.admin().indices().getIndex(getIndexRequest, new RestToXContentListener<>(channel));
     }
 
+    /**
+     * Parameters used for controlling the response and thus might not be consumed during
+     * preparation of the request execution in {@link BaseRestHandler#prepareRequest(RestRequest, NodeClient)}.
+     */
     @Override
     protected Set<String> responseParams() {
-        return Settings.FORMAT_PARAMS;
+        return allowedResponseParameters;
     }
-
 }

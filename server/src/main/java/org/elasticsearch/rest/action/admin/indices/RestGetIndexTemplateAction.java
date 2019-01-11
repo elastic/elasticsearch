@@ -49,8 +49,10 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMETERS = Collections.unmodifiableSet(Sets.union(
         Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER), Settings.FORMAT_PARAMS));
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetIndexTemplateAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get index template requests is deprecated. "
+    private static final DeprecationLogger deprecationLogger = 
+            new DeprecationLogger(LogManager.getLogger(RestGetIndexTemplateAction.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `" + INCLUDE_TYPE_NAME_PARAMETER
+            + "` in get index template requests is deprecated. "
             + "The parameter will be removed in the next major version.";
     public RestGetIndexTemplateAction(final Settings settings, final RestController controller) {
         super(settings);

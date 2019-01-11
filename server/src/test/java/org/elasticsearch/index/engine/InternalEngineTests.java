@@ -3011,7 +3011,7 @@ public class InternalEngineTests extends EngineTestCase {
                 new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), null,
-                new NoneCircuitBreakerService(), () -> UNASSIGNED_SEQ_NO, Collections::emptySet, primaryTerm::get,
+                new NoneCircuitBreakerService(), () -> UNASSIGNED_SEQ_NO, Collections::emptyList, primaryTerm::get,
                 tombstoneDocSupplier());
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 

@@ -1150,8 +1150,8 @@ public class CoordinatorTests extends ESTestCase {
                                 final Runnable disconnectAction = new RunOnce(() -> cn.onNode(
                                     () -> cn.transportService.disconnectFromNode(clusterNode.getLocalNode())).run());
                                 cleanupActions.add(disconnectAction);
-                                deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() +
-                                    scaledRandomIntBetween(0, Math.toIntExact(TimeUnit.SECONDS.toMillis(60))), disconnectAction);
+                                final int delay = scaledRandomIntBetween(0, Math.toIntExact(TimeUnit.MINUTES.toMillis(rarely() ? 15 : 1)));
+                                deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + delay, disconnectAction);
                             });
                         clusterNodes.replaceAll(cn -> cn == clusterNode ? cn.restartedNode() : cn);
                     } else if (rarely()) {

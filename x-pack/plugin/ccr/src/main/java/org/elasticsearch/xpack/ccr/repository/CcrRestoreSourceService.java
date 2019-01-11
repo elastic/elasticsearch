@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -141,17 +142,16 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         restore.decRef();
     }
 
-    public synchronized RestoreSession getRestoreSession(String sessionUUID) {
+    public synchronized SessionReader getSessionReader(String sessionUUID) {
         RestoreSession restore = onGoingRestores.get(sessionUUID);
         if (restore == null) {
             logger.debug("could not get session [{}] because session not found", sessionUUID);
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
-        restore.incRef();
-        return restore;
+        return new SessionReader(restore);
     }
 
-    public class RestoreSession extends AbstractRefCounted {
+    private class RestoreSession extends AbstractRefCounted {
 
         private final String sessionUUID;
         private final IndexShard indexShard;
@@ -174,7 +174,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             }
         }
 
-        public synchronized void readFileBytes(String fileName, BytesReference reference) throws IOException {
+        private synchronized void readFileBytes(String fileName, BytesReference reference) throws IOException {
             // Should not access this method while holding global lock as that might block the cluster state
             // update thread on IO if it calls afterIndexShardClosed
             assert Thread.holdsLock(CcrRestoreSourceService.this) == false : "Should not hold CcrRestoreSourceService lock";
@@ -222,6 +222,25 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                     }
                 }
             }
+        }
+    }
+
+    public static class SessionReader implements Closeable {
+
+        private final RestoreSession restoreSession;
+
+        private SessionReader(RestoreSession restoreSession) {
+            this.restoreSession = restoreSession;
+            restoreSession.incRef();
+        }
+
+        public synchronized void readFileBytes(String fileName, BytesReference reference) throws IOException {
+            restoreSession.readFileBytes(fileName, reference);
+        }
+
+        @Override
+        public void close() {
+            restoreSession.decRef();
         }
     }
 }

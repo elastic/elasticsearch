@@ -150,11 +150,8 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         }
 
         BytesArray byteArray = new BytesArray(actualBytes);
-        CcrRestoreSourceService.RestoreSession session = restoreSourceService.getRestoreSession(sessionUUID1);
-        try {
-            session.readFileBytes(fileName, byteArray);
-        } finally {
-            session.decRef();
+        try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID1)) {
+            sessionReader.readFileBytes(fileName, byteArray);
         }
 
         assertArrayEquals(expectedBytes, actualBytes);
@@ -175,19 +172,14 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         ArrayList<StoreFileMetaData> files = new ArrayList<>();
         indexShard.snapshotStoreMetadata().forEach(files::add);
-        CcrRestoreSourceService.RestoreSession session = restoreSourceService.getRestoreSession(sessionUUID1);
-        try {
-            session.readFileBytes(files.get(0).name(), new BytesArray(new byte[10]));
-        } finally {
-            session.decRef();
+
+        try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID1)) {
+            sessionReader.readFileBytes(files.get(0).name(), new BytesArray(new byte[10]));
         }
 
         // Request a second file to ensure that original file is not leaked
-        session = restoreSourceService.getRestoreSession(sessionUUID1);
-        try {
-            session.readFileBytes(files.get(0).name(), new BytesArray(new byte[10]));
-        } finally {
-            session.decRef();
+        try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID1)) {
+            sessionReader.readFileBytes(files.get(1).name(), new BytesArray(new byte[10]));
         }
 
         restoreSourceService.closeSession(sessionUUID1);

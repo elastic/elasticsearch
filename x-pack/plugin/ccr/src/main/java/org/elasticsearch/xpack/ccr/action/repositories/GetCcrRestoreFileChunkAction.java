@@ -83,12 +83,9 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
                     // This is currently safe to do because calling `onResponse` will serialize the bytes to the network layer data
                     // structure on the same thread. So the bytes will be copied before the reference is released.
                     try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(array, bytesRequested, array)) {
-                        CcrRestoreSourceService.RestoreSession session = restoreSourceService.getRestoreSession(sessionUUID);
-                        try {
-                            session.readFileBytes(fileName, reference);
+                        try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
+                            sessionReader.readFileBytes(fileName, reference);
                             listener.onResponse(new GetCcrRestoreFileChunkResponse(reference));
-                        } finally {
-                            session.decRef();
                         }
                     }
                 }

@@ -31,20 +31,21 @@ import java.util.function.Consumer;
  * multiple asynchronous steps without having nested callbacks. For example:
  *
  * <pre>{@code
- *  StepListener<R1> step1 = new StepListener<>();
- *  asyncStep1(..., step1);
- *
- *  StepListener<R2> step2 = new StepListener<>();
- *  step1.whenComplete(r1 -> {
+ *  void asyncFlowMethod(... ActionListener<R> flowListener) {
+ *    StepListener<R1> step1 = new StepListener<>();
+ *    asyncStep1(..., step1);
+
+ *    StepListener<R2> step2 = new StepListener<>();
+ *    step1.whenComplete(r1 -> {
  *      asyncStep2(r1, ..., step2);
- *  }, onFailure);
+ *    }, flowListener::onFailure);
  *
- *  step2.whenComplete(r2 -> {
+ *    step2.whenComplete(r2 -> {
  *      R1 r1 = step1.result();
  *      R r = combine(r1, r2);
- *     outerListener.onResponse(r);
- *  }, onFailure);
- *
+ *     flowListener.onResponse(r);
+ *    }, flowListener::onFailure);
+ *  }
  * }</pre>
  */
 
@@ -81,7 +82,7 @@ public final class StepListener<Response> implements ActionListener<Response> {
     }
 
     /**
-     * Registers the given actions which are invoked this step is completed. If this step is completed successfully,
+     * Registers the given actions which are called when this step is completed. If this step is completed successfully,
      * the {@code onResponse} is called with the result; otherwise the {@code onFailure} is called with the failure.
      *
      * @param onResponse is called when this step is completed successfully

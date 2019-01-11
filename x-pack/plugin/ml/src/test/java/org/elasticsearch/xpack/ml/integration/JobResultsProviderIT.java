@@ -379,7 +379,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Quantiles quantiles = new Quantiles(jobId, new Date(), "quantile-state");
         indexQuantiles(quantiles);
 
-        client().admin().indices().prepareRefresh(MlMetaIndex.INDEX_NAME, AnomalyDetectorsIndex.jobStateIndexName(),
+        client().admin().indices().prepareRefresh(MlMetaIndex.INDEX_NAME, AnomalyDetectorsIndex.jobStateIndexPattern(),
                 AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).get();
 
 

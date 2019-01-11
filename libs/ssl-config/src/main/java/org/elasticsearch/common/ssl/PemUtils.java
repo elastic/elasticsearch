@@ -593,7 +593,11 @@ final class PemUtils {
         List<Certificate> certificates = new ArrayList<>(certPaths.size());
         for (Path path : certPaths) {
             try (InputStream input = Files.newInputStream(path)) {
-                certificates.addAll(certFactory.generateCertificates(input));
+                final Collection<? extends Certificate> parsed = certFactory.generateCertificates(input);
+                if (parsed.isEmpty()) {
+                    throw new SslConfigException("failed to parse any certificates from [" + path.toAbsolutePath() + "]");
+                }
+                certificates.addAll(parsed);
             }
         }
         return certificates;

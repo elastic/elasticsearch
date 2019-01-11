@@ -190,6 +190,7 @@ public class SslConfigurationLoaderTests extends ESTestCase {
     }
 
     public void testLoadKeysFromJKS() {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Settings.Builder builder = Settings.builder()
             .put("test.ssl.keystore.path", "cert-all/certs.jks");
         if (randomBoolean()) {

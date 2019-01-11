@@ -63,6 +63,13 @@ public class PemTrustConfigTests extends ESTestCase {
         assertInvalidFileFormat(trustConfig, ca);
     }
 
+    public void testEmptyFileFails() throws Exception {
+        final Path ca = createTempFile("ca", ".crt");
+        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(ca));
+        assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ca));
+        assertEmptyFile(trustConfig, ca);
+    }
+
     public void testMissingFileFailsWithMeaningfulMessage() throws Exception {
         final Path cert = getDataPath("/certs/ca1/ca.crt").getParent().resolve("dne.crt");
         final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(cert));
@@ -114,11 +121,22 @@ public class PemTrustConfigTests extends ESTestCase {
         assertThat(issuerNames, Matchers.containsInAnyOrder(caNames));
     }
 
-    private void assertInvalidFileFormat(PemTrustConfig trustConfig, Path file) {
+    private void assertEmptyFile(PemTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
+        assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
+        assertThat(exception.getMessage(), Matchers.containsString("failed to parse any certificates"));
+    }
+
+    private void assertInvalidFileFormat(PemTrustConfig trustConfig, Path file) {
+        if (inFipsJvm()) {
+            // When running on BC-FIPS, an invalid file format behaves like an empty file
+            assertEmptyFile(trustConfig, file);
+            return;
+        }
+        final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
+        assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
         assertThat(exception.getMessage(), Matchers.containsString("cannot create trust"));
         assertThat(exception.getMessage(), Matchers.containsString("PEM"));
-        assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
         assertThat(exception.getCause(), Matchers.instanceOf(GeneralSecurityException.class));
     }
 

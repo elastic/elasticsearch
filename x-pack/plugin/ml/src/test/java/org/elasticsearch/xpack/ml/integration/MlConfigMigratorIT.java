@@ -120,6 +120,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         assertNull(alreadyMigratedJob.getCustomSettings());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37374")
     public void testMigrateConfigs() throws InterruptedException, IOException {
         // and jobs and datafeeds clusterstate
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();

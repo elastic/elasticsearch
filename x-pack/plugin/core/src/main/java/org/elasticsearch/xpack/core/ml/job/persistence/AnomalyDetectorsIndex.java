@@ -44,7 +44,15 @@ public final class AnomalyDetectorsIndex {
      * @return The index name
      */
     public static String jobStateIndexName() {
-        return AnomalyDetectorsIndexFields.STATE_INDEX_NAME;
+        return AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
+    }
+
+    /**
+     * The name pattern to capture all .ml-state prefixed indices
+     * @return The .ml-state index pattern
+     */
+    public static String jobStateIndexPattern() {
+        return AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "*";
     }
 
     /**

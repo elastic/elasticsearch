@@ -210,6 +210,18 @@ SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVI
 aggCountOnDistinctColumnAndHavingOnAliasAndFunctionConstantMultiGroupBy
 SELECT gender g, languages l, COUNT(DISTINCT last_name) c FROM "test_emp" GROUP BY g, l HAVING c > 5 AND COUNT(1) < 70 ORDER BY gender, languages;
 
+aggCount
+SELECT COUNT(last_name) c FROM test_emp;
+aggCountAndCountDistinct
+SELECT COUNT(last_name) c, COUNT(DISTINCT last_name) distinct_names FROM test_emp;
+aggCountAndCountDistinctWithHaving
+SELECT COUNT(last_name) c, COUNT(DISTINCT last_name) distinct_names, gender FROM test_emp GROUP BY gender HAVING distinct_names > 10 ORDER BY gender;
+aggCountMultiComparisonWithHaving
+SELECT COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn, COUNT(distinct first_name) dfn, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING dln>5 AND ln>32 AND dfn>1 AND fn>1 AND ccc>5 ORDER BY gender DESC;
+aggCountMultiComparisonWithHavingAndNullGrouping
+SELECT gender, COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn, COUNT(distinct first_name) dfn, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING dln>1 AND ln>1 AND dfn>1 AND fn>1 AND ccc>1 ORDER BY gender DESC;
+aggCountWithHavingAndWhere
+SELECT COUNT(last_name) c, COUNT(DISTINCT last_name) distinct_names, gender FROM test_emp WHERE salary > 65000 GROUP BY gender HAVING distinct_names > 10 ORDER BY gender;
 
 // MIN
 aggMinImplicit

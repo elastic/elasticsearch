@@ -145,17 +145,19 @@ public final class MlTasks {
      */
     public static Set<String> unallocatedJobIds(@Nullable PersistentTasksCustomMetaData tasks,
                                                 DiscoveryNodes nodes) {
-        if (tasks == null) {
-            return Collections.emptySet();
-        }
-
-        return tasks.findTasks(JOB_TASK_NAME, task -> true)
-                .stream()
-                .filter(task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes))
-                .map(t -> t.getId().substring(JOB_TASK_ID_PREFIX.length()))
+        return unallocatedJobTasks(tasks, nodes).stream()
+                .map(task ->task.getId().substring(JOB_TASK_ID_PREFIX.length()))
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * The job tasks that do not have an allocation as determined by
+     * {@link PersistentTasksClusterService#needsReassignment(PersistentTasksCustomMetaData.Assignment, DiscoveryNodes)}
+     *
+     * @param tasks Persistent tasks. If null an empty set is returned.
+     * @param nodes The cluster nodes
+     * @return Unallocated job tasks
+     */
     public static Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedJobTasks(
             @Nullable PersistentTasksCustomMetaData tasks,
             DiscoveryNodes nodes) {
@@ -196,6 +198,23 @@ public final class MlTasks {
      */
     public static Set<String> unallocatedDatafeedIds(@Nullable PersistentTasksCustomMetaData tasks,
                                                 DiscoveryNodes nodes) {
+
+        return unallocatedDatafeedTasks(tasks, nodes).stream()
+                .map(task -> task.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * The datafeed tasks that do not have an allocation as determined by
+     * {@link PersistentTasksClusterService#needsReassignment(PersistentTasksCustomMetaData.Assignment, DiscoveryNodes)}
+     *
+     * @param tasks Persistent tasks. If null an empty set is returned.
+     * @param nodes The cluster nodes
+     * @return Unallocated datafeed tasks
+     */
+    public static Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedDatafeedTasks(
+            @Nullable PersistentTasksCustomMetaData tasks,
+            DiscoveryNodes nodes) {
         if (tasks == null) {
             return Collections.emptySet();
         }
@@ -203,8 +222,7 @@ public final class MlTasks {
         return tasks.findTasks(DATAFEED_TASK_NAME, task -> true)
                 .stream()
                 .filter(task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes))
-                .map(t -> t.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
-                .collect(Collectors.toSet());
+                .collect(Collectors.toList());
     }
 
     /**

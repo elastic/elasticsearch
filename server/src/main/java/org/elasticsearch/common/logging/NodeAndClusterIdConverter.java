@@ -85,7 +85,7 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter im
     }
 
     private static String formatIds(String clusterUUID, String nodeId) {
-        return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\", ", clusterUUID, nodeId);
+        return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
     }
 }
 

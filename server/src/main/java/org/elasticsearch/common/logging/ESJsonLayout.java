@@ -56,8 +56,8 @@ public class ESJsonLayout extends AbstractStringLayout {
         "\"component\": \"%c{1.}\", " +
         "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
         "\"node.name\": \"%node_name\", " +
-        "%node_and_cluster_id " +
-        "\"message\": \"%enc{%.-10000m}{JSON}\" " +
+        "%notEmpty{%node_and_cluster_id, } " +
+        "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\" " +
         "%exceptionAsJson " +
         "}%n";
 

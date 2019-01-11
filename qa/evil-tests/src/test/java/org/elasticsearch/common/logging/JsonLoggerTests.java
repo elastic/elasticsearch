@@ -28,6 +28,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
@@ -69,11 +70,10 @@ public class JsonLoggerTests extends ESTestCase {
         testLogger.info("This is an info message");
         testLogger.debug("This is a debug message");
         testLogger.trace("This is a trace message");
-        final String path =
-            System.getProperty("es.logs.base_path") +
-                System.getProperty("file.separator") +
-                System.getProperty("es.logs.cluster_name") +
-                ".log";
+        final String path = System.getProperty("es.logs.base_path") +
+            System.getProperty("file.separator") +
+            System.getProperty("es.logs.cluster_name") +
+            ".log";
 
         try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(path))) {
             assertThat(jsonLogs, Matchers.contains(
@@ -83,6 +83,30 @@ public class JsonLoggerTests extends ESTestCase {
                 logLine("file", Level.DEBUG, "sample-name", "test", "This is a debug message"),
                 logLine("file", Level.TRACE, "sample-name", "test", "This is a trace message")
             ));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPrefixLoggerInJson() throws IOException, UserException {
+        setupLogging("json_layout");
+
+        Logger shardIdLogger = Loggers.getLogger("shardIdLogger", ShardId.fromString("[indexName][123]"));
+
+        shardIdLogger.info("This is an info message with a shardId");
+
+        Logger prefixLogger = new PrefixLogger(LogManager.getLogger("prefixLogger"), "PREFIX");
+        prefixLogger.info("This is an info message with a prefix");
+
+        final String path = System.getProperty("es.logs.base_path") +
+            System.getProperty("file.separator") +
+            System.getProperty("es.logs.cluster_name") +
+            ".log";
+
+        try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(path))) {
+            assertThat(jsonLogs, Matchers.contains(
+                logLine("file", Level.INFO, "sample-name", "shardIdLogger", "[indexName][123] This is an info message with a shardId"),
+                logLine("file", Level.INFO, "sample-name", "prefixLogger", "PREFIX This is an info message with a prefix")
+                ));
         }
     }
 
@@ -103,11 +127,10 @@ public class JsonLoggerTests extends ESTestCase {
 
         testLogger.info(json);
 
-        final String path =
-            System.getProperty("es.logs.base_path") +
-                System.getProperty("file.separator") +
-                System.getProperty("es.logs.cluster_name") +
-                ".log";
+        final String path = System.getProperty("es.logs.base_path") +
+            System.getProperty("file.separator") +
+            System.getProperty("es.logs.cluster_name") +
+            ".log";
 
         try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(path))) {
             assertThat(jsonLogs, Matchers.contains(
@@ -124,11 +147,10 @@ public class JsonLoggerTests extends ESTestCase {
 
         testLogger.error("error message", new Exception("exception message", new RuntimeException("cause message")));
 
-        final String path =
-            System.getProperty("es.logs.base_path") +
-                System.getProperty("file.separator") +
-                System.getProperty("es.logs.cluster_name") +
-                ".log";
+        final String path = System.getProperty("es.logs.base_path") +
+            System.getProperty("file.separator") +
+            System.getProperty("es.logs.cluster_name") +
+            ".log";
 
         try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(path))) {
             assertThat(jsonLogs, Matchers.contains(
@@ -158,11 +180,10 @@ public class JsonLoggerTests extends ESTestCase {
             "}";
         testLogger.error("error message " + json, new Exception(json));
 
-        final String path =
-            System.getProperty("es.logs.base_path") +
-                System.getProperty("file.separator") +
-                System.getProperty("es.logs.cluster_name") +
-                ".log";
+        final String path = System.getProperty("es.logs.base_path") +
+            System.getProperty("file.separator") +
+            System.getProperty("es.logs.cluster_name") +
+            ".log";
 
         try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(path))) {
             assertThat(jsonLogs, Matchers.contains(

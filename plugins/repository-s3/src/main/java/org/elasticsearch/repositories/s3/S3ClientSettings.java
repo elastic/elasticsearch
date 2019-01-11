@@ -21,9 +21,6 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.BasicSessionCredentials;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -36,6 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -95,7 +93,7 @@ final class S3ClientSettings {
         key -> Setting.boolSetting(key, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope));
 
     /** Credentials to authenticate with s3. */
-    final AWSCredentials credentials;
+    final S3BasicCredentials credentials;
 
     /** The s3 endpoint the client should talk to, or empty string to use the default. */
     final String endpoint;
@@ -126,7 +124,7 @@ final class S3ClientSettings {
     /** Whether the s3 client should use an exponential backoff retry policy. */
     final boolean throttleRetries;
 
-    protected S3ClientSettings(AWSCredentials credentials, String endpoint, Protocol protocol,
+    private S3ClientSettings(S3BasicCredentials credentials, String endpoint, Protocol protocol,
                              String proxyHost, int proxyPort, String proxyUsername, String proxyPassword,
                              int readTimeoutMillis, int maxRetries, boolean throttleRetries) {
         this.credentials = credentials;
@@ -139,6 +137,97 @@ final class S3ClientSettings {
         this.readTimeoutMillis = readTimeoutMillis;
         this.maxRetries = maxRetries;
         this.throttleRetries = throttleRetries;
+    }
+
+    /**
+     * Overrides the settings in this instance with settings found in repository metadata and
+     * settings from the clusterstate.
+     * @param metadata RepositoryMetaData
+     * @param settings Cluster Settings
+     * @return S3ClientSettings
+     */
+    S3ClientSettings refine(RepositoryMetaData metadata, Settings settings) {
+        final Settings repoSettings = metadata.settings();
+        final String clientName = S3Repository.CLIENT_NAME.get(repoSettings);
+        final String newEndpoint;
+        if (ENDPOINT_SETTING.exists(repoSettings)) {
+            newEndpoint = ENDPOINT_SETTING.get(repoSettings);
+        } else if (hasConfigValue(settings, clientName, ENDPOINT_SETTING)) {
+            newEndpoint = getConfigValue(settings, clientName, ENDPOINT_SETTING);
+        } else {
+            newEndpoint = endpoint;
+        }
+        final Protocol newProtocol;
+        if (PROTOCOL_SETTING.exists(repoSettings)) {
+            newProtocol = PROTOCOL_SETTING.get(repoSettings);
+        } else if (hasConfigValue(settings, clientName, PROTOCOL_SETTING)) {
+            newProtocol = getConfigValue(settings, clientName, PROTOCOL_SETTING);
+        } else {
+            newProtocol = protocol;
+        }
+        final String newProxyHost;
+        if (PROXY_HOST_SETTING.exists(repoSettings)) {
+            newProxyHost = PROXY_HOST_SETTING.get(repoSettings);
+        } else if (hasConfigValue(settings, clientName, PROXY_HOST_SETTING)) {
+            newProxyHost = getConfigValue(settings, clientName, PROXY_HOST_SETTING);
+        } else {
+            newProxyHost = proxyHost;
+        }
+        final int newProxyPort;
+        if (PROXY_PORT_SETTING.exists(repoSettings)) {
+            newProxyPort = PROXY_PORT_SETTING.get(repoSettings);
+        } else if (hasConfigValue(settings, clientName, PROXY_PORT_SETTING)) {
+            newProxyPort = getConfigValue(settings, clientName, PROXY_PORT_SETTING);
+        } else {
+            newProxyPort = proxyPort;
+        }
+        final int newReadTimeoutMillis;
+        if (READ_TIMEOUT_SETTING.exists(repoSettings)) {
+            newReadTimeoutMillis = Math.toIntExact(READ_TIMEOUT_SETTING.get(repoSettings).millis());
+        } else if (hasConfigValue(settings, clientName, READ_TIMEOUT_SETTING)) {
+            newReadTimeoutMillis = Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis());
+        } else {
+            newReadTimeoutMillis = readTimeoutMillis;
+        }
+        final int newMaxRetries;
+        if (MAX_RETRIES_SETTING.exists(repoSettings)) {
+            newMaxRetries = MAX_RETRIES_SETTING.get(repoSettings);
+        } else if (hasConfigValue(settings, clientName, MAX_RETRIES_SETTING)) {
+            newMaxRetries = getConfigValue(settings, clientName, MAX_RETRIES_SETTING);
+        } else {
+            newMaxRetries = maxRetries;
+        }
+        final boolean newThrottleRetries;
+        if (USE_THROTTLE_RETRIES_SETTING.exists(repoSettings)) {
+            newThrottleRetries = USE_THROTTLE_RETRIES_SETTING.get(repoSettings);
+        } else if (hasConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING)) {
+            newThrottleRetries = getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING);
+        } else {
+            newThrottleRetries = throttleRetries;
+        }
+        final S3BasicCredentials newCredentials;
+        if (checkDeprecatedCredentials(repoSettings)) {
+            newCredentials = loadDeprecatedCredentials(repoSettings);
+        } else {
+            newCredentials = credentials;
+        }
+        if (Objects.equals(endpoint, newEndpoint) && protocol == newProtocol && Objects.equals(proxyHost, newProxyHost)
+            && proxyPort == newProxyPort && newReadTimeoutMillis == readTimeoutMillis && maxRetries == newMaxRetries
+            && newThrottleRetries == throttleRetries && Objects.equals(credentials, newCredentials)) {
+            return this;
+        }
+        return new S3ClientSettings(
+            newCredentials,
+            newEndpoint,
+            newProtocol,
+            newProxyHost,
+            newProxyPort,
+            proxyUsername,
+            proxyPassword,
+            newReadTimeoutMillis,
+            newMaxRetries,
+            newThrottleRetries
+        );
     }
 
     /**
@@ -175,24 +264,24 @@ final class S3ClientSettings {
     }
 
     // backcompat for reading keys out of repository settings (clusterState)
-    static BasicAWSCredentials loadDeprecatedCredentials(Settings repositorySettings) {
+    private static S3BasicCredentials loadDeprecatedCredentials(Settings repositorySettings) {
         assert checkDeprecatedCredentials(repositorySettings);
         try (SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
                 SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)) {
-            return new BasicAWSCredentials(key.toString(), secret.toString());
+            return new S3BasicCredentials(key.toString(), secret.toString());
         }
     }
 
-    static AWSCredentials loadCredentials(Settings settings, String clientName) {
+    private static S3BasicCredentials loadCredentials(Settings settings, String clientName) {
         try (SecureString accessKey = getConfigValue(settings, clientName, ACCESS_KEY_SETTING);
              SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING);
              SecureString sessionToken = getConfigValue(settings, clientName, SESSION_TOKEN_SETTING)) {
             if (accessKey.length() != 0) {
                 if (secretKey.length() != 0) {
                     if (sessionToken.length() != 0) {
-                        return new BasicSessionCredentials(accessKey.toString(), secretKey.toString(), sessionToken.toString());
+                        return new S3BasicSessionCredentials(accessKey.toString(), secretKey.toString(), sessionToken.toString());
                     } else {
-                        return new BasicAWSCredentials(accessKey.toString(), secretKey.toString());
+                        return new S3BasicCredentials(accessKey.toString(), secretKey.toString());
                     }
                 } else {
                     throw new IllegalArgumentException("Missing secret key for s3 client [" + clientName + "]");
@@ -212,34 +301,48 @@ final class S3ClientSettings {
     // pkg private for tests
     /** Parse settings for a single client. */
     static S3ClientSettings getClientSettings(final Settings settings, final String clientName) {
-        final AWSCredentials credentials = S3ClientSettings.loadCredentials(settings, clientName);
-        return getClientSettings(settings, clientName, credentials);
-    }
-
-    static S3ClientSettings getClientSettings(final Settings settings, final String clientName, final AWSCredentials credentials) {
         try (SecureString proxyUsername = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
              SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING)) {
             return new S3ClientSettings(
-                    credentials,
-                    getConfigValue(settings, clientName, ENDPOINT_SETTING),
-                    getConfigValue(settings, clientName, PROTOCOL_SETTING),
-                    getConfigValue(settings, clientName, PROXY_HOST_SETTING),
-                    getConfigValue(settings, clientName, PROXY_PORT_SETTING),
-                    proxyUsername.toString(),
-                    proxyPassword.toString(),
-                    Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
-                    getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
-                    getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING)
+                S3ClientSettings.loadCredentials(settings, clientName),
+                getConfigValue(settings, clientName, ENDPOINT_SETTING),
+                getConfigValue(settings, clientName, PROTOCOL_SETTING),
+                getConfigValue(settings, clientName, PROXY_HOST_SETTING),
+                getConfigValue(settings, clientName, PROXY_PORT_SETTING),
+                proxyUsername.toString(),
+                proxyPassword.toString(),
+                Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
+                getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
+                getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING)
             );
         }
     }
 
-    static S3ClientSettings getClientSettings(final RepositoryMetaData metadata, final AWSCredentials credentials) {
-        final Settings.Builder builder = Settings.builder();
-        for (final String key : metadata.settings().keySet()) {
-            builder.put(PREFIX + "provided" + "." + key, metadata.settings().get(key));
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
         }
-        return getClientSettings(builder.build(), "provided", credentials);
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final S3ClientSettings that = (S3ClientSettings) o;
+        return proxyPort == that.proxyPort &&
+            readTimeoutMillis == that.readTimeoutMillis &&
+            maxRetries == that.maxRetries &&
+            throttleRetries == that.throttleRetries &&
+            Objects.equals(credentials, that.credentials) &&
+            Objects.equals(endpoint, that.endpoint) &&
+            protocol == that.protocol &&
+            Objects.equals(proxyHost, that.proxyHost) &&
+            Objects.equals(proxyUsername, that.proxyUsername) &&
+            Objects.equals(proxyPassword, that.proxyPassword);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(credentials, endpoint, protocol, proxyHost, proxyPort, proxyUsername, proxyPassword,
+            readTimeoutMillis, maxRetries, throttleRetries);
     }
 
     private static <T> T getConfigValue(Settings settings, String clientName,
@@ -248,4 +351,8 @@ final class S3ClientSettings {
         return concreteSetting.get(settings);
     }
 
+    private static boolean hasConfigValue(Settings settings, String clientName, Setting.AffixSetting<?> clientSetting) {
+        final Setting<?> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
+        return concreteSetting.exists(settings);
+    }
 }

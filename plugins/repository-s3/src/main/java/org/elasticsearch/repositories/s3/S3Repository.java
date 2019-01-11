@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.auth.BasicAWSCredentials;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -168,9 +167,7 @@ class S3Repository extends BlobStoreRepository {
 
     private final String cannedACL;
 
-    private final String clientName;
-
-    private final AmazonS3Reference reference;
+    private final RepositoryMetaData repositoryMetaData;
 
     /**
      * Constructs an s3 backed repository
@@ -182,6 +179,8 @@ class S3Repository extends BlobStoreRepository {
         super(metadata, settings, namedXContentRegistry);
         this.settings = settings;
         this.service = service;
+
+        this.repositoryMetaData = metadata;
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
@@ -211,24 +210,10 @@ class S3Repository extends BlobStoreRepository {
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
-        this.clientName = CLIENT_NAME.get(metadata.settings());
-
-        if (CLIENT_NAME.exists(metadata.settings()) && S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
-            logger.warn(
-                    "ignoring use of named client [{}] for repository [{}] as insecure credentials were specified",
-                    clientName,
-                    metadata.name());
-        }
-
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
             // provided repository settings
             deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
                     + "store these in named clients and the elasticsearch keystore for secure settings.");
-            final BasicAWSCredentials insecureCredentials = S3ClientSettings.loadDeprecatedCredentials(metadata.settings());
-            final S3ClientSettings s3ClientSettings = S3ClientSettings.getClientSettings(metadata, insecureCredentials);
-            this.reference = new AmazonS3Reference(service.buildClient(s3ClientSettings));
-        } else {
-            reference = null;
         }
 
         logger.debug(
@@ -243,21 +228,8 @@ class S3Repository extends BlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        if (reference != null) {
-            assert S3ClientSettings.checkDeprecatedCredentials(metadata.settings()) : metadata.name();
-            return new S3BlobStore(service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass) {
-                @Override
-                public AmazonS3Reference clientReference() {
-                    if (reference.tryIncRef()) {
-                        return reference;
-                    } else {
-                        throw new IllegalStateException("S3 client is closed");
-                    }
-                }
-            };
-        } else {
-            return new S3BlobStore(service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
-        }
+        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass,
+            repositoryMetaData, settings);
     }
 
     // only use for testing
@@ -286,14 +258,4 @@ class S3Repository extends BlobStoreRepository {
     protected ByteSizeValue chunkSize() {
         return chunkSize;
     }
-
-    @Override
-    protected void doClose() {
-        if (reference != null) {
-            assert S3ClientSettings.checkDeprecatedCredentials(metadata.settings()) : metadata.name();
-            reference.decRef();
-        }
-        super.doClose();
-    }
-
 }

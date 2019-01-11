@@ -21,8 +21,6 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.BasicSessionCredentials;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -103,7 +101,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         secureSettings.setString("s3.client.default.secret_key", "secret_key");
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
         final S3ClientSettings defaultSettings = settings.get("default");
-        BasicAWSCredentials credentials = (BasicAWSCredentials) defaultSettings.credentials;
+        S3BasicCredentials credentials = defaultSettings.credentials;
         assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
         assertThat(credentials.getAWSSecretKey(), is("secret_key"));
     }
@@ -115,7 +113,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         secureSettings.setString("s3.client.default.session_token", "session_token");
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
         final S3ClientSettings defaultSettings = settings.get("default");
-        BasicSessionCredentials credentials = (BasicSessionCredentials) defaultSettings.credentials;
+        S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) defaultSettings.credentials;
         assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
         assertThat(credentials.getAWSSecretKey(), is("secret_key"));
         assertThat(credentials.getSessionToken(), is("session_token"));

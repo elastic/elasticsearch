@@ -25,10 +25,13 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
@@ -38,8 +41,6 @@ import java.util.Locale;
 class S3BlobStore implements BlobStore {
 
     private final S3Service service;
-
-    private final String clientName;
 
     private final String bucket;
 
@@ -51,15 +52,18 @@ class S3BlobStore implements BlobStore {
 
     private final StorageClass storageClass;
 
-    S3BlobStore(S3Service service, String clientName, String bucket, boolean serverSideEncryption,
-                ByteSizeValue bufferSize, String cannedACL, String storageClass) {
+    private final Tuple<RepositoryMetaData, Settings> settingsKey;
+
+    S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
+                ByteSizeValue bufferSize, String cannedACL, String storageClass,
+                RepositoryMetaData repositoryMetaData, Settings settings) {
         this.service = service;
-        this.clientName = clientName;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
+        settingsKey = new Tuple<>(repositoryMetaData, settings);
     }
 
     @Override
@@ -68,7 +72,7 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
-        return service.client(clientName);
+        return service.client(settingsKey);
     }
 
     public String bucket() {

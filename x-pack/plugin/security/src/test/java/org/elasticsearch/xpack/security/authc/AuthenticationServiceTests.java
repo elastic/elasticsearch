@@ -365,7 +365,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             .build();
         service = new AuthenticationService(settings, realms, auditTrail,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(Settings.EMPTY),
-            tokenService);
+            tokenService, apiKeyService);
         User user = new User("_username", "r1");
         when(firstRealm.supports(token)).thenReturn(true);
         mockAuthenticate(firstRealm, token, null);

@@ -61,6 +61,8 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestGetMappingAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get mapping requests is deprecated. "
+            + "The parameter will be removed in the next major version.";
 
     public RestGetMappingAction(final Settings settings, final RestController controller) {
         super(settings);
@@ -86,7 +88,11 @@ public class RestGetMappingAction extends BaseRestHandler {
             deprecationLogger.deprecated("Type exists requests are deprecated, as types have been deprecated.");
         }
 
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, true);
+        // starting with 7.0 we don't include types by default in the response
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            deprecationLogger.deprecatedAndMaybeLog("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();

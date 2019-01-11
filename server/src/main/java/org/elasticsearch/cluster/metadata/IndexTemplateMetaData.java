@@ -343,7 +343,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         public static void toInnerXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
             throws IOException {
 
-            boolean includeTypeName = params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, true);
+            boolean includeTypeName = params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, 
+                    BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
             builder.field("order", indexTemplateMetaData.order());
             if (indexTemplateMetaData.version() != null) {

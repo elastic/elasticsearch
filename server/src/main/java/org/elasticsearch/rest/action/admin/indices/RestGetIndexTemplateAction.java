@@ -19,10 +19,12 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -47,7 +49,9 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMETERS = Collections.unmodifiableSet(Sets.union(
         Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER), Settings.FORMAT_PARAMS));
-
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetIndexTemplateAction.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get index template requests is deprecated. "
+            + "The parameter will be removed in the next major version.";
     public RestGetIndexTemplateAction(final Settings settings, final RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_template", this);
@@ -63,7 +67,10 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
-
+        // starting with 7.0 we don't include types by default in the response
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            deprecationLogger.deprecatedAndMaybeLog("get_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
         final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));

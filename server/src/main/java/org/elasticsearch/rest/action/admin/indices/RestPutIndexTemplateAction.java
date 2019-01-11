@@ -42,6 +42,8 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RestPutIndexTemplateAction.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in put index template requests is deprecated. "
+            + "The parameter will be removed in the next major version.";
 
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);
@@ -68,7 +70,11 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
 
-        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, true);
+        // starting with 7.0 we don't include types by default in the response
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            deprecationLogger.deprecatedAndMaybeLog("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
+        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         Map<String, Object> sourceAsMap = prepareRequestSource(request, includeTypeName);
         putRequest.source(sourceAsMap);
 

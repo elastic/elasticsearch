@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -23,8 +23,8 @@ public class Histogram extends GroupingFunction {
     private final Literal interval;
     private final ZoneId zoneId;
 
-    public Histogram(Location location, Expression field, Expression interval, ZoneId zoneId) {
-        super(location, field);
+    public Histogram(Source source, Expression field, Expression interval, ZoneId zoneId) {
+        super(source, field);
         this.interval = (Literal) interval;
         this.zoneId = zoneId;
     }
@@ -54,7 +54,7 @@ public class Histogram extends GroupingFunction {
 
     @Override
     protected GroupingFunction replaceChild(Expression newChild) {
-        return new Histogram(location(), newChild, interval, zoneId);
+        return new Histogram(source(), newChild, interval, zoneId);
     }
 
     @Override

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 import java.util.Objects;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
@@ -17,8 +17,8 @@ public class TermQuery extends LeafQuery {
     private final String term;
     private final Object value;
 
-    public TermQuery(Location location, String term, Object value) {
-        super(location);
+    public TermQuery(Source source, String term, Object value) {
+        super(source);
         this.term = term;
         this.value = value;
     }

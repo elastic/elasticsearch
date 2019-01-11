@@ -234,6 +234,9 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         return closeNow;
     }
 
+    protected void setCloseNow() {
+        closeNow = true;
+    }
 
     // When you read or write to a nio socket in java, the heap memory passed down must be copied to/from
     // direct memory. The JVM internally does some buffering of the direct memory, however we can save space
@@ -291,9 +294,14 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
     }
 
+    // Currently we limit to 64KB. This is a trade-off which means more syscalls, in exchange for less
+    // copying.
+    private final int WRITE_LIMIT = 1 << 16;
+
     protected int flushToChannel(ByteBuffer buffer) throws IOException {
         int initialPosition = buffer.position();
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
+        ioBuffer.limit(Math.min(WRITE_LIMIT, ioBuffer.limit()));
         copyBytes(buffer, ioBuffer);
         ioBuffer.flip();
         int bytesWritten;
@@ -315,6 +323,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         int totalBytesFlushed = 0;
         while (continueFlush) {
             ioBuffer.clear();
+            ioBuffer.limit(Math.min(WRITE_LIMIT, ioBuffer.limit()));
             int j = 0;
             ByteBuffer[] buffers = flushOperation.getBuffersToWrite();
             while (j < buffers.length && ioBuffer.remaining() > 0) {

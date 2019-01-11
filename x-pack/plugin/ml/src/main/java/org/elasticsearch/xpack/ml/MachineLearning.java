@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.MlUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
@@ -150,6 +151,7 @@ import org.elasticsearch.xpack.ml.action.TransportPutCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportPutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportPutFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportPutJobAction;
+import org.elasticsearch.xpack.ml.action.TransportMlUpgradeAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
@@ -165,6 +167,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
@@ -228,6 +231,7 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetCategoriesAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
+import org.elasticsearch.xpack.ml.rest.results.RestUpgradeMlAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 
@@ -375,7 +379,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         if (enabled == false || transportClientMode) {
-            return emptyList();
+            // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
+            return Collections.singletonList(new JobManagerHolder());
         }
 
         Auditor auditor = new Auditor(client, clusterService.getNodeName());
@@ -384,6 +389,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(env, settings, jobResultsProvider, clusterService, auditor, threadPool, client, notifier);
+
+        // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
+        JobManagerHolder jobManagerHolder = new JobManagerHolder(jobManager);
 
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
@@ -424,7 +432,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, settings, xContentRegistry,
                 auditor, System::currentTimeMillis);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
-                System::currentTimeMillis, auditor);
+                System::currentTimeMillis, auditor, autodetectProcessManager);
         this.datafeedManager.set(datafeedManager);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
                 autodetectProcessManager);
@@ -443,6 +451,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobConfigProvider,
                 datafeedConfigProvider,
                 jobManager,
+                jobManagerHolder,
                 autodetectProcessManager,
                 new MlInitializationService(settings, threadPool, clusterService, client),
                 jobDataCountsPersister,
@@ -464,7 +473,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         return Arrays.asList(
                 new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get(),
                     memoryTracker.get(), client),
-                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor( datafeedManager.get())
+                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get())
         );
     }
 
@@ -535,7 +544,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestPutCalendarJobAction(settings, restController),
             new RestGetCalendarEventsAction(settings, restController),
             new RestPostCalendarEventAction(settings, restController),
-            new RestFindFileStructureAction(settings, restController)
+            new RestFindFileStructureAction(settings, restController),
+            new RestUpgradeMlAction(settings, restController)
         );
     }
 
@@ -593,7 +603,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(GetCalendarEventsAction.INSTANCE, TransportGetCalendarEventsAction.class),
                 new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class),
                 new ActionHandler<>(PersistJobAction.INSTANCE, TransportPersistJobAction.class),
-                new ActionHandler<>(FindFileStructureAction.INSTANCE, TransportFindFileStructureAction.class)
+                new ActionHandler<>(FindFileStructureAction.INSTANCE, TransportFindFileStructureAction.class),
+                new ActionHandler<>(MlUpgradeAction.INSTANCE, TransportMlUpgradeAction.class)
         );
     }
     @Override
@@ -691,7 +702,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
             try (XContentBuilder stateMapping = ElasticsearchMappings.stateMapping()) {
                 IndexTemplateMetaData stateTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobStateIndexName())
-                        .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexName()))
+                        .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexPattern()))
                         // TODO review these settings
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")

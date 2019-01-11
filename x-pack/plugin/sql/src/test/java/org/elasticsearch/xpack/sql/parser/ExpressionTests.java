@@ -353,4 +353,16 @@ public class ExpressionTests extends ESTestCase {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CURRENT_TIMESTAMP(100)"));
         assertEquals("line 1:20: Precision needs to be between [0-9], received [100]", ex.getMessage());
     }
+
+    public void testSourceKeyword() throws Exception {
+        String s = "CUrrENT_timestamP";
+        Expression expr = parser.createExpression(s);
+        assertEquals(s, expr.sourceText());
+    }
+
+    public void testSourceFunction() throws Exception {
+        String s = "PerCentile_RaNK(fOO,    12 )";
+        Expression expr = parser.createExpression(s);
+        assertEquals(s, expr.sourceText());
+    }
 }

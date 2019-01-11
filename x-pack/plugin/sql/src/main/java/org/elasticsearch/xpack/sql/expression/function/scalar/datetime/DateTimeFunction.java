@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.ZoneId;
@@ -23,8 +23,8 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
 
     private final DateTimeExtractor extractor;
 
-    DateTimeFunction(Location location, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
-        super(location, field, zoneId);
+    DateTimeFunction(Source source, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
+        super(source, field, zoneId);
         this.extractor = extractor;
     }
 

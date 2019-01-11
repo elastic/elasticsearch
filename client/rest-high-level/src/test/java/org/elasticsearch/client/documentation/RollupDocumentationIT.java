@@ -89,7 +89,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         final BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 50; i++) {
-            final IndexRequest indexRequest = new IndexRequest("docs", "doc");
+            final IndexRequest indexRequest = new IndexRequest("docs");
             indexRequest.source(jsonBuilder()
                 .startObject()
                 .field("timestamp", String.format(Locale.ROOT, "2018-01-01T00:%02d:00Z", i))
@@ -103,7 +103,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
                 .endObject());
             bulkRequest.add(indexRequest);
         }
-        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
+        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest,  RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
         assertFalse(bulkResponse.hasFailures());
 

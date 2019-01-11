@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -20,18 +21,24 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.stats.Metrics;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+
 public class VerifierErrorMessagesTests extends ESTestCase {
+
     private SqlParser parser = new SqlParser();
+    private IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
+        TypesTests.loadMapping("mapping-multi-field-with-nested.json")));
 
     private String error(String sql) {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
-        EsIndex test = new EsIndex("test", mapping);
-        return error(IndexResolution.valid(test), sql);
+        return error(indexResolution, sql);
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
@@ -95,7 +102,27 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testColumnWithNoSubFields() {
         assertEquals("1:8: Cannot determine columns for [text.*]", error("SELECT text.* FROM test"));
     }
-    
+
+    public void testFieldAliasTypeWithoutHierarchy() {
+        Map<String, EsField> mapping = new LinkedHashMap<>();
+
+        mapping.put("field", new EsField("field", DataType.OBJECT,
+                singletonMap("alias", new EsField("alias", DataType.KEYWORD, emptyMap(), true)), false));
+
+        IndexResolution resolution = IndexResolution.valid(new EsIndex("test", mapping));
+
+        // check the nested alias is seen
+        accept(resolution, "SELECT field.alias FROM test");
+        // or its hierarhcy
+        accept(resolution, "SELECT field.* FROM test");
+
+        // check typos
+        assertEquals("1:8: Unknown column [field.alas], did you mean [field.alias]?", error(resolution, "SELECT field.alas FROM test"));
+
+        // non-existing parents for aliases are not seen by the user
+        assertEquals("1:8: Cannot use field [field] type [object] only its subfields", error(resolution, "SELECT field FROM test"));
+    }
+
     public void testMultipleColumnsWithWildcard1() {
         assertEquals("1:14: Unknown column [a]\n" +
                 "line 1:17: Unknown column [b]\n" +
@@ -503,5 +530,21 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testAggsInHistogram() {
         assertEquals("1:47: Cannot use an aggregate [MAX] for grouping",
                 error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
+    }
+
+    public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
+            "SELECT PERCENTILE(int, ABS(int)) FROM test"), true));
+        assertEquals("2nd argument of PERCENTILE must be constant, received [ABS(int)]",
+            e.getMessage());
+    }
+
+    public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
+            "SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"), true));
+        assertEquals("2nd argument of PERCENTILE_RANK must be constant, received [ABS(int)]",
+            e.getMessage());
     }
 }

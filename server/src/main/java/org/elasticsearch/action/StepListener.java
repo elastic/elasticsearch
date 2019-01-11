@@ -57,27 +57,27 @@ public final class StepListener<Response> implements ActionListener<Response> {
 
     @Override
     public void onResponse(Response response) {
-        if (done == false) {
-            final List<ActionListener<Response>> listeners;
-            synchronized (this) {
-                this.result = response;
-                this.done = true;
-                listeners = this.listeners;
-            }
+        if (onComplete(response, null)) {
             ActionListener.onResponse(listeners, response);
         }
     }
 
     @Override
     public void onFailure(Exception e) {
-        if (done == false) {
-            final List<ActionListener<Response>> listeners;
-            synchronized (this) {
-                this.error = e;
-                this.done = true;
-                listeners = this.listeners;
-            }
+        if (onComplete(null, e)) {
             ActionListener.onFailure(listeners, e);
+        }
+    }
+
+    /** Returns {@code true} if this method changed the state of this step listener */
+    private synchronized boolean onComplete(Response response, Exception e) {
+        if (done == false) {
+            this.error = e;
+            this.result = response;
+            this.done = true;
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -90,15 +90,18 @@ public final class StepListener<Response> implements ActionListener<Response> {
      */
     public void whenComplete(CheckedConsumer<Response, Exception> onResponse, Consumer<Exception> onFailure) {
         final ActionListener<Response> listener = ActionListener.wrap(onResponse, onFailure);
-        if (done) {
+        final boolean ready;
+        synchronized (this) {
+            ready = done;
+            if (ready == false) {
+                listeners.add(listener);
+            }
+        }
+        if (ready) {
             if (error == null) {
                 ActionListener.onResponse(Collections.singletonList(listener), result);
             } else {
                 ActionListener.onFailure(Collections.singletonList(listener), error);
-            }
-        } else {
-            synchronized (this) {
-                listeners.add(listener);
             }
         }
     }

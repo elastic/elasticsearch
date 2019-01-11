@@ -330,9 +330,16 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return new IndexTemplateMetaData(name, order, version, indexPatterns, settings, mappings.build(), aliases.build());
         }
 
-        public static void toXContent(IndexTemplateMetaData indexTemplateMetaData,
-                                      XContentBuilder builder,
-                                      ToXContent.Params params) throws IOException {
+        /**
+         * Serializes the template to xContent, using the legacy format where the mappings are
+         * nested under the type name.
+         *
+         * This method is used for serializing templates before storing them in the cluster metadata,
+         * and also in the REST layer when returning a deprecated typed response.
+         */
+        public static void toXContentWithTypes(IndexTemplateMetaData indexTemplateMetaData,
+                                               XContentBuilder builder,
+                                               ToXContent.Params params) throws IOException {
             builder.startObject(indexTemplateMetaData.name());
             toInnerXContent(indexTemplateMetaData, builder, params, true);
             builder.endObject();
@@ -346,17 +353,17 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
          * and not when directly updating stored templates. Index templates are still stored
          * in the old, typed format, and have yet to be migrated to be typeless.
          */
-        public static void toXContentWithoutTypes(IndexTemplateMetaData indexTemplateMetaData,
-                                                  XContentBuilder builder,
-                                                  ToXContent.Params params) throws IOException {
+        public static void toXContent(IndexTemplateMetaData indexTemplateMetaData,
+                                      XContentBuilder builder,
+                                      ToXContent.Params params) throws IOException {
             builder.startObject(indexTemplateMetaData.name());
             toInnerXContent(indexTemplateMetaData, builder, params, false);
             builder.endObject();
         }
 
-        public static void toInnerXContent(IndexTemplateMetaData indexTemplateMetaData,
-                                           XContentBuilder builder,
-                                           ToXContent.Params params) throws IOException {
+        static void toInnerXContentWithTypes(IndexTemplateMetaData indexTemplateMetaData,
+                                             XContentBuilder builder,
+                                             ToXContent.Params params) throws IOException {
             toInnerXContent(indexTemplateMetaData, builder, params, true);
         }
 

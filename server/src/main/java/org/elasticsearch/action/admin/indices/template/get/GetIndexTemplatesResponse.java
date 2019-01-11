@@ -80,9 +80,9 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         builder.startObject();
         for (IndexTemplateMetaData indexTemplateMetaData : getIndexTemplates()) {
             if (includeTypeName) {
-                IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
+                IndexTemplateMetaData.Builder.toXContentWithTypes(indexTemplateMetaData, builder, params);
             } else {
-                IndexTemplateMetaData.Builder.toXContentWithoutTypes(indexTemplateMetaData, builder, params);
+                IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
             }
         }
         builder.endObject();

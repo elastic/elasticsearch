@@ -42,14 +42,16 @@ public final class UnfollowAction implements LifecycleAction {
         StepKey closeFollowerIndex = new StepKey(phase, NAME, CloseFollowerIndexStep.NAME);
         StepKey unfollowFollowerIndex = new StepKey(phase, NAME, UnfollowFollowIndexStep.NAME);
         StepKey openFollowerIndex = new StepKey(phase, NAME, OpenFollowerIndexStep.NAME);
+        StepKey waitForYellowStep = new StepKey(phase, NAME, WaitForYellowStep.NAME);
 
         WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitForFollowShardTasks);
         WaitForFollowShardTasksStep step2 = new WaitForFollowShardTasksStep(waitForFollowShardTasks, pauseFollowerIndex, client);
         PauseFollowerIndexStep step3 = new PauseFollowerIndexStep(pauseFollowerIndex, closeFollowerIndex, client);
         CloseFollowerIndexStep step4 = new CloseFollowerIndexStep(closeFollowerIndex, unfollowFollowerIndex, client);
         UnfollowFollowIndexStep step5 = new UnfollowFollowIndexStep(unfollowFollowerIndex, openFollowerIndex, client);
-        OpenFollowerIndexStep step6 = new OpenFollowerIndexStep(openFollowerIndex, nextStepKey, client);
-        return Arrays.asList(step1, step2, step3, step4, step5, step6);
+        OpenFollowerIndexStep step6 = new OpenFollowerIndexStep(openFollowerIndex, waitForYellowStep, client);
+        WaitForYellowStep step7 = new WaitForYellowStep(waitForYellowStep, nextStepKey, client);
+        return Arrays.asList(step1, step2, step3, step4, step5, step6, step7);
     }
 
     @Override
@@ -60,8 +62,9 @@ public final class UnfollowAction implements LifecycleAction {
         StepKey closeFollowerIndexStep = new StepKey(phase, NAME, CloseFollowerIndexStep.NAME);
         StepKey unfollowIndexStep = new StepKey(phase, NAME, UnfollowFollowIndexStep.NAME);
         StepKey openFollowerIndexStep = new StepKey(phase, NAME, OpenFollowerIndexStep.NAME);
+        StepKey waitForYellowStep = new StepKey(phase, NAME, WaitForYellowStep.NAME);
         return Arrays.asList(indexingCompleteStep, waitForFollowShardTasksStep, pauseFollowerIndexStep,
-            closeFollowerIndexStep, unfollowIndexStep, openFollowerIndexStep);
+            closeFollowerIndexStep, unfollowIndexStep, openFollowerIndexStep, waitForYellowStep);
     }
 
     @Override

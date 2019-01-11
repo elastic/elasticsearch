@@ -39,7 +39,7 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
                 randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertThat(steps, notNullValue());
-        assertThat(steps.size(), equalTo(6));
+        assertThat(steps.size(), equalTo(7));
 
         StepKey expectedFirstStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexingCompleteStep.NAME);
         StepKey expectedSecondStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForFollowShardTasksStep.NAME);
@@ -47,6 +47,7 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         StepKey expectedFourthStepKey = new StepKey(phase, UnfollowAction.NAME, CloseFollowerIndexStep.NAME);
         StepKey expectedFifthStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowIndexStep.NAME);
         StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, OpenFollowerIndexStep.NAME);
+        StepKey expectedSeventhStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForYellowStep.NAME);
 
         WaitForIndexingCompleteStep firstStep = (WaitForIndexingCompleteStep) steps.get(0);
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
@@ -70,6 +71,10 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
 
         OpenFollowerIndexStep sixthStep = (OpenFollowerIndexStep) steps.get(5);
         assertThat(sixthStep.getKey(), equalTo(expectedSixthStepKey));
-        assertThat(sixthStep.getNextStepKey(), equalTo(nextStepKey));
+        assertThat(sixthStep.getNextStepKey(), equalTo(expectedSeventhStepKey));
+
+        WaitForYellowStep seventhStep = (WaitForYellowStep) steps.get(6);
+        assertThat(seventhStep.getKey(), equalTo(expectedSeventhStepKey));
+        assertThat(seventhStep.getNextStepKey(), equalTo(nextStepKey));
     }
 }

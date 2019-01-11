@@ -896,7 +896,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
      * Parsing of the value shoudl not depend on the returned source
      * as it might contain extra spaces.
      */
-    private static Source minusAwareSource(SqlBaseParser.NumberContext ctx) {
+    static Source minusAwareSource(SqlBaseParser.NumberContext ctx) {
         ParserRuleContext parentCtx = ctx.getParent();
         if (parentCtx != null) {
             if (parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
@@ -919,7 +919,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
             } else if (parentCtx instanceof SqlBaseParser.SysTypesContext) {
                 if (((SysTypesContext) parentCtx).MINUS() != null) {
-                    source(parentCtx);
+                    return source(parentCtx);
                 }
             }
         }

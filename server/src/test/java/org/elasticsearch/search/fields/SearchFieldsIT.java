@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -897,8 +898,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo("4.0"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo("5.0"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo("6.0"));
+        // TODO: switch to java date formatter, but will require special casing java 8 as there is a bug with epoch formatting there
         assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
-                equalTo(DateFormatters.forPattern("epoch_millis").format(date)));
+                equalTo(Joda.forPattern("epoch_millis").format(date)));
     }
 
     public void testScriptFields() throws Exception {

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -26,6 +27,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.mockito.Mockito.mock;
 
+@TestLogging("org.elasticsearch.xpack.sql:TRACE")
 public class SysTypesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();

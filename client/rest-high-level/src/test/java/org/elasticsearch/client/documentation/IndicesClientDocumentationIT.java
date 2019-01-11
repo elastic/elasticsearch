@@ -70,15 +70,15 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
-import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.SyncedFlushResponse;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
-import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -1249,7 +1249,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
             String mappings = "{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
             CreateIndexResponse createIndexResponse = client.indices().create(
-                new CreateIndexRequest("index", settings).mapping("doc", mappings, XContentType.JSON),
+                new CreateIndexRequest("index", settings).mapping("_doc", mappings, XContentType.JSON),
                 RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
@@ -1272,7 +1272,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // tag::get-index-response
         ImmutableOpenMap<String, MappingMetaData> indexMappings = getIndexResponse.getMappings().get("index"); // <1>
-        Map<String, Object> indexTypeMappings = indexMappings.get("doc").getSourceAsMap(); // <2>
+        Map<String, Object> indexTypeMappings = indexMappings.get("_doc").getSourceAsMap(); // <2>
         List<AliasMetaData> indexAliases = getIndexResponse.getAliases().get("index"); // <3>
         String numberOfShardsString = getIndexResponse.getSetting("index", "index.number_of_shards"); // <4>
         Settings indexSettings = getIndexResponse.getSettings().get("index"); // <5>

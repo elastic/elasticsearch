@@ -240,7 +240,7 @@ Audit::
 * Structured audit logging {pull}31931[#31931] and {pull}33894[#33894] (backport) (issue: {issue}31046[#31046])
 This introduces a new format for the logfile audit type which is output alongside the
 previous one. Conforming to the out-of-the-box `log4j2.properties` configuration,
-the new and deprecated audit formats should be output to the `<cluster_name>_access.log`
+the new and deprecated audit formats are output to the `<cluster_name>_access.log`
 and `<cluster_name>_audit.log` files, respectively.
 See {stack-ov}/audit-log-output.html[logfile audit output] for more details.
 

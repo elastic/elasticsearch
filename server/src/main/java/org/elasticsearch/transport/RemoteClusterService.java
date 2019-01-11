@@ -406,15 +406,23 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterAlias);
         if (remoteClusterConnection != null) {
             ConnectionProfile oldProfile = remoteClusterConnection.getConnectionManager().getConnectionProfile();
+            // May be null
             if (oldProfile.getCompressionEnabled().equals(compressionEnabled) == false) {
-                updateRemoteClusterConnectionProfile(clusterAlias);
+                ConnectionProfile.Builder newProfileBuilder = new ConnectionProfile.Builder(oldProfile);
+                newProfileBuilder.setCompressionEnabled(compressionEnabled);
+                updateRemoteClusterConnectionProfile(clusterAlias, newProfileBuilder.build());
             }
         }
     }
 
-    private synchronized void updateRemoteClusterConnectionProfile(String clusterAlias) {
+    private synchronized void updateRemoteClusterConnectionProfile(String clusterAlias, ConnectionProfile connectionProfile) {
+        HashMap<String, ConnectionProfile> connectionProfiles = new HashMap<>(remoteClusterConnectionProfiles);
+        ConnectionProfile oldConnectionProfile = connectionProfiles.remove(clusterAlias);
+        if (oldConnectionProfile != null) {
+        } else {
 
-
+        }
+        this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);
     }
 
     synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {

@@ -42,7 +42,8 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RestPutIndexTemplateAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in put index template requests is deprecated. "
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `"+ INCLUDE_TYPE_NAME_PARAMETER
+            +"` in put index template requests is deprecated. "
             + "The parameter will be removed in the next major version.";
 
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {

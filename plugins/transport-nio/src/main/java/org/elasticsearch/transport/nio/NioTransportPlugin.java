@@ -19,9 +19,11 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -55,6 +57,8 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 
     public static final String NIO_TRANSPORT_NAME = "nio-transport";
     public static final String NIO_HTTP_TRANSPORT_NAME = "nio-http-transport";
+
+    private static final Logger logger = LogManager.getLogger(NioTransportPlugin.class);
 
     public static final Setting<Integer> NIO_WORKER_COUNT =
         new Setting<>("transport.nio.worker_count",
@@ -95,7 +99,7 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
                 dispatcher));
     }
 
-    private static class NioGroupSupplier implements CheckedFunction<String, NioGroup, IOException> {
+    private class NioGroupSupplier implements CheckedFunction<String, NioGroup, IOException> {
 
         private final Settings settings;
         private final int httpWorkerCount;
@@ -114,8 +118,8 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
                 if (httpWorkerCount == 0) {
                     return getGenericGroup();
                 } else {
-                    // TODO: Implement http group
-                    return null;
+                    return new NioGroup(daemonThreadFactory(this.settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX),
+                        httpWorkerCount, (s) -> new EventHandler(NioTransportPlugin.this::onException, s));
                 }
             } else {
                 throw new IllegalArgumentException();
@@ -125,9 +129,14 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
         private NioGroup getGenericGroup() throws IOException {
             if (nioGroup == null) {
                 nioGroup = new NioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX),
-                    NioTransportPlugin.NIO_WORKER_COUNT.get(settings), (s) -> new EventHandler(null, s));
+                    NioTransportPlugin.NIO_WORKER_COUNT.get(settings), (s) -> new EventHandler(NioTransportPlugin.this::onException, s));
             }
             return nioGroup;
         }
+    }
+
+    private void onException(Exception exception) {
+        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
+            exception);
     }
 }

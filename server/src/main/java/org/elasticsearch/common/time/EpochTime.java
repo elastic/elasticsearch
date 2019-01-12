@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.bootstrap.JavaVersion;
+
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.ResolverStyle;
@@ -159,8 +161,19 @@ class EpochTime {
     static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter("epoch_second", SECONDS_FORMATTER3,
         SECONDS_FORMATTER1, SECONDS_FORMATTER2, SECONDS_FORMATTER3);
 
-    static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter("epoch_millis", MILLISECONDS_FORMATTER3,
-        MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2, MILLISECONDS_FORMATTER3);
+    static final DateFormatter MILLIS_FORMATTER = getEpochMillisFormatter();
+
+    private static DateFormatter getEpochMillisFormatter() {
+        // the third formatter fails under java 8 as a printer, so fall back to this one
+        final DateTimeFormatter printer;
+        if (JavaVersion.current().getVersion().get(0) == 8) {
+            printer = MILLISECONDS_FORMATTER1;
+        } else {
+            printer = MILLISECONDS_FORMATTER3;
+        }
+        return new JavaDateFormatter("epoch_millis", printer,
+            MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2, MILLISECONDS_FORMATTER3);
+    }
 
     private abstract static class EpochField implements TemporalField {
 

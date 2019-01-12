@@ -232,7 +232,8 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         }
 
         double variance() {
-            return (sumOfSqrs - ((sum * sum) / count)) / count;
+            double variance = (sumOfSqrs - ((sum * sum) / count)) / count;
+            return variance < 0  ? 0 : variance;
         }
     }
 }

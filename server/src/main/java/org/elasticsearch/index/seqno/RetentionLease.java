@@ -89,6 +89,9 @@ public final class RetentionLease {
      */
     public RetentionLease(final String id, final long retainingSequenceNumber, final long timestamp, final String source) {
         Objects.requireNonNull(id);
+        if (id.isEmpty()) {
+            throw new IllegalArgumentException("retention lease ID can not be empty");
+        }
         if (id.contains(":") || id.contains(";") || id.contains(",")) {
             // retention lease IDs can not contain these characters because they are used in encoding retention leases
             throw new IllegalArgumentException("retention lease ID can not contain any of [:;,] but was [" + id + "]");
@@ -100,6 +103,9 @@ public final class RetentionLease {
             throw new IllegalArgumentException("retention lease timestamp [" + timestamp + "] out of range");
         }
         Objects.requireNonNull(source);
+        if (source.isEmpty()) {
+            throw new IllegalArgumentException("retention lease source can not be empty");
+        }
         if (source.contains(":") || source.contains(";") || source.contains(",")) {
             // retention lease sources can not contain these characters because they are used in encoding retention leases
             throw new IllegalArgumentException("retention lease source can not contain any of [:;,] but was [" + source + "]");
@@ -118,6 +124,7 @@ public final class RetentionLease {
      * @return the encoding of the retention lease
      */
     static String encodeRetentionLease(final RetentionLease retentionLease) {
+        Objects.requireNonNull(retentionLease);
         return String.format(
                 Locale.ROOT,
                 "id:%s;retaining_seq_no:%d;timestamp:%d;source:%s",
@@ -135,6 +142,7 @@ public final class RetentionLease {
      * @return the encoding of the retention leases
      */
     public static String encodeRetentionLeases(final Collection<RetentionLease> retentionLeases) {
+        Objects.requireNonNull(retentionLeases);
         return retentionLeases.stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(","));
     }
 
@@ -145,6 +153,7 @@ public final class RetentionLease {
      * @return the decoded retention lease
      */
     static RetentionLease decodeRetentionLease(final String encodedRetentionLease) {
+        Objects.requireNonNull(encodedRetentionLease);
         final String[] fields = encodedRetentionLease.split(";");
         assert fields.length == 4 : Arrays.toString(fields);
         assert fields[0].matches("id:[^:;,]+") : fields[0];
@@ -165,6 +174,7 @@ public final class RetentionLease {
      * @return the decoded retention leases
      */
     public static Collection<RetentionLease> decodeRetentionLeases(final String encodedRetentionLeases) {
+        Objects.requireNonNull(encodedRetentionLeases);
         if (encodedRetentionLeases.isEmpty()) {
             return Collections.emptyList();
         }

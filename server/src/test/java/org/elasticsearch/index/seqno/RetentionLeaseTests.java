@@ -39,9 +39,14 @@ public class RetentionLeaseTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new RetentionLease(id, randomNonNegativeLong(), randomNonNegativeLong(), "source"));
-        assertThat(
-                e,
-                hasToString(containsString("retention lease ID can not contain any of [:;,] but was [" + id + "]")));
+        assertThat(e, hasToString(containsString("retention lease ID can not contain any of [:;,] but was [" + id + "]")));
+    }
+
+    public void testEmptyId() {
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RetentionLease("", randomNonNegativeLong(), randomNonNegativeLong(), "source"));
+        assertThat(e, hasToString(containsString("retention lease ID can not be empty")));
     }
 
     public void testRetainingSequenceNumberOutOfRange() {
@@ -59,9 +64,7 @@ public class RetentionLeaseTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new RetentionLease("id", randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE), timestamp, "source"));
-        assertThat(
-                e,
-                hasToString(containsString("retention lease timestamp [" + timestamp + "] out of range")));
+        assertThat(e, hasToString(containsString("retention lease timestamp [" + timestamp + "] out of range")));
     }
 
     public void testInvalidSource() {
@@ -69,9 +72,14 @@ public class RetentionLeaseTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new RetentionLease("id", randomNonNegativeLong(), randomNonNegativeLong(), source));
-        assertThat(
-                e,
-                hasToString(containsString("retention lease source can not contain any of [:;,] but was [" + source + "]")));
+        assertThat(e, hasToString(containsString("retention lease source can not contain any of [:;,] but was [" + source + "]")));
+    }
+
+    public void testEmptySource() {
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RetentionLease("id", randomNonNegativeLong(), randomNonNegativeLong(), ""));
+        assertThat(e, hasToString(containsString("retention lease source can not be empty")));
     }
 
     public void testRetentionLeaseEncoding() {

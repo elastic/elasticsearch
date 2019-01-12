@@ -216,7 +216,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
                 if (offsetAfterRead == indexInput.length()) {
                     cachedInputs.remove(fileName);
-                    IOUtils.closeWhileHandlingException(indexInput);
+                    IOUtils.close(indexInput);
                 }
 
                 return offsetAfterRead;

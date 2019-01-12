@@ -153,6 +153,12 @@ public class BucketHelpers {
     }
 
     public static Double resolveBucketValue(MultiBucketsAggregation agg,
+                                            InternalMultiBucketAggregation.InternalBucket bucket, String aggPath) {
+        List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
+        return resolveBucketValue(agg, bucket, aggPathsList);
+    }
+
+    public static Double resolveBucketValue(MultiBucketsAggregation agg,
             InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
@@ -183,6 +189,31 @@ public class BucketHelpers {
                 } else {
                     return value;
                 }
+            }
+        } catch (InvalidAggregationPathException e) {
+            return null;
+        }
+    }
+
+    public static Double resolveBucketValue(MultiBucketsAggregation agg,
+                                            InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList) {
+        try {
+            Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
+            if (propertyValue == null) {
+                throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                    + " must reference either a number value or a single value numeric metric aggregation");
+            } else {
+                double value;
+                if (propertyValue instanceof Number) {
+                    value = ((Number) propertyValue).doubleValue();
+                } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
+                    value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+                } else {
+                    throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                        + " must reference either a number value or a single value numeric metric aggregation, got: "
+                        + propertyValue.getClass().getCanonicalName());
+                }
+                return value;
             }
         } catch (InvalidAggregationPathException e) {
             return null;

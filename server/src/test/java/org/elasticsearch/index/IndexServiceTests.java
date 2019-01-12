@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -246,9 +247,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(indexService.getRefreshTask().mustReschedule());
         client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
-        assertBusy(() -> {
-            assertFalse(shard.isSyncNeeded());
-        });
+        assertBusy(() -> assertFalse(shard.isSyncNeeded()));
     }
 
     public void testRescheduleAsyncFsync() throws Exception {
@@ -319,5 +318,33 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals("failed to parse value [0ms] for setting [index.translog.sync_interval], must be >= [100ms]", ex.getMessage());
         }
+    }
+
+    public void testUpdateSyncIntervalDynamically() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "10s") // very often :)
+            .build();
+        createIndex("test", settings);
+        ensureGreen("test");
+
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "5s"))
+            .get();
+
+        IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertEquals("5s", indexMetaData.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
+
+        client().admin().indices().prepareClose("test").get();
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "20s"))
+            .get();
+        indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertEquals("20s", indexMetaData.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
     }
 }

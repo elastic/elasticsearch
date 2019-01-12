@@ -62,7 +62,7 @@ public final class IndexSettings {
         Setting.boolSetting("index.query.parse.allow_unmapped_fields", true, Property.IndexScope);
     public static final Setting<TimeValue> INDEX_TRANSLOG_SYNC_INTERVAL_SETTING =
         Setting.timeSetting("index.translog.sync_interval", TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(100),
-            Property.IndexScope);
+            Property.Dynamic, Property.IndexScope);
     public static final Setting<TimeValue> INDEX_SEARCH_IDLE_AFTER =
         Setting.timeSetting("index.search.idle.after", TimeValue.timeValueSeconds(30),
             TimeValue.timeValueMinutes(0), Property.IndexScope, Property.Dynamic);

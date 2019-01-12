@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Exists;
@@ -689,37 +690,24 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
-        String string = ctx.getText();
-        Source source = minusAwareSource(ctx);
-        if (source != null) {
-            string = "-" + string;
-        } else {
-            source = source(ctx);
-        }
+        Tuple<Source, String> tuple = withMinus(ctx);
 
         try {
-            return new Literal(source, Double.valueOf(StringUtils.parseDouble(string)), DataType.DOUBLE);
+            return new Literal(tuple.v1(), Double.valueOf(StringUtils.parseDouble(tuple.v2())), DataType.DOUBLE);
         } catch (SqlIllegalArgumentException siae) {
-            throw new ParsingException(source(ctx), siae.getMessage());
+            throw new ParsingException(tuple.v1(), siae.getMessage());
         }
     }
 
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
-        String string = ctx.getText();
-        Source source = minusAwareSource(ctx);
-
-        if (source != null) {
-            string = "-" + string;
-        } else {
-            source = source(ctx);
-        }
+        Tuple<Source, String> tuple = withMinus(ctx);
 
         long value;
         try {
-            value = Long.valueOf(StringUtils.parseLong(string));
+            value = Long.valueOf(StringUtils.parseLong(tuple.v2()));
         } catch (SqlIllegalArgumentException siae) {
-            throw new ParsingException(source, siae.getMessage());
+            throw new ParsingException(tuple.v1(), siae.getMessage());
         }
 
         Object val = Long.valueOf(value);
@@ -729,7 +717,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             type = DataType.INTEGER;
             val = Integer.valueOf((int) value);
         }
-        return new Literal(source, val, type);
+        return new Literal(tuple.v1(), val, type);
     }
 
     @Override
@@ -891,12 +879,29 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     /**
+     * Return the source and the value of the given number,
+     * taking into account MINUS (-) if needed.
+     */
+    private static Tuple<Source, String> withMinus(NumberContext ctx) {
+        String string = ctx.getText();
+        Source source = minusAwareSource(ctx);
+
+        if (source != null) {
+            string = "-" + string;
+        } else {
+            source = source(ctx);
+        }
+
+        return new Tuple<>(source, string);
+    }
+
+    /**
      * Checks the presence of MINUS (-) in the parent and if found,
      * returns the parent source or null otherwise.
-     * Parsing of the value shoudl not depend on the returned source
+     * Parsing of the value should not depend on the returned source
      * as it might contain extra spaces.
      */
-    static Source minusAwareSource(SqlBaseParser.NumberContext ctx) {
+    private static Source minusAwareSource(SqlBaseParser.NumberContext ctx) {
         ParserRuleContext parentCtx = ctx.getParent();
         if (parentCtx != null) {
             if (parentCtx instanceof SqlBaseParser.NumericLiteralContext) {

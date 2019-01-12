@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryPrimaryDefaultContext;
@@ -61,6 +62,11 @@ public class SqlParserTests extends ESTestCase {
     public void testSelectScore() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT SCORE() FROM foo")), UnresolvedFunction.class);
         assertEquals("SCORE()", f.sourceText());
+    }
+
+    public void testSelectAddWithParanthesis() {
+        Add f = singleProjection(project(parseStatement("SELECT (1 +  2)")), Add.class);
+        assertEquals("1 +  2", f.sourceText());
     }
 
     public void testSelectRightFunction() {

@@ -206,7 +206,7 @@ public class ExpressionTests extends ESTestCase {
         Expression expr = parser.createExpression(sql);
         assertEquals(Neg.class, expr.getClass());
         Neg neg = (Neg) expr;
-        //assertEquals(sql, neg.sourceText());
+        assertEquals(sql, neg.sourceText());
         assertEquals(1, neg.children().size());
         assertEquals(Add.class, neg.children().get(0).getClass());
         Add add = (Add) neg.children().get(0);
@@ -372,9 +372,5 @@ public class ExpressionTests extends ESTestCase {
         String s = "PerCentile_RaNK(fOO,    12 )";
         Expression expr = parser.createExpression(s);
         assertEquals(s, expr.sourceText());
-    }
-
-    public static String functionName(Expression e) {
-        return e.getClass().getSimpleName().toUpperCase(Locale.ROOT);
     }
 }

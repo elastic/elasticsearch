@@ -21,6 +21,9 @@ peer recoveries:
     the cluster. Defaults to `40mb`.
 
 `indices.recovery.max_concurrent_file_chunks`::
+    Controls the number of file chunk requests can be sent in parallel per recovery.
+    Since the default value is good enough to saturate a network pipe efficiently;
+    only consider increasing this setting if the connection is encrypted or compressed.
     Defaults to `2`.
 
 This setting can be dynamically updated on a live cluster with the

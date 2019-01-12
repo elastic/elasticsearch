@@ -342,9 +342,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 logger.trace("cleaning temporary file [{}]", file);
                 store.deleteQuiet(file);
             }
-            fileChunkWriters.clear();
         } finally {
             // free store. increment happens in constructor
+            fileChunkWriters.clear();
             store.decRef();
             indexShard.recoveryStats().decCurrentAsTarget();
             closedLatch.countDown();

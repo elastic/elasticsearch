@@ -658,10 +658,10 @@ public class RecoverySourceHandler {
             if (error.get() != null) {
                 break;
             }
-            try (IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
+            try (IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                 InputStream in = new InputStreamIndexInput(indexInput, md.length())) {
                 long position = 0;
                 int bytesRead;
-                final InputStream in = new InputStreamIndexInput(indexInput, md.length());
                 while ((bytesRead = in.read(buffer, 0, buffer.length)) != -1) {
                     final BytesArray content = new BytesArray(buffer, 0, bytesRead);
                     final boolean lastChunk = position + content.length() == md.length();
@@ -671,19 +671,24 @@ public class RecoverySourceHandler {
                     if (error.get() != null) {
                         break;
                     }
-                    recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogOps.get(), e -> {
-                        if (e != null) {
-                            error.compareAndSet(null, Tuple.tuple(md, e));
-                        }
-                        requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
-                    });
+                    final long requestFilePosition = position;
+                    cancellableThreads.executeIO(() ->
+                        recoveryTarget.writeFileChunk(md, requestFilePosition, content, lastChunk, translogOps.get(), e -> {
+                            if (e != null) {
+                                error.compareAndSet(null, Tuple.tuple(md, e));
+                            }
+                            requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                        })
+                    );
                     position += content.length();
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 error.compareAndSet(null, Tuple.tuple(md, e));
                 break;
             }
         }
+        // When we terminate exceptionally, we don't wait for the outstanding requests as we don't use their results anyway.
+        // This allows us to end quickly and eliminate the complexity of handling requestSeqIds in case of error.
         if (error.get() == null) {
             cancellableThreads.execute(() -> requestSeqIdTracker.waitForOpsToComplete(requestSeqIdTracker.getMaxSeqNo()));
         }

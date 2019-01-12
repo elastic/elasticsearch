@@ -801,7 +801,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void createIndex(String name, Settings settings) throws IOException {
-        createIndex(name, settings, "");
+        Request request = new Request("PUT", "/" + name);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings) + "}");
+        client().performRequest(request);
     }
 
     protected static void createIndex(String name, Settings settings, String mapping) throws IOException {

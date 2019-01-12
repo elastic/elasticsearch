@@ -29,6 +29,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
@@ -59,6 +60,7 @@ final class SoftDeletesPolicy {
         this.retentionOperations = retentionOperations;
         this.minRetainedSeqNo = minRetainedSeqNo;
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
+        retentionLeases = retentionLeasesSupplier.get();
         this.localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
         this.retentionLockCount = 0;
     }

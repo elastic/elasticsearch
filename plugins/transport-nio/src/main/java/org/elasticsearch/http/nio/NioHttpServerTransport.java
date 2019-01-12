@@ -26,13 +26,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
@@ -50,6 +48,7 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -82,13 +81,6 @@ import static org.elasticsearch.http.nio.cors.NioCorsHandler.ANY_ORIGIN;
 
 public class NioHttpServerTransport extends AbstractHttpServerTransport {
     private static final Logger logger = LogManager.getLogger(NioHttpServerTransport.class);
-
-    public static final Setting<Integer> NIO_HTTP_ACCEPTOR_COUNT =
-        intSetting("http.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> NIO_HTTP_WORKER_COUNT =
-        new Setting<>("http.nio.worker_count",
-            (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
-            (s) -> Setting.parseInt(s, 1, "http.nio.worker_count"), Setting.Property.NodeScope);
 
     protected final PageCacheRecycler pageCacheRecycler;
     protected final NioCorsConfig corsConfig;
@@ -134,8 +126,8 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            int acceptorCount = NIO_HTTP_ACCEPTOR_COUNT.get(settings);
-            int workerCount = NIO_HTTP_WORKER_COUNT.get(settings);
+            int acceptorCount = NioTransportPlugin.NIO_HTTP_ACCEPTOR_COUNT.get(settings);
+            int workerCount = NioTransportPlugin.NIO_HTTP_WORKER_COUNT.get(settings);
             nioGroup = new NioGroup(daemonThreadFactory(this.settings, HTTP_SERVER_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
                 daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX), workerCount,
                 (s) -> new EventHandler(this::onNonChannelException, s));

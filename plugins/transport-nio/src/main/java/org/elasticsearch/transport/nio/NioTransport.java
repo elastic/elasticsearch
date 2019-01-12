@@ -27,10 +27,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
@@ -60,11 +58,6 @@ public class NioTransport extends TcpTransport {
 
     private static final Logger logger = LogManager.getLogger(NioTransport.class);
 
-    public static final Setting<Integer> NIO_WORKER_COUNT =
-        new Setting<>("transport.nio.worker_count",
-            (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
-            (s) -> Setting.parseInt(s, 1, "transport.nio.worker_count"), Setting.Property.NodeScope);
-
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private volatile NioGroup nioGroup;
     private volatile Function<DiscoveryNode, TcpChannelFactory> clientChannelFactory;
@@ -92,7 +85,7 @@ public class NioTransport extends TcpTransport {
         boolean success = false;
         try {
             nioGroup = new NioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX),
-                NioTransport.NIO_WORKER_COUNT.get(settings), (s) -> new EventHandler(this::onNonChannelException, s));
+                NioTransportPlugin.NIO_WORKER_COUNT.get(settings), (s) -> new EventHandler(this::onNonChannelException, s));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = clientChannelFactoryFunction(clientProfileSettings);

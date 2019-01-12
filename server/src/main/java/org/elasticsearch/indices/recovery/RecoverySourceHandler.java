@@ -118,22 +118,22 @@ public class RecoverySourceHandler {
      */
     public void recoverToTarget(ActionListener<RecoveryResponse> listener) {
         final List<Closeable> resources = new CopyOnWriteArrayList<>();
+        final Closeable releaseResources = () -> IOUtils.close(resources);
         final ActionListener<RecoveryResponse> wrappedListener = ActionListener.notifyOnce(listener);
-        cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
-            final RuntimeException e;
-            if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
-                e = new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
-            } else {
-                e = new CancellableThreads.ExecutionCancelledException("recovery was canceled reason [" + reason + "]");
-            }
-            if (beforeCancelEx != null) {
-                e.addSuppressed(beforeCancelEx);
-            }
-            IOUtils.closeWhileHandlingException(resources);
-            wrappedListener.onFailure(e);
-            throw e;
-        });
         try {
+            cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
+                final RuntimeException e;
+                if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
+                    e = new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
+                } else {
+                    e = new CancellableThreads.ExecutionCancelledException("recovery was canceled reason [" + reason + "]");
+                }
+                if (beforeCancelEx != null) {
+                    e.addSuppressed(beforeCancelEx);
+                }
+                IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
+                throw e;
+            });
             runUnderPrimaryPermit(() -> {
                 final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
                 ShardRouting targetShardRouting = routingTable.getByAllocationId(request.targetAllocationId());
@@ -243,8 +243,7 @@ public class RecoverySourceHandler {
                     sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis())
             );
         } catch (Exception e) {
-            IOUtils.closeWhileHandlingException(resources);
-            wrappedListener.onFailure(e);
+            IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
         }
     }
 

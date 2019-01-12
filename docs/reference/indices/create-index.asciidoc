@@ -78,7 +78,7 @@ that can be set when creating an index, please check the
 [[mappings]]
 === Mappings
 
-The create index API allows to provide a mapping:
+The create index API allows for providing a mapping definition:
 
 [source,js]
 --------------------------------------------------

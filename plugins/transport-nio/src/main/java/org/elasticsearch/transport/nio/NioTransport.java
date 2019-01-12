@@ -24,6 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
@@ -59,13 +61,15 @@ public class NioTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(NioTransport.class);
 
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
+    private final CheckedFunction<String, NioGroup, IOException> groupFactory;
     private volatile NioGroup nioGroup;
     private volatile Function<DiscoveryNode, TcpChannelFactory> clientChannelFactory;
 
     protected NioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                           CircuitBreakerService circuitBreakerService) {
+                           CircuitBreakerService circuitBreakerService, CheckedFunction<String, NioGroup, IOException> groupFactory) {
         super("nio", settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+        this.groupFactory = groupFactory;
     }
 
     @Override
@@ -84,8 +88,7 @@ public class NioTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX),
-                NioTransportPlugin.NIO_WORKER_COUNT.get(settings), (s) -> new EventHandler(this::onNonChannelException, s));
+            nioGroup = groupFactory.apply("");
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = clientChannelFactoryFunction(clientProfileSettings);

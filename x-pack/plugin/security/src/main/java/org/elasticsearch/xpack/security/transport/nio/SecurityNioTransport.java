@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -21,6 +22,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
@@ -76,8 +78,9 @@ public class SecurityNioTransport extends NioTransport {
     public SecurityNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                                 PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                                 CircuitBreakerService circuitBreakerService, @Nullable final IPFilter authenticator,
-                                SSLService sslService) {
-        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
+                                SSLService sslService, CheckedFunction<String, NioGroup, IOException> groupFactory) {
+        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
+            groupFactory);
         this.authenticator = authenticator;
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);

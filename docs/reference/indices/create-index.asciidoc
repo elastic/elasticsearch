@@ -96,6 +96,10 @@ PUT test
 --------------------------------------------------
 // CONSOLE
 
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
+types in requests is now deprecated, a type can still be provided if the request parameter
+include_type_name is set. For more details, please see <<removal-of-types>>.
+
 [float]
 [[create-index-aliases]]
 === Aliases

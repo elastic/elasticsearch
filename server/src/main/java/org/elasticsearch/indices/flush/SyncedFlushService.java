@@ -243,7 +243,6 @@ public class SyncedFlushService implements IndexEventListener {
                     actionListener.onResponse(
                         new ShardsSyncedFlushResult(shardId, totalShards, "[" + inflight + "] ongoing operations on primary"));
                 } else {
-                    // 3. now send the sync request to all the shards;
                     final String sharedSyncId = sharedExistingSyncId(presyncResponses);
                     if (sharedSyncId != null) {
                         assert presyncResponses.values().stream().allMatch(r -> r.existingSyncId.equals(sharedSyncId)) :

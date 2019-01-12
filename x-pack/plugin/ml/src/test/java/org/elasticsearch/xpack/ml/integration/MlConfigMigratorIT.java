@@ -120,7 +120,6 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         assertNull(alreadyMigratedJob.getCustomSettings());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37374")
     public void testMigrateConfigs() throws InterruptedException, IOException {
         // and jobs and datafeeds clusterstate
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
@@ -311,7 +310,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
     }
 
     public void assertSnapshot(MlMetadata expectedMlMetadata) throws IOException {
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern()).execute();
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern()).get();
         SearchResponse searchResponse = client()
             .prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setTypes(ElasticsearchMappings.DOC_TYPE)

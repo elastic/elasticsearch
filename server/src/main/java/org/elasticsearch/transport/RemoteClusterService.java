@@ -71,6 +71,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
+    private static final ActionListener<Void> noopListener = ActionListener.wrap((x) -> {}, (x) -> {});
+
     static {
         // remove search.remote.* settings in 8.0.0
         assert Version.CURRENT.major < 8;
@@ -393,36 +395,45 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     private synchronized void updateRemoteClusterPingSchedule(String clusterAlias, TimeValue timeValue) {
-        RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterAlias);
-        if (remoteClusterConnection != null) {
-            ConnectionProfile oldProfile = remoteClusterConnection.getConnectionManager().getConnectionProfile();
+        ConnectionProfile oldProfile = remoteClusterConnectionProfiles.get(clusterAlias);
+        if (oldProfile != null) {
             if (oldProfile.getPingInterval().equals(timeValue) == false) {
-                updateRemoteClusterConnectionProfile(clusterAlias);
+                ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
+                builder.setPingInterval(timeValue);
+                updateRemoteClusterConnectionProfile(clusterAlias, builder.build());
             }
+        } else {
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(buildConnectionProfileFromSettings(clusterAlias));
+            builder.setPingInterval(timeValue);
+            updateRemoteClusterConnectionProfile(clusterAlias, builder.build());
         }
     }
 
     private synchronized void updateRemoteClusterCompressionSetting(String clusterAlias, Boolean compressionEnabled) {
-        RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterAlias);
-        if (remoteClusterConnection != null) {
-            ConnectionProfile oldProfile = remoteClusterConnection.getConnectionManager().getConnectionProfile();
-            // May be null
+        ConnectionProfile oldProfile = remoteClusterConnectionProfiles.get(clusterAlias);
+        if (oldProfile != null) {
             if (oldProfile.getCompressionEnabled().equals(compressionEnabled) == false) {
-                ConnectionProfile.Builder newProfileBuilder = new ConnectionProfile.Builder(oldProfile);
-                newProfileBuilder.setCompressionEnabled(compressionEnabled);
-                updateRemoteClusterConnectionProfile(clusterAlias, newProfileBuilder.build());
+                ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
+                builder.setCompressionEnabled(compressionEnabled);
+                updateRemoteClusterConnectionProfile(clusterAlias, builder.build());
             }
+        } else {
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(buildConnectionProfileFromSettings(clusterAlias));
+            builder.setCompressionEnabled(compressionEnabled);
+            updateRemoteClusterConnectionProfile(clusterAlias, builder.build());
         }
     }
 
     private synchronized void updateRemoteClusterConnectionProfile(String clusterAlias, ConnectionProfile connectionProfile) {
         HashMap<String, ConnectionProfile> connectionProfiles = new HashMap<>(remoteClusterConnectionProfiles);
-        ConnectionProfile oldConnectionProfile = connectionProfiles.remove(clusterAlias);
-        if (oldConnectionProfile != null) {
-        } else {
-
-        }
+        connectionProfiles.put(clusterAlias, connectionProfile);
         this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);
+        RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterAlias);
+        if (remoteClusterConnection != null) {
+            String proxyAddress = remoteClusterConnection.getProxyAddress();
+            List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = remoteClusterConnection.getSeedNodes();
+            updateRemoteClusters(Collections.singletonMap(clusterAlias, new Tuple<>(proxyAddress, seedNodes)), noopListener);
+        }
     }
 
     synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
@@ -433,8 +444,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     @Override
-    protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
-        updateRemoteCluster(clusterAlias, addresses, proxyAddress, ActionListener.wrap((x) -> {}, (x) -> {}));
+    protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress, Boolean compressionEnabled,
+                                       TimeValue timeValue) {
+        updateRemoteCluster(clusterAlias, addresses, proxyAddress, noopListener);
     }
 
     void updateRemoteCluster(
@@ -474,19 +486,23 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private synchronized void initializeConnectionProfiles(Set<String> remoteClusters) {
         Map<String, ConnectionProfile> connectionProfiles = new HashMap<>(remoteClusters.size());
         for (String clusterName : remoteClusters) {
-            ConnectionProfile.Builder builder = new ConnectionProfile.Builder()
-                .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
-                .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
-                .addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING) // TODO make this configurable?
-                // we don't want this to be used for anything else but search
-                .addConnections(0, TransportRequestOptions.Type.BULK,
-                    TransportRequestOptions.Type.STATE,
-                    TransportRequestOptions.Type.RECOVERY)
-                .setCompressionEnabled(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterName).get(settings))
-                .setPingInterval(REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterName).get(settings));
-            connectionProfiles.put(clusterName, builder.build());
+            connectionProfiles.put(clusterName, buildConnectionProfileFromSettings(clusterName));
         }
         this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);
+    }
+
+    private ConnectionProfile buildConnectionProfileFromSettings(String clusterName) {
+        return new ConnectionProfile.Builder()
+            .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+            .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+            .addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING) // TODO make this configurable?
+            // we don't want this to be used for anything else but search
+            .addConnections(0, TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.STATE,
+                TransportRequestOptions.Type.RECOVERY)
+            .setCompressionEnabled(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterName).get(settings))
+            .setPingInterval(REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterName).get(settings))
+            .build();
     }
 
     @Override

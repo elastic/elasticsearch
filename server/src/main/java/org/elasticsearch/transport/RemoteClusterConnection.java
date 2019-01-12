@@ -369,6 +369,14 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         return connectHandler.isClosed();
     }
 
+    public String getProxyAddress() {
+        return proxyAddress;
+    }
+
+    public List<Tuple<String, Supplier<DiscoveryNode>>> getSeedNodes() {
+        return seedNodes;
+    }
+
     /**
      * The connect handler manages node discovery and the actual connect to the remote cluster.
      * There is at most one connect job running at any time. If such a connect job is triggered

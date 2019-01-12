@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -439,7 +440,8 @@ class IndicesAndAliasesResolver {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
+        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress, Boolean compressionEnabled,
+                                           TimeValue timeValue) {
             if (addresses.isEmpty()) {
                 clusters.remove(clusterAlias);
             } else {

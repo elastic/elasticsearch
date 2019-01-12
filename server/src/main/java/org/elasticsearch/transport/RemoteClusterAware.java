@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -282,21 +283,32 @@ public abstract class RemoteClusterAware {
         return perClusterIndices;
     }
 
+    void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy) {
+        updateRemoteCluster(clusterAlias, addresses, proxy, null, null);
+    }
+
+    void updateRemoteCluster(String clusterAlias, Settings settings) {
+        String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        List<String> addresses = REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        Boolean compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+
+        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
+    }
+
     /**
      * Subclasses must implement this to receive information about updated cluster aliases. If the given address list is
      * empty the cluster alias is unregistered and should be removed.
      */
-    protected abstract void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy);
+    protected abstract void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, Boolean compressionEnabled,
+                                                TimeValue timeValue);
 
     /**
      * Registers this instance to listen to updates on the cluster settings.
      */
     public void listenForUpdates(ClusterSettings clusterSettings) {
-        clusterSettings.addAffixUpdateConsumer(
-                RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
-                RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
-                (key, value) -> updateRemoteCluster(key, value.v2(), value.v1()),
-                (namespace, value) -> {});
+        clusterSettings.addAffixUpdateConsumer(Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_PROXY, RemoteClusterAware.REMOTE_CLUSTERS_SEEDS),
+            this::updateRemoteCluster);
         clusterSettings.addAffixUpdateConsumer(
                 RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
                 RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,

@@ -284,7 +284,9 @@ public abstract class RemoteClusterAware {
     }
 
     void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy) {
-        updateRemoteCluster(clusterAlias, addresses, proxy, null, null);
+        Boolean compress = TransportSettings.TRANSPORT_COMPRESS.get(settings);
+        TimeValue pingSchedule = TransportSettings.PING_SCHEDULE.get(settings);
+        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
     }
 
     void updateRemoteCluster(String clusterAlias, Settings settings) {
@@ -300,15 +302,17 @@ public abstract class RemoteClusterAware {
      * Subclasses must implement this to receive information about updated cluster aliases. If the given address list is
      * empty the cluster alias is unregistered and should be removed.
      */
-    protected abstract void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, Boolean compressionEnabled,
-                                                TimeValue timeValue);
+    protected abstract void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, boolean compressionEnabled,
+                                                TimeValue pingSchedule);
 
     /**
      * Registers this instance to listen to updates on the cluster settings.
      */
     public void listenForUpdates(ClusterSettings clusterSettings) {
-        clusterSettings.addAffixUpdateConsumer(Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_PROXY, RemoteClusterAware.REMOTE_CLUSTERS_SEEDS),
-            this::updateRemoteCluster);
+        List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
+            RemoteClusterAware.REMOTE_CLUSTERS_SEEDS, RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
+            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE);
+        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::updateRemoteCluster);
         clusterSettings.addAffixUpdateConsumer(
                 RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
                 RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,

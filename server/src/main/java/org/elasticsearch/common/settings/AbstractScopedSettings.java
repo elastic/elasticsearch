@@ -297,15 +297,13 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
-     * Adds a affix settings consumer that accepts the values for two settings. The consumer is only notified if one or both settings change
-     * and if the provided validator succeeded.
+     * Adds a affix settings consumer that accepts the settings for a group of settings. The consumer is only
+     * notified if at least one of the settings change.
      * <p>
      * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
-     * This method registers a compound updater that is useful if two settings are depending on each other.
-     * The consumer is always provided with both values even if only one of the two changes.
      */
-    public synchronized void addAffixUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
         List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
         for (Setting.AffixSetting<?> setting : settings) {
             ensureSettingIsRegistered(setting);
@@ -329,9 +327,9 @@ public abstract class AbstractScopedSettings {
                 }
                 Map<String, Settings> namespaceToSettings = new HashMap<>(namespaces.size());
                 for (String namespace : namespaces) {
-                    Set<Setting<?>> concreteSettings = new HashSet<>(settings.size());
+                    Set<String> concreteSettings = new HashSet<>(settings.size());
                     for (Setting.AffixSetting<?> setting : settings) {
-                        concreteSettings.add(setting.getConcreteSettingForNamespace(namespace));
+                        concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
                     }
                     namespaceToSettings.put(namespace, current.filter(concreteSettings::contains));
                 }

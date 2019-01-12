@@ -440,8 +440,8 @@ class IndicesAndAliasesResolver {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress, Boolean compressionEnabled,
-                                           TimeValue timeValue) {
+        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress, boolean compressionEnabled,
+                                           TimeValue pingSchedule) {
             if (addresses.isEmpty()) {
                 clusters.remove(clusterAlias);
             } else {

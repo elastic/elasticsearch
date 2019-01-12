@@ -77,8 +77,8 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, Boolean compressionEnabled,
-                                           TimeValue timeValue) {
+        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, boolean compressionEnabled,
+                                           TimeValue pingSchedule) {
             String repositoryName = CcrRepository.NAME_PREFIX + clusterAlias;
             if (addresses.isEmpty()) {
                 deleteRepository(repositoryName);

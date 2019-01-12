@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
@@ -38,7 +39,7 @@ public class CancellableThreads {
     private final Set<Thread> threads = new HashSet<>();
     // needs to be volatile as it is also read outside of synchronized blocks.
     private volatile boolean cancelled = false;
-    private OnCancel onCancel;
+    private final SetOnce<OnCancel> onCancel = new SetOnce<>();
     private String reason;
 
     public synchronized boolean isCancelled() {
@@ -55,7 +56,7 @@ public class CancellableThreads {
             final OnCancel onCancel;
             synchronized (this) {
                 reason = this.reason;
-                onCancel = this.onCancel;
+                onCancel = this.onCancel.get();
             }
             if (onCancel != null) {
                 onCancel.onCancel(reason, beforeCancelException);
@@ -188,7 +189,7 @@ public class CancellableThreads {
      * Registers a callback that will be invoked when some running operations are cancelled or {@link #checkForCancel()} is called.
      */
     public synchronized void setOnCancel(OnCancel onCancel) {
-        this.onCancel = onCancel;
+        this.onCancel.set(onCancel);
     }
 
     @FunctionalInterface

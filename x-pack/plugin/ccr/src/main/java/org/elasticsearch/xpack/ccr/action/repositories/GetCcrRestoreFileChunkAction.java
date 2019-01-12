@@ -84,8 +84,8 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
                     // structure on the same thread. So the bytes will be copied before the reference is released.
                     try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(array, bytesRequested, array)) {
                         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
-                            sessionReader.readFileBytes(fileName, reference);
-                            listener.onResponse(new GetCcrRestoreFileChunkResponse(reference));
+                            long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
+                            listener.onResponse(new GetCcrRestoreFileChunkResponse(offsetAfterRead, reference));
                         }
                     }
                 }
@@ -95,15 +95,22 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
 
     public static class GetCcrRestoreFileChunkResponse extends ActionResponse {
 
+        private final long offset;
         private final BytesReference chunk;
 
         GetCcrRestoreFileChunkResponse(StreamInput streamInput) throws IOException {
             super(streamInput);
+            offset = streamInput.readVLong();
             chunk = streamInput.readBytesReference();
         }
 
-        GetCcrRestoreFileChunkResponse(BytesReference chunk) {
+        GetCcrRestoreFileChunkResponse(long offset, BytesReference chunk) {
+            this.offset = offset;
             this.chunk = chunk;
+        }
+
+        public long getOffset() {
+            return offset;
         }
 
         public BytesReference getChunk() {
@@ -113,7 +120,9 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeVLong(offset);
             out.writeBytesReference(chunk);
         }
+
     }
 }

@@ -14,11 +14,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -30,9 +31,11 @@ import org.elasticsearch.index.store.Store;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
@@ -56,7 +59,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             if (sessions != null) {
                 for (String sessionUUID : sessions) {
                     RestoreSession restore = onGoingRestores.remove(sessionUUID);
-                    assert restore != null;
+                    assert restore != null : "Restore registered for shard but not found in ongoing restores";
                     restore.decRef();
                 }
             }
@@ -143,10 +146,10 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
             }
             HashSet<String> sessions = sessionsForShard.get(restore.indexShard);
-            assert sessions != null;
+            assert sessions != null : "No session UUIDs for shard even though once is active in ongoing restores";
             if (sessions != null) {
                 boolean removed = sessions.remove(sessionUUID);
-                assert removed;
+                assert removed : "No session found for UUID";
                 if (sessions.isEmpty()) {
                     sessionsForShard.remove(restore.indexShard);
                 }
@@ -169,7 +172,8 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         private final String sessionUUID;
         private final IndexShard indexShard;
         private final Engine.IndexCommitRef commitRef;
-        private volatile Tuple<String, IndexInput> cachedInput;
+        private final KeyedLock<String> keyedLock = new KeyedLock<>();
+        private final Map<String, IndexInput> cachedInputs = new ConcurrentHashMap<>();
 
         private RestoreSession(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef) {
             super("restore-session");
@@ -187,37 +191,42 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             }
         }
 
-        private synchronized void readFileBytes(String fileName, BytesReference reference) throws IOException {
-            // Should not access this method while holding global lock as that might block the cluster state
-            // update thread on IO if it calls afterIndexShardClosed
-            if (cachedInput != null) {
-                if (fileName.equals(cachedInput.v2()) == false) {
-                    cachedInput.v2().close();
-                    openNewIndexInput(fileName);
-                }
-            } else {
-                openNewIndexInput(fileName);
+        private long readFileBytes(String fileName, BytesReference reference) throws IOException {
+            Releasable lock = keyedLock.tryAcquire(fileName);
+            if (lock == null) {
+                throw new IllegalStateException("can't read from the same file on the same session concurrently");
             }
-            BytesRefIterator refIterator = reference.iterator();
-            BytesRef ref;
-            IndexInput in = cachedInput.v2();
-            while ((ref = refIterator.next()) != null) {
-                byte[] refBytes = ref.bytes;
-                in.readBytes(refBytes, 0, refBytes.length);
-            }
-        }
+            try (Releasable releasable = lock) {
+                final IndexInput indexInput = cachedInputs.computeIfAbsent(fileName, f -> {
+                    try {
+                        return commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
 
-        private void openNewIndexInput(String fileName) throws IOException {
-            IndexInput in = commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE);
-            cachedInput = new Tuple<>(fileName, in);
+                BytesRefIterator refIterator = reference.iterator();
+                BytesRef ref;
+                while ((ref = refIterator.next()) != null) {
+                    byte[] refBytes = ref.bytes;
+                    indexInput.readBytes(refBytes, 0, refBytes.length);
+                }
+
+                long offsetAfterRead = indexInput.getFilePointer();
+
+                if (offsetAfterRead == indexInput.length()) {
+                    cachedInputs.remove(fileName);
+                    IOUtils.closeWhileHandlingException(indexInput);
+                }
+
+                return offsetAfterRead;
+            }
         }
 
         @Override
         protected void closeInternal() {
             logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
-            if (cachedInput != null) {
-                IOUtils.closeWhileHandlingException(cachedInput.v2());
-            }
+            IOUtils.closeWhileHandlingException(cachedInputs.values());
         }
     }
 
@@ -230,8 +239,17 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             restoreSession.incRef();
         }
 
-        public void readFileBytes(String fileName, BytesReference reference) throws IOException {
-            restoreSession.readFileBytes(fileName, reference);
+        /**
+         * Read bytes into the reference from the file. This method will return the offset in the file where
+         * the read completed.
+         *
+         * @param fileName to read
+         * @param reference to read bytes into
+         * @return the offset of the file after the read is complete
+         * @throws IOException if the read fails
+         */
+        public long readFileBytes(String fileName, BytesReference reference) throws IOException {
+            return restoreSession.readFileBytes(fileName, reference);
         }
 
         @Override

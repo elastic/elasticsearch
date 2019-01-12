@@ -151,7 +151,8 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         BytesArray byteArray = new BytesArray(actualBytes);
         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID1)) {
-            sessionReader.readFileBytes(fileName, byteArray);
+            long offset = sessionReader.readFileBytes(fileName, byteArray);
+            assertEquals(offset, fileMetaData.length());
         }
 
         assertArrayEquals(expectedBytes, actualBytes);

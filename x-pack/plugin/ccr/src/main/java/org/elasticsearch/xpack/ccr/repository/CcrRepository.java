@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.ccr.repository;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -79,8 +77,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public static final String TYPE = "_ccr_";
     public static final String NAME_PREFIX = "_ccr_";
     private static final SnapshotId SNAPSHOT_ID = new SnapshotId(LATEST, LATEST);
-
-    private static final Logger logger = LogManager.getLogger(CcrRepository.class);
 
     private final RepositoryMetaData metadata;
     private final String remoteClusterAlias;
@@ -372,7 +368,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             int bytesRequested = (int) Math.min(remainingBytes, len);
             String fileName = fileToRecover.name();
             GetCcrRestoreFileChunkRequest request = new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileName, bytesRequested);
-            BytesReference fileChunk = remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request).actionGet().getChunk();
+            GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse response =
+                remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request).actionGet();
+            BytesReference fileChunk = response.getChunk();
 
             int bytesReceived = fileChunk.length();
             if (bytesReceived > bytesRequested) {
@@ -385,6 +383,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             }
 
             pos += bytesReceived;
+
+            long leaderOffset = response.getOffset();
+            assert pos == leaderOffset : "Position [" + pos + "] should be equal to the leader file offset [" + leaderOffset + "].";
 
             return bytesReceived;
         }

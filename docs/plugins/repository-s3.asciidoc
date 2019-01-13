@@ -34,10 +34,10 @@ PUT _snapshot/my_s3_repository
 [[repository-s3-client]]
 ==== Client Settings
 
-The client used to connect to S3 has a number of settings available. Client setting names are of
-the form `s3.client.CLIENT_NAME.SETTING_NAME`. The default client name, which is looked up by
-an `s3` repository, is called `default`. It can be modified using the
-<<repository-s3-repository, repository setting>> `client`. For example:
+The client that you use to connect to S3 has a number of settings available. The
+settings have the form `s3.client.CLIENT_NAME.SETTING_NAME`. The default client
+name that is looked up by an `s3` repository is `default`. It can be modified
+using the <<repository-s3-repository,repository setting>> `client`. For example:
 
 [source,js]
 ----
@@ -53,11 +53,13 @@ PUT _snapshot/my_s3_repository
 // CONSOLE
 // TEST[skip:we don't have s3 setup while testing this]
 
-Most client settings are specified inside `elasticsearch.yml`, but some are
-sensitive and must be stored in the {ref}/secure-settings.html[elasticsearch keystore].
+Most client settings can be added to the `elasticsearch.yml` configuration file
+with the exception of the secure settings, which you add to the {es} keystore.
+For more information about creating and updating the {es} keystore, see
+{ref}/secure-settings.html[Secure settings].
 
-For example, before you start the node, run these commands to add AWS access
-key settings to the keystore:
+For example, before you start the node, run these commands to add AWS access key
+settings to the keystore:
 
 [source,sh]
 ----
@@ -76,16 +78,17 @@ NOTE: In progress snapshot/restore tasks will not be preempted by a *reload*
 of the client's secure settings. The task will complete using the client as it
 was built when the operation started.
 
-The following is the list of all the available client settings.
-Those that must be stored in the keystore are marked as `Secure` and are *reloadable*.
+The following list contains the available client settings. Those that must be
+stored in the keystore are marked as "secure" and are *reloadable*; the other
+settings belong in the `elasticsearch.yml` file.
 
-`access_key`::
+`access_key` ({ref}/secure-settings.html[Secure])::
 
-    An s3 access key. The `secret_key` setting must also be specified. (Secure)
+    An s3 access key. The `secret_key` setting must also be specified. 
 
-`secret_key`::
+`secret_key` ({ref}/secure-settings.html[Secure])::
 
-    An s3 secret key. The `access_key` setting must also be specified. (Secure)
+    An s3 secret key. The `access_key` setting must also be specified. 
 
 `session_token`::
     An s3 session token. The `access_key` and `secret_key` settings must also
@@ -110,13 +113,13 @@ Those that must be stored in the keystore are marked as `Secure` and are *reload
 
     The port of a proxy to connect to s3 through.
 
-`proxy.username`::
+`proxy.username` ({ref}/secure-settings.html[Secure])::
 
-    The username to connect to the `proxy.host` with. (Secure)    
+    The username to connect to the `proxy.host` with.    
 
-`proxy.password`::
+`proxy.password` ({ref}/secure-settings.html[Secure])::
 
-    The password to connect to the `proxy.host` with. (Secure)    
+    The password to connect to the `proxy.host` with.   
 
 `read_timeout`::
 
@@ -208,8 +211,12 @@ The following settings are supported:
 
 `storage_class`::
 
-    Sets the S3 storage class type for the backup files. Values may be
-    `standard`, `reduced_redundancy`, `standard_ia`. Defaults to `standard`.
+    Sets the S3 storage class for objects stored in the snapshot repository.
+    Values may be `standard`, `reduced_redundancy`, `standard_ia`.
+    Defaults to `standard`. Changing this setting on an existing repository
+    only affects the storage class for newly created objects, resulting in a
+    mixed usage of storage classes. Additionally, S3 Lifecycle Policies can
+    be used to manage the storage class of existing objects.
     Due to the extra complexity with the Glacier class lifecycle, it is not
     currently supported by the plugin. For more information about the
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]
@@ -303,6 +310,9 @@ You may further restrict the permissions by specifying a prefix within the bucke
 
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
 registration will fail.
+
+Note: Starting in version 7.0, all bucket operations are using the path style access pattern. In previous versions the decision to use virtual hosted style
+or path style access was made by the AWS Java SDK.
 
 [[repository-s3-aws-vpc]]
 [float]

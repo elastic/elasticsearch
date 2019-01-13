@@ -67,13 +67,11 @@ class org.elasticsearch.common.geo.GeoPoint {
 class org.elasticsearch.index.fielddata.ScriptDocValues$Strings {
   String get(int)
   String getValue()
-  List getValues()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
   Long get(int)
   long getValue()
-  List getValues()
 }
 
 class org.elasticsearch.script.JodaCompatibleZonedDateTime {
@@ -89,6 +87,7 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   int getNano()
   int getSecond()
   int getYear()
+  ZoneId getZone()
   ZonedDateTime minus(TemporalAmount)
   ZonedDateTime minus(long,TemporalUnit)
   ZonedDateTime minusYears(long)
@@ -131,9 +130,9 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   #### Joda methods that exist in java time
   boolean equals(Object)
   int hashCode()
-  boolean isAfter(ZonedDateTime)
-  boolean isBefore(ZonedDateTime)
-  boolean isEqual(ZonedDateTime)
+  boolean isAfter(JodaCompatibleZonedDateTime)
+  boolean isBefore(JodaCompatibleZonedDateTime)
+  boolean isEqual(JodaCompatibleZonedDateTime)
   String toString()
 
   #### Joda time methods
@@ -163,19 +162,16 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
 class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
   JodaCompatibleZonedDateTime get(int)
   JodaCompatibleZonedDateTime getValue()
-  List getValues()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
   Double get(int)
   double getValue()
-  List getValues()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {
   org.elasticsearch.common.geo.GeoPoint get(int)
   org.elasticsearch.common.geo.GeoPoint getValue()
-  List getValues()
   double getLat()
   double getLon()
   double[] getLats()
@@ -193,13 +189,11 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {
 class org.elasticsearch.index.fielddata.ScriptDocValues$Booleans {
   Boolean get(int)
   boolean getValue()
-  List getValues()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs {
   BytesRef get(int)
   BytesRef getValue()
-  List getValues()
 }
 
 class org.apache.lucene.util.BytesRef {
@@ -213,7 +207,6 @@ class org.apache.lucene.util.BytesRef {
 class org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues {
   String get(int)
   String getValue()
-  List getValues()
 }
 
 class org.elasticsearch.search.lookup.FieldLookup {
@@ -242,6 +235,12 @@ class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
   float getFreq()
 }
 
+class org.elasticsearch.index.query.IntervalFilterScript$Interval {
+  int getStart()
+  int getEnd()
+  int getGaps()
+}
+
 # for testing
 class org.elasticsearch.painless.FeatureTest no_import {
   int z
@@ -249,10 +248,14 @@ class org.elasticsearch.painless.FeatureTest no_import {
   (int,int)
   int getX()
   int getY()
+  Integer getI()
   void setX(int)
   void setY(int)
+  void setI(Integer)
   boolean overloadedStatic()
   boolean overloadedStatic(boolean)
+  int staticNumberTest(Number)
+  Double mixedAdd(int, Byte, char, Float)
   Object twoFunctionsOfX(Function,Function)
   void listInput(List)
   int org.elasticsearch.painless.FeatureTestAugmentation getTotal()
@@ -261,6 +264,7 @@ class org.elasticsearch.painless.FeatureTest no_import {
 
 # for testing
 static_import {
+  int staticAddIntsTest(int, int) from_class org.elasticsearch.painless.StaticTest
   float staticAddFloatsTest(float, float) from_class org.elasticsearch.painless.FeatureTest
   int testAddWithState(int, int, int, double) bound_to org.elasticsearch.painless.BindingTest
 }

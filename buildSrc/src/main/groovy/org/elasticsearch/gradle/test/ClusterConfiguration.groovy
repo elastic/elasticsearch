@@ -68,7 +68,29 @@ class ClusterConfiguration {
      * In case of more than one node, this defaults to the number of nodes
      */
     @Input
-    Closure<Integer> minimumMasterNodes = { getNumNodes() > 1 ? getNumNodes() : -1 }
+    Closure<Integer> minimumMasterNodes = {
+        if (bwcVersion != null && bwcVersion.before("6.5.0")) {
+            return numNodes > 1 ? numNodes : -1
+        } else {
+            return numNodes > 1 ? numNodes.intdiv(2) + 1 : -1
+        }
+    }
+
+    /**
+     * Whether the initial_master_nodes setting should be automatically derived from the nodes
+     * in the cluster. Only takes effect if all nodes in the cluster understand this setting
+     * and the discovery type is not explicitly set.
+     */
+    @Input
+    boolean autoSetInitialMasterNodes = true
+
+    /**
+     * Whether the file-based discovery provider should be automatically setup based on
+     * the nodes in the cluster. Only takes effect if no other hosts provider is already
+     * configured.
+     */
+    @Input
+    boolean autoSetHostsProvider = true
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
@@ -102,6 +124,14 @@ class ClusterConfiguration {
             }
         }
         return seedNode.transportUri()
+    }
+
+    /**
+     * A closure to call which returns a manually supplied list of unicast seed hosts.
+     */
+    @Input
+    Closure<List<String>> otherUnicastHostAddresses = {
+        Collections.emptyList()
     }
 
     /**

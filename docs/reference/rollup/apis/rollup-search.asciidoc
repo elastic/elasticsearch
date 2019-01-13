@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-search]]
-=== Rollup Search
+=== Rollup search
 ++++
-<titleabbrev>Rollup Search</titleabbrev>
+<titleabbrev>Rollup search</titleabbrev>
 ++++
 
 experimental[]
@@ -26,10 +26,12 @@ and rewrites it back to what a client would expect given the original query.
   indices.
 
 Rules for the `index` parameter:
+
 - At least one index/index-pattern must be specified.  This can be either a rollup or non-rollup index.  Omitting the index parameter,
 or using `_all`, is not permitted
 - Multiple non-rollup indices may be specified
 - Only one rollup index may be specified.  If more than one are supplied an exception will be thrown
+- Index patterns may be used, but if they match more than one rollup index an exception will be thrown.
 
 ==== Request Body
 
@@ -51,7 +53,7 @@ Imagine we have an index named `sensor-1` full of raw data, and we have created 
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/rollup/job/sensor
+PUT _rollup/job/sensor
 {
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",
@@ -115,7 +117,10 @@ aggregation has been used on the `temperature` field, yielding the following res
   "terminated_early" : false,
   "_shards" : ... ,
   "hits" : {
-    "total" : 0,
+    "total" : {
+        "value": 0,
+        "relation": "eq"
+    },
     "max_score" : 0.0,
     "hits" : [ ]
   },
@@ -218,7 +223,10 @@ The response to the above query will look as expected, despite spanning rollup a
   "terminated_early" : false,
   "_shards" : ... ,
   "hits" : {
-    "total" : 0,
+    "total" : {
+        "value": 0,
+        "relation": "eq"
+    },
     "max_score" : 0.0,
     "hits" : [ ]
   },

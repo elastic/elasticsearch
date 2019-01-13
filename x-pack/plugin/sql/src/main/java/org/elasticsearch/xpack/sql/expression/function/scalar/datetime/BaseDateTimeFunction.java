@@ -8,56 +8,70 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.tree.Source;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Objects;
 
 abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     
-    private final TimeZone timeZone;
-    private final String name;
+    private final ZoneId zoneId;
 
-    BaseDateTimeFunction(Location location, Expression field, TimeZone timeZone) {
-        super(location, field);
-        this.timeZone = timeZone;
-
-        StringBuilder sb = new StringBuilder(super.name());
-        // add timezone as last argument
-        sb.insert(sb.length() - 1, " [" + timeZone.getID() + "]");
-
-        this.name = sb.toString();
+    BaseDateTimeFunction(Source source, Expression field, ZoneId zoneId) {
+        super(source, field);
+        this.zoneId = zoneId;
     }
 
     @Override
     protected final NodeInfo<BaseDateTimeFunction> info() {
-        return NodeInfo.create(this, ctorForInfo(), field(), timeZone());
+        return NodeInfo.create(this, ctorForInfo(), field(), zoneId());
     }
 
-    protected abstract NodeInfo.NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo();
+    protected abstract NodeInfo.NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo();
 
     @Override
     protected TypeResolution resolveType() {
-        if (field().dataType() == DataType.DATE) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-        return new TypeResolution("Function [" + functionName() + "] cannot be applied on a non-date expression (["
-                + Expressions.name(field()) + "] of type [" + field().dataType().esType + "])");
+        return Expressions.typeMustBeDate(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
-    public TimeZone timeZone() {
-        return timeZone;
-    }
-    
-    @Override
-    public String name() {
-        return name;
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
     @Override
     public boolean foldable() {
         return field().foldable();
+    }
+
+    @Override
+    public Object fold() {
+        ZonedDateTime folded = (ZonedDateTime) field().fold();
+        if (folded == null) {
+            return null;
+        }
+
+        return doFold(folded.withZoneSameInstant(zoneId));
+    }
+
+    protected abstract Object doFold(ZonedDateTime dateTime);
+    
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        BaseDateTimeFunction other = (BaseDateTimeFunction) obj;
+        return Objects.equals(other.field(), field())
+                && Objects.equals(other.zoneId(), zoneId());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(field(), zoneId());
     }
 }

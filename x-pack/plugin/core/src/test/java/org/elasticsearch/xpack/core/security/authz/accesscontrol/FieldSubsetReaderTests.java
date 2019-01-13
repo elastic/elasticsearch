@@ -148,7 +148,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertEquals(Integer.BYTES, points.getBytesPerDimension());
 
         // number of dimensions
-        assertEquals(1, points.getNumDimensions());
+        assertEquals(1, points.getNumIndexDimensions());
 
         // walk the trees: we should see stuff in fieldA
         AtomicBoolean sawDoc = new AtomicBoolean(false);

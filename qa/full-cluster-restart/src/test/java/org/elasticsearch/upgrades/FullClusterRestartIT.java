@@ -33,6 +33,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestUpdateAction;
+import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -60,6 +64,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -75,7 +80,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String index;
 
     @Before
-    public void setIndex() {
+    public void setIndex() throws IOException {
         index = getTestName().toLowerCase(Locale.ROOT);
     }
 
@@ -202,7 +207,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 search.addParameter("preference", "_only_nodes:" + node);
                 Map<String, Object> responseBody = entityAsMap(client().performRequest(search));
                 assertNoFailures(responseBody);
-                int hits = (int) XContentMapValues.extractValue("hits.total", responseBody);
+                int hits = extractTotalHits(responseBody);
                 counts.add(hits);
             }
             assertEquals("All nodes should have a consistent number of documents", 1, counts.size());
@@ -267,7 +272,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // We can read from the alias just like we can read from the index.
         String aliasName = "%23" + index; // %23 == #
         Map<String, Object> searchRsp = entityAsMap(client().performRequest(new Request("GET", "/" + aliasName + "/_search")));
-        int totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
+        int totalHits = extractTotalHits(searchRsp);
         assertEquals(count, totalHits);
         if (isRunningAgainstOldCluster() == false) {
             // We can remove the alias.
@@ -283,7 +288,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
-            mappingsAndSettings.field("template", index);
+            mappingsAndSettings.field("index_patterns", index);
+            mappingsAndSettings.field("order", "1000");
             {
                 mappingsAndSettings.startObject("settings");
                 mappingsAndSettings.field("number_of_shards", 1);
@@ -361,6 +367,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(updateSettingsRequest);
 
             Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
+            if (getOldClusterVersion().onOrAfter(Version.V_6_4_0)) {
+                shrinkIndexRequest.addParameter("copy_settings", "true");
+            }
             shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
             client().performRequest(shrinkIndexRequest);
 
@@ -375,7 +384,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(totalShards, greaterThan(1));
         int successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
         assertEquals(totalShards, successfulShards);
-        int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        int totalHits = extractTotalHits(response);
         assertEquals(numDocs, totalHits);
 
         response = entityAsMap(client().performRequest(new Request("GET", "/" + shrunkenIndex+ "/_search")));
@@ -384,7 +393,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(1, totalShards);
         successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
         assertEquals(1, successfulShards);
-        totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        totalHits = extractTotalHits(response);
         assertEquals(numDocs, totalHits);
     }
 
@@ -440,7 +449,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(totalShards, greaterThan(1));
         int successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
         assertEquals(totalShards, successfulShards);
-        int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        int totalHits = extractTotalHits(response);
         assertEquals(numDocs, totalHits);
 
         if (isRunningAgainstOldCluster() == false) {
@@ -450,7 +459,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertEquals(1, totalShards);
             successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
             assertEquals(1, successfulShards);
-            totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+            totalHits = extractTotalHits(response);
             assertEquals(numDocs, totalHits);
         }
     }
@@ -487,6 +496,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request bulkRequest = new Request("POST", "/" + index + "_write/doc/_bulk");
         bulkRequest.setJsonEntity(bulk.toString());
         bulkRequest.addParameter("refresh", "");
+        bulkRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(EntityUtils.toString(client().performRequest(bulkRequest).getEntity()), containsString("\"errors\":false"));
 
         if (isRunningAgainstOldCluster()) {
@@ -508,7 +518,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertNoFailures(count);
 
         int expectedCount = bulkCount + (isRunningAgainstOldCluster() ? 0 : bulkCount);
-        assertEquals(expectedCount, (int) XContentMapValues.extractValue("hits.total", count));
+        assertEquals(expectedCount, extractTotalHits(count));
     }
 
     void assertBasicSearchWorks(int count) throws IOException {
@@ -516,7 +526,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         {
             Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
             assertNoFailures(response);
-            int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+            int numDocs = extractTotalHits(response);
             logger.info("Found {} in old index", numDocs);
             assertEquals(count, numDocs);
         }
@@ -562,14 +572,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertNotNull(stringValue);
         String type = (String) bestHit.get("_type");
         String id = (String) bestHit.get("_id");
-        Request explanationRequest = new Request("GET", "/" + index + "/" + type + "/" + id + "/_explain");
-        explanationRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
-        String explanation = toStr(client().performRequest(explanationRequest));
+
+        Request explainRequest = new Request("GET", "/" + index + "/" + type + "/" + id + "/_explain");
+        explainRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
+        explainRequest.setOptions(expectWarnings(RestExplainAction.TYPES_DEPRECATION_MESSAGE));
+        String explanation = toStr(client().performRequest(explainRequest));
         assertFalse("Could not find payload boost in explanation\n" + explanation, explanation.contains("payloadBoost"));
 
         // Make sure the query can run on the whole index
         Request searchRequest = new Request("GET", "/" + index + "/_search");
-        searchRequest.setEntity(explanationRequest.getEntity());
+        searchRequest.setEntity(explainRequest.getEntity());
         searchRequest.addParameter("explain", "true");
         Map<?, ?> matchAllResponse = entityAsMap(client().performRequest(searchRequest));
         assertNoFailures(matchAllResponse);
@@ -615,10 +627,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         String docId = (String) hit.get("_id");
 
         Request updateRequest = new Request("POST", "/" + index + "/doc/" + docId + "/_update");
+        updateRequest.setOptions(expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
         updateRequest.setJsonEntity("{ \"doc\" : { \"foo\": \"bar\"}}");
         client().performRequest(updateRequest);
 
-        Map<String, Object> getRsp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/doc/" + docId)));
+        Request getRequest = new Request("GET", "/" + index + "/doc/" + docId);
+        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        Map<String, Object> getRsp = entityAsMap(client().performRequest(getRequest));
         Map<?, ?> source = (Map<?, ?>) getRsp.get("_source");
         assertTrue("doc does not contain 'foo' key: " + source, source.containsKey("foo"));
 
@@ -654,9 +669,17 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(0, failed);
     }
 
-    static void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
-        int actualTotalHits = (Integer) XContentMapValues.extractValue("hits.total", response);
+    void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
+        int actualTotalHits = extractTotalHits(response);
         assertEquals(expectedTotalHits, actualTotalHits);
+    }
+
+    int extractTotalHits(Map<?, ?> response) {
+        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_0_0)) {
+            return (Integer) XContentMapValues.extractValue("hits.total", response);
+        } else {
+            return (Integer) XContentMapValues.extractValue("hits.total.value", response);
+        }
     }
 
     /**
@@ -672,7 +695,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createDoc);
         }
 
-        assertThat(toStr(client().performRequest(new Request("GET", docLocation))), containsString(doc));
+
+        Request request = new Request("GET", docLocation);
+        request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        assertThat(toStr(client().performRequest(request)), containsString(doc));
     }
 
     /**
@@ -747,8 +773,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // Count the documents in the index to make sure we have as many as we put there
         Request countRequest = new Request("GET", "/" + index + "/_search");
         countRequest.addParameter("size", "0");
-        String countResponse = toStr(client().performRequest(countRequest));
-        assertThat(countResponse, containsString("\"total\":" + count));
+        Map<String, Object> countResponse = entityAsMap(client().performRequest(countRequest));
+        assertTotalHits(count, countResponse);
 
         if (false == isRunningAgainstOldCluster()) {
             boolean restoredFromTranslog = false;
@@ -777,33 +803,34 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
             assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
 
-        String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
-        String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
-        if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
-            int numCurrentVersion = 0;
-            int numBwcVersion = 0;
-            Request segmentsRequest = new Request("GET", "/_cat/segments/" + index);
-            segmentsRequest.addParameter("h", "prirep,shard,index,version");
-            segmentsRequest.addParameter("s", "prirep,shard,index");
-            String segmentsResponse = toStr(client().performRequest(segmentsRequest));
-            for (String line : segmentsResponse.split("\n")) {
-                if (false == line.startsWith("p")) {
-                    continue;
+            String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
+            String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
+            if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
+                int numCurrentVersion = 0;
+                int numBwcVersion = 0;
+                Request segmentsRequest = new Request("GET", "/_cat/segments/" + index);
+                segmentsRequest.addParameter("h", "prirep,shard,index,version");
+                segmentsRequest.addParameter("s", "prirep,shard,index");
+                String segmentsResponse = toStr(client().performRequest(segmentsRequest));
+                for (String line : segmentsResponse.split("\n")) {
+                    if (false == line.startsWith("p")) {
+                        continue;
+                    }
+                    Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
+                    assertTrue(line, m.find());
+                    String version = m.group(1);
+                    if (currentLuceneVersion.equals(version)) {
+                        numCurrentVersion++;
+                    } else if (bwcLuceneVersion.equals(version)) {
+                        numBwcVersion++;
+                    } else {
+                        fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
+                    }
                 }
-                Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
-                assertTrue(line, m.find());
-                String version = m.group(1);
-                if (currentLuceneVersion.equals(version)) {
-                    numCurrentVersion++;
-                } else if (bwcLuceneVersion.equals(version)) {
-                    numBwcVersion++;
-                } else {
-                    fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
-                }
+                assertNotEquals("expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
+                    0, numCurrentVersion);
+                assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);
             }
-            assertNotEquals("expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
-                0, numCurrentVersion);
-            assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);}
         }
     }
 
@@ -832,8 +859,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // Count the documents in the index to make sure we have as many as we put there
         Request countRequest = new Request("GET", "/" + index + "/_search");
         countRequest.addParameter("size", "0");
-        String countResponse = toStr(client().performRequest(countRequest));
-        assertThat(countResponse, containsString("\"total\":" + count));
+        Map<String, Object> countResponse = entityAsMap(client().performRequest(countRequest));
+        assertTotalHits(count, countResponse);
 
         // Stick a routing attribute into to cluster settings so we can see it after the restore
         Request addRoutingSettings = new Request("PUT", "/_cluster/settings");
@@ -843,7 +870,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Stick a template into the cluster so we can see it after the restore
         XContentBuilder templateBuilder = JsonXContent.contentBuilder().startObject();
-        templateBuilder.field("template", "evil_*"); // Don't confuse other tests by applying the template
+        templateBuilder.field("index_patterns", "evil_*"); // Don't confuse other tests by applying the template
         templateBuilder.startObject("settings"); {
             templateBuilder.field("number_of_shards", 1);
         }
@@ -939,6 +966,56 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    public void testSoftDeletes() throws Exception {
+        if (isRunningAgainstOldCluster()) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 1);
+                if (getOldClusterVersion().onOrAfter(Version.V_6_5_0) && randomBoolean()) {
+                    mappingsAndSettings.field("soft_deletes.enabled", true);
+                }
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            client().performRequest(createIndex);
+            int numDocs = between(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject());
+                Request request = new Request("POST", "/" + index + "/doc/" + i);
+                request.setJsonEntity(doc);
+                client().performRequest(request);
+                if (rarely()) {
+                    refresh();
+                }
+            }
+            client().performRequest(new Request("POST", "/" + index + "/_flush"));
+            int liveDocs = numDocs;
+            assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+            for (int i = 0; i < numDocs; i++) {
+                if (randomBoolean()) {
+                    String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v2").endObject());
+                    Request request = new Request("POST", "/" + index + "/doc/" + i);
+                    request.setJsonEntity(doc);
+                    client().performRequest(request);
+                } else if (randomBoolean()) {
+                    client().performRequest(new Request("DELETE", "/" + index + "/doc/" + i));
+                    liveDocs--;
+                }
+            }
+            refresh();
+            assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+            saveInfoDocument("doc_count", Integer.toString(liveDocs));
+        } else {
+            int liveDocs = Integer.parseInt(loadInfoDocument("doc_count"));
+            assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+        }
+    }
+
     private void checkSnapshot(String snapshotName, int count, Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
@@ -948,9 +1025,23 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", listSnapshotResponse));
 
         // Remove the routing setting and template so we can test restoring them.
-        Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
-        clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
-        client().performRequest(clearRoutingFromSettings);
+        try {
+            Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
+            clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
+            client().performRequest(clearRoutingFromSettings);
+        } catch (ResponseException e) {
+            if (e.getResponse().hasWarnings()
+                    && (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_6_5_0))) {
+                e.getResponse().getWarnings().stream().forEach(warning -> {
+                    assertThat(warning, containsString(
+                            "setting was deprecated in Elasticsearch and will be removed in a future release! "
+                            + "See the breaking changes documentation for the next major version."));
+                    assertThat(warning, startsWith("[search.remote."));
+                });
+            } else {
+                throw e;
+            }
+        }
         client().performRequest(new Request("DELETE", "/_template/test_template"));
 
         // Restore
@@ -968,8 +1059,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // Make sure search finds all documents
         Request countRequest = new Request("GET", "/restored_" + index + "/_search");
         countRequest.addParameter("size", "0");
-        String countResponse = toStr(client().performRequest(countRequest));
-        assertThat(countResponse, containsString("\"total\":" + count));
+        Map<String, Object> countResponse = entityAsMap(client().performRequest(countRequest));
+        assertTotalHits(count, countResponse);
 
         // Add some extra documents to the index to be sure we can still write to it after restoring it
         int extras = between(1, 100);
@@ -981,14 +1072,15 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/doc/_bulk");
         writeToRestoredRequest.addParameter("refresh", "true");
         writeToRestoredRequest.setJsonEntity(bulk.toString());
+        writeToRestoredRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(EntityUtils.toString(client().performRequest(writeToRestoredRequest).getEntity()), containsString("\"errors\":false"));
 
         // And count to make sure the add worked
         // Make sure search finds all documents
         Request countAfterWriteRequest = new Request("GET", "/restored_" + index + "/_search");
         countAfterWriteRequest.addParameter("size", "0");
-        String countAfterWriteResponse = toStr(client().performRequest(countAfterWriteRequest));
-        assertThat(countAfterWriteResponse, containsString("\"total\":" + (count + extras)));
+        Map<String, Object> countAfterResponse = entityAsMap(client().performRequest(countRequest));
+        assertTotalHits(count+extras, countAfterResponse);
 
         // Clean up the index for the next iteration
         client().performRequest(new Request("DELETE", "/restored_*"));
@@ -1065,6 +1157,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String loadInfoDocument(String type) throws IOException {
         Request request = new Request("GET", "/info/doc/" + index + "_" + type);
         request.addParameter("filter_path", "_source");
+        request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         String doc = toStr(client().performRequest(request));
         Matcher m = Pattern.compile("\"value\":\"(.+)\"").matcher(doc);
         assertTrue(doc, m.find());

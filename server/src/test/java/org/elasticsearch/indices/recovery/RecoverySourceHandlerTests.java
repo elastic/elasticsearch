@@ -35,6 +35,7 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -96,7 +98,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RecoverySourceHandlerTests extends ESTestCase {
-    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index",
+        Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -189,7 +192,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
         final long requiredStartingSeqNo = randomIntBetween((int) startingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
         final long endingSeqNo = randomIntBetween((int) requiredStartingSeqNo - 1, numberOfDocsWithValidSequenceNumbers - 1);
-        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, requiredStartingSeqNo,
+        RecoverySourceHandler.SendSnapshotResult result = handler.phase2(startingSeqNo, requiredStartingSeqNo,
             endingSeqNo, new Translog.Snapshot() {
                 @Override
                 public void close() {
@@ -228,7 +231,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 .filter(o -> o.seqNo() >= requiredStartingSeqNo && o.seqNo() <= endingSeqNo).collect(Collectors.toList());
             List<Translog.Operation> opsToSkip = randomSubsetOf(randomIntBetween(1, requiredOps.size()), requiredOps);
             expectThrows(IllegalStateException.class, () ->
-                handler.sendSnapshot(startingSeqNo, requiredStartingSeqNo,
+                handler.phase2(startingSeqNo, requiredStartingSeqNo,
                     endingSeqNo, new Translog.Snapshot() {
                         @Override
                         public void close() {
@@ -411,24 +414,31 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 recoverySettings.getChunkSize().bytesAsInt()) {
 
             @Override
-            public void phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
+            public SendFileResult phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
                 phase1Called.set(true);
+                return super.phase1(snapshot, translogOps);
             }
 
             @Override
-            void prepareTargetForTranslog(final boolean fileBasedRecovery, final int totalTranslogOps) throws IOException {
+            TimeValue prepareTargetForTranslog(final boolean fileBasedRecovery, final int totalTranslogOps) throws IOException {
                 prepareTargetForTranslogCalled.set(true);
+                return super.prepareTargetForTranslog(fileBasedRecovery, totalTranslogOps);
             }
 
             @Override
-            long phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
-                        long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) {
+            SendSnapshotResult phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
+                                      long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) throws IOException {
                 phase2Called.set(true);
-                return SequenceNumbers.UNASSIGNED_SEQ_NO;
+                return super.phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot,
+                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
             }
 
         };
-        expectThrows(IndexShardRelocatedException.class, handler::recoverToTarget);
+        PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
+        expectThrows(IndexShardRelocatedException.class, () -> {
+            handler.recoverToTarget(future);
+            future.actionGet();
+        });
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());

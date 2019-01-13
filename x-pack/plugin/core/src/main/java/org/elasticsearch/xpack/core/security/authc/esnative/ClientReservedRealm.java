@@ -20,6 +20,7 @@ public class ClientReservedRealm {
             case UsernamesField.LOGSTASH_NAME:
             case UsernamesField.BEATS_NAME:
             case UsernamesField.APM_NAME:
+            case UsernamesField.REMOTE_MONITORING_NAME:
                 return XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
             default:
                 return AnonymousUser.isAnonymousUsername(username, settings);

@@ -23,11 +23,10 @@ teardown:
         id: "my_watch"
         ignore: 404
 
-
-
-
 ---
 "Test watch search input is run as user who added the watch":
+  - skip:
+      features: headers
   - do:
       xpack.watcher.put_watch:
         id: "my_watch"
@@ -40,6 +39,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -81,6 +81,8 @@ teardown:
 
 ---
 "Test watch is runas user properly recorded":
+  - skip:
+      features: headers
   - do:
       xpack.watcher.put_watch:
         id: "my_watch"
@@ -93,6 +95,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -133,7 +136,8 @@ teardown:
 
 ---
 "Test watch search input does not work against index user is not allowed to read":
-
+  - skip:
+      features: headers
   - do:
       # by impersonating this request as powerless user we cannot query the my_test_index
       # headers: { es-security-runas-user: powerless_user }
@@ -148,6 +152,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "index_not_allowed_to_read" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -255,6 +260,7 @@ teardown:
             "transform" : {
               "search" : {
                 "request" : {
+                  "rest_total_hits_as_int": true,
                   "indices" : [ "index_not_allowed_to_read" ],
                   "body" :{
                     "query" : { "match_all": {} }
@@ -290,6 +296,8 @@ teardown:
 
 ---
 "Test watch index action requires permission to write to an index":
+  - skip:
+      features: headers
   - do:
       xpack.watcher.put_watch:
         id: "my_watch"
@@ -339,6 +347,8 @@ teardown:
 
 ---
 "Test watch index action does not work without permissions":
+  - skip:
+      features: headers
   - do:
       xpack.watcher.put_watch:
         id: "my_watch"

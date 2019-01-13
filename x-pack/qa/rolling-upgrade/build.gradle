@@ -7,7 +7,7 @@ import java.util.regex.Matcher
 
 // Apply the java plugin to this project so the sources can be edited in an IDE
 apply plugin: 'elasticsearch.build'
-test.enabled = false
+unitTest.enabled = false
 
 dependencies {
   // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
@@ -72,6 +72,13 @@ Project mainProject = project
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
+forbiddenPatterns {
+  exclude '**/system_key'
+}
+
+// Tests are pushed down to subprojects 
+testingConventions.enabled = false 
+
 /**
  * Subdirectories of this project are test rolling upgrades with various
  * configuration options based on their name.
@@ -97,6 +104,10 @@ subprojects {
     }
   }
 
+  forbiddenPatterns {
+    exclude '**/system_key'
+  }
+
   String outputDir = "${buildDir}/generated-resources/${project.name}"
 
   // This is a top level task which we will add dependencies to below.
@@ -120,18 +131,20 @@ subprojects {
       mustRunAfter(precommit)
     }
 
-    Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
       if (version.before('6.3.0')) {
-        mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${version}"
+          String depVersion = version;
+          if (project.bwcVersions.unreleased.contains(version)) {
+              depVersion += "-SNAPSHOT"
+          }
+          mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${depVersion}"
       }
       String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/elasticsearch-users'
       setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       bwcVersion = version
       numBwcNodes = 3
       numNodes = 3
-      minimumMasterNodes = { 3 }
       clusterName = 'rolling-upgrade'
       waitCondition = waitWithAuth
       setting 'xpack.monitoring.exporters._http.type', 'http'
@@ -148,6 +161,16 @@ subprojects {
       setting 'xpack.ssl.keystore.password', 'testnode'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      if (version.onOrAfter('7.0.0')) {
+          setting 'xpack.security.authc.realms.file.file1.order', '0'
+          setting 'xpack.security.authc.realms.native.native1.order', '1'
+      } else {
+          setting 'xpack.security.authc.realms.file1.type', 'file'
+          setting 'xpack.security.authc.realms.file1.order', '0'
+          setting 'xpack.security.authc.realms.native1.type', 'native'
+          setting 'xpack.security.authc.realms.native1.order', '1'
+      }
+
       if (withSystemKey) {
         if (version.onOrAfter('5.1.0') && version.before('6.0.0')) {
           // The setting didn't exist until 5.1.0
@@ -162,6 +185,21 @@ subprojects {
         }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
       }
+
+      // Old versions of the code contain an invalid assertion that trips
+      // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
+      // the assertion, but this is impossible for released versions.
+      // However, released versions run without assertions, so end users won't
+      // be suffering the effects.  This argument effectively removes the
+      // incorrect assertion from the older versions used in the BWC tests.
+      if (version.before('5.6.9') || (version.onOrAfter('6.0.0') && version.before('6.2.4'))) {
+        jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
+      }
+
+      systemProperty 'tests.rest.blacklist', [
+              'old_cluster/30_ml_jobs_crud/*',
+              'old_cluster/40_ml_datafeed_crud/*',
+      ].join(',')
     }
 
     Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
@@ -169,13 +207,14 @@ subprojects {
       systemProperty 'tests.rest.suite', 'old_cluster'
     }
 
-    Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure unicastSeed ->
+    Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure getOtherUnicastHostAddresses ->
       configure(extensions.findByName("${baseName}#${name}")) {
         dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
         setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
         clusterName = 'rolling-upgrade'
-        unicastTransportUri = { seedNode, node, ant -> unicastSeed() }
-        minimumMasterNodes = { 3 }
+        otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
+        minimumMasterNodes = { 2 }
+        autoSetInitialMasterNodes = false
         /* Override the data directory so the new node always gets the node we
         * just stopped's data directory. */
         dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
@@ -203,6 +242,11 @@ subprojects {
         if (version.before('6.0.0')) {
           keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
         }
+
+        systemProperty 'tests.rest.blacklist', [
+                'mixed_cluster/30_ml_jobs_crud/*',
+                'mixed_cluster/40_ml_datafeed_crud/*',
+        ].join(',')
       }
     }
 
@@ -210,7 +254,7 @@ subprojects {
 
     configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner, 0,
       // Use all running nodes as seed nodes so there is no race between pinging and the tests
-      { oldClusterTest.nodes.get(1).transportUri() + ',' + oldClusterTest.nodes.get(2).transportUri() })
+      { [oldClusterTest.nodes.get(1).transportUri(), oldClusterTest.nodes.get(2).transportUri()] })
 
     Task oneThirdUpgradedTestRunner = tasks.getByName("${baseName}#oneThirdUpgradedTestRunner")
     oneThirdUpgradedTestRunner.configure {
@@ -219,8 +263,8 @@ subprojects {
       // We only need to run these tests once so we may as well do it when we're two thirds upgraded
       systemProperty 'tests.rest.blacklist', [
           'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
-          'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
-          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
+          'mixed_cluster/30_ml_jobs_crud/*',
+          'mixed_cluster/40_ml_datafeed_crud/*',
         ].join(',')
       finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
     }
@@ -229,20 +273,25 @@ subprojects {
 
     configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner, 1,
       // Use all running nodes as seed nodes so there is no race between pinging and the tests
-      { oldClusterTest.nodes.get(2).transportUri() + ',' + oneThirdUpgradedTest.nodes.get(0).transportUri() })
+      { [oldClusterTest.nodes.get(2).transportUri(), oneThirdUpgradedTest.nodes.get(0).transportUri()] })
 
     Task twoThirdsUpgradedTestRunner = tasks.getByName("${baseName}#twoThirdsUpgradedTestRunner")
     twoThirdsUpgradedTestRunner.configure {
       systemProperty 'tests.rest.suite', 'mixed_cluster'
       systemProperty 'tests.first_round', 'false'
       finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
+
+      systemProperty 'tests.rest.blacklist', [
+              'mixed_cluster/30_ml_jobs_crud/*',
+              'mixed_cluster/40_ml_datafeed_crud/*',
+      ].join(',')
     }
 
     Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
 
     configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner, 2,
       // Use all running nodes as seed nodes so there is no race between pinging and the tests
-      { oneThirdUpgradedTest.nodes.get(0).transportUri() + ',' + twoThirdsUpgradedTest.nodes.get(0).transportUri() })
+      { [oneThirdUpgradedTest.nodes.get(0).transportUri(), twoThirdsUpgradedTest.nodes.get(0).transportUri()] })
 
     Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
     upgradedClusterTestRunner.configure {
@@ -265,6 +314,11 @@ subprojects {
               systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
           }
       }
+
+      systemProperty 'tests.rest.blacklist', [
+              'upgraded_cluster/30_ml_jobs_crud/*',
+              'upgraded_cluster/40_ml_datafeed_crud/*',
+      ].join(',')
     }
 
     Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
@@ -276,12 +330,12 @@ subprojects {
     }
   }
 
-  test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+    unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
   // basic integ tests includes testing bwc against the most recent version
   task integTest {
     if (project.bwc_tests_enabled) {
-      for (final def version : bwcVersions.snapshotsWireCompatible) {
+      for (final def version : bwcVersions.unreleasedWireCompatible) {
         dependsOn "v${version}#bwcTest"
       }
     }

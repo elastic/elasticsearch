@@ -89,14 +89,13 @@ The following parameters are accepted by `text` fields:
     What information should be stored in the index, for search and highlighting purposes.
     Defaults to `positions`.
 
-<<index-prefix-config,`index_prefixes`>>::
+<<index-prefixes,`index_prefixes`>>::
 
     If enabled, term prefixes of between 2 and 5 characters are indexed into a
     separate field.  This allows prefix searches to run more efficiently, at
-    the expense of a larger index. Accepts an
-    <<index-prefix-config,`index-prefix configuration block`>>
+    the expense of a larger index.
 
-`index_phrases`::
+<<index-phrases,`index_phrases`>>::
 
     If enabled, two-term word combinations ('shingles') are indexed into a separate
     field.  This allows exact phrase queries (no slop) to run more efficiently, at the expense
@@ -142,33 +141,3 @@ The following parameters are accepted by `text` fields:
 
     Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
     field. Defaults to `no`.
-
-[[index-prefix-config]]
-==== Index Prefix configuration
-
-Text fields may also index term prefixes to speed up prefix searches. The `index_prefixes`
-parameter is configured as below. Either or both of `min_chars` and `max_chars` may be excluded.
-Both values are treated as inclusive
-
-[source,js]
---------------------------------
-PUT my_index
-{
-  "mappings": {
-    "_doc": {
-      "properties": {
-        "full_name": {
-          "type":  "text",
-          "index_prefixes" : {
-            "min_chars" : 1,    <1>
-            "max_chars" : 10    <2>
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------
-// CONSOLE
-<1> `min_chars` must be greater than zero, defaults to 2
-<2> `max_chars` must be greater than or equal to `min_chars` and less than 20, defaults to 5

@@ -3,19 +3,22 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.graph.rest.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.graph.VertexRequest;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -31,10 +34,14 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTANCE;
+
 /**
  * @see GraphExploreRequest
  */
 public class RestGraphAction extends XPackRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGraphAction.class));
+
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");
     public static final ParseField RETURN_DETAILED_INFO = new ParseField("return_detailed_stats");
@@ -56,21 +63,27 @@ public class RestGraphAction extends XPackRestHandler {
 
     public RestGraphAction(Settings settings, RestController controller) {
         super(settings);
-
-        // @deprecated Remove in 7.0
-        controller.registerWithDeprecatedHandler(GET, "/{index}" + URI_BASE + "/graph/_explore", this,
-                                                 GET, "/{index}" + URI_BASE + "/_graph/_explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, "/{index}" + URI_BASE + "/graph/_explore", this,
-                                                 POST, "/{index}" + URI_BASE + "/_graph/_explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", this,
-                                                 GET, "/{index}/{type}" + URI_BASE + "/_graph/_explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", this,
-                                                 POST, "/{index}/{type}" + URI_BASE + "/_graph/_explore", deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                GET, "/{index}/_graph/explore", this,
+                GET, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                POST, "/{index}/_graph/explore", this,
+                POST, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                GET, "/{index}/{type}/_graph/explore", this,
+                GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                POST, "/{index}/{type}/_graph/explore", this,
+                POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_graph_action";
+        return "graph";
     }
 
     @Override
@@ -323,4 +336,5 @@ public class RestGraphAction extends XPackRestHandler {
             }
         }
     }
+
 }

@@ -2,10 +2,9 @@
 == Count API
 
 The count API allows to easily execute a query and get the number of
-matches for that query. It can be executed across one or more indices
-and across one or more types. The query can either be provided using a
-simple query string as a parameter, or using the
-<<query-dsl,Query DSL>> defined within the request
+matches for that query. It can be executed across one or more indices.
+The query can either be provided using a simple query string as a
+parameter, or using the <<query-dsl,Query DSL>> defined within the request
 body. Here is an example:
 
 [source,js]
@@ -15,9 +14,9 @@ PUT /twitter/_doc/1?refresh
     "user": "kimchy"
 }
 
-GET /twitter/_doc/_count?q=user:kimchy
+GET /twitter/_count?q=user:kimchy
 
-GET /twitter/_doc/_count
+GET /twitter/_count
 {
     "query" : {
         "term" : { "user" : "kimchy" }
@@ -50,9 +49,9 @@ The query is optional, and when not provided, it will use `match_all` to
 count all the docs.
 
 [float]
-=== Multi index, Multi type
+=== Multi index
 
-The count API can be applied to <<search-multi-index-type,multiple types in multiple indices>>.
+The count API can be applied to <<search-multi-index,multiple indices>>.
 
 [float]
 === Request Parameters

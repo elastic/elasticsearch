@@ -1,5 +1,4 @@
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import org.elasticsearch.gradle.BuildPlugin
 
 evaluationDependsOn(xpackModule('core'))
 
@@ -24,14 +23,10 @@ compileTestJava.options.compilerArgs << "-Xlint:-try"
 task internalClusterTest(type: RandomizedTestingTask,
         group: JavaBasePlugin.VERIFICATION_GROUP,
         description: 'Java fantasy integration tests',
-        dependsOn: test.dependsOn) {
-    configure(BuildPlugin.commonTestConfig(project))
-    classpath = project.test.classpath
-    testClassesDirs = project.test.testClassesDirs
+        dependsOn: unitTest.dependsOn) {
     include '**/*IT.class'
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
-
 check.dependsOn internalClusterTest
 internalClusterTest.mustRunAfter test
 
@@ -58,4 +53,10 @@ dependencyLicenses {
 
 run {
     plugin xpackModule('core')
+}
+
+testingConventions.naming {
+    IT {
+        baseClass "org.elasticsearch.xpack.CcrIntegTestCase"
+    }
 }

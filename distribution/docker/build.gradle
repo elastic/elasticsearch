@@ -1,0 +1,102 @@
+import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.VersionProperties
+
+apply plugin: 'base'
+
+configurations {
+  dockerPlugins
+  dockerSource
+  ossDockerSource
+}
+
+dependencies {
+  dockerSource project(path: ":distribution:archives:tar")
+  ossDockerSource project(path: ":distribution:archives:oss-tar")
+}
+
+ext.expansions = { oss ->
+  return [
+    'elasticsearch' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz",
+    'jdkUrl' : 'https://download.java.net/java/GA/jdk11/13/GPL/openjdk-11.0.1_linux-x64_bin.tar.gz',
+    'jdkVersion' : '11.0.1',
+    'license': oss ? 'Apache-2.0' : 'Elastic License',
+    'version' : VersionProperties.elasticsearch
+  ]
+}
+
+private static String files(final boolean oss) {
+  return "build/${ oss ? 'oss-' : ''}docker"
+}
+
+private static String taskName(final String prefix, final boolean oss, final String suffix) {
+  return "${prefix}${oss ? 'Oss' : ''}${suffix}"
+}
+
+void addCopyDockerContextTask(final boolean oss) {
+  task(taskName("copy", oss, "DockerContext"), type: Sync) {
+    into files(oss)
+
+    into('bin') {
+      from 'src/docker/bin'
+    }
+
+    into('config') {
+      from 'src/docker/config'
+    }
+
+    if (oss) {
+      from configurations.ossDockerSource
+    } else {
+      from configurations.dockerSource
+    }
+
+    from configurations.dockerPlugins
+  }
+}
+
+void addCopyDockerfileTask(final boolean oss) {
+  task(taskName("copy", oss, "Dockerfile"), type: Copy) {
+    mustRunAfter(taskName("copy", oss, "DockerContext"))
+    into files(oss)
+
+    from('src/docker/Dockerfile') {
+      MavenFilteringHack.filter(it, expansions(oss))
+    }
+  }
+}
+
+void addBuildDockerImage(final boolean oss) {
+  final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
+    dependsOn taskName("copy", oss, "DockerContext")
+    dependsOn taskName("copy", oss, "Dockerfile")
+    List<String> tags
+    if (oss) {
+      tags = [ "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}" ]
+    } else {
+      tags = [
+        "elasticsearch:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}"
+      ]
+    }
+    executable 'docker'
+    final List<String> dockerArgs = ['build', files(oss), '--pull']
+    for (final String tag : tags) {
+      dockerArgs.add('--tag')
+      dockerArgs.add(tag)
+    }
+    args dockerArgs.toArray()
+  }
+  BuildPlugin.requireDocker(buildDockerImageTask)
+}
+
+for (final boolean oss : [false, true]) {
+  addCopyDockerContextTask(oss)
+  addCopyDockerfileTask(oss)
+  addBuildDockerImage(oss)
+}
+
+assemble.dependsOn "buildOssDockerImage"
+assemble.dependsOn "buildDockerImage"

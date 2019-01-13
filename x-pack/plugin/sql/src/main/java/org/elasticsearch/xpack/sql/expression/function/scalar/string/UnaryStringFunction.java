@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Locale;
@@ -24,8 +24,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 
 public abstract class UnaryStringFunction extends UnaryScalarFunction {
 
-    protected UnaryStringFunction(Location location, Expression field) {
-        super(location, field);
+    protected UnaryStringFunction(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -43,14 +43,12 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-
-        return field().dataType().isString() ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "'%s' requires a string type, received %s", operation(), field().dataType().esType);
+        return Expressions.typeMustBeString(field(), operation().toString(), ParamOrdinal.DEFAULT);
     }
 
     @Override
-    protected final Pipe makePipe() {
-        return new UnaryPipe(location(), this, Expressions.pipe(field()), new StringProcessor(operation()));
+    protected Processor makeProcessor() {
+        return new StringProcessor(operation());
     }
 
     protected abstract StringOperation operation();

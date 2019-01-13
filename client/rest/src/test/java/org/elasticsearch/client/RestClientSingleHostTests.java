@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
@@ -92,6 +94,7 @@ import static org.mockito.Mockito.when;
  * Relies on a mock http client to intercept requests and return desired responses based on request path.
  */
 public class RestClientSingleHostTests extends RestClientTestCase {
+    private static final Log logger = LogFactory.getLog(RestClientSingleHostTests.class);
 
     private ExecutorService exec = Executors.newFixedThreadPool(1);
     private RestClient restClient;
@@ -347,7 +350,51 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         assertDeprecationWarnings(
                 Arrays.asList(formatWarning(chars), "another one", "and another"),
                 Arrays.asList(chars,                "another one", "and another"));
+        assertDeprecationWarnings(
+                Arrays.asList("ignorable one", "and another"),
+                Arrays.asList("ignorable one", "and another"));
+        assertDeprecationWarnings(singletonList("exact"), singletonList("exact"));
+        assertDeprecationWarnings(Collections.<String>emptyList(), Collections.<String>emptyList());
+    }
 
+    private enum DeprecationWarningOption {
+        PERMISSIVE {
+            protected WarningsHandler warningsHandler() {
+                return WarningsHandler.PERMISSIVE;
+            }
+        },
+        STRICT {
+            protected WarningsHandler warningsHandler() {
+                return WarningsHandler.STRICT;
+            }
+        },
+        FILTERED {
+            protected WarningsHandler warningsHandler() {
+                return new WarningsHandler() {
+                    @Override
+                    public boolean warningsShouldFailRequest(List<String> warnings) {
+                        for (String warning : warnings) {
+                            if (false == warning.startsWith("ignorable")) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                };
+            }
+        },
+        EXACT {
+            protected WarningsHandler warningsHandler() {
+                return new WarningsHandler() {
+                    @Override
+                    public boolean warningsShouldFailRequest(List<String> warnings) {
+                        return false == warnings.equals(Arrays.asList("exact"));
+                    }
+                };
+            }
+        };
+
+        protected abstract WarningsHandler warningsHandler();
     }
 
     private void assertDeprecationWarnings(List<String> warningHeaderTexts, List<String> warningBodyTexts) throws IOException {
@@ -357,22 +404,35 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         for (String warningHeaderText : warningHeaderTexts) {
             options.addHeader("Warning", warningHeaderText);
         }
+
+        final boolean expectFailure;
+        if (randomBoolean()) {
+            logger.info("checking strictWarningsMode=[" + strictDeprecationMode + "] and warnings=" + warningBodyTexts);
+            expectFailure = strictDeprecationMode && false == warningBodyTexts.isEmpty();
+        } else {
+            DeprecationWarningOption warningOption = randomFrom(DeprecationWarningOption.values());
+            logger.info("checking warningOption=" + warningOption + " and warnings=" + warningBodyTexts);
+            options.setWarningsHandler(warningOption.warningsHandler());
+            expectFailure = warningOption.warningsHandler().warningsShouldFailRequest(warningBodyTexts);
+        }
         request.setOptions(options);
 
         Response response;
-        if (strictDeprecationMode) {
+        if (expectFailure) {
             try {
                 restClient.performRequest(request);
-                fail("expected ResponseException because strict deprecation mode is enabled");
+                fail("expected ResponseException from warnings");
                 return;
             } catch (ResponseException e) {
-                assertThat(e.getMessage(), containsString("\nWarnings: " + warningBodyTexts));
+                if (false == warningBodyTexts.isEmpty()) {
+                    assertThat(e.getMessage(), containsString("\nWarnings: " + warningBodyTexts));
+                }
                 response = e.getResponse();
             }
         } else {
             response = restClient.performRequest(request);
         }
-        assertTrue(response.hasWarnings());
+        assertEquals(false == warningBodyTexts.isEmpty(), response.hasWarnings());
         assertEquals(warningBodyTexts, response.getWarnings());
     }
 

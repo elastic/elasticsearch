@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -66,18 +69,20 @@ public class MetaDataTests extends ESTestCase {
             assertThat(aliases.size(), equalTo(0));
         }
         {
+            final GetAliasesRequest request;
+            if (randomBoolean()) {
+                request = new GetAliasesRequest();
+            } else {
+                request = new GetAliasesRequest(randomFrom("alias1", "alias2"));
+                // replacing with empty aliases behaves as if aliases were unspecified at request building
+                request.replaceAliases(Strings.EMPTY_ARRAY);
+            }
             ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(new GetAliasesRequest(), new String[]{"index"});
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetaData> aliasMetaDataList = aliases.get("index");
             assertThat(aliasMetaDataList.size(), equalTo(2));
             assertThat(aliasMetaDataList.get(0).alias(), equalTo("alias1"));
             assertThat(aliasMetaDataList.get(1).alias(), equalTo("alias2"));
-        }
-        {
-            GetAliasesRequest getAliasesRequest = new GetAliasesRequest("alias1");
-            getAliasesRequest.replaceAliases(Strings.EMPTY_ARRAY);
-            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(getAliasesRequest, new String[]{"index"});
-            assertThat(aliases.size(), equalTo(0));
         }
         {
             ImmutableOpenMap<String, List<AliasMetaData>> aliases =
@@ -152,7 +157,8 @@ public class MetaDataTests extends ESTestCase {
             MetaData.builder().put(builder).build();
             fail("exception should have been thrown");
         } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), equalTo("index and alias names need to be unique, but the following duplicates were found [index (alias of [index])]"));
+            assertThat(e.getMessage(),
+                equalTo("index and alias names need to be unique, but the following duplicates were found [index (alias of [index])]"));
         }
     }
 
@@ -247,7 +253,8 @@ public class MetaDataTests extends ESTestCase {
             metaData.resolveIndexRouting("0", "alias1");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), is("Alias [alias1] has index routing associated with it [1], and was provided with routing value [0], rejecting operation"));
+            assertThat(ex.getMessage(), is("Alias [alias1] has index routing associated with it [1], " +
+                "and was provided with routing value [0], rejecting operation"));
         }
 
         // alias with invalid index routing.
@@ -255,14 +262,16 @@ public class MetaDataTests extends ESTestCase {
             metaData.resolveIndexRouting(null, "alias2");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that" +
+                " resolved to several routing values, rejecting operation"));
         }
 
         try {
             metaData.resolveIndexRouting("1", "alias2");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that" +
+                " resolved to several routing values, rejecting operation"));
         }
 
         IndexMetaData.Builder builder2 = IndexMetaData.builder("index2")
@@ -400,6 +409,48 @@ public class MetaDataTests extends ESTestCase {
             final MetaData fromXContentMeta = MetaData.fromXContent(parser);
             assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
         }
+    }
+
+    private static CoordinationMetaData.VotingConfiguration randomVotingConfig() {
+        return new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(randomInt(10), 20, false)));
+    }
+
+    private Set<VotingConfigExclusion> randomVotingConfigExclusions() {
+        final int size = randomIntBetween(0, 10);
+        final Set<VotingConfigExclusion> nodes = new HashSet<>(size);
+        while (nodes.size() < size) {
+            assertTrue(nodes.add(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))));
+        }
+        return nodes;
+    }
+
+    public void testXContentWithCoordinationMetaData() throws IOException {
+        CoordinationMetaData originalMeta = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
+                randomVotingConfigExclusions());
+
+        MetaData metaData = MetaData.builder().coordinationMetaData(originalMeta).build();
+
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final CoordinationMetaData fromXContentMeta = MetaData.fromXContent(parser).coordinationMetaData();
+            assertThat(fromXContentMeta, equalTo(originalMeta));
+        }
+    }
+
+    public void testGlobalStateEqualsCoordinationMetaData() {
+        CoordinationMetaData coordinationMetaData1 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
+                randomVotingConfig(), randomVotingConfigExclusions());
+        MetaData metaData1 = MetaData.builder().coordinationMetaData(coordinationMetaData1).build();
+        CoordinationMetaData coordinationMetaData2 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
+                randomVotingConfig(), randomVotingConfigExclusions());
+        MetaData metaData2 = MetaData.builder().coordinationMetaData(coordinationMetaData2).build();
+
+        assertTrue(MetaData.isGlobalStateEquals(metaData1, metaData1));
+        assertFalse(MetaData.isGlobalStateEquals(metaData1, metaData2));
     }
 
     public void testSerializationWithIndexGraveyard() throws IOException {

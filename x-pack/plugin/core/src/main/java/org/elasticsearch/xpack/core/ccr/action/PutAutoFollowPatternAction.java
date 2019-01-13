@@ -21,10 +21,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern.REMOTE_CLUSTER_FIELD;
 
 public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
@@ -42,62 +44,99 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        static final ParseField LEADER_CLUSTER_ALIAS_FIELD = new ParseField("leader_cluster_alias");
-
         private static final ObjectParser<Request, String> PARSER = new ObjectParser<>("put_auto_follow_pattern_request", Request::new);
+        private static final ParseField NAME_FIELD = new ParseField("name");
+        private static final int MAX_NAME_BYTES = 255;
 
         static {
-            PARSER.declareString(Request::setLeaderClusterAlias, LEADER_CLUSTER_ALIAS_FIELD);
+            PARSER.declareString(Request::setName, NAME_FIELD);
+            PARSER.declareString(Request::setRemoteCluster, REMOTE_CLUSTER_FIELD);
             PARSER.declareStringArray(Request::setLeaderIndexPatterns, AutoFollowPattern.LEADER_PATTERNS_FIELD);
             PARSER.declareString(Request::setFollowIndexNamePattern, AutoFollowPattern.FOLLOW_PATTERN_FIELD);
-            PARSER.declareInt(Request::setMaxBatchOperationCount, AutoFollowPattern.MAX_BATCH_OPERATION_COUNT);
-            PARSER.declareInt(Request::setMaxConcurrentReadBatches, AutoFollowPattern.MAX_CONCURRENT_READ_BATCHES);
+            PARSER.declareInt(Request::setMaxReadRequestOperationCount, AutoFollowPattern.MAX_READ_REQUEST_OPERATION_COUNT);
             PARSER.declareField(
-                    Request::setMaxBatchSize,
-                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), AutoFollowPattern.MAX_BATCH_SIZE.getPreferredName()),
-                    AutoFollowPattern.MAX_BATCH_SIZE,
+                    Request::setMaxReadRequestSize,
+                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), AutoFollowPattern.MAX_READ_REQUEST_SIZE.getPreferredName()),
+                    AutoFollowPattern.MAX_READ_REQUEST_SIZE,
                     ObjectParser.ValueType.STRING);
-            PARSER.declareInt(Request::setMaxConcurrentWriteBatches, AutoFollowPattern.MAX_CONCURRENT_WRITE_BATCHES);
-            PARSER.declareInt(Request::setMaxWriteBufferSize, AutoFollowPattern.MAX_WRITE_BUFFER_SIZE);
+            PARSER.declareInt(Request::setMaxConcurrentReadBatches, AutoFollowPattern.MAX_OUTSTANDING_READ_REQUESTS);
+            PARSER.declareInt(Request::setMaxWriteRequestOperationCount, AutoFollowPattern.MAX_WRITE_REQUEST_OPERATION_COUNT);
+            PARSER.declareField(
+                Request::setMaxWriteRequestSize,
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), AutoFollowPattern.MAX_WRITE_REQUEST_SIZE.getPreferredName()),
+                AutoFollowPattern.MAX_WRITE_REQUEST_SIZE,
+                ObjectParser.ValueType.STRING);
+            PARSER.declareInt(Request::setMaxConcurrentWriteBatches, AutoFollowPattern.MAX_OUTSTANDING_WRITE_REQUESTS);
+            PARSER.declareInt(Request::setMaxWriteBufferCount, AutoFollowPattern.MAX_WRITE_BUFFER_COUNT);
+            PARSER.declareField(
+                Request::setMaxWriteBufferSize,
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), AutoFollowPattern.MAX_WRITE_BUFFER_SIZE.getPreferredName()),
+                AutoFollowPattern.MAX_WRITE_BUFFER_SIZE,
+                ObjectParser.ValueType.STRING);
             PARSER.declareField(Request::setMaxRetryDelay,
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName()),
                 AutoFollowPattern.MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
-            PARSER.declareField(Request::setPollTimeout,
-                (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.POLL_TIMEOUT.getPreferredName()),
-                AutoFollowPattern.POLL_TIMEOUT, ObjectParser.ValueType.STRING);
+            PARSER.declareField(Request::setReadPollTimeout,
+                (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.READ_POLL_TIMEOUT.getPreferredName()),
+                AutoFollowPattern.READ_POLL_TIMEOUT, ObjectParser.ValueType.STRING);
         }
 
-        public static Request fromXContent(XContentParser parser, String remoteClusterAlias) throws IOException {
+        public static Request fromXContent(XContentParser parser, String name) throws IOException {
             Request request = PARSER.parse(parser, null);
-            if (remoteClusterAlias != null) {
-                if (request.leaderClusterAlias == null) {
-                    request.leaderClusterAlias = remoteClusterAlias;
+            if (name != null) {
+                if (request.name == null) {
+                    request.name = name;
                 } else {
-                    if (request.leaderClusterAlias.equals(remoteClusterAlias) == false) {
-                        throw new IllegalArgumentException("provided leaderClusterAlias is not equal");
+                    if (request.name.equals(name) == false) {
+                        throw new IllegalArgumentException("provided name is not equal");
                     }
                 }
             }
             return request;
         }
 
-        private String leaderClusterAlias;
+        private String name;
+        private String remoteCluster;
         private List<String> leaderIndexPatterns;
         private String followIndexNamePattern;
 
-        private Integer maxBatchOperationCount;
+        private Integer maxReadRequestOperationCount;
+        private ByteSizeValue maxReadRequestSize;
         private Integer maxConcurrentReadBatches;
-        private ByteSizeValue maxBatchSize;
+        private Integer maxWriteRequestOperationCount;
+        private ByteSizeValue maxWriteRequestSize;
         private Integer maxConcurrentWriteBatches;
-        private Integer maxWriteBufferSize;
+        private Integer maxWriteBufferCount;
+        private ByteSizeValue maxWriteBufferSize;
         private TimeValue maxRetryDelay;
-        private TimeValue pollTimeout;
+        private TimeValue readPollTimeout;
+
+        public Request() {
+        }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (leaderClusterAlias == null) {
-                validationException = addValidationError("[" + LEADER_CLUSTER_ALIAS_FIELD.getPreferredName() +
+            if (name == null) {
+                validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] is missing", validationException);
+            }
+            if (name != null) {
+                if (name.contains(",")) {
+                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] name must not contain a ','",
+                        validationException);
+                }
+                if (name.startsWith("_")) {
+                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] name must not start with '_'",
+                        validationException);
+                }
+                int byteCount = name.getBytes(StandardCharsets.UTF_8).length;
+                if (byteCount > MAX_NAME_BYTES) {
+                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] name is too long (" +
+                        byteCount + " > " + MAX_NAME_BYTES + ")", validationException);
+                }
+            }
+            if (remoteCluster == null) {
+                validationException = addValidationError("[" + REMOTE_CLUSTER_FIELD.getPreferredName() +
                     "] is missing", validationException);
             }
             if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
@@ -120,12 +159,20 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             return validationException;
         }
 
-        public String getLeaderClusterAlias() {
-            return leaderClusterAlias;
+        public String getName() {
+            return name;
         }
 
-        public void setLeaderClusterAlias(String leaderClusterAlias) {
-            this.leaderClusterAlias = leaderClusterAlias;
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getRemoteCluster() {
+            return remoteCluster;
+        }
+
+        public void setRemoteCluster(String remoteCluster) {
+            this.remoteCluster = remoteCluster;
         }
 
         public List<String> getLeaderIndexPatterns() {
@@ -144,12 +191,12 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             this.followIndexNamePattern = followIndexNamePattern;
         }
 
-        public Integer getMaxBatchOperationCount() {
-            return maxBatchOperationCount;
+        public Integer getMaxReadRequestOperationCount() {
+            return maxReadRequestOperationCount;
         }
 
-        public void setMaxBatchOperationCount(Integer maxBatchOperationCount) {
-            this.maxBatchOperationCount = maxBatchOperationCount;
+        public void setMaxReadRequestOperationCount(Integer maxReadRequestOperationCount) {
+            this.maxReadRequestOperationCount = maxReadRequestOperationCount;
         }
 
         public Integer getMaxConcurrentReadBatches() {
@@ -160,12 +207,28 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             this.maxConcurrentReadBatches = maxConcurrentReadBatches;
         }
 
-        public ByteSizeValue getMaxBatchSize() {
-            return maxBatchSize;
+        public ByteSizeValue getMaxReadRequestSize() {
+            return maxReadRequestSize;
         }
 
-        public void setMaxBatchSize(ByteSizeValue maxBatchSize) {
-            this.maxBatchSize = maxBatchSize;
+        public void setMaxReadRequestSize(ByteSizeValue maxReadRequestSize) {
+            this.maxReadRequestSize = maxReadRequestSize;
+        }
+
+        public Integer getMaxWriteRequestOperationCount() {
+            return maxWriteRequestOperationCount;
+        }
+
+        public void setMaxWriteRequestOperationCount(Integer maxWriteRequestOperationCount) {
+            this.maxWriteRequestOperationCount = maxWriteRequestOperationCount;
+        }
+
+        public ByteSizeValue getMaxWriteRequestSize() {
+            return maxWriteRequestSize;
+        }
+
+        public void setMaxWriteRequestSize(ByteSizeValue maxWriteRequestSize) {
+            this.maxWriteRequestSize = maxWriteRequestSize;
         }
 
         public Integer getMaxConcurrentWriteBatches() {
@@ -176,11 +239,19 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
         }
 
-        public Integer getMaxWriteBufferSize() {
+        public Integer getMaxWriteBufferCount() {
+            return maxWriteBufferCount;
+        }
+
+        public void setMaxWriteBufferCount(Integer maxWriteBufferCount) {
+            this.maxWriteBufferCount = maxWriteBufferCount;
+        }
+
+        public ByteSizeValue getMaxWriteBufferSize() {
             return maxWriteBufferSize;
         }
 
-        public void setMaxWriteBufferSize(Integer maxWriteBufferSize) {
+        public void setMaxWriteBufferSize(ByteSizeValue maxWriteBufferSize) {
             this.maxWriteBufferSize = maxWriteBufferSize;
         }
 
@@ -192,73 +263,90 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             this.maxRetryDelay = maxRetryDelay;
         }
 
-        public TimeValue getPollTimeout() {
-            return pollTimeout;
+        public TimeValue getReadPollTimeout() {
+            return readPollTimeout;
         }
 
-        public void setPollTimeout(TimeValue pollTimeout) {
-            this.pollTimeout = pollTimeout;
+        public void setReadPollTimeout(TimeValue readPollTimeout) {
+            this.readPollTimeout = readPollTimeout;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            leaderClusterAlias = in.readString();
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            name = in.readString();
+            remoteCluster = in.readString();
             leaderIndexPatterns = in.readList(StreamInput::readString);
             followIndexNamePattern = in.readOptionalString();
-            maxBatchOperationCount = in.readOptionalVInt();
+            maxReadRequestOperationCount = in.readOptionalVInt();
+            maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxConcurrentReadBatches = in.readOptionalVInt();
-            maxBatchSize = in.readOptionalWriteable(ByteSizeValue::new);
+            maxWriteRequestOperationCount = in.readOptionalVInt();
+            maxWriteRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxConcurrentWriteBatches = in.readOptionalVInt();
-            maxWriteBufferSize = in.readOptionalVInt();
+            maxWriteBufferCount = in.readOptionalVInt();
+            maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxRetryDelay = in.readOptionalTimeValue();
-            pollTimeout = in.readOptionalTimeValue();
+            readPollTimeout = in.readOptionalTimeValue();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(leaderClusterAlias);
+            out.writeString(name);
+            out.writeString(remoteCluster);
             out.writeStringList(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
-            out.writeOptionalVInt(maxBatchOperationCount);
+            out.writeOptionalVInt(maxReadRequestOperationCount);
+            out.writeOptionalWriteable(maxReadRequestSize);
             out.writeOptionalVInt(maxConcurrentReadBatches);
-            out.writeOptionalWriteable(maxBatchSize);
+            out.writeOptionalVInt(maxWriteRequestOperationCount);
+            out.writeOptionalWriteable(maxWriteRequestSize);
             out.writeOptionalVInt(maxConcurrentWriteBatches);
-            out.writeOptionalVInt(maxWriteBufferSize);
+            out.writeOptionalVInt(maxWriteBufferCount);
+            out.writeOptionalWriteable(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
-            out.writeOptionalTimeValue(pollTimeout);
+            out.writeOptionalTimeValue(readPollTimeout);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(LEADER_CLUSTER_ALIAS_FIELD.getPreferredName(), leaderClusterAlias);
+                builder.field(NAME_FIELD.getPreferredName(), name);
+                builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                 builder.field(AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
                 if (followIndexNamePattern != null) {
                     builder.field(AutoFollowPattern.FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
                 }
-                if (maxBatchOperationCount != null) {
-                    builder.field(AutoFollowPattern.MAX_BATCH_OPERATION_COUNT.getPreferredName(), maxBatchOperationCount);
+                if (maxReadRequestOperationCount != null) {
+                    builder.field(AutoFollowPattern.MAX_READ_REQUEST_OPERATION_COUNT.getPreferredName(), maxReadRequestOperationCount);
                 }
-                if (maxBatchSize != null) {
-                    builder.field(AutoFollowPattern.MAX_BATCH_SIZE.getPreferredName(), maxBatchSize.getStringRep());
+                if (maxReadRequestSize != null) {
+                    builder.field(AutoFollowPattern.MAX_READ_REQUEST_SIZE.getPreferredName(), maxReadRequestSize.getStringRep());
+                }
+                if (maxWriteRequestOperationCount != null) {
+                    builder.field(AutoFollowPattern.MAX_WRITE_REQUEST_OPERATION_COUNT.getPreferredName(), maxWriteRequestOperationCount);
+                }
+                if (maxWriteRequestSize != null) {
+                    builder.field(AutoFollowPattern.MAX_WRITE_REQUEST_SIZE.getPreferredName(), maxWriteRequestSize.getStringRep());
+                }
+                if (maxWriteBufferCount != null) {
+                    builder.field(AutoFollowPattern.MAX_WRITE_BUFFER_COUNT.getPreferredName(), maxWriteBufferCount);
                 }
                 if (maxWriteBufferSize != null) {
-                    builder.field(AutoFollowPattern.MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
+                    builder.field(AutoFollowPattern.MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize.getStringRep());
                 }
                 if (maxConcurrentReadBatches != null) {
-                    builder.field(AutoFollowPattern.MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
+                    builder.field(AutoFollowPattern.MAX_OUTSTANDING_READ_REQUESTS.getPreferredName(), maxConcurrentReadBatches);
                 }
                 if (maxConcurrentWriteBatches != null) {
-                    builder.field(AutoFollowPattern.MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
+                    builder.field(AutoFollowPattern.MAX_OUTSTANDING_WRITE_REQUESTS.getPreferredName(), maxConcurrentWriteBatches);
                 }
                 if (maxRetryDelay != null) {
                     builder.field(AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
                 }
-                if (pollTimeout != null) {
-                    builder.field(AutoFollowPattern.POLL_TIMEOUT.getPreferredName(), pollTimeout.getStringRep());
+                if (readPollTimeout != null) {
+                    builder.field(AutoFollowPattern.READ_POLL_TIMEOUT.getPreferredName(), readPollTimeout.getStringRep());
                 }
             }
             builder.endObject();
@@ -270,31 +358,39 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(leaderClusterAlias, request.leaderClusterAlias) &&
+            return Objects.equals(name, request.name) &&
+                    Objects.equals(remoteCluster, request.remoteCluster) &&
                     Objects.equals(leaderIndexPatterns, request.leaderIndexPatterns) &&
                     Objects.equals(followIndexNamePattern, request.followIndexNamePattern) &&
-                    Objects.equals(maxBatchOperationCount, request.maxBatchOperationCount) &&
+                    Objects.equals(maxReadRequestOperationCount, request.maxReadRequestOperationCount) &&
+                    Objects.equals(maxReadRequestSize, request.maxReadRequestSize) &&
                     Objects.equals(maxConcurrentReadBatches, request.maxConcurrentReadBatches) &&
-                    Objects.equals(maxBatchSize, request.maxBatchSize) &&
+                    Objects.equals(maxWriteRequestOperationCount, request.maxWriteRequestOperationCount) &&
+                    Objects.equals(maxWriteRequestSize, request.maxWriteRequestSize) &&
                     Objects.equals(maxConcurrentWriteBatches, request.maxConcurrentWriteBatches) &&
+                    Objects.equals(maxWriteBufferCount, request.maxWriteBufferCount) &&
                     Objects.equals(maxWriteBufferSize, request.maxWriteBufferSize) &&
                     Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
-                    Objects.equals(pollTimeout, request.pollTimeout);
+                    Objects.equals(readPollTimeout, request.readPollTimeout);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(
-                    leaderClusterAlias,
+                    name,
+                    remoteCluster,
                     leaderIndexPatterns,
                     followIndexNamePattern,
-                    maxBatchOperationCount,
+                    maxReadRequestOperationCount,
+                    maxReadRequestSize,
                     maxConcurrentReadBatches,
-                    maxBatchSize,
+                    maxWriteRequestOperationCount,
+                    maxWriteRequestSize,
                     maxConcurrentWriteBatches,
+                    maxWriteBufferCount,
                     maxWriteBufferSize,
                     maxRetryDelay,
-                    pollTimeout);
+                    readPollTimeout);
         }
     }
 

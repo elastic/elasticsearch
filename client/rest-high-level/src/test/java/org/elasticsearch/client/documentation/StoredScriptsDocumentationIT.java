@@ -307,7 +307,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
     private void putStoredScript(String id, StoredScriptSource scriptSource) throws IOException {
         PutStoredScriptRequest request =
-            new PutStoredScriptRequest(id, "search", new BytesArray("{}"), XContentType.JSON, scriptSource);
+            new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
     }
 }

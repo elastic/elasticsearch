@@ -29,7 +29,7 @@ subsequent examples:
 PUT /my_index
 {
   "mappings":{
-    "my_type":{
+    "_doc":{
       "properties": {
         "@timestamp": {
           "type": "date"
@@ -76,7 +76,7 @@ PUT /my_index
   }
 }
 
-PUT /my_index/my_type/1
+PUT /my_index/_doc/1
 {
   "@timestamp":"2017-03-23T13:00:00",
   "error_count":36320,
@@ -105,7 +105,7 @@ version of the same field, use multi-fields. For more information, see
 .Example 1: Adding two numerical fields
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/test1
+PUT _ml/anomaly_detectors/test1
 {
   "analysis_config":{
     "bucket_span": "10m",
@@ -123,11 +123,10 @@ PUT _xpack/ml/anomaly_detectors/test1
   }
 }
 
-PUT _xpack/ml/datafeeds/datafeed-test1
+PUT _ml/datafeeds/datafeed-test1
 {
   "job_id": "test1",
   "indices": ["my_index"],
-  "types": ["my_type"],
   "query": {
     "match_all": {
           "boost": 1
@@ -160,7 +159,7 @@ You can preview the contents of the {dfeed} by using the following API:
 
 [source,js]
 ----------------------------------
-GET _xpack/ml/datafeeds/datafeed-test1/_preview
+GET _ml/datafeeds/datafeed-test1/_preview
 ----------------------------------
 // CONSOLE
 // TEST[skip:continued]
@@ -211,7 +210,7 @@ that convert your strings to upper or lowercase letters.
 .Example 2: Concatenating strings
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/test2
+PUT _ml/anomaly_detectors/test2
 {
   "analysis_config":{
     "bucket_span": "10m",
@@ -229,11 +228,10 @@ PUT _xpack/ml/anomaly_detectors/test2
   }
 }
 
-PUT _xpack/ml/datafeeds/datafeed-test2
+PUT _ml/datafeeds/datafeed-test2
 {
   "job_id": "test2",
   "indices": ["my_index"],
-  "types": ["my_type"],
   "query": {
     "match_all": {
           "boost": 1
@@ -249,7 +247,7 @@ PUT _xpack/ml/datafeeds/datafeed-test2
   }
 }
 
-GET _xpack/ml/datafeeds/datafeed-test2/_preview
+GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:needs-licence]
@@ -274,7 +272,7 @@ and "SMITH  " have been concatenated and an underscore was added:
 .Example 3: Trimming strings
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-test2/_update
+POST _ml/datafeeds/datafeed-test2/_update
 {
   "script_fields": {
     "my_script_field": {
@@ -286,7 +284,7 @@ POST _xpack/ml/datafeeds/datafeed-test2/_update
   }
 }
 
-GET _xpack/ml/datafeeds/datafeed-test2/_preview
+GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:continued]
@@ -310,7 +308,7 @@ has been trimmed to "SMITH":
 .Example 4: Converting strings to lowercase
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-test2/_update
+POST _ml/datafeeds/datafeed-test2/_update
 {
   "script_fields": {
     "my_script_field": {
@@ -322,7 +320,7 @@ POST _xpack/ml/datafeeds/datafeed-test2/_update
   }
 }
 
-GET _xpack/ml/datafeeds/datafeed-test2/_preview
+GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:continued]
@@ -347,7 +345,7 @@ has been converted to "joe":
 .Example 5: Converting strings to mixed case formats
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-test2/_update
+POST _ml/datafeeds/datafeed-test2/_update
 {
   "script_fields": {
     "my_script_field": {
@@ -359,7 +357,7 @@ POST _xpack/ml/datafeeds/datafeed-test2/_update
   }
 }
 
-GET _xpack/ml/datafeeds/datafeed-test2/_preview
+GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:continued]
@@ -384,7 +382,7 @@ has been converted to "Joe":
 .Example 6: Replacing tokens
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-test2/_update
+POST _ml/datafeeds/datafeed-test2/_update
 {
   "script_fields": {
     "my_script_field": {
@@ -396,7 +394,7 @@ POST _xpack/ml/datafeeds/datafeed-test2/_update
   }
 }
 
-GET _xpack/ml/datafeeds/datafeed-test2/_preview
+GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:continued]
@@ -420,7 +418,7 @@ The preview {dfeed} API returns the following results, which show that
 .Example 7: Regular expression matching and concatenation
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-test2/_update
+POST _ml/datafeeds/datafeed-test2/_update
 {
   "script_fields": {
     "my_script_field": {
@@ -432,7 +430,7 @@ POST _xpack/ml/datafeeds/datafeed-test2/_update
   }
 }
 
-GET _xpack/ml/datafeeds/datafeed-test2/_preview
+GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:continued]
@@ -457,7 +455,7 @@ The preview {dfeed} API returns the following results, which show that
 .Example 8: Splitting strings by domain name
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/test3
+PUT _ml/anomaly_detectors/test3
 {
   "description":"DNS tunneling",
   "analysis_config":{
@@ -478,11 +476,10 @@ PUT _xpack/ml/anomaly_detectors/test3
   }
 }
 
-PUT _xpack/ml/datafeeds/datafeed-test3
+PUT _ml/datafeeds/datafeed-test3
 {
   "job_id": "test3",
   "indices": ["my_index"],
-  "types": ["my_type"],
   "query": {
     "match_all": {
           "boost": 1
@@ -490,15 +487,15 @@ PUT _xpack/ml/datafeeds/datafeed-test3
   },
   "script_fields":{
     "sub":{
-      "script":"return domainSplit(doc['query'].value, params).get(0);"
+      "script":"return domainSplit(doc['query'].value).get(0);"
     },
     "hrd":{
-      "script":"return domainSplit(doc['query'].value, params).get(1);"
+      "script":"return domainSplit(doc['query'].value).get(1);"
     }
   }
 }
 
-GET _xpack/ml/datafeeds/datafeed-test3/_preview
+GET _ml/datafeeds/datafeed-test3/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:needs-licence]
@@ -510,10 +507,6 @@ registered domain. For example, the highest registered domain of
 `www.ml.elastic.co` is `elastic.co` and the sub-domain is `www.ml`. The
 `domainSplit()` function returns an array of two values: the first value is the
 subdomain; the second value is the highest registered domain.
-
-NOTE: The `domainSplit()` function takes two arguments. The first argument is
-the string you want to split. The second argument is always `params`. This is a
-technical implementation detail related to how Painless operates internally.
 
 The preview {dfeed} API returns the following results, which show that
 "www.ml.elastic.co" has been split into "elastic.co" and "www.ml":
@@ -534,7 +527,7 @@ The preview {dfeed} API returns the following results, which show that
 .Example 9: Transforming geo_point data
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/test4
+PUT _ml/anomaly_detectors/test4
 {
   "analysis_config":{
     "bucket_span": "10m",
@@ -551,11 +544,10 @@ PUT _xpack/ml/anomaly_detectors/test4
   }
 }
 
-PUT _xpack/ml/datafeeds/datafeed-test4
+PUT _ml/datafeeds/datafeed-test4
 {
   "job_id": "test4",
   "indices": ["my_index"],
-  "types": ["my_type"],
   "query": {
     "match_all": {
           "boost": 1
@@ -571,13 +563,13 @@ PUT _xpack/ml/datafeeds/datafeed-test4
   }
 }
 
-GET _xpack/ml/datafeeds/datafeed-test4/_preview
+GET _ml/datafeeds/datafeed-test4/_preview
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:needs-licence]
 
 In {es}, location data can be stored in `geo_point` fields but this data type is
-not supported natively in {xpackml} analytics. This example of a script field
+not supported natively in {ml} analytics. This example of a script field
 transforms the data into an appropriate format. For more information,
 see <<ml-geo-functions>>.
 

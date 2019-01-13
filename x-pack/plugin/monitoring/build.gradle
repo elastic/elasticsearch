@@ -1,5 +1,4 @@
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import org.elasticsearch.gradle.BuildPlugin
 
 evaluationDependsOn(xpackModule('core'))
 
@@ -60,10 +59,7 @@ integTest.enabled = false
 task internalClusterTest(type: RandomizedTestingTask,
                          group: JavaBasePlugin.VERIFICATION_GROUP,
                          description: 'Multi-node tests',
-                         dependsOn: test.dependsOn) {
-  configure(BuildPlugin.commonTestConfig(project))
-  classpath = project.test.classpath
-  testClassesDirs = project.test.testClassesDirs
+                         dependsOn: unitTest.dependsOn) {
   include '**/*IT.class'
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }

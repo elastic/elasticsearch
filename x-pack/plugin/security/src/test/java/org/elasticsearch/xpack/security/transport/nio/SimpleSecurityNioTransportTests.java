@@ -6,23 +6,22 @@
 package org.elasticsearch.xpack.security.transport.nio;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 
 public class SimpleSecurityNioTransportTests extends AbstractSimpleSecurityTransportTestCase {
@@ -34,28 +33,21 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleSecurityTrans
         Settings settings1 = Settings.builder()
                 .put(settings)
                 .put("xpack.security.transport.ssl.enabled", true).build();
-        Transport transport = new SecurityNioTransport(settings1, threadPool,
-                networkService, BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(settings), namedWriteableRegistry,
-                new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
+        Transport transport = new SecurityNioTransport(settings1, version, threadPool, networkService, new MockPageCacheRecycler(settings),
+            namedWriteableRegistry, new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
 
             @Override
-            public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
-                    InterruptedException {
+            public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,
+                                         ActionListener<Version> listener) {
                 if (doHandshake) {
-                    return super.executeHandshake(node, channel, timeout);
+                    super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    return version.minimumCompatibilityVersion();
+                    listener.onResponse(version.minimumCompatibilityVersion());
                 }
             }
-
-            @Override
-            protected Version getCurrentVersion() {
-                return version;
-            }
-
         };
         MockTransportService mockTransportService =
-                MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings,
+                MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings,
                         Collections.emptySet());
         mockTransportService.start();
         return mockTransportService;
@@ -63,9 +55,9 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleSecurityTrans
 
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        if (TcpTransport.PORT.exists(settings) == false) {
+        if (TransportSettings.PORT.exists(settings) == false) {
             settings = Settings.builder().put(settings)
-                .put(TcpTransport.PORT.getKey(), "0")
+                .put(TransportSettings.PORT.getKey(), "0")
                 .build();
         }
         MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);

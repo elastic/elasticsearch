@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -60,13 +61,14 @@ public class ReplicationResponseTests extends ESTestCase {
                     new ShardInfo.Failure(new ShardId("index", "_uuid", 3),
                             "_node_id", new IllegalArgumentException("Wrong"), RestStatus.BAD_REQUEST, false),
                     new ShardInfo.Failure(new ShardId("index", "_uuid", 1),
-                            "_node_id", new CircuitBreakingException("Wrong", 12, 21), RestStatus.NOT_ACCEPTABLE, true));
+                            "_node_id", new CircuitBreakingException("Wrong", 12, 21, CircuitBreaker.Durability.PERMANENT),
+                        RestStatus.NOT_ACCEPTABLE, true));
             String output = Strings.toString(shardInfo);
             assertEquals("{\"total\":6,\"successful\":4,\"failed\":2,\"failures\":[{\"_index\":\"index\",\"_shard\":3," +
                     "\"_node\":\"_node_id\",\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"Wrong\"}," +
                     "\"status\":\"BAD_REQUEST\",\"primary\":false},{\"_index\":\"index\",\"_shard\":1,\"_node\":\"_node_id\"," +
-                    "\"reason\":{\"type\":\"circuit_breaking_exception\",\"reason\":\"Wrong\",\"bytes_wanted\":12,\"bytes_limit\":21}," +
-                    "\"status\":\"NOT_ACCEPTABLE\",\"primary\":true}]}", output);
+                    "\"reason\":{\"type\":\"circuit_breaking_exception\",\"reason\":\"Wrong\",\"bytes_wanted\":12,\"bytes_limit\":21" +
+                    ",\"durability\":\"PERMANENT\"},\"status\":\"NOT_ACCEPTABLE\",\"primary\":true}]}", output);
         }
     }
 

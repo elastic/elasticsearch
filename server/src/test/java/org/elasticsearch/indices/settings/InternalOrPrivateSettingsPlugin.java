@@ -126,14 +126,12 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
 
         @Inject
         public TransportUpdateInternalOrPrivateAction(
-                final Settings settings,
                 final TransportService transportService,
                 final ClusterService clusterService,
                 final ThreadPool threadPool,
                 final ActionFilters actionFilters,
                 final IndexNameExpressionResolver indexNameExpressionResolver) {
             super(
-                    settings,
                     UpdateInternalOrPrivateAction.NAME,
                     transportService,
                     clusterService,
@@ -168,6 +166,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                                     .put(currentState.metaData().index(request.index).getSettings())
                                     .put(request.key, request.value);
                     imdBuilder.settings(settingsBuilder);
+                    imdBuilder.settingsVersion(1 + imdBuilder.settingsVersion());
                     builder.put(imdBuilder.build(), true);
                     return ClusterState.builder(currentState).metaData(builder).build();
                 }

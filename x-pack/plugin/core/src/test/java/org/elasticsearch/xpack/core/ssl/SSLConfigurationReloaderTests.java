@@ -17,6 +17,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * Unit tests for the reloading of SSL configuration
  */
+@TestLogging("org.elasticsearch.watcher:TRACE")
 public class SSLConfigurationReloaderTests extends ESTestCase {
 
     private ThreadPool threadPool;
@@ -307,7 +309,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [keystore reload exception]");
@@ -348,7 +350,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [pem key reload exception]");
@@ -383,7 +385,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [truststore reload exception]");
@@ -415,7 +417,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [pem trust reload exception]");
@@ -435,20 +437,20 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
 
     }
-    private void validateSSLConfigurationIsReloaded(Settings settings, Environment env,
-                                                    Consumer<SSLContext> preChecks,
-                                                    Runnable modificationFunction,
-                                                    Consumer<SSLContext> postChecks)
-        throws Exception {
 
+    private void validateSSLConfigurationIsReloaded(Settings settings, Environment env, Consumer<SSLContext> preChecks,
+                                                    Runnable modificationFunction, Consumer<SSLContext> postChecks) throws Exception {
         final CountDownLatch reloadLatch = new CountDownLatch(1);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
-                super.reloadSSLContext(configuration);
-                reloadLatch.countDown();
+                try {
+                    super.reloadSSLContext(configuration);
+                } finally {
+                    reloadLatch.countDown();
+                }
             }
         };
         // Baseline checks

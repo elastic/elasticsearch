@@ -20,12 +20,15 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -40,16 +43,33 @@ public class CompoundProcessor implements Processor {
     private final boolean ignoreFailure;
     private final List<Processor> processors;
     private final List<Processor> onFailureProcessors;
+    private final List<Tuple<Processor, IngestMetric>> processorsWithMetrics;
+    private final LongSupplier relativeTimeProvider;
+
+    CompoundProcessor(LongSupplier relativeTimeProvider, Processor... processor) {
+        this(false, Arrays.asList(processor), Collections.emptyList(), relativeTimeProvider);
+    }
 
     public CompoundProcessor(Processor... processor) {
         this(false, Arrays.asList(processor), Collections.emptyList());
     }
 
     public CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors) {
+        this(ignoreFailure, processors, onFailureProcessors, System::nanoTime);
+    }
+    CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors,
+                      LongSupplier relativeTimeProvider) {
         super();
         this.ignoreFailure = ignoreFailure;
         this.processors = processors;
         this.onFailureProcessors = onFailureProcessors;
+        this.relativeTimeProvider = relativeTimeProvider;
+        this.processorsWithMetrics = new ArrayList<>(processors.size());
+        processors.forEach(p -> processorsWithMetrics.add(new Tuple<>(p, new IngestMetric())));
+    }
+
+    List<Tuple<Processor, IngestMetric>> getProcessorsWithMetrics() {
+        return processorsWithMetrics;
     }
 
     public boolean isIgnoreFailure() {
@@ -94,12 +114,17 @@ public class CompoundProcessor implements Processor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        for (Processor processor : processors) {
+        for (Tuple<Processor, IngestMetric> processorWithMetric : processorsWithMetrics) {
+            Processor processor = processorWithMetric.v1();
+            IngestMetric metric = processorWithMetric.v2();
+            long startTimeInNanos = relativeTimeProvider.getAsLong();
             try {
+                metric.preIngest();
                 if (processor.execute(ingestDocument) == null) {
                     return null;
                 }
             } catch (Exception e) {
+                metric.ingestFailed();
                 if (ignoreFailure) {
                     continue;
                 }
@@ -109,20 +134,30 @@ public class CompoundProcessor implements Processor {
                 if (onFailureProcessors.isEmpty()) {
                     throw compoundProcessorException;
                 } else {
-                    executeOnFailure(ingestDocument, compoundProcessorException);
+                    if (executeOnFailure(ingestDocument, compoundProcessorException) == false) {
+                        return null;
+                    }
                     break;
                 }
+            } finally {
+                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
+                metric.postIngest(ingestTimeInMillis);
             }
         }
         return ingestDocument;
     }
 
-    void executeOnFailure(IngestDocument ingestDocument, ElasticsearchException exception) throws Exception {
+    /**
+     * @return true if execution should continue, false if document is dropped.
+     */
+    boolean executeOnFailure(IngestDocument ingestDocument, ElasticsearchException exception) throws Exception {
         try {
             putFailureMetadata(ingestDocument, exception);
             for (Processor processor : onFailureProcessors) {
                 try {
-                    processor.execute(ingestDocument);
+                    if (processor.execute(ingestDocument) == null) {
+                        return false;
+                    }
                 } catch (Exception e) {
                     throw newCompoundProcessorException(e, processor.getType(), processor.getTag());
                 }
@@ -130,6 +165,7 @@ public class CompoundProcessor implements Processor {
         } finally {
             removeFailureMetadata(ingestDocument);
         }
+        return true;
     }
 
     private void putFailureMetadata(IngestDocument ingestDocument, ElasticsearchException cause) {

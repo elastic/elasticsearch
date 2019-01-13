@@ -60,9 +60,13 @@ public class IndexStoreTests extends ESTestCase {
         }
         Settings settings = settingsBuilder.build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
-        FsDirectoryService service = new FsDirectoryService(indexSettings, null, new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
+        FsDirectoryService service = new FsDirectoryService(indexSettings, null,
+            new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
         try (Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             switch (type) {
+                case HYBRIDFS:
+                    assertHybridDirectory(directory);
+                    break;
                 case NIOFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
                     break;
@@ -74,7 +78,7 @@ public class IndexStoreTests extends ESTestCase {
                     break;
                 case FS:
                     if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-                        assertTrue(directory.toString(), directory instanceof MMapDirectory);
+                        assertHybridDirectory(directory);
                     } else if (Constants.WINDOWS) {
                         assertTrue(directory.toString(), directory instanceof SimpleFSDirectory);
                     } else {
@@ -87,4 +91,9 @@ public class IndexStoreTests extends ESTestCase {
         }
     }
 
+    private void assertHybridDirectory(Directory directory) {
+        assertTrue(directory.toString(), directory instanceof FsDirectoryService.HybridDirectory);
+        Directory randomAccessDirectory = ((FsDirectoryService.HybridDirectory) directory).getRandomAccessDirectory();
+        assertTrue("randomAccessDirectory:  " +  randomAccessDirectory.toString(), randomAccessDirectory instanceof MMapDirectory);
+    }
 }

@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -33,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -201,12 +204,18 @@ public class SettingTests extends ESTestCase {
 
     static class FooBarValidator implements Setting.Validator<String> {
 
-        public static boolean invoked;
+        public static boolean invokedInIsolation;
+        public static boolean invokedWithDependencies;
+
+        @Override
+        public void validate(String value) {
+            invokedInIsolation = true;
+            assertThat(value, equalTo("foo.bar value"));
+        }
 
         @Override
         public void validate(String value, Map<Setting<String>, String> settings) {
-            invoked = true;
-            assertThat(value, equalTo("foo.bar value"));
+            invokedWithDependencies = true;
             assertTrue(settings.keySet().contains(BAZ_QUX_SETTING));
             assertThat(settings.get(BAZ_QUX_SETTING), equalTo("baz.qux value"));
             assertTrue(settings.keySet().contains(QUUX_QUUZ_SETTING));
@@ -227,7 +236,8 @@ public class SettingTests extends ESTestCase {
                 .put("quux.quuz", "quux.quuz value")
                 .build();
         FOO_BAR_SETTING.get(settings);
-        assertTrue(FooBarValidator.invoked);
+        assertTrue(FooBarValidator.invokedInIsolation);
+        assertTrue(FooBarValidator.invokedWithDependencies);
     }
 
     public void testUpdateNotDynamic() {
@@ -789,6 +799,35 @@ public class SettingTests extends ESTestCase {
         assertThat(setting.get(Settings.EMPTY).getMillis(), equalTo(random.getMillis() * factor));
     }
 
+    public void testTimeValueBounds() {
+        Setting<TimeValue> settingWithLowerBound
+            = Setting.timeSetting("foo", TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(5));
+        assertThat(settingWithLowerBound.get(Settings.EMPTY), equalTo(TimeValue.timeValueSeconds(10)));
+
+        assertThat(settingWithLowerBound.get(Settings.builder().put("foo", "5000ms").build()), equalTo(TimeValue.timeValueSeconds(5)));
+        IllegalArgumentException illegalArgumentException
+            = expectThrows(IllegalArgumentException.class,
+            () -> settingWithLowerBound.get(Settings.builder().put("foo", "4999ms").build()));
+
+        assertThat(illegalArgumentException.getMessage(), equalTo("failed to parse value [4999ms] for setting [foo], must be >= [5s]"));
+
+        Setting<TimeValue> settingWithBothBounds = Setting.timeSetting("bar",
+            TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(5), TimeValue.timeValueSeconds(20));
+        assertThat(settingWithBothBounds.get(Settings.EMPTY), equalTo(TimeValue.timeValueSeconds(10)));
+
+        assertThat(settingWithBothBounds.get(Settings.builder().put("bar", "5000ms").build()), equalTo(TimeValue.timeValueSeconds(5)));
+        assertThat(settingWithBothBounds.get(Settings.builder().put("bar", "20000ms").build()), equalTo(TimeValue.timeValueSeconds(20)));
+        illegalArgumentException
+            = expectThrows(IllegalArgumentException.class,
+            () -> settingWithBothBounds.get(Settings.builder().put("bar", "4999ms").build()));
+        assertThat(illegalArgumentException.getMessage(), equalTo("failed to parse value [4999ms] for setting [bar], must be >= [5s]"));
+
+        illegalArgumentException
+            = expectThrows(IllegalArgumentException.class,
+            () -> settingWithBothBounds.get(Settings.builder().put("bar", "20001ms").build()));
+        assertThat(illegalArgumentException.getMessage(), equalTo("failed to parse value [20001ms] for setting [bar], must be <= [20s]"));
+    }
+
     public void testSettingsGroupUpdater() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
         Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
@@ -888,6 +927,41 @@ public class SettingTests extends ESTestCase {
             assertFalse(fooSetting.exists(Settings.builder().put(setting, "bar").build()));
             assertTrue(fooSetting.existsOrFallbackExists(Settings.builder().put(setting, "bar").build()));
         }
+    }
+
+    public void testAffixMapUpdateWithNullSettingValue() {
+        // GIVEN an affix setting changed from "prefix._foo"="bar" to "prefix._foo"=null
+        final Settings current = Settings.builder()
+            .put("prefix._foo", (String) null)
+            .build();
+
+        final Settings previous = Settings.builder()
+            .put("prefix._foo", "bar")
+            .build();
+
+        final Setting.AffixSetting<String> affixSetting =
+            Setting.prefixKeySetting("prefix" + ".",
+                key -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+
+        final Consumer<Map<String, String>> consumer = (map) -> {};
+        final BiConsumer<String, String> validator = (s1, s2) -> {};
+
+        // WHEN creating an affix updater
+        final SettingUpdater<Map<String, String>> updater = affixSetting.newAffixMapUpdater(consumer, logger, validator);
+
+        // THEN affix updater is always expected to have changed (even when defaults are omitted)
+        assertTrue(updater.hasChanged(current, previous));
+
+        // THEN changes are expected when defaults aren't omitted
+        final Map<String, String> updatedSettings = updater.getValue(current, previous);
+        assertNotNull(updatedSettings);
+        assertEquals(1, updatedSettings.size());
+
+        // THEN changes are reported when defaults aren't omitted
+        final String key = updatedSettings.keySet().iterator().next();
+        final String value = updatedSettings.get(key);
+        assertEquals("_foo", key);
+        assertEquals("", value);
     }
 
 }

@@ -1,13 +1,16 @@
 [role="xpack"]
 [[watcher-api-stop]]
 === Stop API
+++++
+<titleabbrev>Stop</titleabbrev>
+++++
 
 The `stop` API stops the {watcher} service if the service is running.
 
 [float]
 ==== Request
 
-`POST _xpack/watcher/_stop`
+`POST _watcher/_stop`
 
 [float]
 ==== Authorization
@@ -20,7 +23,7 @@ information, see {xpack-ref}/security-privileges.html[Security Privileges].
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/_stop
+POST _watcher/_stop
 --------------------------------------------------
 // CONSOLE
 

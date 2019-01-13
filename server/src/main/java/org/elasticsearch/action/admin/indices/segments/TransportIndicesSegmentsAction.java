@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -41,14 +40,16 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeAction<IndicesSegmentsRequest, IndicesSegmentResponse, ShardSegments> {
+public class TransportIndicesSegmentsAction
+        extends TransportBroadcastByNodeAction<IndicesSegmentsRequest, IndicesSegmentResponse, ShardSegments> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportIndicesSegmentsAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                          IndicesService indicesService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesSegmentsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+    public TransportIndicesSegmentsAction(ClusterService clusterService, TransportService transportService,
+                                          IndicesService indicesService, ActionFilters actionFilters,
+                                          IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(IndicesSegmentsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 IndicesSegmentsRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
@@ -77,8 +78,11 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
     }
 
     @Override
-    protected IndicesSegmentResponse newResponse(IndicesSegmentsRequest request, int totalShards, int successfulShards, int failedShards, List<ShardSegments> results, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
-        return new IndicesSegmentResponse(results.toArray(new ShardSegments[results.size()]), totalShards, successfulShards, failedShards, shardFailures);
+    protected IndicesSegmentResponse newResponse(IndicesSegmentsRequest request, int totalShards, int successfulShards, int failedShards,
+                                                 List<ShardSegments> results, List<DefaultShardOperationFailedException> shardFailures,
+                                                 ClusterState clusterState) {
+        return new IndicesSegmentResponse(results.toArray(new ShardSegments[results.size()]), totalShards, successfulShards, failedShards,
+            shardFailures);
     }
 
     @Override

@@ -2,7 +2,7 @@
 [[security-api]]
 == Security APIs
 
-You can use the following APIs to perform {security} activities.
+You can use the following APIs to perform security activities.
 
 * <<security-api-authenticate>>
 * <<security-api-clear-cache>>
@@ -66,18 +66,17 @@ native realm:
 * <<security-api-get-user,Get users>>
 
 
-include::security/put-app-privileges.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
-include::security/create-role-mappings.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
+include::security/put-app-privileges.asciidoc[]
+include::security/create-role-mappings.asciidoc[]
 include::security/create-roles.asciidoc[]
 include::security/create-users.asciidoc[]
 include::security/delete-app-privileges.asciidoc[]
 include::security/delete-role-mappings.asciidoc[]
 include::security/delete-roles.asciidoc[]
-include::security/delete-tokens.asciidoc[]
 include::security/delete-users.asciidoc[]
 include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
@@ -87,4 +86,5 @@ include::security/get-roles.asciidoc[]
 include::security/get-tokens.asciidoc[]
 include::security/get-users.asciidoc[]
 include::security/has-privileges.asciidoc[]
+include::security/invalidate-tokens.asciidoc[]
 include::security/ssl.asciidoc[]

@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
@@ -31,9 +30,9 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     private final Set<XPackFeatureSet> featureSets;
 
     @Inject
-    public TransportXPackInfoAction(Settings settings, TransportService transportService,
-                                    ActionFilters actionFilters, LicenseService licenseService, Set<XPackFeatureSet> featureSets) {
-        super(settings, XPackInfoAction.NAME, transportService, actionFilters,
+    public TransportXPackInfoAction(TransportService transportService, ActionFilters actionFilters, LicenseService licenseService,
+                                    Set<XPackFeatureSet> featureSets) {
+        super(XPackInfoAction.NAME, transportService, actionFilters,
             XPackInfoRequest::new);
         this.licenseService = licenseService;
         this.featureSets = featureSets;

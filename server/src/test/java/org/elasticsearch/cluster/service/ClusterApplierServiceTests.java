@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -118,28 +119,31 @@ public class ClusterApplierServiceTests extends ESTestCase {
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test1",
-                        clusterApplierService.getClass().getCanonicalName(),
+                        ClusterApplierService.class.getCanonicalName(),
                         Level.DEBUG,
                         "*processing [test1]: took [1s] no change in cluster state"));
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test2",
-                        clusterApplierService.getClass().getCanonicalName(),
+                        ClusterApplierService.class.getCanonicalName(),
                         Level.TRACE,
                         "*failed to execute cluster state applier in [2s]*"));
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "test3",
+                ClusterApplierService.class.getCanonicalName(),
+                Level.DEBUG,
+                "*processing [test3]: took [0s] no change in cluster state*"));
 
-        Logger clusterLogger = Loggers.getLogger("org.elasticsearch.cluster.service");
+        Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
-            final CountDownLatch latch = new CountDownLatch(3);
             clusterApplierService.currentTimeOverride = System.nanoTime();
             clusterApplierService.runOnApplierThread("test1",
                 currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(1).nanos(),
                 new ClusterApplyListener() {
                     @Override
-                    public void onSuccess(String source) {
-                        latch.countDown();
-                    }
+                    public void onSuccess(String source) { }
 
                     @Override
                     public void onFailure(String source, Exception e) {
@@ -158,31 +162,25 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
-                        latch.countDown();
-                    }
+                    public void onFailure(String source, Exception e) { }
                 });
             // Additional update task to make sure all previous logging made it to the loggerName
-            // We don't check logging for this on since there is no guarantee that it will occur before our check
             clusterApplierService.runOnApplierThread("test3",
                 currentState -> {},
                 new ClusterApplyListener() {
                     @Override
-                    public void onSuccess(String source) {
-                        latch.countDown();
-                    }
+                    public void onSuccess(String source) { }
 
                     @Override
                     public void onFailure(String source, Exception e) {
                         fail();
                     }
                 });
-            latch.await();
+            assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
             Loggers.removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
-        mockAppender.assertAllExpectationsMatched();
     }
 
     @TestLogging("org.elasticsearch.cluster.service:WARN") // To ensure that we log cluster state events on WARN level
@@ -192,23 +190,23 @@ public class ClusterApplierServiceTests extends ESTestCase {
         mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                         "test1 shouldn't see because setting is too low",
-                        clusterApplierService.getClass().getCanonicalName(),
+                        ClusterApplierService.class.getCanonicalName(),
                         Level.WARN,
                         "*cluster state applier task [test1] took [*] above the warn threshold of *"));
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test2",
-                        clusterApplierService.getClass().getCanonicalName(),
+                        ClusterApplierService.class.getCanonicalName(),
                         Level.WARN,
                         "*cluster state applier task [test2] took [32s] above the warn threshold of *"));
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test4",
-                        clusterApplierService.getClass().getCanonicalName(),
+                        ClusterApplierService.class.getCanonicalName(),
                         Level.WARN,
                         "*cluster state applier task [test3] took [34s] above the warn threshold of *"));
 
-        Logger clusterLogger = Loggers.getLogger("org.elasticsearch.cluster.service");
+        Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(4);
@@ -412,7 +410,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         public volatile Long currentTimeOverride = null;
 
         TimedClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-            super(settings, clusterSettings, threadPool);
+            super("test_node", settings, clusterSettings, threadPool);
         }
 
         @Override

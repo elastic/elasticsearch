@@ -97,7 +97,7 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
         this.allowNoDatafeeds = allowNoDatafeeds;
     }
 
-    public Boolean isAllowNoDatafeeds() {
+    public Boolean getAllowNoDatafeeds() {
         return allowNoDatafeeds;
     }
 

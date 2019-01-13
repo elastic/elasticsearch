@@ -10,6 +10,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -37,6 +38,11 @@ public final class ConditionalClusterPrivileges {
 
     public static final ConditionalClusterPrivilege[] EMPTY_ARRAY = new ConditionalClusterPrivilege[0];
 
+    public static final Writeable.Reader<ConditionalClusterPrivilege> READER =
+        in1 -> in1.readNamedWriteable(ConditionalClusterPrivilege.class);
+    public static final Writeable.Writer<ConditionalClusterPrivilege> WRITER =
+        (out1, value) -> out1.writeNamedWriteable(value);
+
     private ConditionalClusterPrivileges() {
     }
 
@@ -44,15 +50,14 @@ public final class ConditionalClusterPrivileges {
      * Utility method to read an array of {@link ConditionalClusterPrivilege} objects from a {@link StreamInput}
      */
     public static ConditionalClusterPrivilege[] readArray(StreamInput in) throws IOException {
-        return in.readArray(in1 ->
-            in1.readNamedWriteable(ConditionalClusterPrivilege.class), ConditionalClusterPrivilege[]::new);
+        return in.readArray(READER, ConditionalClusterPrivilege[]::new);
     }
 
     /**
      * Utility method to write an array of {@link ConditionalClusterPrivilege} objects to a {@link StreamOutput}
      */
     public static void writeArray(StreamOutput out, ConditionalClusterPrivilege[] privileges) throws IOException {
-        out.writeArray((out1, value) -> out1.writeNamedWriteable(value), privileges);
+        out.writeArray(WRITER, privileges);
     }
 
     /**

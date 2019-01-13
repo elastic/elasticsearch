@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.license;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -18,11 +20,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
@@ -56,6 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * the license changes are detected in the cluster state.
  */
 public class LicenseService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
+    private static final Logger logger = LogManager.getLogger(LicenseService.class);
 
     public static final Setting<String> SELF_GENERATED_LICENSE_TYPE = new Setting<>("xpack.license.self_generated.type",
             (s) -> "basic", (s) -> {
@@ -78,6 +80,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS =
             XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+
+    private final Settings settings;
 
     private final ClusterService clusterService;
 
@@ -110,7 +114,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static final String LICENSE_JOB = "licenseJob";
 
-    private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
+    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMMM dd, yyyy");
 
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
             "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
@@ -118,6 +122,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     public LicenseService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
                           ResourceWatcherService resourceWatcherService, XPackLicenseState licenseState) {
         super(settings);
+        this.settings = settings;
         this.clusterService = clusterService;
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
@@ -134,7 +139,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         String general = LoggerMessageFormat.format(null, "License [{}] on [{}].\n" +
                 "# If you have a new license, please update it. Otherwise, please reach out to\n" +
                 "# your support contact.\n" +
-                "# ", expiredMsg, DATE_FORMATTER.printer().print(expirationMillis));
+                "# ", expiredMsg, DATE_FORMATTER.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }

@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-update.html",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/{type}/{id}/_update",
-      "paths": ["/{index}/{type}/{id}/_update", "/{index}/_doc/{id}/_update"],
+      "path": "/{index}/_update/{id}",
+      "paths": ["/{index}/_update/{id}", "/{index}/{type}/{id}/_update"],
       "parts": {
         "id": {
           "type": "string",
@@ -22,10 +22,6 @@
         }
       },
       "params": {
-        "include_type_name": {
-          "type" : "string",
-          "description" : "Whether to add the type name to the response"
-        },
         "wait_for_active_shards": {
           "type": "string",
           "description": "Sets the number of shard copies that must be active before proceeding with the update operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
@@ -34,11 +30,11 @@
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"
         },
-        "_source_exclude": {
+        "_source_excludes": {
           "type" : "list",
           "description" : "A list of fields to exclude from the returned _source field"
         },
-        "_source_include": {
+        "_source_includes": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         },

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -28,15 +28,16 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * Ensures that the files backing an {@link SSLConfiguration} are monitored for changes and the underlying key/trust material is reloaded
  * and the {@link SSLContext} has existing sessions invalidated to force the use of the new key/trust material
  */
-public class SSLConfigurationReloader extends AbstractComponent {
+public class SSLConfigurationReloader {
+
+    private static final Logger logger = LogManager.getLogger(SSLConfigurationReloader.class);
 
     private final ConcurrentHashMap<Path, ChangeListener> pathToChangeListenerMap = new ConcurrentHashMap<>();
     private final Environment environment;
     private final ResourceWatcherService resourceWatcherService;
     private final SSLService sslService;
 
-    public SSLConfigurationReloader(Settings settings, Environment env, SSLService sslService, ResourceWatcherService resourceWatcher) {
-        super(settings);
+    public SSLConfigurationReloader(Environment env, SSLService sslService, ResourceWatcherService resourceWatcher) {
         this.environment = env;
         this.resourceWatcherService = resourceWatcher;
         this.sslService = sslService;

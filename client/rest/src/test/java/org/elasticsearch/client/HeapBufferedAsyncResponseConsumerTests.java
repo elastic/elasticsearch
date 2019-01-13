@@ -106,7 +106,8 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
             IllegalAccessException, InvocationTargetException, InstantiationException {
         int bufferLimit = randomIntBetween(1, Integer.MAX_VALUE);
         //we use reflection to make sure that the class can be instantiated from the outside, and the constructor is public
-        Constructor<?> constructor = HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.class.getConstructor(Integer.TYPE);
+        Constructor<?> constructor =
+                HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.class.getConstructor(Integer.TYPE);
         assertEquals(Modifier.PUBLIC, constructor.getModifiers() & Modifier.PUBLIC);
         Object object = constructor.newInstance(bufferLimit);
         assertThat(object, instanceOf(HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.class));

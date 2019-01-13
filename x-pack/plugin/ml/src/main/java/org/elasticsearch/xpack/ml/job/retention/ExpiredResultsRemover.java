@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -43,13 +42,13 @@ import java.util.Objects;
  */
 public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
-    private static final Logger LOGGER = Loggers.getLogger(ExpiredResultsRemover.class);
+    private static final Logger LOGGER = LogManager.getLogger(ExpiredResultsRemover.class);
 
     private final Client client;
     private final Auditor auditor;
 
-    public ExpiredResultsRemover(Client client, ClusterService clusterService, Auditor auditor) {
-        super(clusterService);
+    public ExpiredResultsRemover(Client client, Auditor auditor) {
+        super(client);
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
     }

@@ -188,7 +188,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
         final SecurityIndexManager securityIndex =
-            new SecurityIndexManager(Settings.EMPTY, client, SecurityIndexManager.SECURITY_INDEX_NAME, clusterService);
+            new SecurityIndexManager(client, SecurityIndexManager.SECURITY_INDEX_NAME, clusterService);
         final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex) {
             @Override
             void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {

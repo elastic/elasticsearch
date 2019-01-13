@@ -6,9 +6,8 @@
 package org.elasticsearch.example.role;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -19,9 +18,7 @@ import java.util.function.BiConsumer;
  * A custom roles provider implementation for testing that serves
  * static roles from memory.
  */
-public class CustomInMemoryRolesProvider
-    extends AbstractComponent
-    implements BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>> {
+public class CustomInMemoryRolesProvider implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
     public static final String INDEX = "foo";
     public static final String ROLE_A = "roleA";
@@ -29,13 +26,12 @@ public class CustomInMemoryRolesProvider
 
     private final Map<String, String> rolePermissionSettings;
 
-    public CustomInMemoryRolesProvider(Settings settings, Map<String, String> rolePermissionSettings) {
-        super(settings);
+    public CustomInMemoryRolesProvider(Map<String, String> rolePermissionSettings) {
         this.rolePermissionSettings = rolePermissionSettings;
     }
 
     @Override
-    public void accept(Set<String> roles, ActionListener<Set<RoleDescriptor>> listener) {
+    public void accept(Set<String> roles, ActionListener<RoleRetrievalResult> listener) {
         Set<RoleDescriptor> roleDescriptors = new HashSet<>();
         for (String role : roles) {
             if (rolePermissionSettings.containsKey(role)) {
@@ -52,6 +48,6 @@ public class CustomInMemoryRolesProvider
             }
         }
 
-        listener.onResponse(roleDescriptors);
+        listener.onResponse(RoleRetrievalResult.success(roleDescriptors));
     }
 }

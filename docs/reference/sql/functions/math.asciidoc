@@ -3,6 +3,8 @@
 [[sql-functions-math]]
 === Math Functions
 
+beta[]
+
 All math and trigonometric functions require their input (where applicable)
 to be numeric.
 
@@ -63,13 +65,11 @@ include-tagged::{sql-specs}/docs.csv-spec[mathInlineCbrtWithNegativeValue]
 [source, sql]
 --------------------------------------------------
 CEIL(numeric_exp<1>)
-CEILING(numeric_exp<2>)
 --------------------------------------------------
 
 *Input*:
 
 <1> numeric expression
-<2> numeric expression
 
 *Output*: integer or long numeric value
 
@@ -276,6 +276,30 @@ include-tagged::{sql-specs}/docs.csv-spec[mathInlinePowerPositive]
 include-tagged::{sql-specs}/docs.csv-spec[mathInlinePowerNegative]
 --------------------------------------------------
 
+[[sql-functions-math-random]]
+===== `RANDOM/RAND`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+RANDOM(seed<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> numeric expression
+
+*Output*: double numeric value
+
+.Description:
+
+Returns a random double using the given seed.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[mathRandom]
+--------------------------------------------------
+
 [[sql-functions-math-round]]
 ===== `ROUND`
 
@@ -308,7 +332,7 @@ include-tagged::{sql-specs}/docs.csv-spec[mathRoundWithNegativeParameter]
 --------------------------------------------------
 
 [[sql-functions-math-sign]]
-===== `SIGN`
+===== `SIGN/SIGNUM`
 
 .Synopsis:
 [source, sql]

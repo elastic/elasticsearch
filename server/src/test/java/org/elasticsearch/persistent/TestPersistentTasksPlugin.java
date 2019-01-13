@@ -19,6 +19,8 @@
 
 package org.elasticsearch.persistent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -44,7 +46,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -90,8 +92,10 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool, Client client) {
-        return Collections.singletonList(new TestPersistentTasksExecutor(Settings.EMPTY, clusterService));
+                                                                       ThreadPool threadPool,
+                                                                       Client client,
+                                                                       SettingsModule settingsModule) {
+        return Collections.singletonList(new TestPersistentTasksExecutor(clusterService));
     }
 
     @Override
@@ -289,16 +293,27 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
     public static class TestPersistentTasksExecutor extends PersistentTasksExecutor<TestParams> {
 
+        private static final Logger logger = LogManager.getLogger(TestPersistentTasksExecutor.class);
+
         public static final String NAME = "cluster:admin/persistent/test";
         private final ClusterService clusterService;
 
-        public TestPersistentTasksExecutor(Settings settings, ClusterService clusterService) {
-            super(settings, NAME, ThreadPool.Names.GENERIC);
+        private static volatile boolean nonClusterStateCondition = true;
+
+        public TestPersistentTasksExecutor(ClusterService clusterService) {
+            super(NAME, ThreadPool.Names.GENERIC);
             this.clusterService = clusterService;
+        }
+
+        public static void setNonClusterStateCondition(boolean nonClusterStateCondition) {
+            TestPersistentTasksExecutor.nonClusterStateCondition = nonClusterStateCondition;
         }
 
         @Override
         public Assignment getAssignment(TestParams params, ClusterState clusterState) {
+            if (nonClusterStateCondition == false) {
+                return new Assignment(null, "non cluster state condition prevents assignment");
+            }
             if (params == null || params.getExecutorNodeAttr() == null) {
                 return super.getAssignment(params, clusterState);
             } else {
@@ -309,7 +324,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 } else {
                     return NO_NODE_FOUND;
                 }
-
             }
         }
 
@@ -393,7 +407,12 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         @Override
         public TestTasksResponse newResponse() {
-            return new TestTasksResponse();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        }
+
+        @Override
+        public Writeable.Reader<TestTasksResponse> getResponseReader() {
+            return TestTasksResponse::new;
         }
     }
 
@@ -441,9 +460,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         public TestTasksRequest() {
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public TestTasksRequest(StreamInput in) throws IOException {
+            super(in);
             operation = in.readOptionalString();
         }
 
@@ -479,19 +497,14 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         private List<TestTaskResponse> tasks;
 
-        public TestTasksResponse() {
-            super(null, null);
-        }
-
         public TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
                                  List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
             this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public TestTasksResponse(StreamInput in) throws IOException {
+            super(in);
             tasks = in.readList(TestTaskResponse::new);
         }
 
@@ -510,10 +523,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             TestTasksRequest, TestTasksResponse, TestTaskResponse> {
 
         @Inject
-        public TransportTestTaskAction(Settings settings, ClusterService clusterService,
-                                       TransportService transportService, ActionFilters actionFilters) {
-            super(settings, TestTaskAction.NAME, clusterService, transportService, actionFilters,
-                TestTasksRequest::new, TestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+        public TransportTestTaskAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+            super(TestTaskAction.NAME, clusterService, transportService, actionFilters,
+                TestTasksRequest::new, TestTasksResponse::new, TestTaskResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 
         @Override
@@ -521,11 +533,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                                                 List<TaskOperationFailure> taskOperationFailures,
                                                 List<FailedNodeException> failedNodeExceptions) {
             return new TestTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
-        }
-
-        @Override
-        protected TestTaskResponse readTaskResponse(StreamInput in) throws IOException {
-            return new TestTaskResponse(in);
         }
 
         @Override

@@ -1,0 +1,70 @@
+[[java-rest-high-start-trial]]
+=== Start Trial
+
+[[java-rest-high-start-trial-execution]]
+==== Execution
+
+This API creates and enables a trial license using the `startTrial()`
+method.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-execute]
+---------------------------------------------------
+<1> Sets the "acknowledge" parameter to true, indicating the user has
+acknowledged that starting a trial license may affect commercial features
+
+[[java-rest-high-start-trial-response]]
+==== Response
+
+The returned `StartTrialResponse` returns a field indicating whether the
+trial was started. If it was started, the response returns a the type of
+license started. If it was not started, it returns an error message describing
+why.
+
+Acknowledgement messages may also be returned if this API was called without
+the `acknowledge` flag set to `true`.  In this case you need to display the
+messages to the end user and if they agree, resubmit the request with the
+`acknowledge` flag set to `true`. Please note that the response will still
+return a 200 return code even if it requires an acknowledgement. So, it is
+necessary to check the `acknowledged` flag.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-response]
+--------------------------------------------------
+<1> Whether or not the request had the `acknowledge` flag set
+<2> Whether or not this request caused a trial to start
+<3> If this request caused a trial to start, which type of license it
+registered
+<4> If this request did not cause a trial to start, a message explaining why
+<5> If the user's request did not have the `acknowledge` flag set, a summary
+of the user's acknowledgement required for this API
+<6> If the user's request did not have the `acknowledge` flag set, contains
+keys of commercial features and values of messages describing how they will
+be affected by licensing changes as the result of starting a trial
+
+[[java-rest-high-start-trial-async]]
+==== Asynchronous execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-execute-async]
+--------------------------------------------------
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `StartTrialResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

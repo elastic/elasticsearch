@@ -186,7 +186,8 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      * @param routingNode the node to initialize it to
      * @param shardRouting the shard routing that is to be matched in unassigned shards
      */
-    protected void initializeUnassignedShard(RoutingAllocation allocation, RoutingNodes routingNodes, RoutingNode routingNode, ShardRouting shardRouting) {
+    protected void initializeUnassignedShard(RoutingAllocation allocation, RoutingNodes routingNodes,
+                                             RoutingNode routingNode, ShardRouting shardRouting) {
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, null, null);
     }
 
@@ -212,7 +213,8 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
                 unassigned = it.updateUnassigned(unassignedInfo != null ? unassignedInfo : unassigned.unassignedInfo(),
                     recoverySource != null ? recoverySource : unassigned.recoverySource(), allocation.changes());
             }
-            it.initialize(routingNode.nodeId(), null, allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
+            it.initialize(routingNode.nodeId(), null,
+                allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
             return;
         }
         assert false : "shard to initialize not found in list of unassigned shards";

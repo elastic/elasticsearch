@@ -22,7 +22,7 @@ The specified field must be of type `geo_point` (which can only be set explicitl
 PUT /museums
 {
     "mappings": {
-        "doc": {
+        "_doc": {
             "properties": {
                 "location": {
                     "type": "geo_point"
@@ -32,7 +32,7 @@ PUT /museums
     }
 }
 
-POST /museums/doc/_bulk?refresh
+POST /museums/_doc/_bulk?refresh
 {"index":{"_id":1}}
 {"location": "52.374081,4.912350", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
@@ -120,6 +120,82 @@ POST /museums/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+The geohashes returned by the `geohash_grid` aggregation can be also used for zooming in. To zoom into the
+first geohash `u17` returned in the previous example, it should be specified as both `top_left` and `bottom_right` corner:
+
+[source,js]
+--------------------------------------------------
+POST /museums/_search?size=0
+{
+    "aggregations" : {
+        "zoomed-in" : {
+            "filter" : {
+                "geo_bounding_box" : {
+                    "location" : {
+                        "top_left" : "u17",
+                        "bottom_right" : "u17"
+                    }
+                }
+            },
+            "aggregations":{
+                "zoom1":{
+                    "geohash_grid" : {
+                        "field": "location",
+                        "precision": 8
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations" : {
+        "zoomed-in" : {
+            "doc_count" : 3,
+            "zoom1" : {
+                "buckets" : [
+                    {
+                        "key" : "u173zy3j",
+                        "doc_count" : 1
+                    },
+                    {
+                        "key" : "u173zvfz",
+                        "doc_count" : 1
+                    },
+                    {
+                        "key" : "u173zt90",
+                        "doc_count" : 1
+                    }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+
+For "zooming in" on the system that don't support geohashes, the bucket keys should be translated into bounding boxes using
+one of available geohash libraries. For example, for javascript the https://github.com/sunng87/node-geohash[node-geohash] library
+can be used:
+
+[source,js]
+--------------------------------------------------
+var geohash = require('ngeohash');
+
+// bbox will contain [ 52.03125, 4.21875, 53.4375, 5.625 ]
+//                   [   minlat,  minlon,  maxlat, maxlon]
+var bbox = geohash.decode_bbox('u17');
+--------------------------------------------------
+// NOTCONSOLE
+
 
 ==== Cell dimensions at the equator
 The table below shows the metric dimensions for cells covered by various string lengths of geohash.

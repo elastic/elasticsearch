@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[migration-api-deprecation]]
-=== Deprecation Info APIs
+=== Deprecation info APIs
+++++
+<titleabbrev>Deprecation info</titleabbrev>
+++++
 
 The deprecation API is to be used to retrieve information about different
 cluster, node, and index level settings that use deprecated features that will
@@ -10,9 +13,9 @@ be removed or changed in the next major version.
 [float]
 ==== Request
 
-`GET /_xpack/migration/deprecations` +
+`GET /_migration/deprecations` +
 
-`GET /<index_name>/_xpack/migration/deprecations`
+`GET /<index_name>/_migration/deprecations`
 
 //=== Description
 
@@ -32,11 +35,11 @@ be removed or changed in the next major version.
 ==== Examples
 
 To see the list of offenders in your cluster, submit a GET request to the
-`_xpack/migration/deprecations` endpoint:
+`_migration/deprecations` endpoint:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/migration/deprecations
+GET /_migration/deprecations
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:cannot assert tests have certain deprecations]
@@ -49,20 +52,20 @@ Example response:
 {
   "cluster_settings" : [
     {
-      "level" : "info",
-      "message" : "Network settings changes",
-      "url" : "{ref-60}/breaking_60_indices_changes.html#_index_templates_use_literal_index_patterns_literal_instead_of_literal_template_literal",
-      "details" : "templates using `template` field: watches,.monitoring-alerts,.watch-history-6,.ml-notifications,security-index-template,triggered_watches,.monitoring-es,.ml-meta,.ml-state,.monitoring-logstash,.ml-anomalies-,.monitoring-kibana"
+      "level" : "critical",
+      "message" : "Cluster name cannot contain ':'",
+      "url" : "{ref}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_cluster_name",
+      "details" : "This cluster is named [mycompany:logging], which contains the illegal character ':'."
     }
   ],
   "node_settings" : [ ],
   "index_settings" : {
-    ".monitoring-es-6-2017.07.21" : [
+    "logs:apache" : [
       {
-        "level" : "info",
-        "message" : "Coercion of boolean fields",
-        "url" : "{ref-60}/breaking_60_mappings_changes.html#_coercion_of_boolean_fields",
-        "details" : "[[type: doc, field: spins], [type: doc, field: mlockall], [type: doc, field: node_master], [type: doc, field: primary]]"
+        "level" : "warning",
+        "message" : "Index name cannot contain ':'",
+        "url" : "{ref}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_index_name",
+        "details" : "This index is named [logs:apache], which contains the illegal character ':'."
       }
     ]
   }
@@ -79,7 +82,7 @@ The following is an example deprecation warning:
 ["source","js",subs="attributes,callouts,macros"]
 --------------------------------------------------
 {
-  "level" : "info",
+  "level" : "warning",
   "message" : "This is the generic descriptive message of the breaking change",
   "url" : "{ref-60}/breaking_60_indices_changes.html",
   "details" : "more information, like which nodes, indices, or settings are to blame"
@@ -91,10 +94,8 @@ As is shown, there is a `level` property that describes the significance of the
 issue.
 
 |=======
-|none | Everything is good.
-|info | An advisory note that something has changed. No action needed.
 |warning | You can upgrade directly, but you are using deprecated functionality
-which will not be available in the next major version.
+which will not be available or behave differently in the next major version.
 |critical | You cannot upgrade without fixing this problem.
 |=======
 
@@ -115,7 +116,7 @@ The following example request shows only index-level deprecations of all
 
 [source,js]
 --------------------------------------------------
-GET /logstash-*/_xpack/migration/deprecations
+GET /logstash-*/_migration/deprecations
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:cannot assert tests have certain deprecations]

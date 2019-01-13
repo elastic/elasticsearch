@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -31,7 +32,13 @@ public class RestPutFollowAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        Request request = new Request(RestResumeFollowAction.createRequest(restRequest));
+        Request request = createRequest(restRequest);
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
+    }
+
+    static Request createRequest(RestRequest restRequest) throws IOException {
+        try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
+            return Request.fromXContent(parser, restRequest.param("index"));
+        }
     }
 }

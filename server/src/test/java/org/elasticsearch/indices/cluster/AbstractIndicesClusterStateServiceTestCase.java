@@ -279,10 +279,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public void updateMetaData(IndexMetaData indexMetaData) {
-            indexSettings.updateIndexMetaData(indexMetaData);
+        public void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
+            indexSettings.updateIndexMetaData(newIndexMetaData);
             for (MockIndexShard shard: shards.values()) {
-                shard.updateTerm(indexMetaData.primaryTerm(shard.shardId().id()));
+                shard.updateTerm(newIndexMetaData.primaryTerm(shard.shardId().id()));
             }
         }
 

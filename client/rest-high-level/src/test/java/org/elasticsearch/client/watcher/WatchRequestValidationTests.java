@@ -19,19 +19,15 @@
 
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class WatchRequestValidationTests extends ESTestCase {
 
@@ -61,38 +57,44 @@ public class WatchRequestValidationTests extends ESTestCase {
     }
 
     public void testDeleteWatchInvalidWatchId() {
-        ActionRequestValidationException e = new DeleteWatchRequest("id with whitespaces").validate();
-        assertThat(e, is(notNullValue()));
-        assertThat(e.validationErrors(), hasItem("watch id contains whitespace"));
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> new DeleteWatchRequest("id with whitespaces"));
+        assertThat(exception.getMessage(), is("watch id contains whitespace"));
     }
 
     public void testDeleteWatchNullId() {
-        ActionRequestValidationException e = new DeleteWatchRequest(null).validate();
-        assertThat(e, is(notNullValue()));
-        assertThat(e.validationErrors(), hasItem("watch id is missing"));
+        final NullPointerException exception = expectThrows(NullPointerException.class,
+            () -> new DeleteWatchRequest(null));
+        assertThat(exception.getMessage(), is("watch id is missing"));
     }
 
     public void testPutWatchInvalidWatchId() {
-        ActionRequestValidationException e = new PutWatchRequest("id with whitespaces", BytesArray.EMPTY, XContentType.JSON).validate();
-        assertThat(e, is(notNullValue()));
-        assertThat(e.validationErrors(), hasItem("watch id contains whitespace"));
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> new PutWatchRequest("id with whitespaces", BytesArray.EMPTY, XContentType.JSON));
+        assertThat(exception.getMessage(), is("watch id contains whitespace"));
     }
 
     public void testPutWatchNullId() {
-        ActionRequestValidationException e = new PutWatchRequest(null, BytesArray.EMPTY, XContentType.JSON).validate();
-        assertThat(e, is(notNullValue()));
-        assertThat(e.validationErrors(), hasItem("watch id is missing"));
+        final NullPointerException exception = expectThrows(NullPointerException.class,
+            () -> new PutWatchRequest(null, BytesArray.EMPTY, XContentType.JSON));
+        assertThat(exception.getMessage(), is("watch id is missing"));
     }
 
     public void testPutWatchSourceNull() {
-        ActionRequestValidationException e = new PutWatchRequest("foo", null, XContentType.JSON).validate();
-        assertThat(e, is(notNullValue()));
-        assertThat(e.validationErrors(), hasItem("watch source is missing"));
+        final NullPointerException exception = expectThrows(NullPointerException.class,
+            () -> new PutWatchRequest("foo", null, XContentType.JSON));
+        assertThat(exception.getMessage(), is("watch source is missing"));
     }
 
     public void testPutWatchContentNull() {
-        ActionRequestValidationException e = new PutWatchRequest("foo", BytesArray.EMPTY, null).validate();
-        assertThat(e, is(notNullValue()));
-        assertThat(e.validationErrors(), hasItem("request body is missing"));
+        final NullPointerException exception = expectThrows(NullPointerException.class,
+            () -> new PutWatchRequest("foo", BytesArray.EMPTY, null));
+        assertThat(exception.getMessage(), is("request body is missing"));
+    }
+
+    public void testGetWatchInvalidWatchId()  {
+        ValidationException e = expectThrows(ValidationException.class,
+            () ->  new GetWatchRequest("id with whitespaces"));
+        assertThat(e.validationErrors(), hasItem("watch id contains whitespace"));
     }
 }

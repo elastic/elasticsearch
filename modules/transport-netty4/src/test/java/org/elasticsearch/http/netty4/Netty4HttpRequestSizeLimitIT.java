@@ -96,7 +96,7 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
                 Collection<FullHttpResponse> multipleResponses = nettyHttpClient.post(transportAddress.address(), requests);
                 try {
                     assertThat(multipleResponses, hasSize(requests.length));
-                    assertAtLeastOnceExpectedStatus(multipleResponses, HttpResponseStatus.SERVICE_UNAVAILABLE);
+                    assertAtLeastOnceExpectedStatus(multipleResponses, HttpResponseStatus.TOO_MANY_REQUESTS);
                 } finally {
                     multipleResponses.forEach(ReferenceCounted::release);
                 }

@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class PersistJobActionResponseTests extends AbstractStreamableTestCase<PersistJobAction.Response> {
+public class PersistJobActionResponseTests extends AbstractWireSerializingTestCase<PersistJobAction.Response> {
     @Override
-    protected PersistJobAction.Response createBlankInstance() {
-        return new PersistJobAction.Response();
+    protected Writeable.Reader<PersistJobAction.Response> instanceReader() {
+        return PersistJobAction.Response::new;
     }
 
     @Override

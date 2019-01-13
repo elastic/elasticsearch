@@ -29,6 +29,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -67,7 +68,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
-        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAlphaOfLengthBetween(1, 10));
+        String queryText = randomAlphaOfLengthBetween(1, 10);
+        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(queryText);
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
         }
@@ -104,6 +106,12 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
         }
+        // special handling if query start with "now" and no field specified. This hits the "mapped_date" field which leads to the query not
+        // being cacheable and trigger later test failures (see https://github.com/elastic/elasticsearch/issues/35183)
+        if (fieldCount == 0 && queryText.length() >= 3 && queryText.substring(0,3).equalsIgnoreCase("now")) {
+            fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
+        }
+
         result.fields(fields);
         if (randomBoolean()) {
             result.autoGenerateSynonymsPhraseQuery(randomBoolean());
@@ -530,16 +538,25 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
             // phrase with slop
             query = parser.parse("big \"tiny guinea pig\"~2");
+            PhraseQuery pq1 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "tiny"))
+                .add(new Term(STRING_FIELD_NAME, "guinea"))
+                .add(new Term(STRING_FIELD_NAME, "pig"))
+                .setSlop(2)
+                .build();
+            PhraseQuery pq2 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "tiny"))
+                .add(new Term(STRING_FIELD_NAME, "cavy"))
+                .setSlop(2)
+                .build();
 
             expectedQuery = new BooleanQuery.Builder()
                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "big")), defaultOp)
-                .add(new SpanNearQuery(new SpanQuery[] {
-                    new SpanTermQuery(new Term(STRING_FIELD_NAME, "tiny")),
-                    new SpanOrQuery(
-                        new SpanNearQuery(new SpanQuery[] { span1, span2 }, 0, true),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))
-                    )
-                }, 2, true), defaultOp)
+                .add(new BooleanQuery.Builder()
+                        .add(pq1, BooleanClause.Occur.SHOULD)
+                        .add(pq2, BooleanClause.Occur.SHOULD)
+                        .build(),
+                    defaultOp)
                 .build();
             assertThat(query, equalTo(expectedQuery));
         }
@@ -678,6 +695,26 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
             .build();
+        assertEquals(expected, query);
+    }
+
+    /**
+     * Test for behavior reported in https://github.com/elastic/elasticsearch/issues/34708
+     * Unmapped field can lead to MatchNoDocsQuerys in disjunction queries. If tokens are eliminated (e.g. because
+     * the tokenizer removed them as punctuation) on regular fields, this can leave only MatchNoDocsQuerys in the
+     * disjunction clause. Instead those disjunctions should be eliminated completely.
+     */
+    public void testUnmappedFieldNoTokenWithAndOperator() throws IOException {
+        Query query = new SimpleQueryStringBuilder("first & second")
+                .field(STRING_FIELD_NAME)
+                .field("unmapped")
+                .field("another_unmapped")
+                .defaultOperator(Operator.AND)
+                .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "first")), BooleanClause.Occur.MUST)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "second")), BooleanClause.Occur.MUST)
+                .build();
         assertEquals(expected, query);
     }
 

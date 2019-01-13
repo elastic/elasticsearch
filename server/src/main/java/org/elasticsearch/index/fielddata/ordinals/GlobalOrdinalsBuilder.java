@@ -79,7 +79,8 @@ public enum GlobalOrdinalsBuilder {
         );
     }
 
-    public static IndexOrdinalsFieldData buildEmpty(IndexSettings indexSettings, final IndexReader indexReader, IndexOrdinalsFieldData indexFieldData) throws IOException {
+    public static IndexOrdinalsFieldData buildEmpty(IndexSettings indexSettings, final IndexReader indexReader,
+            IndexOrdinalsFieldData indexFieldData) throws IOException {
         assert indexReader.leaves().size() > 1;
 
         final AtomicOrdinalsFieldData[] atomicFD = new AtomicOrdinalsFieldData[indexReader.leaves().size()];

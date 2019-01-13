@@ -87,15 +87,6 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
         assertThat(e.getMessage(), equalTo("Id must be a non-null, non-empty string"));
     }
 
-    public void testBadCron() {
-        final RollupJobConfig sample = randomRollupJobConfig(random());
-
-        Exception e = expectThrows(IllegalArgumentException.class, () ->
-            new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(), "0 * * *", sample.getPageSize(),
-                sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout()));
-        assertThat(e.getMessage(), equalTo("invalid cron expression [0 * * *]"));
-    }
-
     public void testMatchAllIndexPattern() {
         final RollupJobConfig sample = randomRollupJobConfig(random());
 

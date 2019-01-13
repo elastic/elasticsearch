@@ -1,6 +1,4 @@
-import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.test.NodeInfo
 
 import javax.net.ssl.HttpsURLConnection
@@ -71,6 +69,7 @@ integTestCluster {
   setting 'xpack.security.http.ssl.certificate', 'testnode.crt'
   keystoreSetting 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
 
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   // copy keystores, keys and certificates into config/
   extraConfigFile nodeKeystore.name, nodeKeystore

@@ -7,12 +7,13 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Arrays;
@@ -29,36 +30,36 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 public class Replace extends ScalarFunction {
 
     private final Expression source, pattern, replacement;
-    
-    public Replace(Location location, Expression source, Expression pattern, Expression replacement) {
-        super(location, Arrays.asList(source, pattern, replacement));
-        this.source = source;
+
+    public Replace(Source source, Expression src, Expression pattern, Expression replacement) {
+        super(source, Arrays.asList(src, pattern, replacement));
+        this.source = src;
         this.pattern = pattern;
         this.replacement = replacement;
     }
-    
+
     @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = StringFunctionUtils.resolveStringInputType(source.dataType(), functionName());
-        if (sourceResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, sourceText(), ParamOrdinal.FIRST);
+        if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
-        
-        TypeResolution patternResolution = StringFunctionUtils.resolveStringInputType(pattern.dataType(), functionName());
-        if (patternResolution != TypeResolution.TYPE_RESOLVED) {
+
+        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, sourceText(), ParamOrdinal.SECOND);
+        if (patternResolution.unresolved()) {
             return patternResolution;
         }
-        
-        return StringFunctionUtils.resolveStringInputType(replacement.dataType(), functionName());
+
+        return Expressions.typeMustBeString(replacement, sourceText(), ParamOrdinal.THIRD);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new ReplaceFunctionPipe(location(), this,
+        return new ReplaceFunctionPipe(source(), this,
                 Expressions.pipe(source),
                 Expressions.pipe(pattern),
                 Expressions.pipe(replacement));
@@ -102,7 +103,7 @@ public class Replace extends ScalarFunction {
                     .script(replacementScript.params())
                     .build(), dataType());
     }
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),
@@ -121,6 +122,6 @@ public class Replace extends ScalarFunction {
             throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
         }
 
-        return new Replace(location(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Replace(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }

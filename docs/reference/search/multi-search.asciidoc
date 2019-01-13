@@ -5,7 +5,7 @@ The multi search API allows to execute several search requests within
 the same API. The endpoint for it is `_msearch`.
 
 The format of the request is similar to the bulk API format and makes
-use of the newline delimited JSON (NDJSON) format. the structure is as
+use of the newline delimited JSON (NDJSON) format. The structure is as
 follows (the structure is specifically optimized to reduce parsing if
 a specific search ends up redirected to another node):
 
@@ -22,10 +22,9 @@ body\n
 may be preceded by a carriage return `\r`. When sending requests to this endpoint the
 `Content-Type` header should be set to `application/x-ndjson`.
 
-The header part includes which index / indices to search on, optional
-(mapping) types to search on, the `search_type`, `preference`, and
-`routing`. The body includes the typical search body request (including
-the `query`, `aggregations`, `from`, `size`, and so on). Here is an example:
+The header part includes which index / indices to search on, the `search_type`, `preference`,
+and `routing`. The body includes the typical search body request (including the `query`,
+`aggregations`, `from`, `size`, and so on). Here is an example:
 
 [source,js]
 --------------------------------------------------
@@ -58,9 +57,9 @@ the original multi search request. If there was a complete failure for that
 specific search request, an object with `error` message and corresponding
 status code will be returned in place of the actual search response.
 
-The endpoint allows to also search against an index/indices and
-type/types in the URI itself, in which case it will be used as the
-default unless explicitly defined otherwise in the header. For example:
+The endpoint allows to also search against an index/indices in the URI itself,
+in which case it will be used as the default unless explicitly defined otherwise
+in the header. For example:
 
 [source,js]
 --------------------------------------------------

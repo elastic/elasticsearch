@@ -21,7 +21,7 @@ success and failures, as well as blocking for the response. For example:
 --------------------------------------------------
 def indexR = client.index {
     index "test"
-    type "type1"
+    type "_doc"
     id "1"
     source {
         test = "value"
@@ -69,7 +69,7 @@ parameter option (the `GActionFuture` handling). For example:
 --------------------------------------------------
 def indexR = client.index (new IndexRequest(
         index: "test",
-        type: "type1",
+        type: "_doc",
         id: "1",
         source: {
             test = "value"
@@ -92,7 +92,7 @@ with the added `gexecute` which returns the `GActionFuture`:
 
 [source,groovy]
 --------------------------------------------------
-def indexR = node.client.prepareIndex("test", "type1", "1").setSource({
+def indexR = node.client.prepareIndex("test", "_doc", "1").setSource({
     test = "value"
     complex {
         value1 = "value1"

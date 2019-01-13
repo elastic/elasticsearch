@@ -128,7 +128,8 @@ public class AckIT extends ESIntegTestCase {
 
         MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
 
-        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setTimeout("0s").add(moveAllocationCommand).get();
+        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute()
+            .setTimeout("0s").add(moveAllocationCommand).get();
         assertThat(clusterRerouteResponse.isAcknowledged(), equalTo(false));
     }
 
@@ -146,8 +147,9 @@ public class AckIT extends ESIntegTestCase {
 
         assertAcked(client().admin().cluster().prepareReroute().setDryRun(true).add(moveAllocationCommand));
 
-        //testing only on master with the latest cluster state as we didn't make any change thus we cannot guarantee that
-        //all nodes hold the same cluster state version. We only know there was no need to change anything, thus no need for ack on this update.
+        // testing only on master with the latest cluster state as we didn't make any change thus
+        // we cannot guarantee that all nodes hold the same cluster state version. We only know there
+        // was no need to change anything, thus no need for ack on this update.
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         boolean found = false;
         for (ShardRouting shardRouting : clusterStateResponse.getState().getRoutingNodes().node(moveAllocationCommand.fromNode())) {
@@ -176,7 +178,8 @@ public class AckIT extends ESIntegTestCase {
 
         MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
 
-        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setTimeout("0s").setDryRun(true).add(moveAllocationCommand).get();
+        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setTimeout("0s")
+            .setDryRun(true).add(moveAllocationCommand).get();
         //acknowledged anyway as no changes were made
         assertThat(clusterRerouteResponse.isAcknowledged(), equalTo(true));
     }
@@ -219,7 +222,8 @@ public class AckIT extends ESIntegTestCase {
             assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias"));
 
             for (Client client : clients()) {
-                AliasMetaData aliasMetaData = ((AliasOrIndex.Alias) getLocalClusterState(client).metaData().getAliasAndIndexLookup().get("alias")).getFirstAliasMetaData();
+                AliasMetaData aliasMetaData = ((AliasOrIndex.Alias) getLocalClusterState(client)
+                    .metaData().getAliasAndIndexLookup().get("alias")).getFirstAliasMetaData();
                 assertThat(aliasMetaData.alias(), equalTo("alias"));
             }
         }
@@ -228,7 +232,8 @@ public class AckIT extends ESIntegTestCase {
     public void testIndicesAliasesNoAcknowledgement() {
         createIndex("test");
 
-        AcknowledgedResponse indicesAliasesResponse = client().admin().indices().prepareAliases().addAlias("test", "alias").setTimeout("0s").get();
+        AcknowledgedResponse indicesAliasesResponse = client().admin().indices().prepareAliases()
+            .addAlias("test", "alias").setTimeout("0s").get();
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(false));
     }
 
@@ -273,7 +278,7 @@ public class AckIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=keyword"));
 
         for (Client client : clients()) {
-            assertThat(getLocalClusterState(client).metaData().indices().get("test").mapping("test"), notNullValue());
+            assertThat(getLocalClusterState(client).metaData().indices().get("test").getMappings().get("test"), notNullValue());
         }
     }
 
@@ -281,7 +286,8 @@ public class AckIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=keyword").setTimeout("0s").get();
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("test")
+            .setSource("field", "type=keyword").setTimeout("0s").get();
         assertThat(putMappingResponse.isAcknowledged(), equalTo(false));
     }
 

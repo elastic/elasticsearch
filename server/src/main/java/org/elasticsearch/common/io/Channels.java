@@ -62,7 +62,8 @@ public final class Channels {
      * @param destOffset      offset in dest to read into
      * @param length          number of bytes to read
      */
-    public static void readFromFileChannelWithEofException(FileChannel channel, long channelPosition, byte[] dest, int destOffset, int length) throws IOException {
+    public static void readFromFileChannelWithEofException(FileChannel channel, long channelPosition,
+                                                           byte[] dest, int destOffset, int length) throws IOException {
         int read = readFromFileChannel(channel, channelPosition, dest, destOffset, length);
         if (read < 0) {
             throw new EOFException("read past EOF. pos [" + channelPosition + "] length: [" + length + "] end: [" + channel.size() + "]");
@@ -80,7 +81,8 @@ public final class Channels {
      * @return total bytes read or -1 if an attempt was made to read past EOF. The method always tries to read all the bytes
      * that will fit in the destination byte buffer.
      */
-    public static int readFromFileChannel(FileChannel channel, long channelPosition, byte[] dest, int destOffset, int length) throws IOException {
+    public static int readFromFileChannel(FileChannel channel, long channelPosition, byte[] dest,
+                                          int destOffset, int length) throws IOException {
         ByteBuffer buffer = ByteBuffer.wrap(dest, destOffset, length);
         return readFromFileChannel(channel, channelPosition, buffer);
     }
@@ -97,7 +99,8 @@ public final class Channels {
     public static void readFromFileChannelWithEofException(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
         int read = readFromFileChannel(channel, channelPosition, dest);
         if (read < 0) {
-            throw new EOFException("read past EOF. pos [" + channelPosition + "] length: [" + dest.limit() + "] end: [" + channel.size() + "]");
+            throw new EOFException("read past EOF. pos [" + channelPosition +
+                "] length: [" + dest.limit() + "] end: [" + channel.size() + "]");
         }
     }
 
@@ -135,7 +138,8 @@ public final class Channels {
                 dest.position(tmpBuffer.position());
             }
 
-            assert bytesRead == bytesToRead : "failed to read an entire buffer but also didn't get an EOF (read [" + bytesRead + "] needed [" + bytesToRead + "]";
+            assert bytesRead == bytesToRead : "failed to read an entire buffer but also didn't get an EOF (read [" +
+                bytesRead + "] needed [" + bytesToRead + "]";
             return bytesRead;
         }
     }
@@ -149,7 +153,8 @@ public final class Channels {
                 return read;
             }
 
-            assert read > 0 : "FileChannel.read with non zero-length bb.remaining() must always read at least one byte (FileChannel is in blocking mode, see spec of ReadableByteChannel)";
+            assert read > 0 : "FileChannel.read with non zero-length bb.remaining() must always read at least one byte " +
+                "(FileChannel is in blocking mode, see spec of ReadableByteChannel)";
 
             bytesRead += read;
             channelPosition += read;

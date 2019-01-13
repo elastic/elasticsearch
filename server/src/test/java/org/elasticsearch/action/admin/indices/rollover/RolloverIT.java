@@ -272,8 +272,10 @@ public class RolloverIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37037")
     public void testRolloverWithDateMath() {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        assumeTrue("only works on the same day", now.plusMinutes(5).getDayOfYear() == now.getDayOfYear());
         String index = "test-" + DateFormatters.forPattern("YYYY.MM.dd").format(now) + "-1";
         String dateMathExp = "<test-{now/d}-1>";
         assertAcked(prepareCreate(dateMathExp).addAlias(new Alias("test_alias")).get());

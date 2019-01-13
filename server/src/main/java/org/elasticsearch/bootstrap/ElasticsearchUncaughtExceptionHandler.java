@@ -19,17 +19,17 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOError;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
-    private static final Logger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class);
+    private static final Logger logger = LogManager.getLogger(ElasticsearchUncaughtExceptionHandler.class);
 
     @Override
     public void uncaughtException(Thread t, Throwable e) {

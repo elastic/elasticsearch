@@ -19,11 +19,12 @@
 
 package org.elasticsearch.indices.breaker;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
  * if tripped
  */
 public class HierarchyCircuitBreakerService extends CircuitBreakerService {
+    private static final Logger logger = LogManager.getLogger(HierarchyCircuitBreakerService.class);
 
     private static final String CHILD_LOGGER_PREFIX = "org.elasticsearch.indices.breaker.";
 
@@ -64,7 +66,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }, Property.Dynamic, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.memorySizeSetting("indices.breaker.fielddata.limit", "60%", Property.Dynamic, Property.NodeScope);
+        Setting.memorySizeSetting("indices.breaker.fielddata.limit", "40%", Property.Dynamic, Property.NodeScope);
     public static final Setting<Double> FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING =
         Setting.doubleSetting("indices.breaker.fielddata.overhead", 1.03d, 0.0d, Property.Dynamic, Property.NodeScope);
     public static final Setting<CircuitBreaker.Type> FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING =
@@ -78,9 +80,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         new Setting<>("indices.breaker.request.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.memorySizeSetting("indices.breaker.accounting.limit", "100%", Property.NodeScope);
+        Setting.memorySizeSetting("indices.breaker.accounting.limit", "100%", Property.Dynamic, Property.NodeScope);
     public static final Setting<Double> ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING =
-        Setting.doubleSetting("indices.breaker.accounting.overhead", 1.0d, 0.0d, Property.NodeScope);
+        Setting.doubleSetting("indices.breaker.accounting.overhead", 1.0d, 0.0d, Property.Dynamic, Property.NodeScope);
     public static final Setting<CircuitBreaker.Type> ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("indices.breaker.accounting.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
@@ -106,30 +108,34 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         this.fielddataSettings = new BreakerSettings(CircuitBreaker.FIELDDATA,
                 FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
-                FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
+                FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
+                CircuitBreaker.Durability.PERMANENT
         );
 
         this.inFlightRequestsSettings = new BreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS,
                 IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
-                IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
+                IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
+                CircuitBreaker.Durability.TRANSIENT
         );
 
         this.requestSettings = new BreakerSettings(CircuitBreaker.REQUEST,
                 REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
-                REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
+                REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
+                CircuitBreaker.Durability.TRANSIENT
         );
 
         this.accountingSettings = new BreakerSettings(CircuitBreaker.ACCOUNTING,
                 ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
-                ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
+                ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
+                CircuitBreaker.Durability.PERMANENT
         );
 
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
                 TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(), 1.0,
-                CircuitBreaker.Type.PARENT);
+                CircuitBreaker.Type.PARENT, null);
 
         if (logger.isTraceEnabled()) {
             logger.trace("parent circuit breaker with settings {}", this.parentSettings);
@@ -142,46 +148,66 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         registerBreaker(this.inFlightRequestsSettings);
         registerBreaker(this.accountingSettings);
 
-        clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit, this::validateTotalCircuitBreakerLimit);
-        clusterSettings.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setFieldDataBreakerLimit);
-        clusterSettings.addSettingsUpdateConsumer(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING, IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setInFlightRequestsBreakerLimit);
-        clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setRequestBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit,
+            this::validateTotalCircuitBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            this::setFieldDataBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
+            IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setInFlightRequestsBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            this::setRequestBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING, ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            this::setAccountingBreakerLimit);
     }
 
     private void setRequestBreakerLimit(ByteSizeValue newRequestMax, Double newRequestOverhead) {
         BreakerSettings newRequestSettings = new BreakerSettings(CircuitBreaker.REQUEST, newRequestMax.getBytes(), newRequestOverhead,
-                HierarchyCircuitBreakerService.this.requestSettings.getType());
+                this.requestSettings.getType(), this.requestSettings.getDurability());
         registerBreaker(newRequestSettings);
-        HierarchyCircuitBreakerService.this.requestSettings = newRequestSettings;
+        this.requestSettings = newRequestSettings;
         logger.info("Updated breaker settings request: {}", newRequestSettings);
     }
 
     private void setInFlightRequestsBreakerLimit(ByteSizeValue newInFlightRequestsMax, Double newInFlightRequestsOverhead) {
-        BreakerSettings newInFlightRequestsSettings = new BreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS, newInFlightRequestsMax.getBytes(),
-            newInFlightRequestsOverhead, HierarchyCircuitBreakerService.this.inFlightRequestsSettings.getType());
+        BreakerSettings newInFlightRequestsSettings = new BreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS,
+            newInFlightRequestsMax.getBytes(), newInFlightRequestsOverhead, this.inFlightRequestsSettings.getType(),
+            this.inFlightRequestsSettings.getDurability());
         registerBreaker(newInFlightRequestsSettings);
-        HierarchyCircuitBreakerService.this.inFlightRequestsSettings = newInFlightRequestsSettings;
+        this.inFlightRequestsSettings = newInFlightRequestsSettings;
         logger.info("Updated breaker settings for in-flight requests: {}", newInFlightRequestsSettings);
     }
 
     private void setFieldDataBreakerLimit(ByteSizeValue newFielddataMax, Double newFielddataOverhead) {
-        long newFielddataLimitBytes = newFielddataMax == null ? HierarchyCircuitBreakerService.this.fielddataSettings.getLimit() : newFielddataMax.getBytes();
-        newFielddataOverhead = newFielddataOverhead == null ? HierarchyCircuitBreakerService.this.fielddataSettings.getOverhead() : newFielddataOverhead;
+        long newFielddataLimitBytes = newFielddataMax == null ?
+            HierarchyCircuitBreakerService.this.fielddataSettings.getLimit() : newFielddataMax.getBytes();
+        newFielddataOverhead = newFielddataOverhead == null ?
+            HierarchyCircuitBreakerService.this.fielddataSettings.getOverhead() : newFielddataOverhead;
         BreakerSettings newFielddataSettings = new BreakerSettings(CircuitBreaker.FIELDDATA, newFielddataLimitBytes, newFielddataOverhead,
-                HierarchyCircuitBreakerService.this.fielddataSettings.getType());
+                this.fielddataSettings.getType(), this.fielddataSettings.getDurability());
         registerBreaker(newFielddataSettings);
         HierarchyCircuitBreakerService.this.fielddataSettings = newFielddataSettings;
         logger.info("Updated breaker settings field data: {}", newFielddataSettings);
     }
 
+    private void setAccountingBreakerLimit(ByteSizeValue newAccountingMax, Double newAccountingOverhead) {
+        BreakerSettings newAccountingSettings = new BreakerSettings(CircuitBreaker.ACCOUNTING, newAccountingMax.getBytes(),
+            newAccountingOverhead, HierarchyCircuitBreakerService.this.accountingSettings.getType(),
+            this.accountingSettings.getDurability());
+        registerBreaker(newAccountingSettings);
+        HierarchyCircuitBreakerService.this.accountingSettings = newAccountingSettings;
+        logger.info("Updated breaker settings for accounting requests: {}", newAccountingSettings);
+    }
+
     private boolean validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
-        BreakerSettings newParentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0, CircuitBreaker.Type.PARENT);
+        BreakerSettings newParentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0,
+            CircuitBreaker.Type.PARENT, null);
         validateSettings(new BreakerSettings[]{newParentSettings});
         return true;
     }
 
     private void setTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
-        BreakerSettings newParentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0, CircuitBreaker.Type.PARENT);
+        BreakerSettings newParentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0,
+            CircuitBreaker.Type.PARENT, null);
         this.parentSettings = newParentSettings;
     }
 
@@ -216,36 +242,49 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
         // Manually add the parent breaker settings since they aren't part of the breaker map
         allStats.add(new CircuitBreakerStats(CircuitBreaker.PARENT, parentSettings.getLimit(),
-            parentUsed(0L).totalUsage, 1.0, parentTripCount.get()));
+            memoryUsed(0L).totalUsage, 1.0, parentTripCount.get()));
         return new AllCircuitBreakerStats(allStats.toArray(new CircuitBreakerStats[allStats.size()]));
     }
 
     @Override
     public CircuitBreakerStats stats(String name) {
         CircuitBreaker breaker = this.breakers.get(name);
-        return new CircuitBreakerStats(breaker.getName(), breaker.getLimit(), breaker.getUsed(), breaker.getOverhead(), breaker.getTrippedCount());
+        return new CircuitBreakerStats(breaker.getName(), breaker.getLimit(), breaker.getUsed(), breaker.getOverhead(),
+            breaker.getTrippedCount());
     }
 
-    private static class ParentMemoryUsage {
+    private static class MemoryUsage {
         final long baseUsage;
         final long totalUsage;
+        final long transientChildUsage;
+        final long permanentChildUsage;
 
-        ParentMemoryUsage(final long baseUsage, final long totalUsage) {
+        MemoryUsage(final long baseUsage, final long totalUsage, final long transientChildUsage, final long permanentChildUsage) {
             this.baseUsage = baseUsage;
             this.totalUsage = totalUsage;
+            this.transientChildUsage = transientChildUsage;
+            this.permanentChildUsage = permanentChildUsage;
         }
     }
 
-    private ParentMemoryUsage parentUsed(long newBytesReserved) {
+    private MemoryUsage memoryUsed(long newBytesReserved) {
+        long transientUsage = 0;
+        long permanentUsage = 0;
+
+        for (CircuitBreaker breaker : this.breakers.values()) {
+            long breakerUsed = (long)(breaker.getUsed() * breaker.getOverhead());
+            if (breaker.getDurability() == CircuitBreaker.Durability.TRANSIENT) {
+                transientUsage += breakerUsed;
+            } else if (breaker.getDurability() == CircuitBreaker.Durability.PERMANENT) {
+                permanentUsage += breakerUsed;
+            }
+        }
         if (this.trackRealMemoryUsage) {
             final long current = currentMemoryUsage();
-            return new ParentMemoryUsage(current, current + newBytesReserved);
+            return new MemoryUsage(current, current + newBytesReserved, transientUsage, permanentUsage);
         } else {
-            long parentEstimated = 0;
-            for (CircuitBreaker breaker : this.breakers.values()) {
-                parentEstimated += breaker.getUsed() * breaker.getOverhead();
-            }
-            return new ParentMemoryUsage(parentEstimated, parentEstimated);
+            long parentEstimated = transientUsage + permanentUsage;
+            return new MemoryUsage(parentEstimated, parentEstimated, transientUsage, permanentUsage);
         }
     }
 
@@ -267,16 +306,16 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
      * Checks whether the parent breaker has been tripped
      */
     public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
-        final ParentMemoryUsage parentUsed = parentUsed(newBytesReserved);
+        final MemoryUsage memoryUsed = memoryUsed(newBytesReserved);
         long parentLimit = this.parentSettings.getLimit();
-        if (parentUsed.totalUsage > parentLimit) {
+        if (memoryUsed.totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
             final StringBuilder message = new StringBuilder("[parent] Data too large, data for [" + label + "]" +
-                    " would be [" + parentUsed.totalUsage + "/" + new ByteSizeValue(parentUsed.totalUsage) + "]" +
+                    " would be [" + memoryUsed.totalUsage + "/" + new ByteSizeValue(memoryUsed.totalUsage) + "]" +
                     ", which is larger than the limit of [" +
                     parentLimit + "/" + new ByteSizeValue(parentLimit) + "]");
             if (this.trackRealMemoryUsage) {
-                final long realUsage = parentUsed.baseUsage;
+                final long realUsage = memoryUsed.baseUsage;
                 message.append(", real usage: [");
                 message.append(realUsage);
                 message.append("/");
@@ -297,7 +336,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         .collect(Collectors.toList())));
                 message.append("]");
             }
-            throw new CircuitBreakingException(message.toString(), parentUsed.totalUsage, parentLimit);
+            // derive durability of a tripped parent breaker depending on whether the majority of memory tracked by
+            // child circuit breakers is categorized as transient or permanent.
+            CircuitBreaker.Durability durability = memoryUsed.transientChildUsage >= memoryUsed.permanentChildUsage ?
+                CircuitBreaker.Durability.TRANSIENT : CircuitBreaker.Durability.PERMANENT;
+            throw new CircuitBreakingException(message.toString(), memoryUsed.totalUsage, parentLimit, durability);
         }
     }
 
@@ -316,7 +359,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         } else {
             CircuitBreaker oldBreaker;
             CircuitBreaker breaker = new ChildMemoryCircuitBreaker(breakerSettings,
-                    Loggers.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
+                    LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
                     this, breakerSettings.getName());
 
             for (;;) {
@@ -326,7 +369,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 }
                 breaker = new ChildMemoryCircuitBreaker(breakerSettings,
                         (ChildMemoryCircuitBreaker)oldBreaker,
-                        Loggers.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
+                        LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
                         this, breakerSettings.getName());
 
                 if (breakers.replace(breakerSettings.getName(), oldBreaker, breaker)) {

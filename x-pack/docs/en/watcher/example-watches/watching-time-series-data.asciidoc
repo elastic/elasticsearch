@@ -106,7 +106,7 @@ You define the condition with the following script:
 +
 [source,text]
 --------------------------------------------------
-return ctx.payload.hits.total > threshold
+return ctx.payload.hits.total.value > threshold
 --------------------------------------------------
 +
 If you store the script in a file at `$ES_HOME/config/scripts/threshold_hits.painless`,
@@ -133,7 +133,7 @@ you can then reference it by name in the watch condition.
 "actions" : {
   "send_email" : {
     "email" : {
-      "to" : "<username>@<domainname>",
+      "to" : "username@example.org",
       "subject" : "Somebody needs help with the Elastic Stack",
       "body" : "The attached Stack Overflow posts were tagged with Elasticsearch, Logstash, Beats or Kibana and mentioned an error or problem.",
       "attachments" : {
@@ -157,7 +157,7 @@ The complete watch looks like this:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/rss_watch
+PUT _watcher/watch/rss_watch
 {
   "trigger" : {
       "schedule" : {
@@ -190,7 +190,7 @@ PUT _xpack/watcher/watch/rss_watch
   "actions" : {
     "send_email" : {
       "email" : {
-        "to" : "<username>@<domainname>",  <1>
+        "to" : "username@example.org",  <1>
         "subject" : "Somebody needs help with the Elastic Stack",
         "body" : "The attached Stack Overflow posts were tagged with Elasticsearch, Logstash, Beats or Kibana and mentioned an error or problem.",
         "attachments" : {
@@ -204,8 +204,8 @@ PUT _xpack/watcher/watch/rss_watch
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/"id" : "threshold_hits"/"source": "return ctx.payload.hits.total > params.threshold"/]
-<1> Replace `<username>@<domainname>` with your email address to receive
+// TEST[s/"id" : "threshold_hits"/"source": "return ctx.payload.hits.total.value > params.threshold"/]
+<1> Replace `username@example.org` with your email address to receive
     notifications.
 
 [TIP]
@@ -215,7 +215,7 @@ use the {ref}/watcher-api-execute-watch.html[`_execute` API]:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/rss_watch/_execute
+POST _watcher/watch/rss_watch/_execute
 {
   "ignore_condition" : true,
   "action_modes" : {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.cluster;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -96,6 +97,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 public class IndicesClusterStateService extends AbstractLifecycleComponent implements ClusterStateApplier {
+    private static final Logger logger = LogManager.getLogger(IndicesClusterStateService.class);
 
     final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService;
     private final ClusterService clusterService;
@@ -107,6 +109,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private static final ShardStateAction.Listener SHARD_STATE_ACTION_LISTENER = new ShardStateAction.Listener() {
     };
 
+    private final Settings settings;
     // a list of shards that failed during recovery
     // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
     final ConcurrentMap<ShardId, ShardRouting> failedShardsCache = ConcurrentCollections.newConcurrentMap();
@@ -156,6 +159,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                PrimaryReplicaSyncer primaryReplicaSyncer,
                                Consumer<ShardId> globalCheckpointSyncer) {
         super(settings);
+        this.settings = settings;
         this.buildInIndexListener =
                 Arrays.asList(
                         peerRecoverySourceService,
@@ -172,7 +176,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.repositoriesService = repositoriesService;
         this.primaryReplicaSyncer = primaryReplicaSyncer;
         this.globalCheckpointSyncer = globalCheckpointSyncer;
-        this.sendRefreshMapping = this.settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
+        this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
     }
 
     @Override
@@ -488,7 +492,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetaData newIndexMetaData = state.metaData().index(index);
             assert newIndexMetaData != null : "index " + index + " should have been removed by deleteIndices";
             if (ClusterChangedEvent.indexMetaDataChanged(currentIndexMetaData, newIndexMetaData)) {
-                indexService.updateMetaData(newIndexMetaData);
+                indexService.updateMetaData(currentIndexMetaData, newIndexMetaData);
                 try {
                     if (indexService.updateMapping(currentIndexMetaData, newIndexMetaData) && sendRefreshMapping) {
                         nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
@@ -771,9 +775,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         IndexSettings getIndexSettings();
 
         /**
-         * Updates the meta data of this index. Changes become visible through {@link #getIndexSettings()}
+         * Updates the metadata of this index. Changes become visible through {@link #getIndexSettings()}.
+         *
+         * @param currentIndexMetaData the current index metadata
+         * @param newIndexMetaData the new index metadata
          */
-        void updateMetaData(IndexMetaData indexMetaData);
+        void updateMetaData(IndexMetaData currentIndexMetaData, IndexMetaData newIndexMetaData);
 
         /**
          * Checks if index requires refresh from master.

@@ -20,14 +20,15 @@ List projects = [
   'distribution:archives:zip',
   'distribution:archives:oss-tar',
   'distribution:archives:tar',
+  'distribution:docker',
   'distribution:packages:oss-deb',
   'distribution:packages:deb',
   'distribution:packages:oss-rpm',
   'distribution:packages:rpm',
-  'distribution:bwc:next-minor-snapshot',
-  'distribution:bwc:staged-minor-snapshot',
-  'distribution:bwc:next-bugfix-snapshot',
-  'distribution:bwc:maintenance-bugfix-snapshot',
+  'distribution:bwc:bugfix',
+  'distribution:bwc:maintenance',
+  'distribution:bwc:minor',
+  'distribution:bwc:staged',
   'distribution:tools:java-version-checker',
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
@@ -138,8 +139,5 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
-
-// enable in preparation for Gradle 5.0
-enableFeaturePreview('STABLE_PUBLISHING')
 
 project(":libs:cli").name = 'elasticsearch-cli'

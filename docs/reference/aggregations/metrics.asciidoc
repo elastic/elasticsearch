@@ -41,6 +41,8 @@ include::metrics/tophits-aggregation.asciidoc[]
 
 include::metrics/valuecount-aggregation.asciidoc[]
 
+include::metrics/median-absolute-deviation-aggregation.asciidoc[]
+
 
 
 

@@ -3,7 +3,7 @@
 
  - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
+      reason: types are required in requests before 7.0.0
 
  - do:
       indices.create:
@@ -16,7 +16,6 @@
 
  - do:
       update:
-          include_type_name: false
           index:   test_1
           id:      1
           body:
@@ -25,7 +24,7 @@
 
  - do:
       search:
-          include_type_name: false
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 1 }}
@@ -34,7 +33,6 @@
 
  - do:
       update:
-          include_type_name: false
           index:   test_1
           id:      2
           refresh: true
@@ -45,7 +43,7 @@
 
  - do:
       search:
-          include_type_name: false
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 2 }}
@@ -57,11 +55,10 @@
 
  - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
+      reason: types are required in requests before 7.0.0
 
  - do:
       index:
-          include_type_name: false
           index:   test_1
           id:      1
           refresh: true
@@ -70,7 +67,6 @@
 
  - do:
      update:
-         include_type_name: false
          index:   test_1
          id:      1
          refresh: ""
@@ -80,7 +76,7 @@
 
  - do:
       search:
-          include_type_name: false
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { cat: dog }}
@@ -92,11 +88,10 @@
 
  - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
+      reason: types are required in requests before 7.0.0
 
  - do:
       index:
-          include_type_name: false
           index:   update_60_refresh_1
           id:      update_60_refresh_id1
           body:    { foo: bar }
@@ -105,7 +100,7 @@
 
  - do:
       search:
-          include_type_name: false
+          rest_total_hits_as_int: true
           index:   update_60_refresh_1
           body:
             query:   { term: { _id: update_60_refresh_id1 }}
@@ -113,7 +108,6 @@
 
  - do:
      update:
-         include_type_name: false
          index:   update_60_refresh_1
          id:      update_60_refresh_id1
          refresh: wait_for
@@ -123,7 +117,7 @@
 
  - do:
       search:
-          include_type_name: false
+          rest_total_hits_as_int: true
           index:   update_60_refresh_1
           body:
             query:   { match: { test: asdf } }

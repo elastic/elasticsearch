@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.precommit.ForbiddenApisCliTask
-
 /*
  * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
  * group and it'd be super confusing for it to just be called "cli" there.
@@ -16,7 +14,7 @@ archivesBaseName = 'elasticsearch-sql-cli'
 description = 'Command line interface to Elasticsearch that speaks SQL'
 
 dependencies {
-    compile "org.jline:jline:3.6.0"
+    compile "org.jline:jline:3.8.2"
     compile xpackProject('plugin:sql:sql-client')
     compile xpackProject('plugin:sql:sql-action')
     compile "org.elasticsearch:elasticsearch-cli:${version}"
@@ -74,12 +72,13 @@ artifacts  {
     nodeps nodepsJar
 }
 
-
-tasks.withType(ForbiddenApisCliTask) {
+forbiddenApisMain {
+    //sql does not depend on server, so only jdk signatures should be checked
+    replaceSignatureFiles 'jdk-signatures'
     signaturesFiles += files('src/forbidden/cli-signatures.txt')
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
     // jLine's optional dependencies
     'org.apache.sshd.client.SshClient',
     'org.apache.sshd.client.auth.keyboard.UserInteraction',
@@ -108,7 +107,7 @@ thirdPartyAudit.excludes = [
     'org.mozilla.universalchardet.UniversalDetector',
     'org.fusesource.jansi.internal.Kernel32$FOCUS_EVENT_RECORD',
     'org.fusesource.jansi.internal.Kernel32$MOUSE_EVENT_RECORD',
-]
+)
 
 task runcli {
     description = 'Run the CLI and connect to elasticsearch running on 9200'
@@ -131,7 +130,7 @@ task runcli {
 }
 
 // Use the jar for testing so we can get the proper version information
-test {
+unitTest {
     classpath -= compileJava.outputs.files
     classpath -= configurations.compile
     classpath -= configurations.runtime

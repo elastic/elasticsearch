@@ -6,6 +6,9 @@ WARNING:  The Profile API is a debugging tool and adds significant overhead to s
 The Profile API provides detailed timing information about the execution of individual components
 in a search request.  It gives the user insight into how search requests are executed at a low level so that
 the user can understand why certain requests are slow, and take steps to improve them.
+Note that the Profile API, <<profile-limitations, amongst other things>>, doesn't measure
+network latency, time spent in the search fetch phase, time spent while the requests spends
+in queues or while merging shard responses on the coordinating node.
 
 The output from the Profile API is *very* verbose, especially for complicated requests executed across
 many shards. Pretty-printing the response is recommended to help understand the output
@@ -45,7 +48,10 @@ This will yield the following result:
       "failed": 0
    },
    "hits": {
-      "total": 4,
+      "total" : {
+          "value": 4,
+          "relation": "eq"
+      },
       "max_score": 0.5093388,
       "hits": [...] <1>
    },
@@ -215,6 +221,7 @@ NOTE: As with other statistics apis, the Profile API supports human readable out
 `?human=true` to the query string. In this case, the output contains the additional `time` field containing rounded,
 human readable timing information (e.g. `"time": "391,9ms"`, `"time": "123.3micros"`).
 
+[[search-profile-queries]]
 === Profiling Queries
 
 [NOTE]
@@ -672,6 +679,7 @@ ignore its children if you find the details too tricky to interpret.
 
 Hopefully this will be fixed in future iterations, but it is a tricky problem to solve and still in-progress :)
 
+[[search-profile-aggregations]]
 === Profiling Aggregations
 
 ==== `aggregations` Section
@@ -845,6 +853,7 @@ The meaning of the stats are as follows:
     Records the number of invocations of the particular method.  For example, `"collect_count": 2,`
     means the `collect()` method was called on two different documents.
 
+[[search-profile-considerations]]
 === Profiling Considerations
 
 ==== Performance Notes
@@ -858,8 +867,12 @@ There are also cases where special Lucene optimizations are disabled, since they
 could cause some queries to report larger relative times than their non-profiled counterparts, but in general should
 not have a drastic effect compared to other components in the profiled query.
 
+[[profile-limitations]]
 ==== Limitations
 
+- Profiling currently does not measure the search fetch phase nor the network overhead
+- Profiling also does not account for time spent in the queue, merging shard responses on the coordinating node or
+additional work like e.g. building global ordinals (an internal data structure used to speed up search)
 - Profiling statistics are currently not available for suggestions, highlighting, `dfs_query_then_fetch`
 - Profiling of the reduce phase of aggregation is currently not available
 - The Profiler is still highly experimental. The Profiler is instrumenting parts of Lucene that were

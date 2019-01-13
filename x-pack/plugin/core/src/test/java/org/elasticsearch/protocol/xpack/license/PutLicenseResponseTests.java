@@ -6,7 +6,7 @@
 package org.elasticsearch.protocol.xpack.license;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -15,7 +15,19 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-public class PutLicenseResponseTests extends AbstractStreamableXContentTestCase<PutLicenseResponse> {
+public class PutLicenseResponseTests extends
+        AbstractHlrcStreamableXContentTestCase<PutLicenseResponse, org.elasticsearch.client.license.PutLicenseResponse> {
+
+    @Override
+    public org.elasticsearch.client.license.PutLicenseResponse doHlrcParseInstance(XContentParser parser) throws IOException {
+        return org.elasticsearch.client.license.PutLicenseResponse.fromXContent(parser);
+    }
+
+    @Override
+    public PutLicenseResponse convertHlrcToInternal(org.elasticsearch.client.license.PutLicenseResponse instance) {
+        return new PutLicenseResponse(instance.isAcknowledged(), LicensesStatus.valueOf(instance.status().name()),
+            instance.acknowledgeHeader(), instance.acknowledgeMessages());
+    }
 
     @Override
     protected boolean supportsUnknownFields() {
@@ -65,11 +77,6 @@ public class PutLicenseResponseTests extends AbstractStreamableXContentTestCase<
     }
 
     @Override
-    protected PutLicenseResponse doParseInstance(XContentParser parser) throws IOException {
-        return PutLicenseResponse.fromXContent(parser);
-    }
-
-    @Override
     protected PutLicenseResponse createBlankInstance() {
         return new PutLicenseResponse();
     }
@@ -108,5 +115,4 @@ public class PutLicenseResponseTests extends AbstractStreamableXContentTestCase<
     private LicensesStatus mutateStatus(LicensesStatus status) {
         return randomValueOtherThan(status, () -> randomFrom(LicensesStatus.values()));
     }
-
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.utils.DomainSplitFunction;
 import org.joda.time.DateTime;
 
 import java.util.ArrayList;
@@ -183,21 +182,20 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         createIndex("painless", settings.build());
-        Request createDoc = new Request("PUT", "/painless/test/1");
+        Request createDoc = new Request("PUT", "/painless/_doc/1");
         createDoc.setJsonEntity("{\"test\": \"test\"}");
         createDoc.addParameter("refresh", "true");
         client().performRequest(createDoc);
 
         Pattern pattern = Pattern.compile("domain_split\":\\[(.*?),(.*?)\\]");
 
-        Map<String, Object> params = new HashMap<>(DomainSplitFunction.params.size() + 1);
-        params.putAll(DomainSplitFunction.params);
+        Map<String, Object> params = new HashMap<>();
         for (TestConfiguration testConfig : tests) {
             params.put("host", testConfig.hostName);
             String mapAsJson = Strings.toString(jsonBuilder().map(params));
             logger.info("params={}", mapAsJson);
 
-            Request searchRequest = new Request("GET", "/painless/test/_search");
+            Request searchRequest = new Request("GET", "/painless/_search");
             searchRequest.setJsonEntity(
                     "{\n" +
                     "    \"query\" : {\n" +
@@ -207,8 +205,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     "        \"domain_split\" : {\n" +
                     "            \"script\" : {\n" +
                     "                \"lang\": \"painless\",\n" +
-                    "                \"inline\": \"" + DomainSplitFunction.function +
-                    " return domainSplit(params['host'], params); \",\n" +
+                    "                \"source\": \"" +
+                    " return domainSplit(params['host']); \",\n" +
                     "                \"params\": " + mapAsJson + "\n" +
                     "            }\n" +
                     "        }\n" +
@@ -264,7 +262,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
-        createIndex("painless", settings.build(), "\"test\": { \"properties\": { \"domain\": { \"type\": \"keyword\" }," +
+        createIndex("painless", settings.build(), "\"_doc\": { \"properties\": { \"domain\": { \"type\": \"keyword\" }," +
                 "\"time\": { \"type\": \"date\" } } }");
 
         // Index some data
@@ -282,13 +280,13 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             if (i == 64) {
                 // Anomaly has 100 docs, but we don't care about the value
                 for (int j = 0; j < 100; j++) {
-                    Request createDocRequest = new Request("PUT", "/painless/test/" + time.toDateTimeISO() + "_" + j);
+                    Request createDocRequest = new Request("PUT", "/painless/_doc/" + time.toDateTimeISO() + "_" + j);
                     createDocRequest.setJsonEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + time.toDateTimeISO() + "\"}");
                     client().performRequest(createDocRequest);
                 }
             } else {
                 // Non-anomalous values will be what's seen when the anomaly is reported
-                Request createDocRequest = new Request("PUT", "/painless/test/" + time.toDateTimeISO());
+                Request createDocRequest = new Request("PUT", "/painless/_doc/" + time.toDateTimeISO());
                 createDocRequest.setJsonEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + time.toDateTimeISO() + "\"}");
                 client().performRequest(createDocRequest);
             }
@@ -302,7 +300,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "{\n" +
                 "   \"job_id\":\"hrd-split-job\",\n" +
                 "   \"indexes\":[\"painless\"],\n" +
-                "   \"types\":[\"test\"],\n" +
+                "   \"types\":[\"_doc\"],\n" +
                 "   \"script_fields\": {\n" +
                 "      \"domain_split\": {\n" +
                 "         \"script\": \"return domainSplit(doc['domain'].value, params);\"\n" +

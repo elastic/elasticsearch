@@ -21,12 +21,13 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 
-import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -62,7 +63,7 @@ public class PipelineProcessorTests extends ESTestCase {
         when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
-        config.put("pipeline", pipelineId);
+        config.put("name", pipelineId);
         factory.create(Collections.emptyMap(), null, config).execute(testIngestDocument);
         assertEquals(testIngestDocument, invoked.get());
     }
@@ -72,7 +73,7 @@ public class PipelineProcessorTests extends ESTestCase {
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
-        config.put("pipeline", "missingPipelineId");
+        config.put("name", "missingPipelineId");
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> factory.create(Collections.emptyMap(), null, config).execute(testIngestDocument)
@@ -88,21 +89,21 @@ public class PipelineProcessorTests extends ESTestCase {
         IngestService ingestService = mock(IngestService.class);
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Map<String, Object> outerConfig = new HashMap<>();
-        outerConfig.put("pipeline", innerPipelineId);
+        outerConfig.put("name", innerPipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Pipeline outer = new Pipeline(
             outerPipelineId, null, null,
             new CompoundProcessor(factory.create(Collections.emptyMap(), null, outerConfig))
         );
         Map<String, Object> innerConfig = new HashMap<>();
-        innerConfig.put("pipeline", outerPipelineId);
+        innerConfig.put("name", outerPipelineId);
         Pipeline inner = new Pipeline(
             innerPipelineId, null, null,
             new CompoundProcessor(factory.create(Collections.emptyMap(), null, innerConfig))
         );
         when(ingestService.getPipeline(outerPipelineId)).thenReturn(outer);
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
-        outerConfig.put("pipeline", innerPipelineId);
+        outerConfig.put("name", innerPipelineId);
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
             () -> factory.create(Collections.emptyMap(), null, outerConfig).execute(testIngestDocument)
@@ -117,7 +118,7 @@ public class PipelineProcessorTests extends ESTestCase {
         IngestService ingestService = mock(IngestService.class);
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Map<String, Object> outerConfig = new HashMap<>();
-        outerConfig.put("pipeline", innerPipelineId);
+        outerConfig.put("name", innerPipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Pipeline inner = new Pipeline(
             innerPipelineId, null, null, new CompoundProcessor()
@@ -136,22 +137,22 @@ public class PipelineProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         Map<String, Object> pipeline1ProcessorConfig = new HashMap<>();
-        pipeline1ProcessorConfig.put("pipeline", pipeline2Id);
+        pipeline1ProcessorConfig.put("name", pipeline2Id);
         PipelineProcessor pipeline1Processor = factory.create(Collections.emptyMap(), null, pipeline1ProcessorConfig);
 
         Map<String, Object> pipeline2ProcessorConfig = new HashMap<>();
-        pipeline2ProcessorConfig.put("pipeline", pipeline3Id);
+        pipeline2ProcessorConfig.put("name", pipeline3Id);
         PipelineProcessor pipeline2Processor = factory.create(Collections.emptyMap(), null, pipeline2ProcessorConfig);
 
-        Clock clock = mock(Clock.class);
-        when(clock.millis()).thenReturn(0L).thenReturn(0L);
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L);
         Pipeline pipeline1 = new Pipeline(
-            pipeline1Id, null, null, new CompoundProcessor(pipeline1Processor), clock
+            pipeline1Id, null, null, new CompoundProcessor(pipeline1Processor), relativeTimeProvider
         );
 
         String key1 = randomAlphaOfLength(10);
-        clock = mock(Clock.class);
-        when(clock.millis()).thenReturn(0L).thenReturn(3L);
+        relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(3));
         Pipeline pipeline2 = new Pipeline(
             pipeline2Id, null, null, new CompoundProcessor(true,
             Arrays.asList(
@@ -160,15 +161,15 @@ public class PipelineProcessorTests extends ESTestCase {
                 }),
                 pipeline2Processor),
             Collections.emptyList()),
-            clock
+            relativeTimeProvider
         );
-        clock = mock(Clock.class);
-        when(clock.millis()).thenReturn(0L).thenReturn(2L);
+        relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(2));
         Pipeline pipeline3 = new Pipeline(
             pipeline3Id, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {
                 throw new RuntimeException("error");
-            })), clock
+            })), relativeTimeProvider
         );
         when(ingestService.getPipeline(pipeline1Id)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipeline2Id)).thenReturn(pipeline2);

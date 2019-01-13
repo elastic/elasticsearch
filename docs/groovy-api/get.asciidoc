@@ -11,7 +11,7 @@ converted to a `Map` which means using Groovy to navigate it is simple:
 --------------------------------------------------
 def getF = node.client.get {
     index "test"
-    type "type1"
+    type "_doc"
     id "1"
 }
 

@@ -3,10 +3,10 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-assistance.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/migration/assistance",
+      "path": "/_migration/assistance",
       "paths": [
-        "/_xpack/migration/assistance",
-        "/_xpack/migration/assistance/{index}"
+        "/_migration/assistance",
+        "/_migration/assistance/{index}"
       ],
       "parts": {
         "index": {

@@ -55,7 +55,6 @@ PUT my_index/_doc/match_value
 Fields referred to in a percolator query must *already* exist in the mapping
 associated with the index used for percolation. In order to make sure these fields exist,
 add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,put mapping>> APIs.
-Fields referred in a percolator query may exist in any type of the index containing the `percolator` field type.
 
 =====================================
 
@@ -200,14 +199,17 @@ now returns matches from the new index:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.2876821,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.13076457,
     "hits": [
       {
         "_index": "new_index", <1>
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.2876821,
+        "_score": 0.13076457,
         "_source": {
           "query": {
             "match": {
@@ -395,14 +397,17 @@ This results in a response like this:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.2876821,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.13076457,
     "hits": [
       {
         "_index": "test_index",
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.2876821,
+        "_score": 0.13076457,
         "_source": {
           "query": {
             "match": {
@@ -461,7 +466,7 @@ PUT my_queries1
     }
   },
   "mappings": {
-    "query": {
+    "_doc": {
       "properties": {
         "query": {
           "type": "percolator"
@@ -508,7 +513,7 @@ this query below should be indexed:
 
 [source,js]
 --------------------------------------------------
-PUT /my_queries1/query/1?refresh
+PUT /my_queries1/_doc/1?refresh
 {
   "query": {
     "term": {
@@ -554,14 +559,17 @@ GET /my_queries1/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.41501677,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.18864399,
     "hits": [
       {
         "_index": "my_queries1",
-        "_type": "query",
+        "_type": "_doc",
         "_id": "1",
-        "_score": 0.41501677,
+        "_score": 0.18864399,
         "_source": {
           "query": {
             "term": {
@@ -620,7 +628,7 @@ PUT my_queries2
     }
   },
   "mappings": {
-    "query": {
+    "_doc": {
       "properties": {
         "query": {
           "type": "percolator"
@@ -665,7 +673,7 @@ the following query below should be indexed:
 
 [source,js]
 --------------------------------------------------
-PUT /my_queries2/query/2?refresh
+PUT /my_queries2/_doc/2?refresh
 {
   "query": {
     "match": { <1>

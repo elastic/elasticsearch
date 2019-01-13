@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ml-find-file-structure]]
-=== Find File Structure API
+=== Find file structure API
 ++++
-<titleabbrev>Find File Structure</titleabbrev>
+<titleabbrev>Find file structure</titleabbrev>
 ++++
 
 experimental[]
@@ -13,7 +13,7 @@ suitable to be ingested into {es}.
 
 ==== Request
 
-`POST _xpack/ml/find_file_structure`
+`POST _ml/find_file_structure`
 
 
 ==== Description
@@ -74,7 +74,7 @@ chosen.
   structure finder produced its result. The default value is `false`.
 
 `format`::
-  (string) The high level structure of the file. Valid values are `json`, `xml`,
+  (string) The high level structure of the file. Valid values are `ndjson`, `xml`,
   `delimited`, and `semi_structured_text`. If this parameter is not specified,
   the structure finder chooses one.
 
@@ -220,7 +220,7 @@ some books. You can send the contents to the `find_file_structure` endpoint:
 
 [source,js]
 ----
-POST _xpack/ml/find_file_structure
+POST _ml/find_file_structure
 {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
 {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
 {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
@@ -259,7 +259,7 @@ If the request does not encounter errors, you receive the following result:
   "sample_start" : "{\"name\": \"Leviathan Wakes\", \"author\": \"James S.A. Corey\", \"release_date\": \"2011-06-02\", \"page_count\": 561}\n{\"name\": \"Hyperion\", \"author\": \"Dan Simmons\", \"release_date\": \"1989-05-26\", \"page_count\": 482}\n", <3>
   "charset" : "UTF-8", <4>
   "has_byte_order_marker" : false, <5>
-  "format" : "json", <6>
+  "format" : "ndjson", <6>
   "need_client_timezone" : false, <7>
   "mappings" : { <8>
     "author" : {
@@ -473,14 +473,14 @@ If the request does not encounter errors, you receive the following result:
 
 <1> `num_lines_analyzed` indicates how many lines of the file were analyzed.
 <2> `num_messages_analyzed` indicates how many distinct messages the lines contained.
-     For ND-JSON, this value is the same as `num_lines_analyzed`. For other file
+     For NDJSON, this value is the same as `num_lines_analyzed`. For other file
      formats, messages can span several lines.
 <3> `sample_start` reproduces the first two messages in the file verbatim. This
      may help to diagnose parse errors or accidental uploads of the wrong file.
 <4> `charset` indicates the character encoding used to parse the file.
 <5> For UTF character encodings, `has_byte_order_marker` indicates whether the
     file begins with a byte order marker.
-<6> `format` is one of `json`, `xml`, `delimited` or `semi_structured_text`.
+<6> `format` is one of `ndjson`, `xml`, `delimited` or `semi_structured_text`.
 <7> If a timestamp format is detected that does not include a timezone,
     `need_client_timezone` will be `true`. The server that parses the file must
     therefore be told the correct timezone by the client.
@@ -501,7 +501,7 @@ to match what is specified in the `head` command.
 
 [source,js]
 ----
-curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -20000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_xpack/ml/find_file_structure?pretty&lines_to_sample=20000" -T -
+curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -20000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty&lines_to_sample=20000" -T -
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -612,6 +612,20 @@ If the request does not encounter errors, you receive the following result:
     "trip_distance" : {
       "type" : "double"
     }
+  },
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "date" : {
+          "field" : "tpep_pickup_datetime",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "YYYY-MM-dd HH:mm:ss"
+          ]
+        }
+      }
+    ]
   },
   "field_stats" : {
     "DOLocationID" : {
@@ -1291,7 +1305,7 @@ analysis:
 
 [source,js]
 ----
-curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -200000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_xpack/ml/find_file_structure?pretty&lines_to_sample=200000&timeout=1s" -T -
+curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -200000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty&lines_to_sample=200000&timeout=1s" -T -
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -1328,7 +1342,7 @@ This is an example of analyzing {es}'s own log file:
 
 [source,js]
 ----
-curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_xpack/ml/find_file_structure?pretty" -T "$ES_HOME/logs/elasticsearch.log"
+curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty" -T "$ES_HOME/logs/elasticsearch.log"
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -1365,6 +1379,33 @@ this:
     "message" : {
       "type" : "text"
     }
+  },
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "grok" : {
+          "field" : "message",
+          "patterns" : [
+            "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel}.*"
+          ]
+        }
+      },
+      {
+        "date" : {
+          "field" : "timestamp",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "ISO8601"
+          ]
+        }
+      },
+      {
+        "remove" : {
+          "field" : "timestamp"
+        }
+      }
+    ]
   },
   "field_stats" : {
     "loglevel" : {
@@ -1455,7 +1496,7 @@ query parameter (appropriately URL escaped):
 
 [source,js]
 ----
-curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_xpack/ml/find_file_structure?pretty&format=semi_structured_text&grok_pattern=%5C%5B%25%7BTIMESTAMP_ISO8601:timestamp%7D%5C%5D%5C%5B%25%7BLOGLEVEL:loglevel%7D%20*%5C%5D%5C%5B%25%7BJAVACLASS:class%7D%20*%5C%5D%20%5C%5B%25%7BHOSTNAME:node%7D%5C%5D%20%25%7BJAVALOGMESSAGE:message%7D" -T "$ES_HOME/logs/elasticsearch.log"
+curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty&format=semi_structured_text&grok_pattern=%5C%5B%25%7BTIMESTAMP_ISO8601:timestamp%7D%5C%5D%5C%5B%25%7BLOGLEVEL:loglevel%7D%20*%5C%5D%5C%5B%25%7BJAVACLASS:class%7D%20*%5C%5D%20%5C%5B%25%7BHOSTNAME:node%7D%5C%5D%20%25%7BJAVALOGMESSAGE:message%7D" -T "$ES_HOME/logs/elasticsearch.log"
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -1498,6 +1539,33 @@ this:
     "node" : {
       "type" : "keyword"
     }
+  },
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "grok" : {
+          "field" : "message",
+          "patterns" : [
+            "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} *\\]\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}"
+          ]
+        }
+      },
+      {
+        "date" : {
+          "field" : "timestamp",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "ISO8601"
+          ]
+        }
+      },
+      {
+        "remove" : {
+          "field" : "timestamp"
+        }
+      }
+    ]
   },
   "field_stats" : { <2>
     "class" : {

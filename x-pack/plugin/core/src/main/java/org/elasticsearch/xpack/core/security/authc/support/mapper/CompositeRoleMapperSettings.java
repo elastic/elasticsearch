@@ -13,7 +13,7 @@ import java.util.Collection;
 public final class CompositeRoleMapperSettings {
     private CompositeRoleMapperSettings() {}
 
-    public static Collection<? extends Setting<?>> getSettings() {
-        return DnRoleMapperSettings.getSettings();
+    public static Collection<? extends Setting.AffixSetting<?>> getSettings(String type) {
+        return DnRoleMapperSettings.getSettings(type);
     }
 }

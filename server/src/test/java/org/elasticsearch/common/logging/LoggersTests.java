@@ -20,6 +20,7 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
@@ -57,7 +58,7 @@ public class LoggersTests extends ESTestCase {
     public void testParameterizedMessageLambda() throws Exception {
         final MockAppender appender = new MockAppender("trace_appender");
         appender.start();
-        final Logger testLogger = Loggers.getLogger(LoggersTests.class);
+        final Logger testLogger = LogManager.getLogger(LoggersTests.class);
         Loggers.addAppender(testLogger, appender);
         Loggers.setLevel(testLogger, Level.TRACE);
 

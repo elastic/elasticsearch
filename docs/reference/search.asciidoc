@@ -4,7 +4,7 @@
 [partintro]
 --
 
-Most search APIs are <<search-multi-index-type,multi-index&#44; multi-type>>, with the
+Most search APIs are <<search-multi-index,multi-index>>, with the
 exception of the <<search-explain>> endpoints.
 
 [float]
@@ -19,7 +19,7 @@ the user name:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet?routing=kimchy
+POST /twitter/_doc?routing=kimchy
 {
     "user" : "kimchy",
     "postDate" : "2009-11-15T14:12:12",

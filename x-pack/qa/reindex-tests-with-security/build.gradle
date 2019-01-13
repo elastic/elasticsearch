@@ -12,6 +12,7 @@ dependencies {
 integTestCluster {
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -20,6 +21,7 @@ integTestCluster {
     test_admin: 'superuser',
     powerful_user: 'superuser',
     minimal_user: 'minimal',
+    minimal_with_task_user: 'minimal_with_task',
     readonly_user: 'readonly',
     dest_only_user: 'dest_only',
     can_not_see_hidden_docs_user: 'can_not_see_hidden_docs',

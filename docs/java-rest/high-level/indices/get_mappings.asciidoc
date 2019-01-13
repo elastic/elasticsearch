@@ -1,14 +1,20 @@
-[[java-rest-high-get-mappings]]
+--
+:api: get-mappings
+:request: GetMappingsRequest
+:response: GetMappingsResponse
+--
+
+[id="{upid}-{api}"]
 === Get Mappings API
 
-[[java-rest-high-get-mappings-request]]
+[id="{upid}-{api}-request"]
 ==== Get Mappings Request
 
-A `GetMappingsRequest` can have an optional list of indices and optional list of types:
+A +{request}+ can have an optional list of indices and optional list of types:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-mapping-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> An empty request that will return all indices and types
 <2> Setting the indices to fetch mapping for
@@ -19,62 +25,29 @@ The following arguments can also optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-mapping-request-masterTimeout]
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-mapping-request-indicesOptions]
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Options for expanding indices names
 
-[[java-rest-high-get-mappings-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-mapping-execute]
---------------------------------------------------
-
-[[java-rest-high-get-mapping-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a get mappings request requires both the
-`GetMappingsRequest` instance and an `ActionListener` instance to be passed to
-the asynchronous method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-mapping-execute-async]
---------------------------------------------------
-<1> The `GetMappingsRequest` to execute and the `ActionListener` to use when the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method if
-the execution successfully completed or using the `onFailure` method if it
-failed.
-
-A typical listener for `GetMappingsResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-mapping-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-get-mapping-response]]
+[id="{upid}-{api}-response"]
 ==== Get Mappings Response
 
-The returned `GetMappingsResponse` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-mapping-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Returning all indices' mappings
 <2> Retrieving the mappings for a particular index and type
-<3> Getting the mappings for the "tweet" as a Java Map
+<3> Getting the mappings as a Java Map

@@ -33,7 +33,7 @@ PUT _template/template_1
         },
         "created_at": {
           "type": "date",
-          "format": "EEE MMM dd HH:mm:ss Z YYYY"
+          "format": "EEE MMM dd HH:mm:ss Z yyyy"
         }
       }
     }
@@ -46,9 +46,9 @@ PUT _template/template_1
 NOTE: Index templates provide C-style /* */ block comments. Comments are allowed
 everywhere in the JSON document except before the initial opening curly bracket. 
 
-Defines a template named `template_1`, with a template pattern of `te*`.
+Defines a template named `template_1`, with a template pattern of `te*` or `bar*`.
 The settings and mappings will be applied to any index name that matches
-the `te*` pattern.
+the `te*` or `bar*` pattern.
 
 It is also possible to include aliases in an index template as follows:
 
@@ -185,6 +185,9 @@ for indices that start with `te*`, `_source` will still be enabled.
 Note, for mappings, the merging is "deep", meaning that specific
 object/property based mappings can easily be added/overridden on higher
 order templates, with lower order templates providing the basis.
+
+NOTE: Multiple matching templates with the same order value will 
+result in a non-deterministic merging order.
 
 [float]
 [[versioning-templates]]

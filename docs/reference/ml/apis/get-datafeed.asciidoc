@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-datafeed]]
-=== Get {dfeeds-cap} API
+=== Get {dfeeds} API
 ++++
-<titleabbrev>Get {dfeeds-cap}</titleabbrev>
+<titleabbrev>Get {dfeeds}</titleabbrev>
 ++++
 
 Retrieves configuration information for {dfeeds}.
@@ -11,13 +11,13 @@ Retrieves configuration information for {dfeeds}.
 ==== Request
 
 
-`GET _xpack/ml/datafeeds/<feed_id>` +
+`GET _ml/datafeeds/<feed_id>` +
 
-`GET _xpack/ml/datafeeds/<feed_id>,<feed_id>` +
+`GET _ml/datafeeds/<feed_id>,<feed_id>` +
 
-`GET _xpack/ml/datafeeds/` +
+`GET _ml/datafeeds/` +
 
-`GET _xpack/ml/datafeeds/_all` +
+`GET _ml/datafeeds/_all` +
 
 
 ===== Description
@@ -58,7 +58,7 @@ The following example gets configuration information for the
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/datafeeds/datafeed-total-requests
+GET _ml/datafeeds/datafeed-total-requests
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_datafeed]
@@ -76,7 +76,6 @@ The API returns the following results:
       "indices": [
         "server-metrics"
       ],
-      "types": [],
       "query": {
         "match_all": {
           "boost": 1.0

@@ -24,10 +24,13 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.gradle.util.GradleVersion
+import org.gradle.util.DistributionLocator
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 plugins {
-    id 'com.gradle.build-scan' version '1.13.2'
+    id 'com.gradle.build-scan' version '2.0.2'
+    id 'base'
 }
 if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
     buildScan {
@@ -37,9 +40,9 @@ if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
 }
 
 // common maven publishing configuration
-subprojects {
+allprojects {
   group = 'org.elasticsearch'
-  version = VersionProperties.elasticsearch.toString()
+  version = VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
 }
 
@@ -103,10 +106,6 @@ subprojects {
  * in a branch if there are only betas and rcs in the branch so we have
  * *something* to test against. */
 VersionCollection versions = new VersionCollection(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-if (versions.currentVersion != VersionProperties.elasticsearch) {
-  throw new GradleException("The last version in Versions.java [${versions.currentVersion}] does not match " +
-          "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
-}
 
 // build metadata from previous build, contains eg hashes for bwc builds
 String buildMetadataValue = System.getenv('BUILD_METADATA')
@@ -140,26 +139,16 @@ task verifyVersions {
     if (gradle.startParameter.isOffline()) {
       throw new GradleException("Must run in online mode to verify versions")
     }
-    // Read the list from maven central
-    Node xml
+    // Read the list from maven central. 
+    // Fetch the metadata an parse the xml into Version instances because it's more straight forward here 
+    // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-        xml = new XmlParser().parse(s)
-    }
-    Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }.collect { Version.fromString(it) })
-
-    // Limit the known versions to those that should be index compatible, and are not future versions
-    knownVersions = knownVersions.findAll { it.major >= bwcVersions.currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }
-
-    /* Limit the listed versions to those that have been marked as released.
-     * Versions not marked as released don't get the same testing and we want
-     * to make sure that we flip all unreleased versions to released as soon
-     * as possible after release. */
-    Set<Version> actualVersions = new TreeSet<>(bwcVersions.indexCompatible.findAll { false == it.snapshot })
-
-    // Finally, compare!
-    if (knownVersions.equals(actualVersions) == false) {
-      throw new GradleException("out-of-date released versions\nActual  :" + actualVersions + "\nExpected:" + knownVersions +
-        "\nUpdate Version.java. Note that Version.CURRENT doesn't count because it is not released.")
+      bwcVersions.compareToAuthoritative(
+              new XmlParser().parse(s)
+                      .versioning.versions.version
+                      .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
+                      .collect { Version.fromString(it) }
+      )
     }
   }
 }
@@ -199,7 +188,7 @@ task branchConsistency {
   dependsOn verifyVersions, verifyBwcTestsEnabled
 }
 
-subprojects {
+allprojects {
   // ignore missing javadocs
   tasks.withType(Javadoc) { Javadoc javadoc ->
     // the -quiet here is because of a bug in gradle, in that adding a string option
@@ -251,20 +240,17 @@ subprojects {
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
-
-  bwcVersions.snapshotProjectNames.each { snapshotName ->
-    Version snapshot = bwcVersions.getSnapshotForProject(snapshotName)
-    if (snapshot != null ) {
-      String snapshotProject = ":distribution:bwc:${snapshotName}"
-      project(snapshotProject).ext.bwcVersion = snapshot
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${snapshot}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${snapshot}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${snapshot}"] = snapshotProject
-      if (snapshot.onOrAfter('6.3.0')) {
-        ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${snapshot}"] = snapshotProject
-        ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${snapshot}"] = snapshotProject
-        ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${snapshot}"] = snapshotProject
-      }
+  // substitute unreleased versions with projects that check out and build locally
+  bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion ->
+    Version unreleased = unreleasedVersion.version
+    String snapshotProject = ":distribution:bwc:${unreleasedVersion.gradleProjectName}"
+    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${unreleased}"] = snapshotProject
+    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${unreleased}"] = snapshotProject
+    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${unreleased}"] = snapshotProject
+    if (unreleased.onOrAfter('6.3.0')) {
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${unreleased}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${unreleased}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${unreleased}"] = snapshotProject
     }
   }
 
@@ -299,13 +285,13 @@ subprojects {
     // other packages (e.g org.elasticsearch.client) will point to server rather than
     // their own artifacts.
     if (project.plugins.hasPlugin(BuildPlugin) || project.plugins.hasPlugin(PluginBuildPlugin)) {
-      String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+      String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
       Closure depJavadocClosure = { shadowed, dep ->
         if (dep.group == null || false == dep.group.startsWith('org.elasticsearch')) {
           return
         }
-        Project upstreamProject = dependencyToProject(dep)
+        Project upstreamProject = project.ext.dependencyToProject(dep)
         if (upstreamProject == null) {
           return
         }
@@ -443,7 +429,7 @@ tasks.idea.doLast {
   ideaMarker.setText('', 'UTF-8')
 }
 if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
-  throw new GradleException('You must run gradle idea from the root of elasticsearch before importing into IntelliJ')
+  throw new GradleException('You must run `./gradlew idea` from the root of elasticsearch before importing into IntelliJ')
 }
 
 // eclipse configuration
@@ -540,7 +526,7 @@ allprojects {
 class Run extends DefaultTask {
   boolean debug = false
 
-  @org.gradle.api.internal.tasks.options.Option(
+  @Option(
         option = "debug-jvm",
         description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
   )
@@ -572,11 +558,13 @@ wrapper {
     }
 }
 
-/* Remove assemble/dependenciesInfo on all qa projects because we don't need to publish
- * artifacts for them. */
 gradle.projectsEvaluated {
   subprojects {
-    if (project.path.startsWith(':qa')) {
+    /*
+     * Remove assemble/dependenciesInfo on all qa projects because we don't
+     * need to publish artifacts for them.
+     */
+    if (project.name.equals('qa') || project.path.contains(':qa:')) {
       Task assemble = project.tasks.findByName('assemble')
       if (assemble) {
         assemble.enabled = false
@@ -636,3 +624,19 @@ allprojects {
     }
   }
 }
+
+allprojects {
+  task checkPart1
+  task checkPart2 
+  tasks.matching { it.name == "check" }.all { check ->
+    if (check.path.startsWith(":x-pack:")) {
+      checkPart2.dependsOn check
+    } else {
+      checkPart1.dependsOn check
+    }
+  } 
+}
+
+
+
+

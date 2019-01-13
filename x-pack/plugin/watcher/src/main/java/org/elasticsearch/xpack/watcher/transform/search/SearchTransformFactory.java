@@ -27,7 +27,7 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
         super(LogManager.getLogger(ExecutableSearchTransform.class));
         this.client = client;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.transform.search.default_timeout", TimeValue.timeValueMinutes(1));
-        this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
+        this.searchTemplateService = new WatcherSearchTemplateService(scriptService, xContentRegistry);
     }
 
     @Override

@@ -69,11 +69,7 @@ public class TransportActionProxyTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         IOUtils.close(serviceA, serviceB, serviceC, () -> {
-            try {
-                terminate(threadPool);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            terminate(threadPool);
         });
     }
 
@@ -90,8 +86,7 @@ public class TransportActionProxyTests extends ESTestCase {
         serviceA.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
-                SimpleTestResponse response = new SimpleTestResponse();
-                response.targetNode = "TS_A";
+                SimpleTestResponse response = new SimpleTestResponse("TS_A");
                 channel.sendResponse(response);
             });
         TransportActionProxy.registerProxyAction(serviceA, "internal:test", SimpleTestResponse::new);
@@ -100,8 +95,7 @@ public class TransportActionProxyTests extends ESTestCase {
         serviceB.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
-                SimpleTestResponse response = new SimpleTestResponse();
-                response.targetNode = "TS_B";
+                SimpleTestResponse response = new SimpleTestResponse("TS_B");
                 channel.sendResponse(response);
             });
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", SimpleTestResponse::new);
@@ -109,8 +103,7 @@ public class TransportActionProxyTests extends ESTestCase {
         serviceC.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
-                SimpleTestResponse response = new SimpleTestResponse();
-                response.targetNode = "TS_C";
+                SimpleTestResponse response = new SimpleTestResponse("TS_C");
                 channel.sendResponse(response);
             });
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", SimpleTestResponse::new);
@@ -119,8 +112,8 @@ public class TransportActionProxyTests extends ESTestCase {
         serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("internal:test"), TransportActionProxy.wrapRequest(nodeC,
             new SimpleTestRequest("TS_A")), new TransportResponseHandler<SimpleTestResponse>() {
                 @Override
-                public SimpleTestResponse newInstance() {
-                    return new SimpleTestResponse();
+                public SimpleTestResponse read(StreamInput in) throws IOException {
+                    return new SimpleTestResponse(in);
                 }
 
                 @Override
@@ -135,7 +128,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     try {
-                    throw new AssertionError(exp);
+                        throw new AssertionError(exp);
                     } finally {
                         latch.countDown();
                     }
@@ -153,8 +146,7 @@ public class TransportActionProxyTests extends ESTestCase {
         serviceA.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
-                SimpleTestResponse response = new SimpleTestResponse();
-                response.targetNode = "TS_A";
+                SimpleTestResponse response = new SimpleTestResponse("TS_A");
                 channel.sendResponse(response);
             });
         TransportActionProxy.registerProxyAction(serviceA, "internal:test", SimpleTestResponse::new);
@@ -163,8 +155,7 @@ public class TransportActionProxyTests extends ESTestCase {
         serviceB.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
-                SimpleTestResponse response = new SimpleTestResponse();
-                response.targetNode = "TS_B";
+                SimpleTestResponse response = new SimpleTestResponse("TS_B");
                 channel.sendResponse(response);
             });
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", SimpleTestResponse::new);
@@ -179,8 +170,8 @@ public class TransportActionProxyTests extends ESTestCase {
         serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("internal:test"), TransportActionProxy.wrapRequest(nodeC,
             new SimpleTestRequest("TS_A")), new TransportResponseHandler<SimpleTestResponse>() {
                 @Override
-                public SimpleTestResponse newInstance() {
-                    return new SimpleTestResponse();
+                public SimpleTestResponse read(StreamInput in) throws IOException {
+                    return new SimpleTestResponse(in);
                 }
 
                 @Override
@@ -232,11 +223,20 @@ public class TransportActionProxyTests extends ESTestCase {
     }
 
     public static class SimpleTestResponse extends TransportResponse {
-        String targetNode;
+        final String targetNode;
+
+        SimpleTestResponse(String targetNode) {
+            this.targetNode = targetNode;
+        }
+
+        SimpleTestResponse(StreamInput in) throws IOException {
+            super(in);
+            this.targetNode = in.readString();
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            targetNode = in.readString();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -267,7 +267,7 @@ public class TransportActionProxyTests extends ESTestCase {
     }
 
     public void testIsProxyRequest() {
-        assertTrue(TransportActionProxy.isProxyRequest(new TransportActionProxy.ProxyRequest<>((in) -> null)));
+        assertTrue(TransportActionProxy.isProxyRequest(new TransportActionProxy.ProxyRequest<>(TransportRequest.Empty.INSTANCE, null)));
         assertFalse(TransportActionProxy.isProxyRequest(TransportRequest.Empty.INSTANCE));
     }
 }

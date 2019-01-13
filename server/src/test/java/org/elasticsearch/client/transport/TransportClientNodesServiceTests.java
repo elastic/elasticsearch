@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAct
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -167,7 +168,9 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             transportService.addNodeConnectedBehavior((connectionManager, discoveryNode) -> false);
             transportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
                 // The FailAndRetryTransport does not use the connection profile
-                return transport.openConnection(discoveryNode, null);
+                PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+                transport.openConnection(discoveryNode, null, future);
+                return future.actionGet();
             });
             transportService.start();
             transportService.acceptIncomingRequests();
@@ -213,11 +216,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             transport.endConnectMode();
             transportService.stop();
             transportClientNodesService.close();
-            try {
-                terminate(threadPool);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            terminate(threadPool);
         }
     }
 
@@ -257,8 +256,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     iteration.transportService.sendRequest(node, "action", new TestRequest(),
                             TransportRequestOptions.EMPTY, new TransportResponseHandler<TestResponse>() {
                         @Override
-                        public TestResponse newInstance() {
-                            return new TestResponse();
+                        public TestResponse read(StreamInput in) {
+                            return new TestResponse(in);
                         }
 
                         @Override
@@ -362,11 +361,19 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             try (MockTransportService clientService = createNewService(clientSettings, Version.CURRENT, threadPool, null)) {
                 final List<Transport.Connection> establishedConnections = new CopyOnWriteArrayList<>();
 
-                clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile) -> {
-                    Transport.Connection connection = transport.openConnection(discoveryNode, profile);
-                    establishedConnections.add(connection);
-                    return connection;
-                });
+                clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile, listener) ->
+                    transport.openConnection(discoveryNode, profile, new ActionListener<Transport.Connection>() {
+                        @Override
+                        public void onResponse(Transport.Connection connection) {
+                            establishedConnections.add(connection);
+                            listener.onResponse(connection);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }));
 
 
                 clientService.start();
@@ -385,14 +392,13 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     assertEquals(1, clientService.connectionManager().size());
 
                     establishedConnections.clear();
-                    handler.blockRequest();
+                    handler.failToRespond();
                     Thread thread = new Thread(transportClientNodesService::doSample);
                     thread.start();
 
                     assertBusy(() ->  assertTrue(establishedConnections.size() >= 1));
                     assertFalse("Temporary ping connection must be opened", establishedConnections.get(0).isClosed());
 
-                    handler.releaseRequest();
                     thread.join();
 
                     assertTrue(establishedConnections.get(0).isClosed());
@@ -404,8 +410,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     }
 
     class MockHandler implements TransportRequestHandler<ClusterStateRequest> {
-        private final AtomicBoolean block = new AtomicBoolean(false);
-        private final CountDownLatch release = new CountDownLatch(1);
+
+        private final AtomicBoolean failToRespond = new AtomicBoolean(false);
         private final MockTransportService transportService;
 
         MockHandler(MockTransportService transportService) {
@@ -414,22 +420,19 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
         @Override
         public void messageReceived(ClusterStateRequest request, TransportChannel channel, Task task) throws Exception {
-            if (block.get()) {
-                release.await();
+            if (failToRespond.get()) {
                 return;
             }
+
             DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(transportService.getLocalDiscoNode()).build();
             ClusterState build = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
-            channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, 0L));
+            channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, 0L, false));
         }
 
-        void blockRequest() {
-            if (block.compareAndSet(false, true) == false) {
-                throw new AssertionError("Request handler is already marked as blocking");
+        void failToRespond() {
+            if (failToRespond.compareAndSet(false, true) == false) {
+                throw new AssertionError("Request handler is already marked as failToRespond");
             }
-        }
-        void releaseRequest() {
-            release.countDown();
         }
     }
 
@@ -439,5 +442,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
     private static class TestResponse extends TransportResponse {
 
+        private TestResponse() {}
+        private TestResponse(StreamInput in) {}
     }
 }

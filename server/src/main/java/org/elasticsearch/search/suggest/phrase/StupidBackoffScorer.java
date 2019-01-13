@@ -28,9 +28,9 @@ import java.io.IOException;
 class StupidBackoffScorer extends WordScorer {
     private final double discount;
 
-    StupidBackoffScorer(IndexReader reader, Terms terms,String field, double realWordLikelyhood, BytesRef separator, double discount)
-            throws IOException {
-        super(reader, terms, field, realWordLikelyhood, separator);
+    StupidBackoffScorer(IndexReader reader, Terms terms,String field,
+                            double realWordLikelihood, BytesRef separator, double discount) throws IOException {
+        super(reader, terms, field, realWordLikelihood, separator);
         this.discount = discount;
     }
 
@@ -45,7 +45,7 @@ class StupidBackoffScorer extends WordScorer {
         if (count < 1) {
             return discount * scoreUnigram(word);
         }
-        return count / (w_1.frequency + 0.00000000001d);
+        return count / (w_1.termStats.totalTermFreq + 0.00000000001d);
     }
 
     @Override
@@ -60,7 +60,7 @@ class StupidBackoffScorer extends WordScorer {
         join(separator, spare, w_2.term, w_1.term, w.term);
         long trigramCount = frequency(spare.get());
         if (trigramCount < 1) {
-            return discount * (bigramCount / (w_1.frequency + 0.00000000001d));
+            return discount * (bigramCount / (w_1.termStats.totalTermFreq + 0.00000000001d));
         }
         return trigramCount / (bigramCount + 0.00000000001d);
     }

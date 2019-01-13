@@ -50,7 +50,7 @@ public class FieldRoleMapperExpression implements RoleMapperExpression {
             throw new IllegalArgumentException("null or empty field name (" + field + ")");
         }
         if (values == null || values.length == 0) {
-            throw new IllegalArgumentException("null or empty values (" + values + ")");
+            throw new IllegalArgumentException("null or empty values for field (" + field + ")");
         }
         this.field = field;
         this.values = Collections.unmodifiableList(Arrays.asList(values));

@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.watcher;
 
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -22,7 +24,6 @@ import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -66,9 +67,10 @@ import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalState;
 import static org.elasticsearch.xpack.core.watcher.watch.Watch.INDEX;
 
-public class WatcherService extends AbstractComponent {
+public class WatcherService {
 
     private static final String LIFECYCLE_THREADPOOL_NAME = "watcher-lifecycle";
+    private static final Logger logger = LogManager.getLogger(WatcherService.class);
 
     private final TriggerService triggerService;
     private final TriggeredWatchStore triggeredWatchStore;
@@ -83,7 +85,6 @@ public class WatcherService extends AbstractComponent {
 
     WatcherService(Settings settings, TriggerService triggerService, TriggeredWatchStore triggeredWatchStore,
                    ExecutionService executionService, WatchParser parser, Client client, ExecutorService executor) {
-        super(settings);
         this.triggerService = triggerService;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executionService = executionService;
@@ -304,7 +305,7 @@ public class WatcherService extends AbstractComponent {
                 throw new ElasticsearchException("Partial response while loading watches");
             }
 
-            if (response.getHits().getTotalHits() == 0) {
+            if (response.getHits().getTotalHits().value == 0) {
                 return Collections.emptyList();
             }
 

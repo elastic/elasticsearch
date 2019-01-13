@@ -55,6 +55,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMaxTests;
+import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviationTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMinTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsBucketTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsTests;
@@ -70,11 +71,12 @@ import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentilesT
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetricTests;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHitsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCountTests;
+import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvgTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValueTests;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.InternalPercentilesBucketTests;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.InternalExtendedStatsBucketTests;
-import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivativeTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValueTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalDerivativeTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
@@ -113,6 +115,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalMinTests());
         aggsTests.add(new InternalMaxTests());
         aggsTests.add(new InternalAvgTests());
+        aggsTests.add(new InternalWeightedAvgTests());
         aggsTests.add(new InternalSumTests());
         aggsTests.add(new InternalValueCountTests());
         aggsTests.add(new InternalSimpleValueTests());
@@ -148,6 +151,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalBinaryRangeTests());
         aggsTests.add(new InternalTopHitsTests());
         aggsTests.add(new InternalCompositeTests());
+        aggsTests.add(new InternalMedianAbsoluteDeviationTests());
         return Collections.unmodifiableList(aggsTests);
     }
 

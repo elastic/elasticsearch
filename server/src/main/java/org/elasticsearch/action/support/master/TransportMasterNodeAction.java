@@ -35,10 +35,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -47,6 +48,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -63,23 +65,23 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     private final String executor;
 
-    protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService,
+    protected TransportMasterNodeAction(String actionName, TransportService transportService,
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
     }
 
-    protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService,
+    protected TransportMasterNodeAction(String actionName, TransportService transportService,
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                         Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
-        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
-    protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
+    protected TransportMasterNodeAction(String actionName, boolean canTripCircuitBreaker,
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         Supplier<Request> request) {
-        super(settings, actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -87,11 +89,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         this.executor = executor();
     }
 
-    protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
+    protected TransportMasterNodeAction(String actionName, boolean canTripCircuitBreaker,
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, Writeable.Reader<Request> request,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -101,7 +103,20 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     protected abstract String executor();
 
+    /**
+     * @deprecated new implementors should override {@link #read(StreamInput)} and use the
+     *             {@link Writeable.Reader} interface.
+     * @return a new response instance. Typically this is used for serialization using the
+     *         {@link Streamable#readFrom(StreamInput)} method.
+     */
+    @Deprecated
     protected abstract Response newResponse();
+
+    protected Response read(StreamInput in) throws IOException {
+        Response response = newResponse();
+        response.readFrom(in);
+        return response;
+    }
 
     protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
 
@@ -201,21 +216,21 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         final String actionName = getMasterActionName(masterNode);
-                        transportService.sendRequest(masterNode, actionName, request, new ActionListenerResponseHandler<Response>(listener,
-                            TransportMasterNodeAction.this::newResponse) {
-                            @Override
-                            public void handleException(final TransportException exp) {
-                                Throwable cause = exp.unwrapCause();
-                                if (cause instanceof ConnectTransportException) {
-                                    // we want to retry here a bit to see if a new master is elected
-                                    logger.debug("connection exception while trying to forward request with action name [{}] to " +
-                                            "master node [{}], scheduling a retry. Error: [{}]",
-                                        actionName, nodes.getMasterNode(), exp.getDetailedMessage());
-                                    retry(cause, masterChangePredicate);
-                                } else {
-                                    listener.onFailure(exp);
+                        transportService.sendRequest(masterNode, actionName, request,
+                            new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::read) {
+                                @Override
+                                public void handleException(final TransportException exp) {
+                                    Throwable cause = exp.unwrapCause();
+                                    if (cause instanceof ConnectTransportException) {
+                                        // we want to retry here a bit to see if a new master is elected
+                                        logger.debug("connection exception while trying to forward request with action name [{}] to " +
+                                                "master node [{}], scheduling a retry. Error: [{}]",
+                                            actionName, nodes.getMasterNode(), exp.getDetailedMessage());
+                                        retry(cause, masterChangePredicate);
+                                    } else {
+                                        listener.onFailure(exp);
+                                    }
                                 }
-                            }
                         });
                     }
                 }

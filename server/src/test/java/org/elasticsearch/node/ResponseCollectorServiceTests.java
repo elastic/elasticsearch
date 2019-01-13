@@ -53,7 +53,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         clusterService = new ClusterService(Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadpool);
-        collector = new ResponseCollectorService(Settings.EMPTY, clusterService);
+        collector = new ResponseCollectorService(clusterService);
     }
 
     @After

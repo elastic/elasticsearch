@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,10 +43,10 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportGetFieldMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportGetFieldMappingsAction(TransportService transportService, ClusterService clusterService,
                                            TransportGetFieldMappingsIndexAction shardAction,
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new);
+        super(GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

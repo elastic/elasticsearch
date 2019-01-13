@@ -2,15 +2,14 @@
 [[configuring-pki-realm]]
 === Configuring a PKI realm
 
-You can configure {security} to use Public Key Infrastructure (PKI) certificates
-to authenticate users in {es}. This requires clients to present X.509
-certificates.
+You can configure {es} to use Public Key Infrastructure (PKI) certificates
+to authenticate users. This requires clients to present X.509 certificates.
 
 NOTE: You cannot use PKI certificates to authenticate users in {kib}.
 
 To use PKI in {es}, you configure a PKI realm, enable client authentication on
 the desired network layers (transport or http), and map the Distinguished Names
-(DNs) from the user certificates to {security} roles in the 
+(DNs) from the user certificates to roles in the 
 <<security-api-role-mapping,role-mapping API>> or role-mapping file.
 
 You can also use a combination of PKI and username/password authentication. For
@@ -22,11 +21,11 @@ allow clients without certificates to authenticate with other credentials.
 
 IMPORTANT:  You must enable SSL/TLS and enable client authentication to use PKI.
 
-For more information, see {xpack-ref}/pki-realm.html[PKI User Authentication].
+For more information, see {stack-ov}/pki-realm.html[PKI User Authentication].
 
-. Add a realm configuration of type `pki` to `elasticsearch.yml` under the
-`xpack.security.authc.realms` namespace. At a minimum, you must set the realm 
-`type` to `pki`. If you are configuring multiple realms, you should also 
+. Add a realm configuration for a `pki` realm to `elasticsearch.yml` under the
+`xpack.security.authc.realms.pki` namespace.
+If you are configuring multiple realms, you should 
 explicitly set the `order` attribute. See <<ref-pki-settings>> for all of the 
 options you can set for a `pki` realm.
 +
@@ -39,8 +38,9 @@ xpack:
   security:
     authc:
       realms:
-        pki1:
-          type: pki
+        pki:
+          pki1:
+            order: 1
 ------------------------------------------------------------
 
 With this configuration, any certificate trusted by the SSL/TLS layer is accepted
@@ -61,9 +61,9 @@ xpack:
   security:
     authc:
       realms:
-        pki1:
-          type: pki
-          username_pattern: "EMAILADDRESS=(.*?)(?:,|$)"
+        pki:
+          pki1:
+            username_pattern: "EMAILADDRESS=(.*?)(?:,|$)"
 ------------------------------------------------------------
 --
 
@@ -74,8 +74,7 @@ xpack:
 . Enable client authentication on the desired network layers (transport or http).
 +
 --
-//TBD: This step might need to be split into a separate topic with additional details
-//about setting up client authentication. 
+
 The PKI realm relies on the TLS settings of the node's network interface. The 
 realm can be configured to be more restrictive than the underlying network 
 connection - that is, it is possible to configure the node such that some 
@@ -112,11 +111,11 @@ xpack:
   security:
     authc:
       realms:
-        pki1:
-          type: pki
-          truststore:
-            path: "/path/to/pki_truststore.jks"
-            password: "x-pack-test-password"
+        pki:
+          pki1:
+            truststore:
+              path: "/path/to/pki_truststore.jks"
+              password: "x-pack-test-password"
 ------------------------------------------------------------
 
 The `certificate_authorities` option can be used as an alternative to the
@@ -139,7 +138,7 @@ For example, the following mapping configuration maps `John Doe` to the
 Using the role-mapping API:
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/users
+PUT /_security/role_mapping/users
 {
   "roles" : [ "user" ],
   "rules" : { "field" : {
@@ -160,7 +159,7 @@ user: <1>
 <1> The name of a role.
 <2> The distinguished name (DN) of a PKI user.
 
-The disinguished name for a PKI user follows X.500 naming conventions which
+The distinguished name for a PKI user follows X.500 naming conventions which
 place the most specific fields (like `cn` or `uid`) at the beginning of the
 name, and the most general fields (like `o` or `dc`) at the end of the name.
 Some tools, such as _openssl_, may print out the subject name in a different
@@ -173,7 +172,7 @@ the result. The user's distinguished name will be populated under the `pki_dn`
 key. You can also use the authenticate API to validate your role mapping.
 
 For more information, see 
-{xpack-ref}/mapping-roles.html[Mapping Users and Groups to Roles].
+{stack-ov}/mapping-roles.html[Mapping Users and Groups to Roles].
 
 NOTE: The PKI realm supports
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an

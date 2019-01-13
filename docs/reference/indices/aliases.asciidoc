@@ -145,7 +145,7 @@ exist in the mapping:
 PUT /test1
 {
   "mappings": {
-    "type1": {
+    "_doc": {
       "properties": {
         "user" : {
           "type": "keyword"
@@ -379,7 +379,7 @@ First create the index and add a mapping for the `user_id` field:
 PUT /users
 {
     "mappings" : {
-        "user" : {
+        "_doc" : {
             "properties" : {
                 "user_id" : {"type" : "integer"}
             }
@@ -419,7 +419,7 @@ Aliases can also be specified during <<create-index-aliases,index creation>>:
 PUT /logs_20162801
 {
     "mappings" : {
-        "type" : {
+        "_doc" : {
             "properties" : {
                 "year" : {"type" : "integer"}
             }

@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
@@ -20,7 +19,9 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequest, GetRolesResponse> {
 
@@ -28,11 +29,9 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
     private final ReservedRolesStore reservedRolesStore;
 
     @Inject
-    public TransportGetRolesAction(Settings settings, ActionFilters actionFilters,
-                                   NativeRolesStore nativeRolesStore, TransportService transportService,
+    public TransportGetRolesAction(ActionFilters actionFilters, NativeRolesStore nativeRolesStore, TransportService transportService,
                                    ReservedRolesStore reservedRolesStore) {
-        super(settings, GetRolesAction.NAME, transportService, actionFilters,
-            GetRolesRequest::new);
+        super(GetRolesAction.NAME, transportService, actionFilters, GetRolesRequest::new);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
     }
@@ -41,7 +40,7 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
     protected void doExecute(Task task, final GetRolesRequest request, final ActionListener<GetRolesResponse> listener) {
         final String[] requestedRoles = request.names();
         final boolean specificRolesRequested = requestedRoles != null && requestedRoles.length > 0;
-        final List<String> rolesToSearchFor = new ArrayList<>();
+        final Set<String> rolesToSearchFor = new HashSet<>();
         final List<RoleDescriptor> roles = new ArrayList<>();
 
         if (specificRolesRequested) {
@@ -66,11 +65,14 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
             // specific roles were requested but they were built in only, no need to hit the store
             listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
         } else {
-            String[] roleNames = rolesToSearchFor.toArray(new String[rolesToSearchFor.size()]);
-            nativeRolesStore.getRoleDescriptors(roleNames, ActionListener.wrap((foundRoles) -> {
-                        roles.addAll(foundRoles);
-                        listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
-                    }, listener::onFailure));
+            nativeRolesStore.getRoleDescriptors(rolesToSearchFor, ActionListener.wrap((retrievalResult) -> {
+                if (retrievalResult.isSuccess()) {
+                    roles.addAll(retrievalResult.getDescriptors());
+                    listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
+                } else {
+                    listener.onFailure(retrievalResult.getFailure());
+                }
+            }, listener::onFailure));
         }
     }
 }

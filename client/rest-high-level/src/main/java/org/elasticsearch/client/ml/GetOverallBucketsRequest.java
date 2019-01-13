@@ -187,7 +187,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     }
 
     /**
-     * See {@link GetJobRequest#isAllowNoJobs()}
+     * See {@link GetJobRequest#getAllowNoJobs()}
      * @param allowNoJobs value of "allow_no_jobs".
      */
     public void setAllowNoJobs(boolean allowNoJobs) {
@@ -199,7 +199,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
      *
      * If this is {@code false}, then an error is returned when a wildcard (or {@code _all}) does not match any jobs
      */
-    public Boolean isAllowNoJobs() {
+    public Boolean getAllowNoJobs() {
         return allowNoJobs;
     }
 

@@ -19,14 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
@@ -42,11 +35,6 @@ import java.util.Arrays;
  * donates the missing value in this context.
  */
 public final class OrdinalsBuilder implements Closeable {
-
-    /**
-     * Whether to for the use of {@link MultiOrdinals} to store the ordinals for testing purposes.
-     */
-    public static final String FORCE_MULTI_ORDINALS = "force_multi_ordinals";
 
     /**
      * Default acceptable overhead ratio. {@link OrdinalsBuilder} memory usage is mostly transient so it is likely a better trade-off to
@@ -159,7 +147,8 @@ public final class OrdinalsBuilder implements Closeable {
             this.acceptableOverheadRatio = acceptableOverheadRatio;
             positions = new PagedGrowableWriter(maxDoc, PAGE_SIZE, startBitsPerValue, acceptableOverheadRatio);
             firstOrdinals = new GrowableWriter(startBitsPerValue, maxDoc, acceptableOverheadRatio);
-            // over allocate in order to never worry about the array sizes, 24 entries would allow to store several millions of ordinals per doc...
+            // over allocate in order to never worry about the array sizes, 24 entries would allow
+            // to store several millions of ordinals per doc...
             ordinals = new PagedGrowableWriter[24];
             nextLevelSlices = new PagedGrowableWriter[24];
             sizes = new int[24];
@@ -200,7 +189,8 @@ public final class OrdinalsBuilder implements Closeable {
             } else {
                 final long newSlice = newSlice(1);
                 if (firstNextLevelSlices == null) {
-                    firstNextLevelSlices = new PagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
+                    firstNextLevelSlices =
+                        new PagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
                 }
                 firstNextLevelSlices.set(docID, newSlice);
                 final long offset = startOffset(1, newSlice);
@@ -282,14 +272,14 @@ public final class OrdinalsBuilder implements Closeable {
     private OrdinalsStore ordinals;
     private final LongsRef spare;
 
-    public OrdinalsBuilder(int maxDoc, float acceptableOverheadRatio) throws IOException {
+    public OrdinalsBuilder(int maxDoc, float acceptableOverheadRatio) {
         this.maxDoc = maxDoc;
         int startBitsPerValue = 8;
         ordinals = new OrdinalsStore(maxDoc, startBitsPerValue, acceptableOverheadRatio);
         spare = new LongsRef();
     }
 
-    public OrdinalsBuilder(int maxDoc) throws IOException {
+    public OrdinalsBuilder(int maxDoc) {
         this(maxDoc, DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
     }
 
@@ -303,7 +293,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Return a {@link org.apache.lucene.util.packed.PackedInts.Reader} instance mapping every doc ID to its first ordinal + 1 if it exists and 0 otherwise.
+     * Return a {@link PackedInts.Reader} instance mapping every doc ID to its first ordinal + 1 if it exists and 0 otherwise.
      */
     public PackedInts.Reader getFirstOrdinals() {
         return ordinals.firstOrdinals;
@@ -340,27 +330,6 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Returns <code>true</code> iff this builder contains a document ID that is associated with more than one ordinal. Otherwise <code>false</code>;
-     */
-    public boolean isMultiValued() {
-        return numMultiValuedDocs > 0;
-    }
-
-    /**
-     * Returns the number distinct of document IDs with one or more values.
-     */
-    public int getNumDocsWithValue() {
-        return numDocsWithValue;
-    }
-
-    /**
-     * Returns the number distinct of document IDs associated with exactly one value.
-     */
-    public int getNumSingleValuedDocs() {
-        return numDocsWithValue - numMultiValuedDocs;
-    }
-
-    /**
      * Returns the number distinct of document IDs associated with two or more values.
      */
     public int getNumMultiValuesDocs() {
@@ -382,28 +351,14 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Builds a {@link BitSet} where each documents bit is that that has one or more ordinals associated with it.
-     * if every document has an ordinal associated with it this method returns <code>null</code>
-     */
-    public BitSet buildDocsWithValuesSet() {
-        if (numDocsWithValue == maxDoc) {
-            return null;
-        }
-        final FixedBitSet bitSet = new FixedBitSet(maxDoc);
-        for (int docID = 0; docID < maxDoc; ++docID) {
-            if (ordinals.firstOrdinals.get(docID) != 0) {
-                bitSet.set(docID);
-            }
-        }
-        return bitSet;
-    }
-
-    /**
      * Builds an {@link Ordinals} instance from the builders current state.
      */
     public Ordinals build() {
         final float acceptableOverheadRatio = PackedInts.DEFAULT;
-        if (numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getValueCount(), acceptableOverheadRatio)) {
+        if (numMultiValuedDocs > 0
+            || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(
+                maxDoc, numDocsWithValue, getValueCount(), acceptableOverheadRatio)
+        ) {
             // MultiOrdinals can be smaller than SinglePackedOrdinals for sparse fields
             return new MultiOrdinals(this, acceptableOverheadRatio);
         } else {
@@ -417,33 +372,6 @@ public final class OrdinalsBuilder implements Closeable {
      */
     public int maxDoc() {
         return maxDoc;
-    }
-
-    /**
-     * This method iterates all terms in the given {@link TermsEnum} and
-     * associates each terms ordinal with the terms documents. The caller must
-     * exhaust the returned {@link BytesRefIterator} which returns all values
-     * where the first returned value is associated with the ordinal {@code 1}
-     * etc.
-     */
-    public BytesRefIterator buildFromTerms(final TermsEnum termsEnum) throws IOException {
-        return new BytesRefIterator() {
-            private PostingsEnum docsEnum = null;
-
-            @Override
-            public BytesRef next() throws IOException {
-                BytesRef ref;
-                if ((ref = termsEnum.next()) != null) {
-                    docsEnum = termsEnum.postings(docsEnum, PostingsEnum.NONE);
-                    nextOrdinal();
-                    int docId;
-                    while ((docId = docsEnum.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                        addDoc(docId);
-                    }
-                }
-                return ref;
-            }
-        };
     }
 
     /**

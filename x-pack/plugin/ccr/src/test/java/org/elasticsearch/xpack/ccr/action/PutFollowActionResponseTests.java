@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
-public class PutFollowActionResponseTests extends AbstractStreamableTestCase<PutFollowAction.Response> {
+public class PutFollowActionResponseTests extends AbstractWireSerializingTestCase<PutFollowAction.Response> {
 
     @Override
-    protected PutFollowAction.Response createBlankInstance() {
-        return new PutFollowAction.Response();
+    protected Writeable.Reader<PutFollowAction.Response> instanceReader() {
+        return PutFollowAction.Response::new;
     }
 
     @Override

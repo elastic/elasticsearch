@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -26,8 +26,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
 
-    protected UnaryStringIntFunction(Location location, Expression field) {
-        super(location, field);
+    protected UnaryStringIntFunction(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -45,14 +45,12 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-
-        return field().dataType().isInteger ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "'%s' requires a integer type, received %s", operation(), field().dataType().esType);
+        return Expressions.typeMustBeInteger(field(), operation().toString(), ParamOrdinal.DEFAULT);
     }
 
     @Override
-    protected final Pipe makePipe() {
-        return new UnaryPipe(location(), this, Expressions.pipe(field()), new StringProcessor(operation()));
+    protected Processor makeProcessor() {
+        return new StringProcessor(operation());
     }
 
     protected abstract StringOperation operation();
@@ -73,16 +71,16 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(field());
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
         UnaryStringIntFunction other = (UnaryStringIntFunction) obj;
         return Objects.equals(other.field(), field());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field());
     }
 }

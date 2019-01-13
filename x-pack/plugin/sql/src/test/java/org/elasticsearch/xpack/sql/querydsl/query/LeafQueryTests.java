@@ -6,17 +6,19 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.LocationTests;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.tree.SourceTests;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class LeafQueryTests extends ESTestCase {
     private static class DummyLeafQuery extends LeafQuery {
-        private DummyLeafQuery(Location location) {
-            super(location);
+        private DummyLeafQuery(Source source) {
+            super(source);
         }
 
         @Override
@@ -31,32 +33,33 @@ public class LeafQueryTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        DummyLeafQuery query = new DummyLeafQuery(LocationTests.randomLocation());
+        DummyLeafQuery query = new DummyLeafQuery(SourceTests.randomSource());
         checkEqualsAndHashCode(query, LeafQueryTests::copy, LeafQueryTests::mutate);
     }
 
     private static DummyLeafQuery copy(DummyLeafQuery query) {
-        return new DummyLeafQuery(query.location());
+        return new DummyLeafQuery(query.source());
     }
 
     private static DummyLeafQuery mutate(DummyLeafQuery query) {
-        return new DummyLeafQuery(LocationTests.mutate(query.location()));
+        return new DummyLeafQuery(SourceTests.mutate(query.source()));
     }
 
     public void testContainsNestedField() {
-        Query query = new DummyLeafQuery(LocationTests.randomLocation());
+        Query query = new DummyLeafQuery(SourceTests.randomSource());
         // Leaf queries don't contain nested fields.
         assertFalse(query.containsNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5)));
     }
 
     public void testAddNestedField() {
-        Query query = new DummyLeafQuery(LocationTests.randomLocation());
+        Query query = new DummyLeafQuery(SourceTests.randomSource());
         // Leaf queries don't contain nested fields.
-        assertSame(query, query.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), randomBoolean()));
+        assertSame(query, query.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), DocValueFieldsContext.USE_DEFAULT_FORMAT,
+                randomBoolean()));
     }
 
     public void testEnrichNestedSort() {
-        Query query = new DummyLeafQuery(LocationTests.randomLocation());
+        Query query = new DummyLeafQuery(SourceTests.randomSource());
         // Leaf queries don't contain nested fields.
         NestedSortBuilder sort = new NestedSortBuilder(randomAlphaOfLength(5));
         query.enrichNestedSort(sort);
@@ -64,6 +67,6 @@ public class LeafQueryTests extends ESTestCase {
     }
 
     public void testToString() {
-        assertEquals("DummyLeafQuery@1:2[]", new DummyLeafQuery(new Location(1, 1)).toString());
+        assertEquals("DummyLeafQuery@1:2[]", new DummyLeafQuery(new Source(1, 1, StringUtils.EMPTY)).toString());
     }
 }

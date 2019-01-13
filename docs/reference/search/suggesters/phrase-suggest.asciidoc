@@ -52,7 +52,7 @@ PUT test
     }
   },
   "mappings": {
-    "test": {
+    "_doc": {
       "properties": {
         "title": {
           "type": "text",
@@ -71,9 +71,9 @@ PUT test
     }
   }
 }
-POST test/test?refresh=true
+POST test/_doc?refresh=true
 {"title": "noble warriors"}
-POST test/test?refresh=true
+POST test/_doc?refresh=true
 {"title": "nobel prize"}
 --------------------------------------------------
 // CONSOLE

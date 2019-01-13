@@ -5,21 +5,24 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.LocationTests;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.tree.SourceTests;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class BoolQueryTests extends ESTestCase {
     static BoolQuery randomBoolQuery(int depth) {
-        return new BoolQuery(LocationTests.randomLocation(), randomBoolean(),
+        return new BoolQuery(SourceTests.randomSource(), randomBoolean(),
                 NestedQueryTests.randomQuery(depth), NestedQueryTests.randomQuery(depth));
     }
 
@@ -28,15 +31,15 @@ public class BoolQueryTests extends ESTestCase {
     }
 
     private static BoolQuery copy(BoolQuery query) {
-        return new BoolQuery(query.location(), query.isAnd(), query.left(), query.right());
+        return new BoolQuery(query.source(), query.isAnd(), query.left(), query.right());
     }
 
     private static BoolQuery mutate(BoolQuery query) {
         List<Function<BoolQuery, BoolQuery>> options = Arrays.asList(
-            q -> new BoolQuery(LocationTests.mutate(q.location()), q.isAnd(), q.left(), q.right()),
-            q -> new BoolQuery(q.location(), false == q.isAnd(), q.left(), q.right()),
-            q -> new BoolQuery(q.location(), q.isAnd(), randomValueOtherThan(q.left(), () -> NestedQueryTests.randomQuery(5)), q.right()),
-            q -> new BoolQuery(q.location(), q.isAnd(), q.left(), randomValueOtherThan(q.right(), () -> NestedQueryTests.randomQuery(5))));
+            q -> new BoolQuery(SourceTests.mutate(q.source()), q.isAnd(), q.left(), q.right()),
+            q -> new BoolQuery(q.source(), false == q.isAnd(), q.left(), q.right()),
+            q -> new BoolQuery(q.source(), q.isAnd(), randomValueOtherThan(q.left(), () -> NestedQueryTests.randomQuery(5)), q.right()),
+            q -> new BoolQuery(q.source(), q.isAnd(), q.left(), randomValueOtherThan(q.right(), () -> NestedQueryTests.randomQuery(5))));
         return randomFrom(options).apply(query);
     }
 
@@ -50,14 +53,15 @@ public class BoolQueryTests extends ESTestCase {
 
     public void testAddNestedField() {
         Query q = boolQueryWithoutNestedChildren();
-        assertSame(q, q.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), randomBoolean()));
+        assertSame(q, q.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), DocValueFieldsContext.USE_DEFAULT_FORMAT,
+                randomBoolean()));
 
         String path = randomAlphaOfLength(5);
         String field = randomAlphaOfLength(5);
         q = boolQueryWithNestedChildren(path, field);
         String newField = randomAlphaOfLength(5);
         boolean hasDocValues = randomBoolean();
-        Query rewritten = q.addNestedField(path, newField, hasDocValues);
+        Query rewritten = q.addNestedField(path, newField, DocValueFieldsContext.USE_DEFAULT_FORMAT, hasDocValues);
         assertNotSame(q, rewritten);
         assertTrue(rewritten.containsNestedField(path, newField));
     }
@@ -77,14 +81,15 @@ public class BoolQueryTests extends ESTestCase {
     }
 
     private Query boolQueryWithoutNestedChildren() {
-        return new BoolQuery(LocationTests.randomLocation(), randomBoolean(),
-            new MatchAll(LocationTests.randomLocation()), new MatchAll(LocationTests.randomLocation()));
+        return new BoolQuery(SourceTests.randomSource(), randomBoolean(), new MatchAll(SourceTests.randomSource()),
+                new MatchAll(SourceTests.randomSource()));
     }
 
     private Query boolQueryWithNestedChildren(String path, String field) {
-        NestedQuery match = new NestedQuery(LocationTests.randomLocation(), path,
-                singletonMap(field, randomBoolean()), new MatchAll(LocationTests.randomLocation()));
-        Query matchAll = new MatchAll(LocationTests.randomLocation());
+        NestedQuery match = new NestedQuery(SourceTests.randomSource(), path,
+                singletonMap(field, new SimpleImmutableEntry<>(randomBoolean(), DocValueFieldsContext.USE_DEFAULT_FORMAT)),
+                new MatchAll(SourceTests.randomSource()));
+        Query matchAll = new MatchAll(SourceTests.randomSource());
         Query left;
         Query right;
         if (randomBoolean()) {
@@ -94,13 +99,13 @@ public class BoolQueryTests extends ESTestCase {
             left = matchAll;
             right = match;
         }
-        return new BoolQuery(LocationTests.randomLocation(), randomBoolean(), left, right);
+        return new BoolQuery(SourceTests.randomSource(), randomBoolean(), left, right);
     }
 
     public void testToString() {
         assertEquals("BoolQuery@1:2[ExistsQuery@1:2[f1] AND ExistsQuery@1:8[f2]]",
-                new BoolQuery(new Location(1, 1), true,
-                    new ExistsQuery(new Location(1, 1), "f1"),
-                    new ExistsQuery(new Location(1, 7), "f2")).toString());
+                new BoolQuery(new Source(1, 1, StringUtils.EMPTY), true,
+                    new ExistsQuery(new Source(1, 1, StringUtils.EMPTY), "f1"),
+                    new ExistsQuery(new Source(1, 7, StringUtils.EMPTY), "f2")).toString());
     }
 }

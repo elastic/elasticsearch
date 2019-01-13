@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.precommit.ForbiddenApisCliTask
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -52,7 +52,7 @@ dependencies {
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-tasks.withType(ForbiddenApisCliTask) {
+tasks.withType(CheckForbiddenApis) {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles ('jdk-signatures', 'http-signatures')
 }
@@ -77,7 +77,16 @@ namingConventions {
   skipIntegTestInDisguise = true
 }
 
-thirdPartyAudit.excludes = [
+testingConventions {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'org.elasticsearch.client.RestClientTestCase'
+    }
+  }
+}
+
+thirdPartyAudit.ignoreMissingClasses (
   //commons-logging optional dependencies
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
@@ -89,4 +98,4 @@ thirdPartyAudit.excludes = [
   //commons-logging provided dependencies
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'
-]
+)

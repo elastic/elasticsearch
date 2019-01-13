@@ -2,40 +2,29 @@
 
 ==== Put Mapping
 
-You can add mappings for a new type at index creation time:
+You can add mappings at index creation time:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{client-tests}/IndicesDocumentationIT.java[index-with-mapping]
 --------------------------------------------------
 <1> <<java-admin-indices-create-index,Creates an index>> called `twitter`
-<2> Add a `tweet` type with a field called `message` that has the datatype `text`.
+<2> Add a `_doc` type with a field called `message` that has the datatype `text`.
 
 There are several variants of the above `addMapping` method, some taking an
 `XContentBuilder` or a `Map` with the mapping definition as arguments. Make sure
 to check the javadocs to pick the simplest one for your use case.
 
-The PUT mapping API also allows to specify the mapping of a type after index
-creation. In this case you can provide the mapping as a String similar to the
-Rest API syntax:
+The PUT mapping API also allows for updating the mapping after index
+creation. In this case you can provide the mapping as a String similar
+to the REST API syntax:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{client-tests}/IndicesDocumentationIT.java[putMapping-request-source]
 --------------------------------------------------
 <1> Puts a mapping on existing index called `twitter`
-<2> Adds a `user` mapping type.
-<3> This `user` has a predefined type
-<4> type can be also provided within the source
-
-You can use the same API to update an existing mapping:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{client-tests}/IndicesDocumentationIT.java[putMapping-request-source-append]
---------------------------------------------------
-<1> Puts a mapping on existing index called `twitter`
-<2> Updates the `user` mapping type.
-<3> This `user` has now a new field `user_name`
+<2> Adds a new field `name` to the mapping
+<3> The type can be also provided within the source
 
 :base-dir!:

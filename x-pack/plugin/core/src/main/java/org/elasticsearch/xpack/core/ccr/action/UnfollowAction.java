@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class UnfollowAction extends Action<AcknowledgedResponse> {
 
     public static final UnfollowAction INSTANCE = new UnfollowAction();
-    public static final String NAME = "cluster:admin/xpack/ccr/unfollow";
+    public static final String NAME = "indices:admin/xpack/ccr/unfollow";
 
     private UnfollowAction() {
         super(NAME);
@@ -31,7 +33,7 @@ public class UnfollowAction extends Action<AcknowledgedResponse> {
         return new AcknowledgedResponse();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
         private final String followerIndex;
 
@@ -46,6 +48,16 @@ public class UnfollowAction extends Action<AcknowledgedResponse> {
 
         public String getFollowerIndex() {
             return followerIndex;
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] {followerIndex};
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
         @Override

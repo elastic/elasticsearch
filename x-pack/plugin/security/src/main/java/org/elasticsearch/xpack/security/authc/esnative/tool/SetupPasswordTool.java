@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
+import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 
@@ -65,7 +66,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
     public static final List<String> USERS = asList(ElasticUser.NAME, APMSystemUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
-        BeatsSystemUser.NAME);
+        BeatsSystemUser.NAME, RemoteMonitoringUser.NAME);
 
     private final BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
@@ -291,7 +292,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          * @param terminal where to write verbose info.
          */
         void checkElasticKeystorePasswordValid(Terminal terminal, Environment env) throws Exception {
-            URL route = createURL(url, "/_xpack/security/_authenticate", "?pretty");
+            URL route = createURL(url, "/_security/_authenticate", "?pretty");
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Testing if bootstrap password is valid for " + route.toString());
             try {
@@ -448,7 +449,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          * @param password the new password of the user.
          */
         private void changeUserPassword(String user, SecureString password, Terminal terminal) throws Exception {
-            URL route = createURL(url, "/_xpack/security/user/" + user + "/_password", "?pretty");
+            URL route = createURL(url, "/_security/user/" + user + "/_password", "?pretty");
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Trying user password change call " + route.toString());
             try {

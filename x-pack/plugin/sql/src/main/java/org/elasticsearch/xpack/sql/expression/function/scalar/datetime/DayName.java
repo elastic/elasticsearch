@@ -7,32 +7,27 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * Extract the day of the week from a datetime in text format (Monday, Tuesday etc.)
  */
 public class DayName extends NamedDateTimeFunction {
     
-    public DayName(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+    public DayName(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, NameExtractor.DAY_NAME);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return DayName::new;
     }
 
     @Override
     protected DayName replaceChild(Expression newChild) {
-        return new DayName(location(), newChild, timeZone());
-    }
-
-    @Override
-    protected NameExtractor nameExtractor() {
-        return NameExtractor.DAY_NAME;
+        return new DayName(source(), newChild, zoneId());
     }
 }

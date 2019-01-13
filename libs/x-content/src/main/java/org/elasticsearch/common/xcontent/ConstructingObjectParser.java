@@ -216,7 +216,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             int position = constructorArgInfos.size();
             boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
             constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
-            objectParser.declareField((target, v) -> target.constructorArg(position, parseField, v), parser, parseField, type);
+            objectParser.declareField((target, v) -> target.constructorArg(position, v), parser, parseField, type);
         } else {
             numberOfFields += 1;
             objectParser.declareField(queueingConsumer(consumer, parseField), parser, parseField, type);
@@ -249,7 +249,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             int position = constructorArgInfos.size();
             boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
             constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
-            objectParser.declareNamedObjects((target, v) -> target.constructorArg(position, parseField, v), namedObjectParser, parseField);
+            objectParser.declareNamedObjects((target, v) -> target.constructorArg(position, v), namedObjectParser, parseField);
         } else {
             numberOfFields += 1;
             objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser, parseField);
@@ -285,7 +285,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             int position = constructorArgInfos.size();
             boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
             constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
-            objectParser.declareNamedObjects((target, v) -> target.constructorArg(position, parseField, v), namedObjectParser,
+            objectParser.declareNamedObjects((target, v) -> target.constructorArg(position, v), namedObjectParser,
                     wrapOrderedModeCallBack(orderedModeCallback), parseField);
         } else {
             numberOfFields += 1;
@@ -395,10 +395,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         /**
          * Set a constructor argument and build the target object if all constructor arguments have arrived.
          */
-        private void constructorArg(int position, ParseField parseField, Object value) {
-            if (constructorArgs[position] != null) {
-                throw new IllegalArgumentException("Can't repeat param [" + parseField + "]");
-            }
+        private void constructorArg(int position, Object value) {
             constructorArgs[position] = value;
             constructorArgsCollected++;
             if (constructorArgsCollected == constructorArgInfos.size()) {

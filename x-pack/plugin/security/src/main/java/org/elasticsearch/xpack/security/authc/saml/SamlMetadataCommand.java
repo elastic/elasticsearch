@@ -30,6 +30,7 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
@@ -63,8 +64,6 @@ import org.opensaml.xmlsec.signature.support.SignatureConstants;
 import org.opensaml.xmlsec.signature.support.Signer;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
-
-import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getRealmType;
 
 /**
  * CLI tool to generate SAML Metadata for a Service Provider (realm)
@@ -141,9 +140,9 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         // OpenSAML prints a lot of _stuff_ at info level, that really isn't needed in a command line tool.
-        Loggers.setLevel(Loggers.getLogger("org.opensaml"), Level.WARN);
+        Loggers.setLevel(LogManager.getLogger("org.opensaml"), Level.WARN);
 
-        final Logger logger = Loggers.getLogger(getClass());
+        final Logger logger = LogManager.getLogger(getClass());
         SamlUtils.initialize(logger);
 
         final EntityDescriptor descriptor = buildEntityDescriptor(terminal, options, env);
@@ -158,8 +157,9 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         final boolean batch = options.has(batchSpec);
 
         final RealmConfig realm = findRealm(terminal, options, env);
+        final Settings realmSettings = realm.settings().getByPrefix(RealmSettings.realmSettingPrefix(realm.identifier()));
         terminal.println(Terminal.Verbosity.VERBOSE,
-                "Using realm configuration\n=====\n" + realm.settings().toDelimitedString('\n') + "=====");
+                "Using realm configuration\n=====\n" + realmSettings.toDelimitedString('\n') + "=====");
         final Locale locale = findLocale(options);
         terminal.println(Terminal.Verbosity.VERBOSE, "Using locale: " + locale.toLanguageTag());
 
@@ -170,7 +170,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
                 .encryptionCredentials(spConfig.getEncryptionCredentials())
                 .signingCredential(spConfig.getSigningConfiguration().getCredential())
                 .authnRequestsSigned(spConfig.getSigningConfiguration().shouldSign(AuthnRequest.DEFAULT_ELEMENT_LOCAL_NAME))
-                .nameIdFormat(SamlRealmSettings.NAMEID_FORMAT.get(realm.settings()))
+                .nameIdFormat(realm.getSetting(SamlRealmSettings.NAMEID_FORMAT))
                 .serviceName(option(serviceNameSpec, options, env.settings().get("cluster.name")));
 
         Map<String, String> attributes = getAttributeNames(options, realm);
@@ -397,7 +397,8 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         for (String a : attributeSpec.values(options)) {
             attributes.put(a, null);
         }
-        final Settings attributeSettings = realm.settings().getByPrefix(SamlRealmSettings.AttributeSetting.ATTRIBUTES_PREFIX);
+        final String prefix = RealmSettings.realmSettingPrefix(realm.identifier()) + SamlRealmSettings.AttributeSetting.ATTRIBUTES_PREFIX;
+        final Settings attributeSettings = realm.settings().getByPrefix(prefix);
         for (String key : sorted(attributeSettings.keySet())) {
             final String attr = attributeSettings.get(key);
             attributes.put(attr, key);
@@ -410,6 +411,9 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         return new TreeSet<>(strings);
     }
 
+    /**
+     * @TODO REALM-SETTINGS[TIM] This can be redone a lot now the realm settings are keyed by type
+     */
     private RealmConfig findRealm(Terminal terminal, OptionSet options, Environment env) throws UserException, IOException, Exception {
 
         keyStoreWrapper = keyStoreFunction.apply(env);
@@ -428,36 +432,37 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
             settings = env.settings();
         }
 
-        final Map<String, Settings> realms = RealmSettings.getRealmSettings(settings);
+        final Map<RealmConfig.RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
         if (options.has(realmSpec)) {
             final String name = realmSpec.value(options);
-            final Settings realmSettings = realms.get(name);
+            final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(SamlRealmSettings.TYPE, name);
+            final Settings realmSettings = realms.get(identifier);
             if (realmSettings == null) {
                 throw new UserException(ExitCodes.CONFIG, "No such realm '" + name + "' defined in " + env.configFile());
             }
-            final String realmType = getRealmType(realmSettings);
-            if (isSamlRealm(realmType)) {
-                return buildRealm(name, realmSettings, env);
+            if (isSamlRealm(identifier)) {
+                return buildRealm(identifier, env, settings);
             } else {
-                throw new UserException(ExitCodes.CONFIG, "Realm '" + name + "' is not a SAML realm (is '" + realmType + "')");
+                throw new UserException(ExitCodes.CONFIG, "Realm '" + name + "' is not a SAML realm (is '" + identifier.getType() + "')");
             }
         } else {
-            final List<Map.Entry<String, Settings>> saml = realms.entrySet().stream()
-                    .filter(entry -> isSamlRealm(getRealmType(entry.getValue())))
+            final List<Map.Entry<RealmConfig.RealmIdentifier, Settings>> saml = realms.entrySet().stream()
+                    .filter(entry -> isSamlRealm(entry.getKey()))
                     .collect(Collectors.toList());
             if (saml.isEmpty()) {
                 throw new UserException(ExitCodes.CONFIG, "There is no SAML realm configured in " + env.configFile());
             }
             if (saml.size() > 1) {
                 terminal.println("Using configuration in " + env.configFile());
-                terminal.println("Found multiple SAML realms: " + saml.stream().map(Map.Entry::getKey).collect(Collectors.joining(", ")));
+                terminal.println("Found multiple SAML realms: "
+                        + saml.stream().map(Map.Entry::getKey).map(Object::toString).collect(Collectors.joining(", ")));
                 terminal.println("Use the -" + optionName(realmSpec) + " option to specify an explicit realm");
                 throw new UserException(ExitCodes.CONFIG,
                         "Found multiple SAML realms, please specify one with '-" + optionName(realmSpec) + "'");
             }
-            final Map.Entry<String, Settings> entry = saml.get(0);
+            final Map.Entry<RealmConfig.RealmIdentifier, Settings> entry = saml.get(0);
             terminal.println("Building metadata for SAML realm " + entry.getKey());
-            return buildRealm(entry.getKey(), entry.getValue(), env);
+            return buildRealm(entry.getKey(), env, settings);
         }
     }
 
@@ -465,12 +470,12 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         return spec.options().get(0);
     }
 
-    private RealmConfig buildRealm(String name, Settings settings, Environment env) {
-        return new RealmConfig(name, settings, env.settings(), env, new ThreadContext(env.settings()));
+    private RealmConfig buildRealm(RealmConfig.RealmIdentifier identifier, Environment env, Settings globalSettings ) {
+        return new RealmConfig(identifier, globalSettings, env, new ThreadContext(globalSettings));
     }
 
-    private boolean isSamlRealm(String realmType) {
-        return SamlRealmSettings.TYPE.equals(realmType);
+    private boolean isSamlRealm(RealmConfig.RealmIdentifier realmIdentifier) {
+        return SamlRealmSettings.TYPE.equals(realmIdentifier.getType());
     }
 
     private Locale findLocale(OptionSet options) {

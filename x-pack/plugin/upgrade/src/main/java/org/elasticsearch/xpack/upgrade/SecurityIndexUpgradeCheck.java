@@ -106,8 +106,9 @@ public class SecurityIndexUpgradeCheck implements UpgradeCheck {
     public void upgrade(TaskId task, IndexMetaData indexMetaData, ClusterState state, ActionListener<BulkByScrollResponse> listener) {
         final ParentTaskAssigningClient parentAwareClient = new ParentTaskAssigningClient(client, task);
         final BoolQueryBuilder tokensQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "token"));
-        final BoolQueryBuilder nonTokensQuery = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("doc_type", "token")));
+        // invalidated-token docs are abandoned as they are not used anymore
+        final BoolQueryBuilder nonTokensQuery = QueryBuilders.boolQuery().filter(QueryBuilders.boolQuery()
+                .mustNot(QueryBuilders.termQuery("doc_type", "token")).mustNot(QueryBuilders.termQuery("doc_type", "invalidated-token")));
         final Consumer<Exception> removeReadOnlyBlock = e ->
             removeReadOnlyBlock(parentAwareClient, INTERNAL_SECURITY_INDEX, ActionListener.wrap(unsetReadOnlyResponse -> {
                 listener.onFailure(e);

@@ -325,7 +325,6 @@ public class DateHistogramIT extends ESIntegTestCase {
         expectedKeys.add(ZonedDateTime.of(2012, 3, 14, 23, 0, 0, 0, ZoneOffset.UTC));
         expectedKeys.add(ZonedDateTime.of(2012, 3, 22, 23, 0, 0, 0, ZoneOffset.UTC));
 
-
         Iterator<ZonedDateTime> keyIterator = expectedKeys.iterator();
         for (Histogram.Bucket bucket : buckets) {
             assertThat(bucket, notNullValue());

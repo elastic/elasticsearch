@@ -73,14 +73,16 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
 
     public void testEquals_GivenSameObject() {
         ModelPlot modelPlot =
-                new ModelPlot(randomAlphaOfLength(15), new Date(randomLongBetween(0, 3000000000000L)), randomNonNegativeLong(), randomInt());
+                new ModelPlot(randomAlphaOfLength(15),
+                    new Date(randomLongBetween(0, 3000000000000L)), randomNonNegativeLong(), randomInt());
 
         assertTrue(modelPlot.equals(modelPlot));
     }
 
     public void testEquals_GivenObjectOfDifferentClass() {
         ModelPlot modelPlot =
-                new ModelPlot(randomAlphaOfLength(15), new Date(randomLongBetween(0, 3000000000000L)), randomNonNegativeLong(), randomInt());
+                new ModelPlot(randomAlphaOfLength(15),
+                    new Date(randomLongBetween(0, 3000000000000L)), randomNonNegativeLong(), randomInt());
 
         assertFalse(modelPlot.equals("a string"));
     }

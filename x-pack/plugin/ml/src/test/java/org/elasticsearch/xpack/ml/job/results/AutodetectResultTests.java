@@ -94,7 +94,8 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             modelPlot = null;
         }
         if (randomBoolean()) {
-            forecast = new Forecast(jobId, randomAlphaOfLength(20), new Date(randomLongBetween(0, 3000000000000L)), randomNonNegativeLong(), randomInt());
+            forecast = new Forecast(jobId, randomAlphaOfLength(20), new Date(randomLongBetween(0, 3000000000000L)),
+                randomNonNegativeLong(), randomInt());
         } else {
             forecast = null;
         }
@@ -110,7 +111,8 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             categoryDefinition = null;
         }
         if (randomBoolean()) {
-            flushAcknowledgement = new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20),  new Date(randomLongBetween(0, 3000000000000L)));
+            flushAcknowledgement = new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20),
+                new Date(randomLongBetween(0, 3000000000000L)));
         } else {
             flushAcknowledgement = null;
         }

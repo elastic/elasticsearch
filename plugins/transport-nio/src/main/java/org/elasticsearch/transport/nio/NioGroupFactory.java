@@ -24,14 +24,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.nio.EventHandler;
-import org.elasticsearch.nio.NioGroup;
-import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
-import java.util.concurrent.ThreadFactory;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
@@ -41,7 +36,7 @@ public class NioGroupFactory {
     private final Settings settings;
     private final int httpWorkerCount;
 
-    private volatile RefNioGroup nioGroup;
+    private SharedNioGroup nioGroup;
 
     public NioGroupFactory(Settings settings, Logger logger) {
         this.logger = logger;
@@ -53,52 +48,31 @@ public class NioGroupFactory {
         return settings;
     }
 
-    public synchronized NioGroup getTransportGroup() throws IOException {
+    public synchronized SharedNioGroup getTransportGroup() throws IOException {
         return getGenericGroup();
     }
 
-    public synchronized NioGroup getHttpGroup() throws IOException {
+    public synchronized SharedNioGroup getHttpGroup() throws IOException {
         if (httpWorkerCount == 0) {
             return getGenericGroup();
         } else {
-            return new NioGroup(daemonThreadFactory(this.settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX),
+            return new SharedNioGroup(daemonThreadFactory(this.settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX),
                 httpWorkerCount, (s) -> new EventHandler(this::onException, s));
         }
     }
 
-    private NioGroup getGenericGroup() throws IOException {
+    private SharedNioGroup getGenericGroup() throws IOException {
         if (nioGroup == null) {
-            nioGroup = new RefNioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX),
+            nioGroup = new SharedNioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX),
                 NioTransportPlugin.NIO_WORKER_COUNT.get(settings), (s) -> new EventHandler(this::onException, s));
+            return nioGroup;
         } else {
-            nioGroup.incReference();
+            return nioGroup.getSharedInstance();
         }
-        return nioGroup;
     }
 
     private void onException(Exception exception) {
         logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
             exception);
-    }
-
-    private static class RefNioGroup extends NioGroup {
-
-        private int references = 1;
-
-        private RefNioGroup(ThreadFactory threadFactory, int selectorCount,
-                            Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction) throws IOException {
-            super(threadFactory, selectorCount, eventHandlerFunction);
-        }
-
-        private synchronized void incReference() {
-            references++;
-        }
-
-        @Override
-        public synchronized void close() throws IOException {
-            if (--references == 0) {
-                super.close();
-            }
-        }
     }
 }

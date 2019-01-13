@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.ml.job.retention;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedStateDocIdsIterator;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashSet;
@@ -51,9 +54,9 @@ public class UnusedStateRemover implements MlDataRemover {
     @Override
     public void remove(ActionListener<Boolean> listener) {
         try {
-            BulkRequestBuilder deleteUnusedStateRequestBuilder = findUnusedStateDocs();
-            if (deleteUnusedStateRequestBuilder.numberOfActions() > 0) {
-                executeDeleteUnusedStateDocs(deleteUnusedStateRequestBuilder, listener);
+            List<String> unusedStateDocIds = findUnusedStateDocIds();
+            if (unusedStateDocIds.size() > 0) {
+                executeDeleteUnusedStateDocs(unusedStateDocIds, listener);
             } else {
                 listener.onResponse(true);
             }
@@ -62,10 +65,11 @@ public class UnusedStateRemover implements MlDataRemover {
         }
     }
 
-    private BulkRequestBuilder findUnusedStateDocs() {
+    private List<String> findUnusedStateDocIds() {
         Set<String> jobIds = getJobIds();
-        BulkRequestBuilder deleteUnusedStateRequestBuilder = client.prepareBulk();
-        BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(client, AnomalyDetectorsIndex.jobStateIndexName());
+        List<String> stateDocIdsToDelete = new ArrayList<>();
+        BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(client,
+            AnomalyDetectorsIndex.jobStateIndexPattern());
         while (stateDocIdsIterator.hasNext()) {
             Deque<String> stateDocIds = stateDocIdsIterator.next();
             for (String stateDocId : stateDocIds) {
@@ -75,12 +79,11 @@ public class UnusedStateRemover implements MlDataRemover {
                     continue;
                 }
                 if (jobIds.contains(jobId) == false) {
-                    deleteUnusedStateRequestBuilder.add(new DeleteRequest(
-                            AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE, stateDocId));
+                    stateDocIdsToDelete.add(stateDocId);
                 }
             }
         }
-        return deleteUnusedStateRequestBuilder;
+        return stateDocIdsToDelete;
     }
 
     private Set<String> getJobIds() {
@@ -98,27 +101,29 @@ public class UnusedStateRemover implements MlDataRemover {
         return jobIds;
     }
 
-    private void executeDeleteUnusedStateDocs(BulkRequestBuilder deleteUnusedStateRequestBuilder, ActionListener<Boolean> listener) {
+    private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, ActionListener<Boolean> listener) {
         LOGGER.info("Found [{}] unused state documents; attempting to delete",
-                deleteUnusedStateRequestBuilder.numberOfActions());
-        deleteUnusedStateRequestBuilder.execute(new ActionListener<BulkResponse>() {
-            @Override
-            public void onResponse(BulkResponse bulkItemResponses) {
-                if (bulkItemResponses.hasFailures()) {
+                unusedDocIds.size());
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .types(ElasticsearchMappings.DOC_TYPE)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(unusedDocIds.toArray(new String[0])));
+        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
+            response -> {
+                if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
                     LOGGER.error("Some unused state documents could not be deleted due to failures: {}",
-                            bulkItemResponses.buildFailureMessage());
+                        Strings.collectionToCommaDelimitedString(response.getBulkFailures()) +
+                            "," + Strings.collectionToCommaDelimitedString(response.getSearchFailures()));
                 } else {
                     LOGGER.info("Successfully deleted all unused state documents");
                 }
                 listener.onResponse(true);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+            },
+            e -> {
                 LOGGER.error("Error deleting unused model state documents: ", e);
                 listener.onFailure(e);
             }
-        });
+        ));
     }
 
     private static class JobIdExtractor {

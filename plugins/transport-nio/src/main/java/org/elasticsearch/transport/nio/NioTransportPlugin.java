@@ -81,7 +81,7 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
                                                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         return Collections.singletonMap(NIO_TRANSPORT_NAME,
             () -> new NioTransport(settings, Version.CURRENT, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry,
-                circuitBreakerService, new NioGroupFactory(settings, logger)));
+                circuitBreakerService, getNioGroupFactory(settings)));
     }
 
     @Override
@@ -93,10 +93,11 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
                                                                         HttpServerTransport.Dispatcher dispatcher) {
         return Collections.singletonMap(NIO_HTTP_TRANSPORT_NAME,
             () -> new NioHttpServerTransport(settings, networkService, bigArrays, pageCacheRecycler, threadPool, xContentRegistry,
-                dispatcher));
+                dispatcher, getNioGroupFactory(settings)));
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
+        // TODO: Can the settings change?
         if (groupFactory.get() != null) {
             return groupFactory.get();
         } else {

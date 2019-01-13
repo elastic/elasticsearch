@@ -970,7 +970,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
             ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
         httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
-            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService()));
+            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings)));
 
         return httpTransports;
     }
@@ -1127,6 +1127,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
+         // TODO: Can the settings change?
          if (groupFactory.get() != null) {
              return groupFactory.get();
          } else {

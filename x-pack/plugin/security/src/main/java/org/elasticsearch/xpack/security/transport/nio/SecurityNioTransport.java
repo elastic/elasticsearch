@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.transport.nio.NioTcpServerChannel;
 import org.elasticsearch.transport.nio.NioTransport;
@@ -78,7 +79,7 @@ public class SecurityNioTransport extends NioTransport {
     public SecurityNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                                 PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                                 CircuitBreakerService circuitBreakerService, @Nullable final IPFilter authenticator,
-                                SSLService sslService, CheckedFunction<String, NioGroup, IOException> groupFactory) {
+                                SSLService sslService, NioGroupFactory groupFactory) {
         super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
             groupFactory);
         this.authenticator = authenticator;

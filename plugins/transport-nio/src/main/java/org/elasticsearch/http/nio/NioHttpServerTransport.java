@@ -48,6 +48,7 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.io.IOException;
@@ -84,6 +85,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
     protected final PageCacheRecycler pageCacheRecycler;
     protected final NioCorsConfig corsConfig;
+    private final NioGroupFactory nioGroupFactory;
 
     protected final boolean tcpNoDelay;
     protected final boolean tcpKeepAlive;
@@ -96,9 +98,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
     public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
                                   PageCacheRecycler pageCacheRecycler, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
-                                  Dispatcher dispatcher) {
+                                  Dispatcher dispatcher, NioGroupFactory nioGroupFactory) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         this.pageCacheRecycler = pageCacheRecycler;
+        this.nioGroupFactory = nioGroupFactory;
 
         ByteSizeValue maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         ByteSizeValue maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);

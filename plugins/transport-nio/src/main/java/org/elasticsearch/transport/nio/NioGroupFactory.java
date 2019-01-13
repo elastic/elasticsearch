@@ -21,7 +21,6 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.nio.EventHandler;
@@ -36,7 +35,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
-public class NioGroupFactory implements CheckedFunction<String, NioGroup, IOException> {
+public class NioGroupFactory {
 
     private final Logger logger;
     private final Settings settings;
@@ -50,21 +49,19 @@ public class NioGroupFactory implements CheckedFunction<String, NioGroup, IOExce
         this.httpWorkerCount = NioTransportPlugin.NIO_HTTP_WORKER_COUNT.get(settings);
     }
 
-    @Override
-    public synchronized NioGroup apply(String name) throws IOException {
-        if (NioTransportPlugin.NIO_TRANSPORT_NAME.equals(name)) {
+    public synchronized NioGroup getTransportGroup() throws IOException {
+        return getGenericGroup();
+    }
+
+    public synchronized NioGroup getHttpGroup() throws IOException {
+        if (httpWorkerCount == 0) {
             return getGenericGroup();
-        } else if (NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME.equals(name)) {
-            if (httpWorkerCount == 0) {
-                return getGenericGroup();
-            } else {
-                return new NioGroup(daemonThreadFactory(this.settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX),
-                    httpWorkerCount, (s) -> new EventHandler(this::onException, s));
-            }
         } else {
-            throw new IllegalArgumentException();
+            return new NioGroup(daemonThreadFactory(this.settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX),
+                httpWorkerCount, (s) -> new EventHandler(this::onException, s));
         }
     }
+
     private NioGroup getGenericGroup() throws IOException {
         if (nioGroup == null) {
             nioGroup = new RefNioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX),

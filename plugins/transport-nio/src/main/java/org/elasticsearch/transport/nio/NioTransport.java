@@ -25,7 +25,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
-import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
@@ -54,20 +52,19 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 public class NioTransport extends TcpTransport {
 
     private static final Logger logger = LogManager.getLogger(NioTransport.class);
 
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
-    private final CheckedFunction<String, NioGroup, IOException> groupFactory;
+    private final NioGroupFactory groupFactory;
     private volatile NioGroup nioGroup;
     private volatile Function<DiscoveryNode, TcpChannelFactory> clientChannelFactory;
 
     protected NioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                           CircuitBreakerService circuitBreakerService, CheckedFunction<String, NioGroup, IOException> groupFactory) {
+                           CircuitBreakerService circuitBreakerService, NioGroupFactory groupFactory) {
         super("nio", settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
         this.groupFactory = groupFactory;
     }
@@ -88,7 +85,7 @@ public class NioTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            nioGroup = groupFactory.apply("");
+            nioGroup = groupFactory.getTransportGroup();
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = clientChannelFactoryFunction(clientProfileSettings);

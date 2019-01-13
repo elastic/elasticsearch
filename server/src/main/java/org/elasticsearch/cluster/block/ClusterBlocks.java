@@ -305,7 +305,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         int totalBlocks = in.readVInt();
         Set<ClusterBlock> blocks = new HashSet<>(totalBlocks);
         for (int i = 0; i < totalBlocks;i++) {
-            blocks.add(ClusterBlock.readClusterBlock(in));
+            blocks.add(new ClusterBlock(in));
         }
         return unmodifiableSet(blocks);
     }

@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -301,6 +302,28 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d", value)));
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Cannot extract value [a.b.c.d.e] from source"));
+    }
+
+    public void testFieldWithDotsAndCommonPrefix() {
+        FieldHitExtractor fe1 = new FieldHitExtractor("a.d", null, false);
+        FieldHitExtractor fe2 = new FieldHitExtractor("a.b.c", null, false);
+        Object value = randomValue();
+        Map<String, Object> map = new HashMap<>();
+        map.put("a", singletonMap("d", value));
+        map.put("a.b", singletonMap("c", value));
+        assertEquals(value, fe1.extractFromSource(map));
+        assertEquals(value, fe2.extractFromSource(map));
+    }
+
+    public void testFieldWithDotsAndCommonPrefixes() {
+        FieldHitExtractor fe1 = new FieldHitExtractor("a1.b.c.d1.e.f.g1", null, false);
+        FieldHitExtractor fe2 = new FieldHitExtractor("a2.b.c.d2.e.f.g2", null, false);
+        Object value = randomValue();
+        Map<String, Object> map = new HashMap<>();
+        map.put("a1", singletonMap("b.c", singletonMap("d1", singletonMap("e.f", singletonMap("g1", value)))));
+        map.put("a2", singletonMap("b.c", singletonMap("d2", singletonMap("e.f", singletonMap("g2", value)))));
+        assertEquals(value, fe1.extractFromSource(map));
+        assertEquals(value, fe2.extractFromSource(map));
     }
 
     private Object randomValue() {

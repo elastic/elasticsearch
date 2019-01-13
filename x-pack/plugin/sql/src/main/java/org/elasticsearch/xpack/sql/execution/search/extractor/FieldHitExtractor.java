@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.StringJoiner;
 
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
@@ -141,40 +142,40 @@ public class FieldHitExtractor implements HitExtractor {
 
     @SuppressWarnings("unchecked")
     Object extractFromSource(Map<String, Object> map) {
-        Object value = map;
-        boolean first = true;
-        // each node is a key inside the map
+        Object value = null;
+
         for (int i = 0; i < path.length; i++) {
-            String node = path[i];
-            if (value == null) {
-                return null;
-            } else if (first || value instanceof Map) {
-                first = false;
-                map = ((Map<String, Object>) value);
-                value = map.get(node);
-                if (value == null) { // Try to extract field with dots (e.g.: "b.c")
-                    StringBuilder sb = new StringBuilder(node);
-                    int j = i + 1;
-                    // Try to find a valid value in the map by tying all the combinations
-                    // remaining from position i until the end of the `path`. e.g.: "b.c", "b.c.d", etc.
-                    while (value == null && j < path.length) {
-                        sb.append(".").append(path[j]);
-                        value = map.get(sb.toString());
-                        j++;
-                    }
-                    if (value != null) {
-                        if (value instanceof Map) {
-                            // If it is a nested object advance `i` to the current index in the `path`.
-                            // e.g.: if the hierarchy is {"a" : { "b.c" : { "d" : "value" }}} then i was
-                            // previously 0 and it becomes 2 since "a" and "b.c" are consumed.
-                            i = j - 1;
-                        } else {
-                            // if it it's a simple value return it
-                            return unwrapMultiValue(value);
-                        }
+            // each node is a key inside the map
+            value = map.get(path[i]);
+
+            // If value is not found or the map has multiple entries with common prefix
+            // (e.g.: <"a","value">, <"a.b", "value">) try to extract field with dots (e.g.: "a.b")
+            if (value == null || map.size() > 1) {
+                StringJoiner sj = new StringJoiner(".");
+                sj.add(path[i]);
+                int valueFoundIdx = i;
+                // Try to find the longest path in the map, e.g.:
+                // for <"a.b", "value">, <"a.b.c", "value">) extract the latter.
+                for (int j = i + 1; j < path.length; j++) {
+                    sj.add(path[j]);
+                    Object v = map.get(sj.toString());
+                    if (v != null) {
+                        value = v;
+                        valueFoundIdx = j;
                     }
                 }
-            } else {
+                // If it is a nested object advance `i` to the current index in the `path`.
+                // e.g.: if the hierarchy is {"a" : { "b.c" : { "d" : "value" }}} then i was
+                // previously 0 and it becomes 2 since "a" and "b.c" are consumed.
+                i = valueFoundIdx;
+                if (value instanceof Map) {
+                    map = (Map<String, Object>) value;
+                }
+            } else if (value instanceof Map) {
+                map = (Map<String, Object>) value;
+            } else if (i < path.length - 1) {
+                // If we reach a concrete value without exhausting the full path, something is wrong with the mapping
+                // e.g.: map is {"a" : { "b" : "value }} and we are looking for a path: "a.b.c.d"
                 throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
             }
         }

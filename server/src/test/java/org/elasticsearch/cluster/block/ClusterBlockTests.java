@@ -56,7 +56,7 @@ public class ClusterBlockTests extends ESTestCase {
 
             StreamInput in = out.bytes().streamInput();
             in.setVersion(version);
-            ClusterBlock result = ClusterBlock.readClusterBlock(in);
+            ClusterBlock result = new ClusterBlock(in);
 
             assertClusterBlockEquals(clusterBlock, result);
         }
@@ -74,7 +74,7 @@ public class ClusterBlockTests extends ESTestCase {
             expected.writeTo(out);
 
             // Deserialize and check the cluster block
-            final ClusterBlock actual = ClusterBlock.readClusterBlock(out.bytes().streamInput());
+            final ClusterBlock actual = new ClusterBlock(out.bytes().streamInput());
             assertClusterBlockEquals(expected, actual);
         }
 
@@ -90,7 +90,7 @@ public class ClusterBlockTests extends ESTestCase {
             // Deserialize and check the cluster block
             final StreamInput in = out.bytes().streamInput();
             in.setVersion(out.getVersion());
-            final ClusterBlock actual = ClusterBlock.readClusterBlock(in);
+            final ClusterBlock actual = new ClusterBlock(in);
 
             assertThat(actual.id(), equalTo(expected.id()));
             assertThat(actual.status(), equalTo(expected.status()));

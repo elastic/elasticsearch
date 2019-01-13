@@ -47,12 +47,12 @@ public class SecurityIndexUpgradeCheck implements UpgradeCheck {
     private static final int INTERNAL_SECURITY_INDEX_FORMAT = 6;
     private static final String INTERNAL_SECURITY_INDEX = ".security-" + INTERNAL_SECURITY_INDEX_FORMAT;
     private static final String NEW_INTERNAL_SECURITY_INDEX = ".security-" + (INTERNAL_SECURITY_INDEX_FORMAT + 1);
-    private static final String NEW_SECURITY_TEMPLATE_NAME = "new-security-index-template";
+    private static final String NEW_SECURITY_TEMPLATE_NAME = "security-index-template-" + (INTERNAL_SECURITY_INDEX_FORMAT + 1);
 
     private static final String SECURITY_TOKENS_ALIAS_NAME = ".security-tokens";
     private static final int INTERNAL_SECURITY_TOKENS_INDEX_FORMAT = 7;
     private static final String INTERNAL_SECURITY_TOKENS_INDEX = ".security-tokens-" + INTERNAL_SECURITY_TOKENS_INDEX_FORMAT;
-    private static final String SECURITY_TOKENS_TEMPLATE_NAME = "security-tokens-index-template";
+    private static final String SECURITY_TOKENS_TEMPLATE_NAME = "security-tokens-index-template-" + INTERNAL_SECURITY_TOKENS_INDEX_FORMAT;
 
     private final String name;
     private final Client client;

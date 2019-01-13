@@ -69,12 +69,12 @@ public class SecurityIndexManager implements ClusterStateListener {
     public static final String SECURITY_ALIAS_NAME = ".security";
     public static final int INTERNAL_SECURITY_INDEX_FORMAT = 6;
     public static final String INTERNAL_SECURITY_INDEX = ".security-" + INTERNAL_SECURITY_INDEX_FORMAT;
-    public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
+    public static final String SECURITY_TEMPLATE_NAME = "security-index-template-" + INTERNAL_SECURITY_INDEX_FORMAT;
 
     public static final String SECURITY_TOKENS_ALIAS_NAME = ".security-tokens";
     public static final int INTERNAL_SECURITY_TOKENS_INDEX_FORMAT = 7;
     public static final String INTERNAL_SECURITY_TOKENS_INDEX = ".security-tokens-" + INTERNAL_SECURITY_TOKENS_INDEX_FORMAT;
-    public static final String SECURITY_TOKENS_TEMPLATE_NAME = "security-tokens-index-template";
+    public static final String SECURITY_TOKENS_TEMPLATE_NAME = "security-tokens-index-template-" + INTERNAL_SECURITY_TOKENS_INDEX_FORMAT;
 
     public static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");

@@ -28,6 +28,7 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -40,7 +41,7 @@ public class NioGroupFactoryTests extends ESTestCase {
     public void testSharedGroupStillWorksWhenOneInstanceClosed() throws IOException {
         groupFactory = new NioGroupFactory(Settings.EMPTY, logger);
 
-        InetSocketAddress inetSocketAddress = new InetSocketAddress(0);
+        InetSocketAddress inetSocketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
         SharedNioGroup httpGroup = groupFactory.getHttpGroup();
         try {
             SharedNioGroup transportGroup = groupFactory.getTransportGroup();

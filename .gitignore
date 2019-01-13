@@ -1,43 +1,26 @@
-
-# intellij files
-.idea/
-*.iml
-*.ipr
-*.iws
-build-idea/
-
-# eclipse files
-.project
-.classpath
-.settings
-build-eclipse/
-
-# netbeans files
-nb-configuration.xml
-nbactions.xml
-
-# gradle stuff
-.gradle/
-build/
-
-# vscode stuff
-.vscode/
-
-# testing stuff
-**/.local*
-.vagrant/
-/logs/
-
-# osx stuff
+src/*.exe
+src/elasticmasternode
+src/elasticmasternoded
+src/test_elasticmasternode
+src/build.h
+.*.swp
+*.*~*
+*.bak
+*.rej
+*.orig
+*.o
+*.patch
+.elasticmasternode
+#compilation and Qt preprocessor part
+*.qm
+Makefile
+elasticmasternode-qt
+#resources cpp
+qrc_*.cpp
+#qt creator
+*.pro.user
+#mac specific
 .DS_Store
+build
 
-# default folders in which the create_bwc_index.py expects to find old es versions in
-/backwards
-/dev-tools/backwards
-
-# needed in case docs build is run...maybe we can configure doc build to generate files under build?
-html_docs
-
-# random old stuff that we should look at the necessity of...
-/tmp/
-eclipse-build
+!src/leveldb/Makefile

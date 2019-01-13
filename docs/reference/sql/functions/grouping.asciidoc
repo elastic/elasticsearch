@@ -50,7 +50,7 @@ or date/time fields:
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[histogramDate]
+include-tagged::{sql-specs}/docs.csv-spec[histogramDateTime]
 ----
 
 Expressions inside the histogram are also supported as long as the
@@ -74,5 +74,5 @@ Instead one can rewrite the query to move the expression on the histogram _insid
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[histogramDateExpression]
+include-tagged::{sql-specs}/docs.csv-spec[histogramDateTimeExpression]
 ----

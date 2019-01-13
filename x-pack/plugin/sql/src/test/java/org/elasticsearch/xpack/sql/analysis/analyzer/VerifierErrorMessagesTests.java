@@ -372,72 +372,72 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT * FROM test WHERE int = 1 OR text IN (1, 2)"));
     }
 
-    public void testNotSupportedAggregateOnDate() {
-        assertEquals("1:8: [AVG(date)] argument must be [numeric], found value [date] type [date]",
+    public void testNotSupportedAggregateOnDateTime() {
+        assertEquals("1:8: [AVG(date)] argument must be [NUMERIC], found value [date] type [DATETIME]",
             error("SELECT AVG(date) FROM test"));
     }
 
     public void testNotSupportedAggregateOnString() {
-        assertEquals("1:8: [MAX(keyword)] argument must be [numeric or date], found value [keyword] type [keyword]",
+        assertEquals("1:8: [MAX(keyword)] argument must be [NUMERIC or DATETIME], found value [keyword] type [KEYWORD]",
             error("SELECT MAX(keyword) FROM test"));
     }
 
     public void testInvalidTypeForStringFunction_WithOneArg() {
-        assertEquals("1:8: [LENGTH] argument must be [string], found value [1] type [integer]",
+        assertEquals("1:8: [LENGTH] argument must be [STRING], found value [1] type [INTEGER]",
             error("SELECT LENGTH(1)"));
     }
 
     public void testInvalidTypeForNumericFunction_WithOneArg() {
-        assertEquals("1:8: [COS] argument must be [numeric], found value ['foo'] type [keyword]",
+        assertEquals("1:8: [COS] argument must be [NUMERIC], found value ['foo'] type [KEYWORD]",
             error("SELECT COS('foo')"));
     }
 
     public void testInvalidTypeForBooleanFunction_WithOneArg() {
-        assertEquals("1:8: [NOT 'foo'] argument must be [boolean], found value ['foo'] type [keyword]",
+        assertEquals("1:8: [NOT 'foo'] argument must be [BOOLEAN], found value ['foo'] type [KEYWORD]",
             error("SELECT NOT 'foo'"));
     }
 
     public void testInvalidTypeForStringFunction_WithTwoArgs() {
-        assertEquals("1:8: [CONCAT(1, 'bar')] first argument must be [string], found value [1] type [integer]",
+        assertEquals("1:8: [CONCAT(1, 'bar')] first argument must be [STRING], found value [1] type [INTEGER]",
             error("SELECT CONCAT(1, 'bar')"));
-        assertEquals("1:8: [CONCAT('foo', 2)] second argument must be [string], found value [2] type [integer]",
+        assertEquals("1:8: [CONCAT('foo', 2)] second argument must be [STRING], found value [2] type [INTEGER]",
             error("SELECT CONCAT('foo', 2)"));
     }
 
     public void testInvalidTypeForNumericFunction_WithTwoArgs() {
-        assertEquals("1:8: [TRUNCATE('foo', 2)] first argument must be [numeric], found value ['foo'] type [keyword]",
+        assertEquals("1:8: [TRUNCATE('foo', 2)] first argument must be [NUMERIC], found value ['foo'] type [KEYWORD]",
             error("SELECT TRUNCATE('foo', 2)"));
-        assertEquals("1:8: [TRUNCATE(1.2, 'bar')] second argument must be [numeric], found value ['bar'] type [keyword]",
+        assertEquals("1:8: [TRUNCATE(1.2, 'bar')] second argument must be [NUMERIC], found value ['bar'] type [KEYWORD]",
             error("SELECT TRUNCATE(1.2, 'bar')"));
     }
 
     public void testInvalidTypeForBooleanFuntion_WithTwoArgs() {
-        assertEquals("1:8: [1 OR true] first argument must be [boolean], found value [1] type [integer]",
+        assertEquals("1:8: [1 OR true] first argument must be [BOOLEAN], found value [1] type [INTEGER]",
             error("SELECT 1 OR true"));
-        assertEquals("1:8: [true OR 2] second argument must be [boolean], found value [2] type [integer]",
+        assertEquals("1:8: [true OR 2] second argument must be [BOOLEAN], found value [2] type [INTEGER]",
             error("SELECT true OR 2"));
     }
 
     public void testInvalidTypeForFunction_WithThreeArgs() {
-        assertEquals("1:8: [REPLACE(1, 'foo', 'bar')] first argument must be [string], found value [1] type [integer]",
+        assertEquals("1:8: [REPLACE(1, 'foo', 'bar')] first argument must be [STRING], found value [1] type [INTEGER]",
             error("SELECT REPLACE(1, 'foo', 'bar')"));
-        assertEquals("1:8: [REPLACE('text', 2, 'bar')] second argument must be [string], found value [2] type [integer]",
+        assertEquals("1:8: [REPLACE('text', 2, 'bar')] second argument must be [STRING], found value [2] type [INTEGER]",
             error("SELECT REPLACE('text', 2, 'bar')"));
-        assertEquals("1:8: [REPLACE('text', 'foo', 3)] third argument must be [string], found value [3] type [integer]",
+        assertEquals("1:8: [REPLACE('text', 'foo', 3)] third argument must be [STRING], found value [3] type [INTEGER]",
             error("SELECT REPLACE('text', 'foo', 3)"));
     }
 
     public void testInvalidTypeForFunction_WithFourArgs() {
-        assertEquals("1:8: [INSERT(1, 1, 2, 'new')] first argument must be [string], found value [1] type [integer]",
+        assertEquals("1:8: [INSERT(1, 1, 2, 'new')] first argument must be [STRING], found value [1] type [INTEGER]",
             error("SELECT INSERT(1, 1, 2, 'new')"));
-        assertEquals("1:8: [INSERT('text', 'foo', 2, 'new')] second argument must be [numeric], found value ['foo'] type [keyword]",
+        assertEquals("1:8: [INSERT('text', 'foo', 2, 'new')] second argument must be [NUMERIC], found value ['foo'] type [KEYWORD]",
             error("SELECT INSERT('text', 'foo', 2, 'new')"));
-        assertEquals("1:8: [INSERT('text', 1, 'bar', 'new')] third argument must be [numeric], found value ['bar'] type [keyword]",
+        assertEquals("1:8: [INSERT('text', 1, 'bar', 'new')] third argument must be [NUMERIC], found value ['bar'] type [KEYWORD]",
             error("SELECT INSERT('text', 1, 'bar', 'new')"));
-        assertEquals("1:8: [INSERT('text', 1, 2, 3)] fourth argument must be [string], found value [3] type [integer]",
+        assertEquals("1:8: [INSERT('text', 1, 2, 3)] fourth argument must be [STRING], found value [3] type [INTEGER]",
             error("SELECT INSERT('text', 1, 2, 3)"));
     }
-    
+
     public void testAllowCorrectFieldsInIncompatibleMappings() {
         assertNotNull(incompatibleAccept("SELECT languages FROM \"*\""));
     }
@@ -510,14 +510,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testHistogramInFilter() {
         assertEquals("1:63: Cannot filter on grouping function [HISTOGRAM(date, INTERVAL 1 MONTH)], use its argument instead",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test WHERE "
-                        + "HISTOGRAM(date, INTERVAL 1 MONTH) > CAST('2000-01-01' AS DATE) GROUP BY h"));
+                        + "HISTOGRAM(date, INTERVAL 1 MONTH) > CAST('2000-01-01' AS DATETIME) GROUP BY h"));
     }
 
     // related https://github.com/elastic/elasticsearch/issues/36853
     public void testHistogramInHaving() {
         assertEquals("1:75: Cannot filter on grouping function [h], use its argument instead",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test GROUP BY h HAVING "
-                        + "h > CAST('2000-01-01' AS DATE)"));
+                        + "h > CAST('2000-01-01' AS DATETIME)"));
     }
 
     public void testGroupByScalarOnTopOfGrouping() {

@@ -8,18 +8,18 @@ DESCRIBE test_emp;
 
        column       |     type      |    mapping    
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |DATE           
+birth_date          |TIMESTAMP      |DATETIME
 dep                 |STRUCT         |NESTED         
 dep.dep_id          |VARCHAR        |KEYWORD        
 dep.dep_name        |VARCHAR        |TEXT           
 dep.dep_name.keyword|VARCHAR        |KEYWORD        
-dep.from_date       |TIMESTAMP      |DATE           
-dep.to_date         |TIMESTAMP      |DATE           
+dep.from_date       |TIMESTAMP      |DATETIME
+dep.to_date         |TIMESTAMP      |DATETIME
 emp_no              |INTEGER        |INTEGER        
 first_name          |VARCHAR        |TEXT           
 first_name.keyword  |VARCHAR        |KEYWORD        
 gender              |VARCHAR        |KEYWORD        
-hire_date           |TIMESTAMP      |DATE           
+hire_date           |TIMESTAMP      |DATETIME
 languages           |TINYINT        |BYTE           
 last_name           |VARCHAR        |TEXT           
 last_name.keyword   |VARCHAR        |KEYWORD        

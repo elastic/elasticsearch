@@ -41,8 +41,8 @@ public class TypeConverterTests extends ESTestCase {
 
     public void testTimestampAsNative() throws Exception {
         DateTime now = DateTime.now();
-        assertThat(convertAsNative(now, EsType.DATE), instanceOf(Timestamp.class));
-        assertEquals(now.getMillis(), ((Timestamp) convertAsNative(now, EsType.DATE)).getTime());
+        assertThat(convertAsNative(now, EsType.DATETIME), instanceOf(Timestamp.class));
+        assertEquals(now.getMillis(), ((Timestamp) convertAsNative(now, EsType.DATETIME)).getTime());
     }
 
     private Object convertAsNative(Object value, EsType type) throws Exception {

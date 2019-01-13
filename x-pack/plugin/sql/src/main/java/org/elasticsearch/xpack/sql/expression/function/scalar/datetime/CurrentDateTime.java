@@ -21,7 +21,7 @@ public class CurrentDateTime extends ConfigurationFunction {
     private final ZonedDateTime dateTime;
 
     public CurrentDateTime(Source source, Expression precision, Configuration configuration) {
-        super(source, configuration, DataType.DATE);
+        super(source, configuration, DataType.DATETIME);
         this.precision = precision;
         int p = precision != null ? ((Number) precision.fold()).intValue() : 0;
         this.dateTime = nanoPrecision(configuration().now(), p);

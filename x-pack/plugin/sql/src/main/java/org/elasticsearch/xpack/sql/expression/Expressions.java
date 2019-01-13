@@ -155,27 +155,27 @@ public final class Expressions {
     }
 
     public static TypeResolution typeMustBeBoolean(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt == DataType.BOOLEAN, operationName, paramOrd, "boolean");
+        return typeMustBe(e, dt -> dt == DataType.BOOLEAN, operationName, paramOrd, "BOOLEAN");
     }
 
     public static TypeResolution typeMustBeInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isInteger, operationName, paramOrd, "integer");
+        return typeMustBe(e, DataType::isInteger, operationName, paramOrd, "INTEGER");
     }
 
     public static TypeResolution typeMustBeNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isNumeric, operationName, paramOrd, "numeric");
+        return typeMustBe(e, DataType::isNumeric, operationName, paramOrd, "NUMERIC");
     }
 
     public static TypeResolution typeMustBeString(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isString, operationName, paramOrd, "string");
+        return typeMustBe(e, DataType::isString, operationName, paramOrd, "STRING");
     }
 
     public static TypeResolution typeMustBeDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt == DataType.DATE, operationName, paramOrd, "date");
+        return typeMustBe(e, dt -> dt == DataType.DATETIME, operationName, paramOrd, "DATETIME");
     }
 
     public static TypeResolution typeMustBeNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt.isNumeric() || dt == DataType.DATE, operationName, paramOrd, "numeric", "date");
+        return typeMustBe(e, dt -> dt.isNumeric() || dt == DataType.DATETIME, operationName, paramOrd, "NUMERIC", "DATETIME");
     }
 
     public static TypeResolution typeMustBe(Expression e,
@@ -190,6 +190,6 @@ public final class Expressions {
                     paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
                     Strings.arrayToDelimitedString(acceptedTypes, " or "),
                     Expressions.name(e),
-                    e.dataType().esType));
+                    e.dataType().esType.toUpperCase(Locale.ROOT)));
     }
 }

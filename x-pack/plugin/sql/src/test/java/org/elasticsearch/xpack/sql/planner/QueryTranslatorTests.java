@@ -170,7 +170,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRangeCast() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATE)");
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATETIME)");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
@@ -480,7 +480,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("+2-0", h.interval().fold().toString());
         Expression field = h.field();
         assertEquals(FieldAttribute.class, field.getClass());
-        assertEquals(DataType.DATE, field.dataType());
+        assertEquals(DataType.DATETIME, field.dataType());
     }
     
     public void testCountAndCountDistinctFolding() {

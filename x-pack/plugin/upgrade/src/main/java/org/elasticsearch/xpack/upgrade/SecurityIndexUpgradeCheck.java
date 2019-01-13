@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.upgrade;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -95,12 +96,25 @@ public class SecurityIndexUpgradeCheck implements UpgradeCheck {
     }
 
     /**
-     * Perform the index upgrade
+     * Perform the security index upgrade. The `.security-6` index is reindexed into `.security-tokens-7` and `.security-7`. The two reindex
+     * operations are issued sequentially, firstly the reindex from `.security-6` into `.security-tokens-7` of all token documents and then,
+     * secondly, from `.security-6` into `.security-7` of all non-token documents (roles, users, etc). During this, the `.security-6` is
+     * marked read-only, and thereafter it is removed. For this reason, tokens cannot be created/invalidated/refreshed (but can be used) in
+     * the span of time of the first reindex operation. Passwords, roles and role mappings cannot be changed during the whole upgrade
+     * operation. Normally, token docs are more write intensive compared with the other docs in the `.security-6` index, and this strategy
+     * aims to minimize the window of time during which certain token operations are unavailable. In case of any unexpected failure in this
+     * flow no other rectifying action is taken, besides toggling back the read-write flag on `.security-6` - manual intervention is
+     * required in case of failure, the upgrade cannot be simply rerun.
      *
-     * @param task          the task that executes the upgrade operation
-     * @param indexMetaData index metadata
-     * @param state         current cluster state
-     * @param listener      the listener that should be called upon completion of the upgrade
+     * @param task
+     *            the task that executes the upgrade operation
+     * @param indexMetaData
+     *            index metadata of the `.security-6` index
+     * @param state
+     *            current cluster state
+     * @param listener
+     *            The listener that should be called upon completion of the upgrade. The listener's response will be populated with the
+     *            results of the two reindex operations.
      */
     @Override
     public void upgrade(TaskId task, IndexMetaData indexMetaData, ClusterState state, ActionListener<BulkByScrollResponse> listener) {
@@ -109,52 +123,64 @@ public class SecurityIndexUpgradeCheck implements UpgradeCheck {
         // invalidated-token docs are abandoned as they are not used anymore
         final BoolQueryBuilder nonTokensQuery = QueryBuilders.boolQuery().filter(QueryBuilders.boolQuery()
                 .mustNot(QueryBuilders.termQuery("doc_type", "token")).mustNot(QueryBuilders.termQuery("doc_type", "invalidated-token")));
-        final Consumer<Exception> removeReadOnlyBlock = e ->
-            removeReadOnlyBlock(parentAwareClient, INTERNAL_SECURITY_INDEX, ActionListener.wrap(unsetReadOnlyResponse -> {
-                listener.onFailure(e);
-            }, e1 -> {
-                e.addSuppressed(e1);
-                listener.onFailure(e);
-            }));
+        // in case of failure, make sure we don't forget to restore the .security-6 to read-write
+        final Consumer<Exception> removeReadOnlyBlock = e -> removeReadOnlyBlock(parentAwareClient, INTERNAL_SECURITY_INDEX,
+                ActionListener.wrap(unsetReadOnlyResponse -> {
+                    listener.onFailure(e);
+                }, e1 -> {
+                    e.addSuppressed(e1);
+                    listener.onFailure(e);
+                }));
+
         // check all nodes can handle the new index format
-        checkMasterAndDataNodeVersion(state);
-        // create the two new indices, but without their corresponding aliases
-        createNewSecurityIndices(parentAwareClient, ActionListener.wrap(createIndicesResponse -> {
-            // set a read-only block on the original .security-6 index
-            setReadOnlyBlock(INTERNAL_SECURITY_INDEX, ActionListener.wrap(setReadOnlyResponse -> {
-                // firstly, reindex all the tokens to the new tokens index
-                reindex(parentAwareClient, INTERNAL_SECURITY_INDEX, INTERNAL_SECURITY_TOKENS_INDEX, tokensQuery,
-                        ActionListener.wrap(reindexTokensResponse -> {
-                            // create the alias pointing to the new tokens index; now the new tokens index is writable anew
-                            parentAwareClient.admin().indices().prepareAliases()
-                                    .addAlias(INTERNAL_SECURITY_TOKENS_INDEX, SECURITY_TOKENS_ALIAS_NAME)
-                                    .execute(ActionListener.wrap(tokensAliasResponse -> {
-                                        // now reindex all the other non-token security objects to the new .security-7 index
-                                        reindex(parentAwareClient, INTERNAL_SECURITY_INDEX, NEW_INTERNAL_SECURITY_INDEX, nonTokensQuery,
-                                                ActionListener.wrap(reindexNonTokensResponse -> {
-                                                    // move the .security alias to the new index, and remove the old .security-6 index
-                                                    parentAwareClient.admin().indices().prepareAliases()
-                                                            .addAlias(NEW_INTERNAL_SECURITY_INDEX, SECURITY_ALIAS_NAME)
-                                                            .removeIndex(INTERNAL_SECURITY_INDEX)
-                                                            .execute(ActionListener.wrap(aliasResponse -> {
-                                                                // merge both reindex responses to return to the action listener
-                                                                listener.onResponse(new BulkByScrollResponse(
-                                                                        Arrays.asList(reindexTokensResponse, reindexNonTokensResponse), null));
-                                                            }, removeReadOnlyBlock));
-                                                }, removeReadOnlyBlock));
-                                    }, removeReadOnlyBlock));
-                        }, removeReadOnlyBlock));
-            }, listener::onFailure));
-        }, listener::onFailure));
-    }
-
-    private void checkMasterAndDataNodeVersion(ClusterState clusterState) {
-        if (clusterState.nodes().getMinNodeVersion().before(Upgrade.UPGRADE_INTRODUCED)) {
-            throw new IllegalStateException("All nodes should have at least version [" + Upgrade.UPGRADE_INTRODUCED + "] to upgrade");
+        if (state.nodes().getMinNodeVersion().before(Upgrade.UPGRADE_INTRODUCED)) {
+            listener.onFailure(
+                    new IllegalStateException("All nodes should have at least version [" + Upgrade.UPGRADE_INTRODUCED + "] to upgrade"));
         }
+
+        // create the two new .security-* indices, but without their corresponding aliases
+        final StepListener<AcknowledgedResponse> createNewSecurityIndicesStep = createNewSecurityIndices(parentAwareClient);
+
+        final StepListener<TransportResponse.Empty> setReadOnlyStep = new StepListener<>();
+        createNewSecurityIndicesStep.whenComplete(createIndicesResponse -> {
+            // set a read-only block on the original .security-6 index
+            setReadOnlyBlock(INTERNAL_SECURITY_INDEX, setReadOnlyStep);
+        }, listener::onFailure);
+
+        final StepListener<BulkByScrollResponse> reindexTokensStep = new StepListener<>();
+        setReadOnlyStep.whenComplete(setReadOnlyResponse -> {
+            // firstly, reindex all the tokens to the new tokens index
+            reindex(parentAwareClient, INTERNAL_SECURITY_INDEX, INTERNAL_SECURITY_TOKENS_INDEX, tokensQuery, reindexTokensStep);
+        }, listener::onFailure);
+
+        final StepListener<AcknowledgedResponse> createTokensAliasStep = new StepListener<>();
+        reindexTokensStep.whenComplete(reindexTokensResponse -> {
+            // then, create the alias .security-tokens pointing to the new tokens index; now the new tokens index/alias is writable anew
+            parentAwareClient.admin().indices().prepareAliases().addAlias(INTERNAL_SECURITY_TOKENS_INDEX, SECURITY_TOKENS_ALIAS_NAME)
+                    .execute(createTokensAliasStep);
+        }, removeReadOnlyBlock);
+
+        final StepListener<BulkByScrollResponse> reindexNonTokensStep = new StepListener<>();
+        createTokensAliasStep.whenComplete(tokensAliasResponse -> {
+            // now reindex all the other non-token security objects to the new .security-7 index
+            reindex(parentAwareClient, INTERNAL_SECURITY_INDEX, NEW_INTERNAL_SECURITY_INDEX, nonTokensQuery, reindexNonTokensStep);
+        }, removeReadOnlyBlock);
+
+        final StepListener<AcknowledgedResponse> createNonTokensAliasStep = new StepListener<>();
+        reindexNonTokensStep.whenComplete(reindexNonTokensResponse -> {
+            // move the .security alias to the new .security-7 index, and remove the old .security-6 index
+            parentAwareClient.admin().indices().prepareAliases().addAlias(NEW_INTERNAL_SECURITY_INDEX, SECURITY_ALIAS_NAME)
+                    .removeIndex(INTERNAL_SECURITY_INDEX).execute(createNonTokensAliasStep);
+        }, removeReadOnlyBlock);
+
+        createNonTokensAliasStep.whenComplete(aliasResponse -> {
+            // merge both reindex responses to return to the action listener
+            listener.onResponse(new BulkByScrollResponse(Arrays.asList(reindexTokensStep.result(), reindexNonTokensStep.result()), null));
+        }, removeReadOnlyBlock);
     }
 
-    private void createNewSecurityIndices(ParentTaskAssigningClient parentAwareClient, ActionListener<AcknowledgedResponse> listener) {
+    private StepListener<AcknowledgedResponse> createNewSecurityIndices(ParentTaskAssigningClient parentAwareClient) {
+        final StepListener<AcknowledgedResponse> createNewSecurityIndicesStep = new StepListener<>();
         final Tuple<String, Settings> tokensMappingAndSettings = loadMappingAndSettingsSourceFromTemplate(SECURITY_TOKENS_TEMPLATE_NAME);
         parentAwareClient.admin().indices().prepareCreate(INTERNAL_SECURITY_TOKENS_INDEX)
             .addMapping("doc", tokensMappingAndSettings.v1(), XContentType.JSON)
@@ -167,9 +193,10 @@ public class SecurityIndexUpgradeCheck implements UpgradeCheck {
                 .setSettings(objMappingAndSettings.v2())
                 .setWaitForActiveShards(ActiveShardCount.ALL)
                 .execute(ActionListener.wrap(createObjIndexResponse -> {
-                    listener.onResponse(new AcknowledgedResponse(true));
-                }, listener::onFailure));
-            }, listener::onFailure));
+                    createNewSecurityIndicesStep.onResponse(new AcknowledgedResponse(true));
+                }, createNewSecurityIndicesStep::onFailure));
+            }, createNewSecurityIndicesStep::onFailure));
+        return createNewSecurityIndicesStep;
     }
 
     private Tuple<String, Settings> loadMappingAndSettingsSourceFromTemplate(String templateName) {

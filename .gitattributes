@@ -1,1 +1,1 @@
-CHANGELOG.asciidoc  merge=union
+src/version.cpp export-subst

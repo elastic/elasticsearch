@@ -1,0 +1,9 @@
+Building ElasticMasterNode
+
+See doc/readme-qt.rst for instructions on building ElasticMasterNode QT,
+the intended-for-end-users, nice-graphical-interface, reference
+implementation of ElasticMasterNode.
+
+See doc/build-*.txt for instructions on building elasticmasternoded,
+the intended-for-services, no-graphical-interface, reference
+implementation of ElasticMasterNode.

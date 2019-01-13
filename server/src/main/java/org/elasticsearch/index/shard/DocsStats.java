@@ -23,20 +23,31 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.store.StoreStats;
 
 import java.io.IOException;
 
-public class DocsStats implements Streamable, ToXContentFragment {
+public class DocsStats implements Streamable, Writeable, ToXContentFragment {
 
-    long count = 0;
-    long deleted = 0;
-    long totalSizeInBytes = 0;
+    private long count = 0;
+    private long deleted = 0;
+    private long totalSizeInBytes = 0;
 
     public DocsStats() {
 
+    }
+
+    public DocsStats(StreamInput in) throws IOException {
+        count = in.readVLong();
+        deleted = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            totalSizeInBytes = in.readVLong();
+        } else {
+            totalSizeInBytes = -1;
+        }
     }
 
     public DocsStats(long count, long deleted, long totalSizeInBytes) {
@@ -84,13 +95,7 @@ public class DocsStats implements Streamable, ToXContentFragment {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        count = in.readVLong();
-        deleted = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            totalSizeInBytes = in.readVLong();
-        } else {
-            totalSizeInBytes = -1;
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

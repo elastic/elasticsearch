@@ -23,13 +23,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class FlushStats implements Streamable, ToXContentFragment {
+public class FlushStats implements Streamable, Writeable, ToXContentFragment {
 
     private long total;
     private long periodic;
@@ -37,6 +38,14 @@ public class FlushStats implements Streamable, ToXContentFragment {
 
     public FlushStats() {
 
+    }
+
+    public FlushStats(StreamInput in) throws IOException {
+        total = in.readVLong();
+        totalTimeInMillis = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            periodic = in.readVLong();
+        }
     }
 
     public FlushStats(long total, long periodic, long totalTimeInMillis) {
@@ -112,11 +121,7 @@ public class FlushStats implements Streamable, ToXContentFragment {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        total = in.readVLong();
-        totalTimeInMillis = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            periodic = in.readVLong();
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -41,6 +41,12 @@ public class RecoveryRequest extends BroadcastRequest<RecoveryRequest> {
         this(Strings.EMPTY_ARRAY);
     }
 
+    public RecoveryRequest(StreamInput in) throws IOException {
+        super(in);
+        detailed = in.readBoolean();
+        activeOnly = in.readBoolean();
+    }
+
     /**
      * Constructs a request for recovery information for all shards for the given indices
      *
@@ -97,8 +103,6 @@ public class RecoveryRequest extends BroadcastRequest<RecoveryRequest> {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        detailed = in.readBoolean();
-        activeOnly = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

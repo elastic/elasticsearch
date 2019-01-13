@@ -684,9 +684,9 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final LongConsumer onUpdate = updatedGlobalCheckpoint -> {};
         final long globalCheckpoint = UNASSIGNED_SEQ_NO;
         ReplicationTracker oldPrimary = new ReplicationTracker(
-                        shardId, primaryAllocationId.getId(), indexSettings, globalCheckpoint, onUpdate, () -> 0L);
+                        shardId, primaryAllocationId.getId(), indexSettings, globalCheckpoint, onUpdate, () -> 0L, leases -> {});
         ReplicationTracker newPrimary = new ReplicationTracker(
-                shardId, primaryAllocationId.getRelocationId(), indexSettings, globalCheckpoint, onUpdate, () -> 0L);
+                shardId, primaryAllocationId.getRelocationId(), indexSettings, globalCheckpoint, onUpdate, () -> 0L, leases -> {});
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
 

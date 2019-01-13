@@ -652,7 +652,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (maybeGlobalCheckpointSupplier == null) {
             assert maybeRetentionLeasesSupplier == null;
             final ReplicationTracker replicationTracker = new ReplicationTracker(
-                    shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED, update -> {}, () -> 0L);
+                    shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED, update -> {}, () -> 0L, leases -> {});
             globalCheckpointSupplier = replicationTracker;
             retentionLeasesSupplier = replicationTracker::getRetentionLeases;
         } else {

@@ -249,24 +249,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
 
     public IndexShard(
-            ShardRouting shardRouting,
-            IndexSettings indexSettings,
-            ShardPath path,
-            Store store,
-            Supplier<Sort> indexSortSupplier,
-            IndexCache indexCache,
-            MapperService mapperService,
-            SimilarityService similarityService,
-            @Nullable EngineFactory engineFactory,
-            IndexEventListener indexEventListener,
-            IndexSearcherWrapper indexSearcherWrapper,
-            ThreadPool threadPool,
-            BigArrays bigArrays,
-            Engine.Warmer warmer,
-            List<SearchOperationListener> searchOperationListener,
-            List<IndexingOperationListener> listeners,
-            Runnable globalCheckpointSyncer,
-            CircuitBreakerService circuitBreakerService) throws IOException {
+            final ShardRouting shardRouting,
+            final IndexSettings indexSettings,
+            final ShardPath path,
+            final Store store,
+            final Supplier<Sort> indexSortSupplier,
+            final IndexCache indexCache,
+            final MapperService mapperService,
+            final SimilarityService similarityService,
+            final @Nullable EngineFactory engineFactory,
+            final IndexEventListener indexEventListener,
+            final IndexSearcherWrapper indexSearcherWrapper,
+            final ThreadPool threadPool,
+            final BigArrays bigArrays,
+            final Engine.Warmer warmer,
+            final List<SearchOperationListener> searchOperationListener,
+            final List<IndexingOperationListener> listeners,
+            final Runnable globalCheckpointSyncer,
+            final Consumer<Collection<RetentionLease>> retentionLeaseSyncer,
+            final CircuitBreakerService circuitBreakerService) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -313,7 +314,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         indexSettings,
                         UNASSIGNED_SEQ_NO,
                         globalCheckpointListeners::globalCheckpointUpdated,
-                        threadPool::absoluteTimeInMillis);
+                        threadPool::absoluteTimeInMillis,
+                        retentionLeaseSyncer);
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -1881,6 +1883,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.globalCheckpointListeners.add(waitingForGlobalCheckpoint, listener, timeout);
     }
 
+    /**
+     * Get all non-expired retention leases tracked on this shard. An unmodifiable copy of the retention leases is returned.
+     *
+     * @return the retention leases
+     */
+    public Collection<RetentionLease> getRetentionLeases() {
+        verifyNotClosed();
+        return replicationTracker.getRetentionLeases();
+    }
 
     /**
      * Adds a new or updates an existing retention lease.
@@ -1888,11 +1899,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param id                      the identifier of the retention lease
      * @param retainingSequenceNumber the retaining sequence number
      * @param source                  the source of the retention lease
+     *
+     * @return the new or updated retention lease
      */
-    void addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+    public RetentionLease addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert assertPrimaryMode();
         verifyNotClosed();
-        replicationTracker.addOrUpdateRetentionLease(id, retainingSequenceNumber, source);
+        return replicationTracker.addOrUpdateRetentionLease(id, retainingSequenceNumber, source);
+    }
+
+    /**
+     * Updates retention leases on a replica.
+     *
+     * @param retentionLeases the retention leases
+     */
+    public void updateRetentionLeasesOnReplica(final Collection<RetentionLease> retentionLeases) {
+        assert assertReplicationTarget();
+        verifyNotClosed();
+        replicationTracker.updateRetentionLeasesOnReplica(retentionLeases);
     }
 
     /**

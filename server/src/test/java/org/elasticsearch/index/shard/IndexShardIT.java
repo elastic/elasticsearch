@@ -641,12 +641,26 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public static final IndexShard newIndexShard(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper,
                                                  CircuitBreakerService cbs, IndexingOperationListener... listeners) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
-        IndexShard newShard = new IndexShard(initializingShardRouting, indexService.getIndexSettings(), shard.shardPath(),
-            shard.store(), indexService.getIndexSortSupplier(), indexService.cache(), indexService.mapperService(),
-            indexService.similarityService(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
-            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners),
-            () -> {}, cbs);
-        return newShard;
+        return new IndexShard(
+                initializingShardRouting,
+                indexService.getIndexSettings(),
+                shard.shardPath(),
+                shard.store(),
+                indexService.getIndexSortSupplier(),
+                indexService.cache(),
+                indexService.mapperService(),
+                indexService.similarityService(),
+                shard.getEngineFactory(),
+                indexService.getIndexEventListener(),
+                wrapper,
+                indexService.getThreadPool(),
+                indexService.getBigArrays(),
+                null,
+                Collections.emptyList(),
+                Arrays.asList(listeners),
+                () -> {},
+                leases -> {},
+                cbs);
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {

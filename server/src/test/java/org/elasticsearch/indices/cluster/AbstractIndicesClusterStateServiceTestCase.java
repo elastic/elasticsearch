@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -47,6 +48,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -226,12 +228,15 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public MockIndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState,
-                                          PeerRecoveryTargetService recoveryTargetService,
-                                          PeerRecoveryTargetService.RecoveryListener recoveryListener,
-                                          RepositoriesService repositoriesService,
-                                          Consumer<IndexShard.ShardFailure> onShardFailure,
-                                          Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+        public MockIndexShard createShard(
+                final ShardRouting shardRouting,
+                final RecoveryState recoveryState,
+                final PeerRecoveryTargetService recoveryTargetService,
+                final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+                final RepositoriesService repositoriesService,
+                final Consumer<IndexShard.ShardFailure> onShardFailure,
+                final Consumer<ShardId> globalCheckpointSyncer,
+                final BiConsumer<ShardId, Collection<RetentionLease>> retentionLeaseSyncer) throws IOException {
             failRandomly();
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);

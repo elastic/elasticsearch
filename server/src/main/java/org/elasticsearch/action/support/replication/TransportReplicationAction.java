@@ -480,7 +480,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+    public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
             Response extends ReplicationResponse>
             implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
         final ReplicaRequest replicaRequest;
@@ -525,7 +525,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected static class ReplicaResult {
+    public static class ReplicaResult {
         final Exception finalFailure;
 
         public ReplicaResult(Exception finalFailure) {

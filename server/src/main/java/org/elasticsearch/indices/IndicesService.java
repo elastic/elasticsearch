@@ -94,6 +94,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -138,6 +139,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -586,13 +588,19 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @Override
-    public IndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
-                                  PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                                  Consumer<IndexShard.ShardFailure> onShardFailure,
-                                  Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+    public IndexShard createShard(
+            final ShardRouting shardRouting,
+            final RecoveryState recoveryState,
+            final PeerRecoveryTargetService recoveryTargetService,
+            final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            final RepositoriesService repositoriesService,
+            final Consumer<IndexShard.ShardFailure> onShardFailure,
+            final Consumer<ShardId> globalCheckpointSyncer,
+            final BiConsumer<ShardId, Collection<RetentionLease>> retentionLeaseSyncer) throws IOException {
+        Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer);
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService,
             (type, mapping) -> {

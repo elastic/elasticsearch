@@ -1127,8 +1127,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
-         // TODO: Can the settings change?
          if (groupFactory.get() != null) {
+             assert groupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
              return groupFactory.get();
          } else {
             groupFactory.set(new NioGroupFactory(settings, logger));

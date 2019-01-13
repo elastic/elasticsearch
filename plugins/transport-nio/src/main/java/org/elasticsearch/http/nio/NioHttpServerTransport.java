@@ -39,7 +39,6 @@ import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
-import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
@@ -49,7 +48,6 @@ import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.nio.NioGroupFactory;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -61,8 +59,6 @@ import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-import static org.elasticsearch.common.settings.Setting.intSetting;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
@@ -129,11 +125,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            int acceptorCount = NioTransportPlugin.NIO_HTTP_ACCEPTOR_COUNT.get(settings);
-            int workerCount = NioTransportPlugin.NIO_HTTP_WORKER_COUNT.get(settings);
-            nioGroup = new NioGroup(daemonThreadFactory(this.settings, HTTP_SERVER_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
-                daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX), workerCount,
-                (s) -> new EventHandler(this::onNonChannelException, s));
+            nioGroup = nioGroupFactory.getHttpGroup();
             channelFactory = channelFactory();
             bindServer();
             success = true;

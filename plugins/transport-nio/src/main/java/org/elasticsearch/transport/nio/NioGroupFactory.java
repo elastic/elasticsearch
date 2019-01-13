@@ -49,6 +49,10 @@ public class NioGroupFactory {
         this.httpWorkerCount = NioTransportPlugin.NIO_HTTP_WORKER_COUNT.get(settings);
     }
 
+    public Settings getSettings() {
+        return settings;
+    }
+
     public synchronized NioGroup getTransportGroup() throws IOException {
         return getGenericGroup();
     }
@@ -66,8 +70,9 @@ public class NioGroupFactory {
         if (nioGroup == null) {
             nioGroup = new RefNioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX),
                 NioTransportPlugin.NIO_WORKER_COUNT.get(settings), (s) -> new EventHandler(this::onException, s));
+        } else {
+            nioGroup.incReference();
         }
-        nioGroup.incReference();
         return nioGroup;
     }
 
@@ -78,7 +83,7 @@ public class NioGroupFactory {
 
     private static class RefNioGroup extends NioGroup {
 
-        private int references = 0;
+        private int references = 1;
 
         private RefNioGroup(ThreadFactory threadFactory, int selectorCount,
                             Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction) throws IOException {
@@ -91,7 +96,7 @@ public class NioGroupFactory {
 
         @Override
         public synchronized void close() throws IOException {
-            if (references-- == 0) {
+            if (--references == 0) {
                 super.close();
             }
         }

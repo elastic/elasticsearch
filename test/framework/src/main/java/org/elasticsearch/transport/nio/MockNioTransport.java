@@ -160,6 +160,11 @@ public class MockNioTransport extends TcpTransport {
         return builder.build();
     }
 
+    private void onNonChannelException(Exception exception) {
+        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
+            exception);
+    }
+
     private void exceptionCaught(NioSocketChannel channel, Exception exception) {
         onException((TcpChannel) channel, exception);
     }

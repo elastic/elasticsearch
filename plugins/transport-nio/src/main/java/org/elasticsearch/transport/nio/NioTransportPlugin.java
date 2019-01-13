@@ -46,7 +46,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 
@@ -59,8 +58,6 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
         new Setting<>("transport.nio.worker_count",
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "transport.nio.worker_count"), Setting.Property.NodeScope);
-    public static final Setting<Integer> NIO_HTTP_ACCEPTOR_COUNT =
-        intSetting("http.nio.acceptor_count", 0, 0, Setting.Property.NodeScope);
     public static final Setting<Integer> NIO_HTTP_WORKER_COUNT =
         intSetting("http.nio.worker_count", 0, 0, Setting.Property.NodeScope);
 
@@ -69,7 +66,6 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-            NIO_HTTP_ACCEPTOR_COUNT,
             NIO_HTTP_WORKER_COUNT,
             NIO_WORKER_COUNT
         );
@@ -97,8 +93,8 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
-        // TODO: Can the settings change?
         if (groupFactory.get() != null) {
+            assert groupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
             return groupFactory.get();
         } else {
             groupFactory.set(new NioGroupFactory(settings, logger));

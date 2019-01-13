@@ -8,22 +8,37 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -31,11 +46,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.support.ApiKeysInvalidationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -43,23 +63,30 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import javax.crypto.SecretKeyFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import javax.crypto.SecretKeyFactory;
+
+import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -68,6 +95,7 @@ public class ApiKeyService {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private static final String TYPE = "doc";
+    private static final int MAX_RETRY_ATTEMPTS = 5;
     static final String API_KEY_ID_KEY = "_security_api_key_id";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     static final String API_KEY_ROLE_KEY = "_security_api_key_role";
@@ -87,6 +115,10 @@ public class ApiKeyService {
             }
         }
     }, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.api_key.delete.timeout",
+            TimeValue.MINUS_ONE, Property.NodeScope);
+    public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting("xpack.security.authc.api_key.delete.interval",
+            TimeValue.timeValueMinutes(30L), Property.NodeScope);
 
     private final Clock clock;
     private final Client client;
@@ -94,6 +126,10 @@ public class ApiKeyService {
     private final ClusterService clusterService;
     private final Hasher hasher;
     private final boolean enabled;
+    private final Settings settings;
+    private final ExpiredApiKeysRemover expiredApiKeysRemover;
+    private volatile long lastExpirationRunMs;
+    private final TimeValue deleteInterval;
 
     public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService) {
         this.clock = clock;
@@ -102,6 +138,9 @@ public class ApiKeyService {
         this.clusterService = clusterService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
+        this.deleteInterval = DELETE_INTERVAL.get(settings);
+        this.settings = settings;
+        this.expiredApiKeysRemover = new ExpiredApiKeysRemover(settings, client);
     }
 
     /**
@@ -129,7 +168,8 @@ public class ApiKeyService {
                 builder.startObject()
                     .field("doc_type", "api_key")
                     .field("creation_time", created.toEpochMilli())
-                    .field("expiration_time", expiration == null ? null : expiration.toEpochMilli());
+                    .field("expiration_time", expiration == null ? null : expiration.toEpochMilli())
+                    .field("api_key_invalidated", false);
 
                 byte[] utf8Bytes = null;
                 try {
@@ -256,6 +296,13 @@ public class ApiKeyService {
      */
     static void validateApiKeyCredentials(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
                                           ActionListener<AuthenticationResult> listener) {
+        final Boolean invalidated = (Boolean) source.get("api_key_invalidated");
+        if (invalidated == null) {
+            listener.onResponse(AuthenticationResult.terminate("api key document is missing invalidated field", null));
+        } else if (invalidated) {
+            listener.onResponse(AuthenticationResult.terminate("api key has been invalidated", null));
+        }
+
         final String apiKeyHash = (String) source.get("api_key_hash");
         if (apiKeyHash == null) {
             throw new IllegalStateException("api key hash is missing");
@@ -385,6 +432,252 @@ public class ApiKeyService {
         public void usedDeprecatedField(String usedName, String replacedWith) {
             deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], replaced by [{}]",
                 usedName, apiKeyId, replacedWith);
+        }
+    }
+
+    /**
+     * Invalidate API keys for given realm and user name.
+     * @param realmName realm name
+     * @param userName user name
+     * @param invalidateListener listener for {@link ApiKeysInvalidationResult}
+     */
+    public void invalidateApiKeysForRealmAndUser(String realmName, String userName,
+            ActionListener<ApiKeysInvalidationResult> invalidateListener) {
+        ensureEnabled();
+        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false) {
+            logger.trace("No realm name or username provided");
+            invalidateListener.onFailure(new IllegalArgumentException("realm name or username must be provided"));
+        } else {
+            findActiveApiKeysForUserAndRealm(userName, realmName, ActionListener.wrap(apiKeyIds -> {
+                    if (apiKeyIds.isEmpty()) {
+                        logger.warn("No api keys to invalidate for realm [{}] and username [{}]", realmName, userName);
+                        invalidateListener.onResponse(ApiKeysInvalidationResult.emptyResult());
+                    } else {
+                        invalidateAllApiKeys(apiKeyIds, invalidateListener);
+                    }
+                }, invalidateListener::onFailure));
+        }
+    }
+
+    private void invalidateAllApiKeys(Collection<String> apiKeyIds, ActionListener<ApiKeysInvalidationResult> invalidateListener) {
+        maybeStartApiKeyRemover();
+        indexInvalidation(apiKeyIds, invalidateListener, new AtomicInteger(0), null);
+    }
+
+    /**
+     * Invalidate API keys for given API key id
+     * @param apiKeyId API key id
+     * @param invalidateListener listener for {@link ApiKeysInvalidationResult}
+     */
+    public void invalidateApiKeysForApiKeyId(String apiKeyId, ActionListener<ApiKeysInvalidationResult> invalidateListener) {
+        ensureEnabled();
+        invalidateAllApiKeys(Collections.singleton(apiKeyId), invalidateListener);
+    }
+
+    /**
+     * Invalidate API keys for given API key name
+     * @param apiKeyName API key name
+     * @param invalidateListener listener for {@link ApiKeysInvalidationResult}
+     */
+    public void invalidateApiKeysForApiKeyName(String apiKeyName, ActionListener<ApiKeysInvalidationResult> invalidateListener) {
+        ensureEnabled();
+        if (Strings.hasText(apiKeyName) == false) {
+            logger.trace("No api key name provided");
+            invalidateListener.onFailure(new IllegalArgumentException("api key name must be provided"));
+        } else {
+            findActiveApiKeysForApiKeyName(apiKeyName, ActionListener.wrap(apiKeyIds -> {
+                    if (apiKeyIds.isEmpty()) {
+                        logger.warn("No api keys to invalidate for api key name [{}]", apiKeyName);
+                        invalidateListener.onResponse(ApiKeysInvalidationResult.emptyResult());
+                    } else {
+                        invalidateAllApiKeys(apiKeyIds, invalidateListener);
+                    }
+                }, invalidateListener::onFailure));
+        }
+    }
+
+    private void findActiveApiKeysForUserAndRealm(String userName, String realmName, ActionListener<Collection<String>> listener) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
+            listener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("doc_type", "api_key"))
+                .filter(QueryBuilders.termQuery("api_key_invalidated", false));
+            if (Strings.hasText(userName)) {
+                boolQuery.filter(QueryBuilders.termQuery("creator.principal", userName));
+            }
+            if (Strings.hasText(realmName)) {
+                boolQuery.filter(QueryBuilders.termQuery("creator.realm", realmName));
+            }
+
+            findActiveApiKeys(boolQuery, listener);
+        }
+    }
+
+    private void findActiveApiKeys(final BoolQueryBuilder boolQuery, ActionListener<Collection<String>> listener) {
+        final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+            .setQuery(boolQuery)
+            .setVersion(false)
+            .setSize(1000)
+            .setFetchSource(true)
+            .request();
+        securityIndex.checkIndexVersionThenExecute(listener::onFailure,
+            () -> ScrollHelper.fetchAllByEntity(client, request, listener,
+                (SearchHit hit) -> hit.getId()));
+    }
+
+    private void findActiveApiKeysForApiKeyName(String apiKeyName, ActionListener<Collection<String>> listener) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
+            listener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("doc_type", "api_key"))
+                .filter(QueryBuilders.termQuery("api_key_invalidated", false));
+            if (Strings.hasText(apiKeyName)) {
+                boolQuery.filter(QueryBuilders.termQuery("name", apiKeyName));
+            }
+
+            findActiveApiKeys(boolQuery, listener);
+        }
+    }
+
+    /**
+     * Performs the actual invalidation of a collection of api keys
+     *
+     * @param apiKeyIds       the api keys to invalidate
+     * @param listener        the listener to notify upon completion
+     * @param attemptCount    the number of attempts to invalidate that have already been tried
+     * @param previousResult  if this not the initial attempt for invalidation, it contains the result of invalidating
+     *                        api keys up to the point of the retry. This result is added to the result of the current attempt
+     */
+    private void indexInvalidation(Collection<String> apiKeyIds, ActionListener<ApiKeysInvalidationResult> listener,
+                                   AtomicInteger attemptCount, @Nullable ApiKeysInvalidationResult previousResult) {
+        if (apiKeyIds.isEmpty()) {
+            logger.warn("No api key ids provided for invalidation");
+            listener.onFailure(new ElasticsearchSecurityException("No api key ids provided for invalidation"));
+        } else if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
+            logger.warn("Failed to invalidate [{}] api keys after [{}] attempts", apiKeyIds.size(),
+                attemptCount.get());
+            listener.onFailure(new ElasticsearchSecurityException("failed to invalidate api keys"));
+        } else {
+            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            for (String apiKeyId : apiKeyIds) {
+                UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, apiKeyId)
+                    .setDoc(Collections.singletonMap("api_key_invalidated", true))
+                    .request();
+                bulkRequestBuilder.add(request);
+            }
+            bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+            securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", ex)),
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequestBuilder.request(),
+                    ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                        ArrayList<String> retryApiKeyIds = new ArrayList<>();
+                        ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
+                        ArrayList<String> previouslyInvalidated = new ArrayList<>();
+                        ArrayList<String> invalidated = new ArrayList<>();
+                        if (null != previousResult) {
+                            failedRequestResponses.addAll((previousResult.getErrors()));
+                            previouslyInvalidated.addAll(previousResult.getPreviouslyInvalidatedApiKeys());
+                            invalidated.addAll(previousResult.getInvalidatedApiKeys());
+                        }
+                        for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+                            if (bulkItemResponse.isFailed()) {
+                                Throwable cause = bulkItemResponse.getFailure().getCause();
+                                final String failedApiKeyId = bulkItemResponse.getFailure().getId();
+                                if (isShardNotAvailableException(cause)) {
+                                    retryApiKeyIds.add(failedApiKeyId);
+                                }
+                                else {
+                                    traceLog("invalidate api key", failedApiKeyId, cause);
+                                    failedRequestResponses.add(new ElasticsearchException("Error invalidating api key", cause));
+                                }
+                            } else {
+                                UpdateResponse updateResponse = bulkItemResponse.getResponse();
+                                if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
+                                    logger.debug("Invalidated api key for doc [{}]", updateResponse.getId());
+                                    invalidated.add(updateResponse.getId());
+                                } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
+                                    previouslyInvalidated.add(updateResponse.getId());
+                                }
+                            }
+                        }
+                        if (retryApiKeyIds.isEmpty() == false) {
+                            ApiKeysInvalidationResult incompleteResult = new ApiKeysInvalidationResult(invalidated, previouslyInvalidated,
+                                failedRequestResponses, attemptCount.get());
+                            attemptCount.incrementAndGet();
+                            indexInvalidation(retryApiKeyIds, listener, attemptCount, incompleteResult);
+                        }
+                        ApiKeysInvalidationResult result = new ApiKeysInvalidationResult(invalidated, previouslyInvalidated,
+                            failedRequestResponses, attemptCount.get());
+                        listener.onResponse(result);
+                    }, e -> {
+                        Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        traceLog("invalidate api keys", cause);
+                        if (isShardNotAvailableException(cause)) {
+                            attemptCount.incrementAndGet();
+                            indexInvalidation(apiKeyIds, listener, attemptCount, previousResult);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }), client::bulk));
+        }
+    }
+
+    /**
+     * Logs an exception concerning a specific api key at TRACE level (if enabled)
+     */
+    private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
+        if (logger.isTraceEnabled()) {
+            if (exception instanceof ElasticsearchException) {
+                final ElasticsearchException esEx = (ElasticsearchException) exception;
+                final Object detail = esEx.getHeader("error_description");
+                if (detail != null) {
+                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail),
+                        esEx);
+                } else {
+                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier),
+                        esEx);
+                }
+            } else {
+                logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), exception);
+            }
+        }
+        return exception;
+    }
+
+    /**
+     * Logs an exception at TRACE level (if enabled)
+     */
+    private <E extends Throwable> E traceLog(String action, E exception) {
+        if (logger.isTraceEnabled()) {
+            if (exception instanceof ElasticsearchException) {
+                final ElasticsearchException esEx = (ElasticsearchException) exception;
+                final Object detail = esEx.getHeader("error_description");
+                if (detail != null) {
+                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
+                } else {
+                    logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), esEx);
+                }
+            } else {
+                logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), exception);
+            }
+        }
+        return exception;
+    }
+
+    private void maybeStartApiKeyRemover() {
+        if (securityIndex.isAvailable()) {
+            if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
+                expiredApiKeysRemover.submit(client.threadPool());
+                lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
+            }
         }
     }
 }

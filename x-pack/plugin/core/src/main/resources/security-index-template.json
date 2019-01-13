@@ -154,6 +154,9 @@
           "index": false,
           "doc_values": false
         },
+        "api_key_invalidated" : {
+          "type" : "boolean"
+        },
         "role_descriptors" : {
           "type" : "object",
           "enabled": false

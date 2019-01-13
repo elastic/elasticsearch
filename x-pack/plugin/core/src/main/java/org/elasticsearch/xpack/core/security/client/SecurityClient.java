@@ -14,6 +14,9 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
@@ -338,6 +341,7 @@ public class SecurityClient {
         client.execute(InvalidateTokenAction.INSTANCE, request, listener);
     }
 
+    /* -- Api Keys -- */
     public CreateApiKeyRequestBuilder prepareCreateApiKey() {
         return new CreateApiKeyRequestBuilder(client);
     }
@@ -348,6 +352,10 @@ public class SecurityClient {
 
     public void createApiKey(CreateApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
         client.execute(CreateApiKeyAction.INSTANCE, request, listener);
+    }
+
+    public void invalidateApiKey(InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
+        client.execute(InvalidateApiKeyAction.INSTANCE, request, listener);
     }
 
     public SamlAuthenticateRequestBuilder prepareSamlAuthenticate(byte[] xmlContent, List<String> validIds) {

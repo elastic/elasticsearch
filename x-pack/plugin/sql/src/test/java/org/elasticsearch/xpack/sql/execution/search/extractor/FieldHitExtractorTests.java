@@ -326,6 +326,16 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         assertEquals(value, fe2.extractFromSource(map));
     }
 
+    public void testFieldWithDotsAndSamePathButDifferentHierarchy() {
+        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", null, false);
+        Object value1 = randomValue();
+        Object value2 = randomValue();
+        Map<String, Object> map = new HashMap<>();
+        map.put("a.b", singletonMap("c", value1));
+        map.put("a", singletonMap("b.c", value2));
+        assertEquals(value1, fe.extractFromSource(map));
+    }
+
     private Object randomValue() {
         Supplier<Object> value = randomFrom(Arrays.asList(
                 () -> randomAlphaOfLength(10),

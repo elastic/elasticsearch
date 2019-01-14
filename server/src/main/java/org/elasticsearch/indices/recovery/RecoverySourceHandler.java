@@ -73,7 +73,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
@@ -242,14 +241,16 @@ public class RecoverySourceHandler {
             finalizeRecovery(sendSnapshotResult.targetLocalCheckpoint, finalizeStep);
             finalizeStep.whenComplete(r -> {
                 assert resources.isEmpty() : "not every resource is released [" + resources + "]";
-                IOUtils.close(resources);
                 final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
-                wrappedListener.onResponse(
-                    new RecoveryResponse(sendFileResult.phase1FileNames, sendFileResult.phase1FileSizes,
-                        sendFileResult.phase1ExistingFileNames, sendFileResult.phase1ExistingFileSizes, sendFileResult.totalSize,
-                        sendFileResult.existingTotalSize, sendFileResult.took.millis(), phase1ThrottlingWaitTime,
-                        prepareEngineTime.millis(), sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis())
-                );
+                final RecoveryResponse response = new RecoveryResponse(sendFileResult.phase1FileNames, sendFileResult.phase1FileSizes,
+                    sendFileResult.phase1ExistingFileNames, sendFileResult.phase1ExistingFileSizes, sendFileResult.totalSize,
+                    sendFileResult.existingTotalSize, sendFileResult.took.millis(), phase1ThrottlingWaitTime,
+                    prepareEngineTime.millis(), sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis());
+                try {
+                    wrappedListener.onResponse(response);
+                } finally {
+                    IOUtils.close(resources);
+                }
             }, onFailure);
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));

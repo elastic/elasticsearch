@@ -673,13 +673,14 @@ public class RecoverySourceHandler {
                     }
                     final long requestFilePosition = position;
                     cancellableThreads.executeIO(() ->
-                        recoveryTarget.writeFileChunk(md, requestFilePosition, content, lastChunk, translogOps.get(), e -> {
-                            if (e != null) {
-                                error.compareAndSet(null, Tuple.tuple(md, e));
-                            }
-                            requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
-                        })
-                    );
+                        recoveryTarget.writeFileChunk(md, requestFilePosition, content, lastChunk, translogOps.get(),
+                            ActionListener.wrap(
+                                r -> requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId),
+                                e -> {
+                                    error.compareAndSet(null, Tuple.tuple(md, e));
+                                    requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                }
+                            )));
                     position += content.length();
                 }
             } catch (Exception e) {

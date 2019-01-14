@@ -91,7 +91,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -146,7 +145,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             IndexOutputOutputStream out;
             @Override
             public void writeFileChunk(StoreFileMetaData md, long position, BytesReference content, boolean lastChunk,
-                                       int totalTranslogOps, Consumer<Exception> onComplete) {
+                                       int totalTranslogOps, ActionListener<Void> listener) {
                 try {
                     if (position == 0) {
                         out = new IndexOutputOutputStream(targetStore.createVerifyingOutput(md.name(), md, IOContext.DEFAULT)) {
@@ -165,9 +164,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     if (lastChunk) {
                         out.close();
                     }
-                    onComplete.accept(null);
+                    listener.onResponse(null);
                 } catch (Exception e) {
-                    onComplete.accept(e);
+                    listener.onFailure(e);
                 }
             }
         };
@@ -339,9 +338,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store targetStore = newStore(createTempDir(), false);
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             IndexOutputOutputStream out;
-            @Override
+             @Override
             public void writeFileChunk(StoreFileMetaData md, long position, BytesReference content, boolean lastChunk,
-                                       int totalTranslogOps, Consumer<Exception> onComplete) {
+                                       int totalTranslogOps, ActionListener<Void> listener) {
                 try {
                     if (position == 0) {
                         out = new IndexOutputOutputStream(targetStore.createVerifyingOutput(md.name(), md, IOContext.DEFAULT)) {
@@ -360,10 +359,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     if (lastChunk) {
                         out.close();
                     }
-                    onComplete.accept(null);
+                    listener.onResponse(null);
                 } catch (Exception e) {
-                    IOUtils.closeWhileHandlingException(out);
-                    onComplete.accept(e);
+                    IOUtils.closeWhileHandlingException(out, () -> listener.onFailure(e));
                 }
             }
         };
@@ -414,11 +412,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(StoreFileMetaData md, long position, BytesReference content, boolean lastChunk,
-                                       int totalTranslogOps, Consumer<Exception> onComplete) {
+                                       int totalTranslogOps, ActionListener<Void> listener) {
                 if (throwCorruptedIndexException) {
-                    onComplete.accept(new RuntimeException(new CorruptIndexException("foo", "bar")));
+                    listener.onFailure(new RuntimeException(new CorruptIndexException("foo", "bar")));
                 } else {
-                    onComplete.accept(new RuntimeException("boom"));
+                    listener.onFailure(new RuntimeException("boom"));
                 }
             }
         };
@@ -533,10 +531,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             final AtomicLong chunkNumberGenerator = new AtomicLong();
             @Override
             public void writeFileChunk(StoreFileMetaData md, long position, BytesReference content, boolean lastChunk,
-                                       int totalTranslogOps, Consumer<Exception> onComplete) {
+                                       int totalTranslogOps, ActionListener<Void> listener) {
                 final long chunkNumber = chunkNumberGenerator.getAndIncrement();
                 logger.info("--> write chunk name={} seq={}, position={}", md.name(), chunkNumber, position);
-                unrepliedChunks.add(new FileChunkResponse(chunkNumber, onComplete));
+                unrepliedChunks.add(new FileChunkResponse(chunkNumber, listener));
                 sentChunks.incrementAndGet();
             }
         };
@@ -580,7 +578,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
             int expectedSentChunks = sentChunks.get() + chunksToSend;
             int expectedUnrepliedChunks = unrepliedChunks.size() + chunksToSend;
-            chunksToAck.forEach(c -> c.onComplete.accept(null));
+            chunksToAck.forEach(c -> c.listener.onResponse(null));
             assertBusy(() -> {
                 assertThat(sentChunks.get(), equalTo(expectedSentChunks));
                 assertThat(unrepliedChunks, hasSize(expectedUnrepliedChunks));
@@ -599,10 +597,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             final AtomicLong chunkNumberGenerator = new AtomicLong();
             @Override
             public void writeFileChunk(StoreFileMetaData md, long position, BytesReference content, boolean lastChunk,
-                                       int totalTranslogOps, Consumer<Exception> onComplete) {
+                                       int totalTranslogOps, ActionListener<Void> listener) {
                 final long chunkNumber = chunkNumberGenerator.getAndIncrement();
                 logger.info("--> write chunk name={} seq={}, position={}", md.name(), chunkNumber, position);
-                unrepliedChunks.add(new FileChunkResponse(chunkNumber, onComplete));
+                unrepliedChunks.add(new FileChunkResponse(chunkNumber, listener));
                 sentChunks.incrementAndGet();
             }
         };
@@ -624,9 +622,15 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         sender.start();
         assertBusy(() -> assertThat(sentChunks.get(), equalTo(Math.min(totalChunks, maxConcurrentChunks))));
         List<FileChunkResponse> failedChunks = randomSubsetOf(between(1, unrepliedChunks.size()), unrepliedChunks);
-        failedChunks.forEach(c -> c.onComplete.accept(new RuntimeException("test chunk exception")));
+        failedChunks.forEach(c -> c.listener.onFailure(new RuntimeException("test chunk exception")));
         unrepliedChunks.removeAll(failedChunks);
-        unrepliedChunks.forEach(c -> c.onComplete.accept(randomBoolean() ? null : new RuntimeException("test")));
+        unrepliedChunks.forEach(c -> {
+            if (randomBoolean()) {
+                c.listener.onFailure(new RuntimeException("test"));
+            } else {
+                c.listener.onResponse(null);
+            }
+        });
         assertBusy(() -> {
             assertThat(error.get(), notNullValue());
             assertThat(error.get().getMessage(), containsString("test chunk exception"));
@@ -650,11 +654,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
     static final class FileChunkResponse {
         final long chunkNumber;
-        final Consumer<Exception> onComplete;
+        final ActionListener<Void> listener;
 
-        FileChunkResponse(long chunkNumber, Consumer<Exception> onComplete) {
+        FileChunkResponse(long chunkNumber, ActionListener<Void> listener) {
             this.chunkNumber = chunkNumber;
-            this.onComplete = onComplete;
+            this.listener = listener;
         }
     }
 
@@ -709,7 +713,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
         @Override
         public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content, boolean lastChunk,
-                                   int totalTranslogOps, Consumer<Exception> onComplete) throws IOException {
+                                   int totalTranslogOps, ActionListener<Void> listener) {
         }
     }
 }

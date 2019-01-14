@@ -31,6 +31,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,7 +66,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 /**
@@ -528,11 +528,15 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     @Override
     public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                               boolean lastChunk, int totalTranslogOps, Consumer<Exception> onComplete) throws IOException {
-        state().getTranslog().totalOperations(totalTranslogOps);
-        final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetaData.name(), name -> new FileChunkWriter());
-        writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
-        onComplete.accept(null);
+                               boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
+        try {
+            state().getTranslog().totalOperations(totalTranslogOps);
+            final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetaData.name(), name -> new FileChunkWriter());
+            writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
+            listener.onResponse(null);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private static final class FileChunk {

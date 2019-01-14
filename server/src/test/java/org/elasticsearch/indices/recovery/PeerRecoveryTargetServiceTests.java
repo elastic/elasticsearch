@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
@@ -51,7 +52,6 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
@@ -174,9 +174,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     barrier.await();
                     RecoveryFileChunkRequest r;
                     while ((r = queue.poll()) != null) {
-                        recoveryTarget.writeFileChunk(r.metadata(), r.position(), r.content(), r.lastChunk(), r.totalTranslogOps(), e -> {
-                            assertThat(e, nullValue());
-                        });
+                        recoveryTarget.writeFileChunk(r.metadata(), r.position(), r.content(), r.lastChunk(), r.totalTranslogOps(),
+                            ActionListener.wrap(ignored -> {},
+                                e -> {
+                                    throw new AssertionError(e);
+                                }));
                     }
                 } catch (Exception e) {
                     throw new AssertionError(e);

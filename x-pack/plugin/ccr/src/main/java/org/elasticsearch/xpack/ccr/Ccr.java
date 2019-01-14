@@ -62,7 +62,7 @@ import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsActio
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
-import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
+import org.elasticsearch.xpack.ccr.action.repositories.StartCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
@@ -157,7 +157,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return emptyList();
         }
 
-        CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(settings);
+        CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(settings, threadPool);
         this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
             ccrLicenseChecker,
@@ -190,8 +190,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                     PutInternalCcrRepositoryAction.TransportPutInternalRepositoryAction.class),
                 new ActionHandler<>(DeleteInternalCcrRepositoryAction.INSTANCE,
                     DeleteInternalCcrRepositoryAction.TransportDeleteInternalRepositoryAction.class),
-                new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE,
-                    PutCcrRestoreSessionAction.TransportPutCcrRestoreSessionAction.class),
+                new ActionHandler<>(StartCcrRestoreSessionAction.INSTANCE,
+                    StartCcrRestoreSessionAction.TransportPutCcrRestoreSessionAction.class),
                 new ActionHandler<>(ClearCcrRestoreSessionAction.INSTANCE,
                     ClearCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction.class),
                 new ActionHandler<>(GetCcrRestoreFileChunkAction.INSTANCE,

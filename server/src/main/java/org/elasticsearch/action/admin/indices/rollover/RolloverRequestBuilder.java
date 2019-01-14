@@ -74,7 +74,7 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    public RolloverRequestBuilder mapping(String type, String... source) {
+    public RolloverRequestBuilder mapping(String type, Object... source) {
         this.request.getCreateIndexRequest().mapping(type, source);
         return this;
     }

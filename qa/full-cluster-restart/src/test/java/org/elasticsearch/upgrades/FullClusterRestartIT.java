@@ -905,7 +905,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // In 7.0, type names are no longer expected by default in put index template requests.
         // We therefore use the deprecated typed APIs when running against the current version.
-        if (!isRunningAgainstOldCluster()) {
+        if (isRunningAgainstOldCluster() == false) {
             createTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
 
@@ -1106,7 +1106,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // In 7.0, type names are no longer returned by default in get index template requests.
         // We therefore use the deprecated typed APIs when running against the current version.
-        if (!isRunningAgainstOldCluster()) {
+        if (isRunningAgainstOldCluster() == false) {
             getTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
 

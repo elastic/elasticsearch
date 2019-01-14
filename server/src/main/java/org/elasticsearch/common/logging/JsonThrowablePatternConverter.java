@@ -30,23 +30,24 @@ import java.nio.charset.Charset;
 import java.util.StringJoiner;
 
 /**
- * This is a modification of a @link org.apache.logging.log4j.core.pattern.ExtendedThrowablePatternConverter
- * <p>
+
  * Outputs the Throwable portion of the LoggingEvent as a Json formatted field with array
  * "exception": [ "stacktrace", "lines", "as", "array", "elements" ]
+ *
+ * Reusing @link org.apache.logging.log4j.core.pattern.ExtendedThrowablePatternConverter which already converts a Throwable from
+ * LoggingEvent into a multiline string
  */
 @Plugin(name = "JsonThrowablePatternConverter", category = PatternConverter.CATEGORY)
 @ConverterKeys({"exceptionAsJson"})
 public final class JsonThrowablePatternConverter extends ThrowablePatternConverter {
-
     private static final JsonStringEncoder JSON_STRING_ENCODER = JsonStringEncoder.getInstance();
     private final ExtendedThrowablePatternConverter throwablePatternConverter;
 
     /**
-     * Private constructor. Parameters only used to configure wrapped throwablePatternConverter
+     * Private as only expected to be used by log4j2 newInstance method
      */
     private JsonThrowablePatternConverter(final Configuration config, final String[] options) {
-        super("CustomExtendedThrowable", "throwable", options, config);
+        super("JsonThrowablePatternConverter", "throwable", options, config);
         this.throwablePatternConverter = ExtendedThrowablePatternConverter.newInstance(config, options);
     }
 

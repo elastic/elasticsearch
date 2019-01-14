@@ -52,6 +52,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         LogConfigurator.registerErrorListener();
+        setupLogging("json_layout");
     }
 
     @Override
@@ -63,8 +64,6 @@ public class JsonLoggerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testJsonLayout() throws IOException, UserException {
-        setupLogging("json_layout");
-
         final Logger testLogger = LogManager.getLogger("test");
 
         testLogger.error("This is an error message");
@@ -72,11 +71,8 @@ public class JsonLoggerTests extends ESTestCase {
         testLogger.info("This is an info message");
         testLogger.debug("This is a debug message");
         testLogger.trace("This is a trace message");
-        final String path = System.getProperty("es.logs.base_path") +
-            System.getProperty("file.separator") +
-            System.getProperty("es.logs.cluster_name") +
-            ".log";
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(PathUtils.get(path))) {
+        final Path path = clusterLogsPath();
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
 
             assertThat(jsonLogs, Matchers.contains(
@@ -92,20 +88,14 @@ public class JsonLoggerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPrefixLoggerInJson() throws IOException, UserException {
-        setupLogging("json_layout");
-
         Logger shardIdLogger = Loggers.getLogger("shardIdLogger", ShardId.fromString("[indexName][123]"));
         shardIdLogger.info("This is an info message with a shardId");
 
         Logger prefixLogger = new PrefixLogger(LogManager.getLogger("prefixLogger"), "PREFIX");
         prefixLogger.info("This is an info message with a prefix");
 
-        final String path = System.getProperty("es.logs.base_path") +
-            System.getProperty("file.separator") +
-            System.getProperty("es.logs.cluster_name") +
-            ".log";
-
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(PathUtils.get(path))) {
+        final Path path = clusterLogsPath();
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
             assertThat(jsonLogs, Matchers.contains(
                 logLine("file", Level.INFO, "sample-name", "shardIdLogger", "[indexName][123] This is an info message with a shardId"),
@@ -115,8 +105,6 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     public void testJsonInMessage() throws IOException, UserException {
-        setupLogging("json_layout");
-
         final Logger testLogger = LogManager.getLogger("test");
         String json = "{\n" +
             "  \"terms\" : {\n" +
@@ -131,13 +119,8 @@ public class JsonLoggerTests extends ESTestCase {
 
         testLogger.info(json);
 
-        final String path = System.getProperty("es.logs.base_path") +
-            System.getProperty("file.separator") +
-            System.getProperty("es.logs.cluster_name") +
-            ".log";
-
-
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(PathUtils.get(path))) {
+        final Path path = clusterLogsPath();
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
             assertThat(jsonLogs, Matchers.contains(
                 logLine("file", Level.INFO, "sample-name", "test", json)
@@ -146,17 +129,11 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     public void testStacktrace() throws IOException, UserException {
-        setupLogging("json_layout");
-
         final Logger testLogger = LogManager.getLogger("test");
         testLogger.error("error message", new Exception("exception message", new RuntimeException("cause message")));
 
-        final String path = System.getProperty("es.logs.base_path") +
-            System.getProperty("file.separator") +
-            System.getProperty("es.logs.cluster_name") +
-            ".log";
-
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(PathUtils.get(path))) {
+        final Path path = clusterLogsPath();
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
             assertThat(jsonLogs, Matchers.contains(
                 Matchers.allOf(
@@ -169,8 +146,6 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     public void testJsonInStacktraceMessageIsSplitted() throws IOException, UserException {
-        setupLogging("json_layout");
-
         final Logger testLogger = LogManager.getLogger("test");
 
         String json = "{\n" +
@@ -185,12 +160,8 @@ public class JsonLoggerTests extends ESTestCase {
             "}";
         testLogger.error("error message " + json, new Exception(json));
 
-        final String path = System.getProperty("es.logs.base_path") +
-            System.getProperty("file.separator") +
-            System.getProperty("es.logs.cluster_name") +
-            ".log";
-
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(PathUtils.get(path))) {
+        final Path path = clusterLogsPath();
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
 
             assertThat(jsonLogs, Matchers.contains(
@@ -205,12 +176,16 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
+    private Path clusterLogsPath() {
+        return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name"), ".log");
+    }
+
     private void setupLogging(final String config) throws IOException, UserException {
         setupLogging(config, Settings.EMPTY);
     }
 
     private void setupLogging(final String config, final Settings settings) throws IOException, UserException {
-        assert !Environment.PATH_HOME_SETTING.exists(settings);
+        assertFalse("Environment path.home variable should not be set", Environment.PATH_HOME_SETTING.exists(settings));
         final Path configDir = getDataPath(config);
         final Settings mergedSettings = Settings.builder()
                                                 .put(settings)

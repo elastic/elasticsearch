@@ -32,13 +32,11 @@ import static org.hamcrest.Matchers.equalTo;
  */
 
 public class JsonThrowablePatternConverterTests extends ESTestCase {
-
     JsonThrowablePatternConverter converter = JsonThrowablePatternConverter.newInstance(null, null);
 
     public void testNoStacktrace() throws IOException {
         LogEvent event = Log4jLogEvent.newBuilder()
                                       .build();
-
         String result = format(event);
 
         JsonLogLine jsonLogLine = JsonLogsStream.from(new BufferedReader(new StringReader(result)))
@@ -47,7 +45,6 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
 
         assertThat(jsonLogLine.stacktrace(), Matchers.nullValue());
     }
-
 
     public void testStacktraceWithJson() throws IOException {
         LogManager.getLogger().info("asdf");

@@ -61,10 +61,10 @@ public class JsonLogsStream {
     public Stream<JsonLogLine> stream() {
         Spliterator<JsonLogLine> spliterator = Spliterators.spliteratorUnknownSize(new JsonIterator(), Spliterator.ORDERED);
         return StreamSupport.stream(spliterator, false)
-            .onClose(this::close);
+                            .onClose(this::close);
     }
 
-    private void close()  {
+    private void close() {
         try {
             parser.close();
             reader.close();
@@ -77,7 +77,7 @@ public class JsonLogsStream {
 
         @Override
         public boolean hasNext() {
-            return !parser.isClosed();
+            return parser.isClosed() == false;
         }
 
         @Override

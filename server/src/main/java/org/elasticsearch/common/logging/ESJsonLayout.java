@@ -33,21 +33,29 @@ import org.elasticsearch.common.Strings;
 import java.nio.charset.Charset;
 import java.util.Map;
 
+/**
+ * Formats log events as strings in a json format.
+ * <p>
+ * The class is wrapping the {@link PatternLayout} with a pattern to format into json. This gives more flexibility and control over how the
+ * log messages are formatted in {@link org.apache.logging.log4j.core.layout.JsonLayout}
+ */
 @Plugin(name = "ESJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
 public class ESJsonLayout extends AbstractStringLayout {
-
     /**
-     * type - the type of logs. These represent appenders and help docker distinguish log streams.
-     * timestamp - ISO8601 with additional timezone ID
-     * level - INFO, WARN etc
-     * component - logger name, most of the times class name
-     * cluster.name - taken from sys:es.logs.cluster_name system property because it is always set
-     * node.name - taken from NodeNamePatternConverter, as it can be set in runtime as hostname when not set in elasticsearch.yml
-     * node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeAndClusterIdConverter and present
+     * Fields used in a pattern to format a json log line:
+     * <ul>
+     * <li>  type - the type of logs. These represent appenders and help docker distinguish log streams.
+     * <li>  timestamp - ISO8601 with additional timezone ID
+     * <li>  level - INFO, WARN etc
+     * <li>  component - logger name, most of the times class name
+     * <li>  cluster.name - taken from sys:es.logs.cluster_name system property because it is always set
+     * <li>  node.name - taken from NodeNamePatternConverter, as it can be set in runtime as hostname when not set in elasticsearch.yml
+     * <li>  node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeAndClusterIdConverter and present
      * once clusterStateUpdate is first received
-     * message - a json escaped message. Multiline messages will be converted to single line with new line explicitly replaced to \n
-     * exceptionAsJson - in json as stacktrace. Only present when throwable is passed as a parameter to a Logger. Taken from
-     * JsonThrowablePatternConverter
+     * <li>  message - a json escaped message. Multiline messages will be converted to single line with new line explicitly replaced to \n
+     * <li>  exceptionAsJson - in json as a stacktrace field. Only present when throwable is passed as a parameter when using a logger.
+     * Taken from JsonThrowablePatternConverter
+     * </ul>
      */
     private static final String PATTERN = "{" +
         "\"type\": \"${TYPE}\", " +
@@ -101,6 +109,9 @@ public class ESJsonLayout extends AbstractStringLayout {
 
     @Override
     public String toString() {
-        return patternLayout.toString();
+        final StringBuilder sb = new StringBuilder("ESJsonLayout{");
+        sb.append("patternLayout=").append(patternLayout);
+        sb.append('}');
+        return sb.toString();
     }
 }

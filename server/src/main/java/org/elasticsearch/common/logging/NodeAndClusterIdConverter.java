@@ -24,8 +24,6 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.common.util.LazyInitializable;
 
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
@@ -37,23 +35,13 @@ import java.util.concurrent.atomic.AtomicReference;
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
 @ConverterKeys({"node_and_cluster_id"})
 public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
-
-    private static LazyInitializable<NodeAndClusterIdConverter, Exception> INSTANCE =
-        new LazyInitializable(NodeAndClusterIdConverter::new);
-
     private static final AtomicReference<String> nodeAndClusterIdsReference = new AtomicReference<>();
-
-    private final CloseableThreadLocal<String> nodeAndClusterIds = new CloseableThreadLocal();
 
     /**
      * Called by log4j2 to initialize this converter.
      */
     public static NodeAndClusterIdConverter newInstance(final String[] options) {
-        try {
-            return INSTANCE.getOrCompute();
-        } catch (Exception e) {
-            return null;
-        }
+        return new NodeAndClusterIdConverter();
     }
 
     public NodeAndClusterIdConverter() {
@@ -62,8 +50,9 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
 
     /**
      * Updates only once the clusterID and nodeId
+     *
      * @param clusterUUID a clusterId received from cluster state update
-     * @param nodeId a nodeId received from cluster state update
+     * @param nodeId      a nodeId received from cluster state update
      * @return true if the update was for the first time (successful) or false if for another calls (does not updates)
      */
     public static boolean setOnce(String clusterUUID, String nodeId) {
@@ -72,20 +61,13 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
 
     /**
      * Formats the node.id and cluster.uuid into json fields.
-     * If it reads these values for the first time - it will get them from AtomicReference nodeAndClusterIdsReference
-     * all succeeding calls of this method will read this from ThreadLocal nodeAndClusterIds - which is supposed to cache that value to
-     * avoid expensive AtomicReference read (TODO discuss the performance)
+     *
      * @param event - a log event is ignored in this method as it uses the nodeId and clusterId to format
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (nodeAndClusterIds.get() != null) {
-            //using local value
-            toAppendTo.append(nodeAndClusterIds.get());
-        } else if (nodeAndClusterIdsReference.get() != null) {
-            //reading a value from the listener for the first time
+        if (nodeAndClusterIdsReference.get() != null) {
             toAppendTo.append(nodeAndClusterIdsReference.get());
-            nodeAndClusterIds.set(nodeAndClusterIdsReference.get());
         }
         // nodeId/clusterUuid not received yet, not appending
     }
@@ -94,4 +76,3 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
         return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
     }
 }
-

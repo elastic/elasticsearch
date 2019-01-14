@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
  *  it sets the clusterUUID and nodeID in log4j pattern converter {@link NodeAndClusterIdConverter}
  */
 public class NodeAndClusterIdStateListener implements ClusterStateListener {
-
     private final Logger logger = LogManager.getLogger(getClass());
 
     @Override
@@ -42,7 +41,7 @@ public class NodeAndClusterIdStateListener implements ClusterStateListener {
         boolean wasSet = NodeAndClusterIdConverter.setOnce(clusterUUID, nodeId);
 
         if (wasSet) {
-            logger.info("received first cluster state update. Setting nodeId={} and clusterUuid={}", nodeId, clusterUUID);
+            logger.info("Eeceived first cluster state update. Setting nodeId=[{}] and clusterUuid=[{}]", nodeId, clusterUUID);
         }
     }
 }

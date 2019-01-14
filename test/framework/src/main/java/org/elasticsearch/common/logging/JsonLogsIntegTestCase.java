@@ -35,13 +35,13 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Tests that extend this class verify that all json layout fields appear in the first few log lines after startup
- * Fields available straight away : type, timestamp, level, component, message, nodeName, clusterName
- * nodeId and clusterId are available later once the clusterState was received.
- * NodeName, ClusterName, NodeId, ClusterId should be consistent across all log lines
- * Note that this won't pass for clusters that don't have
- * the node name defined in elasticsearch.yml <strong>and</strong> start with
- * DEBUG or TRACE level logging. Those nodes log a few lines before they
- * resolve the node name.
+ * Fields available from the first log line: type, timestamp, level, component, message, nodeName, clusterName
+ * whereas: nodeId and clusterId are available later once the clusterState was received.
+ *
+ * NodeName, ClusterName, NodeId, ClusterId should not change across all log lines
+ *
+ * Note that this won't pass for nodes in clusters that don't have the node name defined in elasticsearch.yml <strong>and</strong> start
+ * with DEBUG or TRACE level logging. Those nodes log a few lines before the node.name is set by LogConfigurator.setNodeName
  */
 public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
     /**
@@ -51,7 +51,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
     private static final int LINES_TO_CHECK = 10;
 
     /**
-     * The node name to expect in the logs file.
+     * The node name to expect in the log file.
      */
     protected abstract org.hamcrest.Matcher<String> nodeNameMatcher();
 
@@ -61,7 +61,6 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
      * subclasses can grant themselves that permission.
      */
     protected abstract BufferedReader openReader(Path logFile);
-
 
     public void testElementsPresentOnAllLinesOfLog() throws IOException {
         JsonLogLine firstLine = findFirstLine();
@@ -76,7 +75,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
                       assertThat(jsonLogLine.message(), not(isEmptyOrNullString()));
 
                       // all lines should have the same nodeName and clusterName
-                      assertThat(jsonLogLine.nodeName(), equalTo(firstLine.nodeName()));
+                      assertThat(jsonLogLine.nodeName(), equalTo(nodeNameMatcher()));
                       assertThat(jsonLogLine.clusterName(), equalTo(firstLine.clusterName()));
                   });
         }
@@ -115,7 +114,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
     @SuppressForbidden(reason = "PathUtils doesn't have permission to read this file")
     private Path getLogFile() {
         String logFileString = System.getProperty("tests.logfile");
-        if (null == logFileString) {
+        if (logFileString == null) {
             fail("tests.logfile must be set to run this test. It is automatically "
                 + "set by gradle. If you must set it yourself then it should be the absolute path to the "
                 + "log file.");

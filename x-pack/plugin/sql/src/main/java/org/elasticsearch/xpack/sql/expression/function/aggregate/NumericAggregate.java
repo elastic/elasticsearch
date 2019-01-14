@@ -25,7 +25,7 @@ abstract class NumericAggregate extends AggregateFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeNumeric(field(), functionName(), ParamOrdinal.DEFAULT);
+        return Expressions.typeMustBeNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

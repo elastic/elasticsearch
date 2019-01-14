@@ -93,6 +93,7 @@ The below list shows the actions which are available in each phase.
   - <<ilm-shrink-action,Shrink>>
 * Cold
   - <<ilm-allocate-action,Allocate>>
+  - <<ilm-freeze-action,Freeze>>
 * Delete
   - <<ilm-delete-action,Delete>>
 

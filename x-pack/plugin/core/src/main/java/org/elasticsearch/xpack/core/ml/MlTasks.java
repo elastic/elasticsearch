@@ -224,14 +224,4 @@ public final class MlTasks {
                 .filter(task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes))
                 .collect(Collectors.toList());
     }
-
-    /**
-     * Is there an ml anomaly detector job task for the job {@code jobId}?
-     * @param jobId The job id
-     * @param tasks Persistent tasks
-     * @return True if the job has a task
-     */
-    public static boolean taskExistsForJob(String jobId, PersistentTasksCustomMetaData tasks) {
-        return openJobIds(tasks).contains(jobId);
-    }
 }

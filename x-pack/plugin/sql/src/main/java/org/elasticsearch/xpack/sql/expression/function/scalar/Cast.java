@@ -111,16 +111,4 @@ public class Cast extends UnaryScalarFunction {
         return Objects.equals(dataType, other.dataType())
             && Objects.equals(field(), other.field());
     }
-
-    @Override
-    public String toString() {
-        return functionName() + "(" + field().toString() + " AS " + to().sqlName() + ")#" + id();
-    }
-
-    @Override
-    public String name() {
-        StringBuilder sb = new StringBuilder(super.name());
-        sb.insert(sb.length() - 1, " AS " + to().sqlName());
-        return sb.toString();
-    }
 }

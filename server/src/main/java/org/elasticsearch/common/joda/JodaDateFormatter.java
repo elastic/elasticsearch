@@ -33,16 +33,21 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
 public class JodaDateFormatter implements DateFormatter {
+
     final String pattern;
-
+    private final int year;
     final DateTimeFormatter parser;
-
     final DateTimeFormatter printer;
 
-    public JodaDateFormatter(String pattern, DateTimeFormatter parser, DateTimeFormatter printer) {
+    JodaDateFormatter(String pattern, DateTimeFormatter parser, DateTimeFormatter printer) {
+        this(pattern, parser, printer, 1970);
+    }
+
+    private JodaDateFormatter(String pattern, DateTimeFormatter parser, DateTimeFormatter printer, int year) {
         this.pattern = pattern;
-        this.printer = printer.withDefaultYear(1970);
-        this.parser = parser.withDefaultYear(1970);
+        this.year = year;
+        this.printer = printer.withDefaultYear(year);
+        this.parser = parser.withDefaultYear(year);
     }
 
     @Override
@@ -62,16 +67,22 @@ public class JodaDateFormatter implements DateFormatter {
     @Override
     public DateFormatter withZone(ZoneId zoneId) {
         DateTimeZone timeZone = DateUtils.zoneIdToDateTimeZone(zoneId);
+        if (parser.getZone().equals(timeZone)) {
+            return this;
+        }
         DateTimeFormatter parser = this.parser.withZone(timeZone);
         DateTimeFormatter printer = this.printer.withZone(timeZone);
-        return new JodaDateFormatter(pattern, parser, printer);
+        return new JodaDateFormatter(pattern, parser, printer, year);
     }
 
     @Override
     public DateFormatter withLocale(Locale locale) {
+        if (parser.getLocale().equals(locale)) {
+            return this;
+        }
         DateTimeFormatter parser = this.parser.withLocale(locale);
         DateTimeFormatter printer = this.printer.withLocale(locale);
-        return new JodaDateFormatter(pattern, parser, printer);
+        return new JodaDateFormatter(pattern, parser, printer, year);
     }
 
     @Override
@@ -87,6 +98,13 @@ public class JodaDateFormatter implements DateFormatter {
 
     public String formatMillis(long millis) {
         return printer.print(millis);
+    }
+
+    public JodaDateFormatter withYear(int year) {
+        if (this.year == year) {
+            return this;
+        }
+        return new JodaDateFormatter(pattern, parser, printer, year);
     }
 
     @Override

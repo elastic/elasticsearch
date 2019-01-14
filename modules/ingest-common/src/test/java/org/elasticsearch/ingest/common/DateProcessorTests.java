@@ -109,7 +109,7 @@ public class DateProcessorTests extends ESTestCase {
             fail("date processor execution should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("unable to parse date [2010]"));
-            assertThat(e.getCause().getMessage(), equalTo("Illegal pattern component: i"));
+            assertThat(e.getCause().getMessage(), equalTo("Invalid format: [invalid pattern]: Illegal pattern component: i"));
         }
     }
 
@@ -127,9 +127,10 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     public void testJodaPatternDefaultYear() {
+        String format = randomFrom("dd/MM", "8dd/MM");
         DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
             templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ENGLISH),
-            "date_as_string", Collections.singletonList("dd/MM"), "date_as_date");
+            "date_as_string", Collections.singletonList(format), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "12/06");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);

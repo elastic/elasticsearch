@@ -34,7 +34,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class DateFormatTests extends ESTestCase {
 
     public void testParseJoda() {
-        Function<String, DateTime> jodaFunction = DateFormat.Joda.getFunction("MMM dd HH:mm:ss Z",
+        Function<String, DateTime> jodaFunction = DateFormat.Java.getFunction("MMM dd HH:mm:ss Z",
                 DateTimeZone.forOffsetHours(-8), Locale.ENGLISH);
         assertThat(Instant.ofEpochMilli(jodaFunction.apply("Nov 24 01:29:01 -0800").getMillis())
                         .atZone(ZoneId.of("GMT-8"))
@@ -78,13 +78,13 @@ public class DateFormatTests extends ESTestCase {
 
     public void testFromString() {
         assertThat(DateFormat.fromString("UNIX_MS"), equalTo(DateFormat.UnixMs));
-        assertThat(DateFormat.fromString("unix_ms"), equalTo(DateFormat.Joda));
+        assertThat(DateFormat.fromString("unix_ms"), equalTo(DateFormat.Java));
         assertThat(DateFormat.fromString("UNIX"), equalTo(DateFormat.Unix));
-        assertThat(DateFormat.fromString("unix"), equalTo(DateFormat.Joda));
+        assertThat(DateFormat.fromString("unix"), equalTo(DateFormat.Java));
         assertThat(DateFormat.fromString("ISO8601"), equalTo(DateFormat.Iso8601));
-        assertThat(DateFormat.fromString("iso8601"), equalTo(DateFormat.Joda));
+        assertThat(DateFormat.fromString("iso8601"), equalTo(DateFormat.Java));
         assertThat(DateFormat.fromString("TAI64N"), equalTo(DateFormat.Tai64n));
-        assertThat(DateFormat.fromString("tai64n"), equalTo(DateFormat.Joda));
-        assertThat(DateFormat.fromString("prefix-" + randomAlphaOfLengthBetween(1, 10)), equalTo(DateFormat.Joda));
+        assertThat(DateFormat.fromString("tai64n"), equalTo(DateFormat.Java));
+        assertThat(DateFormat.fromString("prefix-" + randomAlphaOfLengthBetween(1, 10)), equalTo(DateFormat.Java));
     }
 }

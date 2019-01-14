@@ -19,12 +19,19 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.function.Function;
 
@@ -63,11 +70,33 @@ enum DateFormat {
             return ((base * 1000) - 10000) + (rest/1000000);
         }
     },
-    Joda {
+    Java {
         @Override
         Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            DateTimeFormatter parser = DateTimeFormat.forPattern(format).withZone(timezone).withLocale(locale);
-            return text -> parser.withDefaultYear((new DateTime(DateTimeZone.UTC)).getYear()).parseDateTime(text);
+            // in case you are wondering why we do not call 'DateFormatter.forPattern(format)' for all cases here, but only for the
+            // non java time case:
+            // When the joda date formatter parses a date then a year is always set, so that no fallback can be used, like
+            // done in the JodaDateFormatter.withYear() code below
+            // This means that we leave the existing parsing logic in place, but will fall back to the new java date parsing logic, if an
+            // "8" is prepended to the date format string
+            int year = LocalDate.now(ZoneOffset.UTC).getYear();
+            if (format.startsWith("8")) {
+                DateFormatter formatter = DateFormatter.forPattern(format)
+                    .withLocale(locale)
+                    .withZone(DateUtils.dateTimeZoneToZoneId(timezone));
+                return text -> {
+                    ZonedDateTime defaultZonedDateTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
+                    TemporalAccessor accessor = formatter.parse(text);
+                    long millis = DateFormatters.toZonedDateTime(accessor, defaultZonedDateTime).toInstant().toEpochMilli();
+                    return new DateTime(millis, timezone);
+                };
+            } else {
+                DateFormatter formatter = Joda.forPattern(format)
+                    .withYear(year)
+                    .withZone(DateUtils.dateTimeZoneToZoneId(timezone))
+                    .withLocale(locale);
+                return text -> new DateTime(formatter.parseMillis(text), timezone);
+            }
         }
     };
 
@@ -84,7 +113,7 @@ enum DateFormat {
             case "TAI64N":
                 return Tai64n;
             default:
-                return Joda;
+                return Java;
         }
     }
 }

@@ -42,8 +42,9 @@ public interface RecoveryTargetHandler {
      * updates the global checkpoint.
      *
      * @param globalCheckpoint the global checkpoint on the recovery source
+     * @param listener         the listener which will be notified when this method is completed
      */
-    void finalizeRecovery(long globalCheckpoint) throws IOException;
+    void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener);
 
     /**
      * Blockingly waits for cluster state with at least clusterStateVersion to be available

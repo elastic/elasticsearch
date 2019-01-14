@@ -445,11 +445,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel, Task task) throws Exception {
-            try (RecoveryRef recoveryRef =
-                     onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                recoveryRef.target().finalizeRecovery(request.globalCheckpoint());
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+                final ActionListener<TransportResponse> listener =
+                    new HandledTransportAction.ChannelActionListener<>(channel, Actions.FINALIZE, request);
+                recoveryRef.target().finalizeRecovery(request.globalCheckpoint(),
+                    ActionListener.wrap(nullVal -> listener.onResponse(TransportResponse.Empty.INSTANCE), listener::onFailure));
             }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 

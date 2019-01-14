@@ -112,7 +112,6 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
         datafeedBuilder.setIndices(Collections.singletonList("foo"));
-        datafeedBuilder.setTypes(Collections.singletonList("doc"));
         datafeedBuilder.setScriptFields(Collections.singletonList(new SearchSourceBuilder.ScriptField("airport", null, false)));
 
         Map<String, FieldCapabilities> timeCaps = new HashMap<>();
@@ -192,7 +191,6 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
         datafeedBuilder.setIndices(Collections.singletonList("foo"));
-        datafeedBuilder.setTypes(Collections.singletonList("doc"));
 
         Map<String, FieldCapabilities> timeCaps = new HashMap<>();
         timeCaps.put("date", createFieldCaps(false));
@@ -212,7 +210,6 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
         datafeedBuilder.setIndices(Collections.singletonList("foo"));
-        datafeedBuilder.setTypes(Collections.singletonList("doc"));
 
         Map<String, FieldCapabilities> timeCaps = new HashMap<>();
         timeCaps.put("date", createFieldCaps(true));
@@ -233,7 +230,6 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
         datafeedBuilder.setIndices(Collections.singletonList("foo"));
-        datafeedBuilder.setTypes(Collections.singletonList("doc"));
 
         Map<String, FieldCapabilities> timeCaps = new HashMap<>();
         timeCaps.put("date", createFieldCaps(true));

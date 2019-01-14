@@ -84,7 +84,7 @@ public class ConfigTests extends ESTestCase {
         assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
     }
 
-    public void testUnkownTimeZone() {
+    public void testUnknownTimeZone() {
         Exception e = expectThrows(ZoneRulesException.class,
             () -> new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "FOO"));
         assertThat(e.getMessage(), equalTo("Unknown time-zone ID: FOO"));

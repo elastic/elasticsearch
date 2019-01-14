@@ -23,8 +23,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class ActionListenerTests extends ESTestCase {
 
@@ -146,6 +149,56 @@ public class ActionListenerTests extends ESTestCase {
 
         for (int i = 0; i < numListeners; i++) {
             assertEquals("listener index " + i, "booom", excList.get(i).get().getMessage());
+        }
+    }
+
+    public void testRunAfter() {
+        {
+            AtomicBoolean afterSuccess = new AtomicBoolean();
+            ActionListener<Object> listener = ActionListener.runAfter(ActionListener.wrap(r -> {}, e -> {}), () -> afterSuccess.set(true));
+            listener.onResponse(null);
+            assertThat(afterSuccess.get(), equalTo(true));
+        }
+        {
+            AtomicBoolean afterFailure = new AtomicBoolean();
+            ActionListener<Object> listener = ActionListener.runAfter(ActionListener.wrap(r -> {}, e -> {}), () -> afterFailure.set(true));
+            listener.onFailure(null);
+            assertThat(afterFailure.get(), equalTo(true));
+        }
+    }
+
+    public void testNotifyOnce() {
+        AtomicInteger onResponseTimes = new AtomicInteger();
+        AtomicInteger onFailureTimes = new AtomicInteger();
+        ActionListener<Object> listener = ActionListener.notifyOnce(new ActionListener<Object>() {
+            @Override
+            public void onResponse(Object o) {
+                onResponseTimes.getAndIncrement();
+            }
+            @Override
+            public void onFailure(Exception e) {
+                onFailureTimes.getAndIncrement();
+            }
+        });
+        boolean success = randomBoolean();
+        if (success) {
+            listener.onResponse(null);
+        } else {
+            listener.onFailure(new RuntimeException("test"));
+        }
+        for (int iters = between(0, 10), i = 0; i < iters; i++) {
+            if (randomBoolean()) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(new RuntimeException("test"));
+            }
+        }
+        if (success) {
+            assertThat(onResponseTimes.get(), equalTo(1));
+            assertThat(onFailureTimes.get(), equalTo(0));
+        } else {
+            assertThat(onResponseTimes.get(), equalTo(0));
+            assertThat(onFailureTimes.get(), equalTo(1));
         }
     }
 }

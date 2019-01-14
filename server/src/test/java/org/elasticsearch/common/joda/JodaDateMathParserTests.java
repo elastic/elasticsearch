@@ -33,11 +33,10 @@ import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class JodaDateMathParserTests extends ESTestCase {
 
-    DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime||epoch_millis");
+    DateFormatter formatter = Joda.forPattern("dateOptionalTime||epoch_millis");
     DateMathParser parser = formatter.toDateMathParser();
 
     void assertDateMathEquals(String toTest, String expected) {
@@ -306,11 +305,6 @@ public class JodaDateMathParserTests extends ESTestCase {
         assertFalse(called.get());
         parser.parse("now/d", now, false, (ZoneId) null);
         assertTrue(called.get());
-    }
-
-    public void testSupportsScientificNotation() {
-        long result = parser.parse("1.0e3", () -> 42).toEpochMilli();
-        assertThat(result, is(1000L));
     }
 
     public void testThatUnixTimestampMayNotHaveTimeZone() {

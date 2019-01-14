@@ -70,8 +70,9 @@ public class IndexActionIT extends ESIntegTestCase {
                     logger.debug("running search with all types");
                     SearchResponse response = client().prepareSearch("test").get();
                     if (response.getHits().getTotalHits().value != numOfDocs) {
-                        final String message = "Count is " + response.getHits().getTotalHits().value + " but " + numOfDocs + " was expected. "
-                            + ElasticsearchAssertions.formatShardStatus(response);
+                        final String message =
+                                "Count is " + response.getHits().getTotalHits().value + " but " + numOfDocs + " was expected. " +
+                                        ElasticsearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
                     }
@@ -85,8 +86,9 @@ public class IndexActionIT extends ESIntegTestCase {
                     logger.debug("running search with a specific type");
                     SearchResponse response = client().prepareSearch("test").setTypes("type").get();
                     if (response.getHits().getTotalHits().value != numOfDocs) {
-                        final String message = "Count is " + response.getHits().getTotalHits().value + " but " + numOfDocs + " was expected. "
-                            + ElasticsearchAssertions.formatShardStatus(response);
+                        final String message =
+                                "Count is " + response.getHits().getTotalHits().value + " but " + numOfDocs + " was expected. " +
+                                        ElasticsearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
                     }
@@ -183,7 +185,8 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();
+        BulkResponse bulkResponse = client().prepareBulk().add(
+                client().prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(1));
         IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();

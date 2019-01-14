@@ -44,10 +44,13 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public final class SearchHits implements Streamable, ToXContentFragment, Iterable<SearchHit> {
-
     public static SearchHits empty() {
+        return empty(true);
+    }
+
+    public static SearchHits empty(boolean withTotalHits) {
         // We shouldn't use static final instance, since that could directly be returned by native transport clients
-        return new SearchHits(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0);
+        return new SearchHits(EMPTY, withTotalHits ? new TotalHits(0, Relation.EQUAL_TO) : null, 0);
     }
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
@@ -151,7 +154,7 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.HITS);
-        boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, false);
+        boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
         if (totalHitAsInt) {
             long total = totalHits == null ? -1 : totalHits.in.value;
             builder.field(Fields.TOTAL, total);
@@ -329,12 +332,17 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
     private static class Total implements Writeable, ToXContentFragment {
         final TotalHits in;
 
+        Total(TotalHits in) {
+            this.in = Objects.requireNonNull(in);
+        }
+
         Total(StreamInput in) throws IOException {
             this.in = Lucene.readTotalHits(in);
         }
 
-        Total(TotalHits in) {
-            this.in = Objects.requireNonNull(in);
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            Lucene.writeTotalHits(out, in);
         }
 
         @Override
@@ -349,11 +357,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
         @Override
         public int hashCode() {
             return Objects.hash(in.value, in.relation);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            Lucene.writeTotalHits(out, in);
         }
 
         @Override

@@ -1156,7 +1156,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 },
                 (result) -> {}
             ));
-        assertThat(exc.getMessage(), containsString("could not parse input [1474329600000] with date formatter [yyyy-MM-dd]"));
+        assertThat(exc.getMessage(), containsString("failed to parse date field [1474329600000]"));
     }
 
     public void testWithDateHistogramAndTimeZone() throws IOException {

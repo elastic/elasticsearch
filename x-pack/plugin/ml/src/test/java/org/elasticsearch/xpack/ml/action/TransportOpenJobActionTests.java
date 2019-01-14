@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -455,8 +457,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-
-        String indexToRemove = randomFrom(TransportOpenJobAction.indicesOfInterest(".ml-anomalies-shared"));
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+        String indexToRemove = randomFrom(indexNameExpressionResolver.concreteIndexNames(cs, IndicesOptions.lenientExpandOpen(),
+            TransportOpenJobAction.indicesOfInterest(".ml-anomalies-shared")));
         if (randomBoolean()) {
             routingTable.remove(indexToRemove);
         } else {
@@ -575,10 +578,16 @@ public class TransportOpenJobActionTests extends ESTestCase {
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
+        addJobTask(jobId, nodeId, jobState, builder, false);
+    }
+
+    public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder,
+                                  boolean isStale) {
         builder.addTask(MlTasks.jobTaskId(jobId), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams(jobId),
-                new Assignment(nodeId, "test assignment"));
+            new Assignment(nodeId, "test assignment"));
         if (jobState != null) {
-            builder.updateTaskState(MlTasks.jobTaskId(jobId), new JobTaskState(jobState, builder.getLastAllocationId()));
+            builder.updateTaskState(MlTasks.jobTaskId(jobId),
+                new JobTaskState(jobState, builder.getLastAllocationId() - (isStale ? 1 : 0)));
         }
     }
 

@@ -47,6 +47,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -96,7 +97,7 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, ClusterState.builder(new ClusterName("cluster")).build()), r -> emptyList(),
-            new NoOpClusterApplier(), new Random(random().nextLong()));
+            new NoOpClusterApplier(), Collections.emptyList(), new Random(random().nextLong()));
     }
 
     public void testHandlesNonstandardDiscoveryImplementation() throws InterruptedException {

@@ -46,7 +46,7 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
     }
 
     public ActionListenerResponseHandler(ActionListener<? super Response> listener, Writeable.Reader<Response> reader) {
-        this(listener, reader,ThreadPool.Names.SAME);
+        this(listener, reader, ThreadPool.Names.SAME);
     }
 
     @Override

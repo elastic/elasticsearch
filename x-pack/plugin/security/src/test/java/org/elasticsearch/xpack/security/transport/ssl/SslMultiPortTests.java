@@ -83,7 +83,8 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
 
     private TransportClient createTransportClient(Settings additionalSettings) {
         Settings settings = Settings.builder()
-                .put(transportClientSettings().filter(s -> s.startsWith("xpack.ssl") == false))
+                .put(transportClientSettings()
+                    .filter(s -> s.startsWith("xpack.ssl") == false && s.startsWith("xpack.security.transport.ssl") == false))
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("xpack.security.transport.ssl.enabled", true)
@@ -192,7 +193,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.pem",
             "testclient-client-profile",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+            Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (TransportClient transportClient = createTransportClient(builder.build())) {
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
             transportClient.addTransportAddress(transportAddress);

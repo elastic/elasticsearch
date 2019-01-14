@@ -43,12 +43,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -57,9 +57,11 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SslIntegrationTests extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.enabled", true).build();
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
+        return builder.put(NetworkModule.HTTP_ENABLED.getKey(), true)
+            .put("xpack.security.http.ssl.enabled", true)
+            .build();
     }
 
     @Override
@@ -98,7 +100,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putList("xpack.ssl.supported_protocols", new String[]{"SSLv3"})
+                .putList("xpack.security.transport.ssl.supported_protocols", new String[]{"SSLv3"})
                 .build(), LocalStateSecurity.class)) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
@@ -117,13 +119,13 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
             builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
             "testclient",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+            Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         SSLService service = new SSLService(builder.build(), null);
 
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),
                 new String(nodeClientPassword().getChars())));
-        SSLConfiguration sslConfiguration = service.getSSLConfiguration("xpack.ssl");
+        SSLConfiguration sslConfiguration = service.getSSLConfiguration("xpack.security.transport.ssl");
         try (CloseableHttpClient client = HttpClients.custom()
                 .setSSLSocketFactory(new SSLConnectionSocketFactory(service.sslSocketFactory(sslConfiguration),
                         SSLConnectionSocketFactory.getDefaultHostnameVerifier()))

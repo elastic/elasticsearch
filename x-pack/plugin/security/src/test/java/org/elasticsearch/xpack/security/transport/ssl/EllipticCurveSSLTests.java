@@ -42,12 +42,14 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key.pem");
         final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal).filter(s -> s.startsWith("xpack.ssl") == false))
-                .put("xpack.ssl.key", keyPath)
-                .put("xpack.ssl.certificate", certPath)
-                .put("xpack.ssl.certificate_authorities", certPath)
-                .put("xpack.ssl.verification_mode", "certificate") // disable hostname verificate since these certs aren't setup for that
-                .build();
+            .put(super.nodeSettings(nodeOrdinal)
+                .filter(s -> s.startsWith("xpack.security.transport.ssl") == false || s.equals("xpack.security.transport.ssl.enabled")))
+            .put("xpack.security.transport.ssl.key", keyPath)
+            .put("xpack.security.transport.ssl.certificate", certPath)
+            .put("xpack.security.transport.ssl.certificate_authorities", certPath)
+            // disable hostname verification since these certs aren't setup for that
+            .put("xpack.security.transport.ssl.verification_mode", "certificate")
+            .build();
     }
 
     @Override
@@ -55,12 +57,14 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key.pem");
         final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
         return Settings.builder()
-                .put(super.transportClientSettings().filter(s -> s.startsWith("xpack.ssl") == false))
-                .put("xpack.ssl.key", keyPath)
-                .put("xpack.ssl.certificate", certPath)
-                .put("xpack.ssl.certificate_authorities", certPath)
-                .put("xpack.ssl.verification_mode", "certificate") // disable hostname verification since these certs aren't setup for that
-                .build();
+            .put(super.transportClientSettings()
+                .filter(s -> s.startsWith("xpack.security.transport.ssl") == false || s.equals("xpack.security.transport.ssl.enabled")))
+            .put("xpack.security.transport.ssl.key", keyPath)
+            .put("xpack.security.transport.ssl.certificate", certPath)
+            .put("xpack.security.transport.ssl.certificate_authorities", certPath)
+            // disable hostname verification since these certs aren't setup for that
+            .put("xpack.security.transport.ssl.verification_mode", "certificate")
+            .build();
     }
 
     @Override

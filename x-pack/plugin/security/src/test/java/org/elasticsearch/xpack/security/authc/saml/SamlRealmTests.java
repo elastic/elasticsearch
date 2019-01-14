@@ -123,6 +123,7 @@ public class SamlRealmTests extends SamlTestCase {
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         final Settings settings = Settings.builder()
+            .put("xpack.watcher.enabled", false) // disable watcher to avoid xpack.http.ssl deprecation warning
             .put("xpack.ssl.key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .put("xpack.ssl.certificate",

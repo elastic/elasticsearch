@@ -197,4 +197,19 @@ public class NodeDeprecationChecks {
         }
         return null;
     }
+
+    static DeprecationIssue defaultSSLSettingsRemoved(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
+        List<String> nodesFound = nodeInfos.stream()
+            .filter(nodeInfo -> nodeInfo.getSettings().getByPrefix("xpack.ssl").isEmpty() == false)
+            .map(nodeInfo -> nodeInfo.getNode().getName())
+            .collect(Collectors.toList());
+        if (nodesFound.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Default TLS/SSL settings have been removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#tls-setting-fallback",
+                "Nodes with default TLS/SSL settings: " + nodesFound);
+        }
+        return null;
+    }
 }

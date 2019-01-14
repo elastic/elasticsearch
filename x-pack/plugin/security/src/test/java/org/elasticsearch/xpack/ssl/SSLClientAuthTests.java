@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -50,15 +51,16 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SSLClientAuthTests extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // invert the require auth settings
                 .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
-                .put("xpack.security.http.ssl.enabled", true)
-                .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.REQUIRED)
                 .put("transport.profiles.default.xpack.security.ssl.client_authentication", SSLClientAuth.NONE)
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .build();
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true);
+        SecuritySettingsSource.addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
+        builder.put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.REQUIRED);
+        return builder.build();
     }
 
     @Override

@@ -55,12 +55,20 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("transport.profiles.some_profile.xpack.security.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("transport.profiles.some_other_profile.xpack.security.ssl.secure_key_passphrase", "testnode");
         Settings settings1 = Settings.builder()
             .put(settings)
             .put("xpack.security.transport.ssl.enabled", true)
-            .put("xpack.ssl.key", testnodeKey)
-            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
+            .put("transport.profiles.some_profile.xpack.security.ssl.enabled", true)
+            .put("transport.profiles.some_profile.xpack.security.ssl.key", testnodeKey)
+            .put("transport.profiles.some_profile.xpack.security.ssl.certificate", testnodeCert)
+            .put("transport.profiles.some_other_profile.xpack.security.ssl.enabled", true)
+            .put("transport.profiles.some_other_profile.xpack.security.ssl.key", testnodeKey)
+            .put("transport.profiles.some_other_profile.xpack.security.ssl.certificate", testnodeCert)
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();

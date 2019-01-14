@@ -7,16 +7,21 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.HostnameVerifier;
@@ -61,7 +66,8 @@ import java.util.stream.Collectors;
  */
 public class SSLService extends AbstractComponent {
 
-    private final Settings settings;
+    private static final Logger logger = LogManager.getLogger(SSLService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     /**
      * This is a mapping from "context name" (in general use, the name of a setting key)
@@ -83,6 +89,7 @@ public class SSLService extends AbstractComponent {
     private final SSLConfiguration globalSSLConfiguration;
     private final SetOnce<SSLConfiguration> transportSSLConfiguration = new SetOnce<>();
     private final Environment env;
+    private final Settings settings;
 
     /**
      * Create a new SSLService that parses the settings for the ssl contexts that need to be created, creates them, and then caches them
@@ -117,6 +124,13 @@ public class SSLService extends AbstractComponent {
             Map<SSLConfiguration, SSLContextHolder> loadSSLConfigurations() {
                 // we don't need to load anything...
                 return Collections.emptyMap();
+            }
+
+            @Override
+            SSLConfiguration sslConfiguration(Settings settings) {
+                SSLConfiguration sslConfiguration = super.sslConfiguration(settings);
+                SSLService.this.checkSSLConfigurationForFallback("monitoring.exporters", settings, sslConfiguration);
+                return sslConfiguration;
             }
 
             /**
@@ -405,9 +419,15 @@ public class SSLService extends AbstractComponent {
 
         sslSettingsMap.forEach((key, sslSettings) -> {
             if (sslSettings.isEmpty()) {
+                if (shouldCheckForFallbackDeprecation(key)) {
+                    checkSSLConfigurationForFallback(key, sslSettings, new SSLConfiguration(sslSettings, globalSSLConfiguration));
+                }
                 storeSslConfiguration(key, globalSSLConfiguration);
             } else {
                 final SSLConfiguration configuration = new SSLConfiguration(sslSettings, globalSSLConfiguration);
+                if (shouldCheckForFallbackDeprecation(key)) {
+                    checkSSLConfigurationForFallback(key, sslSettings, configuration);
+                }
                 storeSslConfiguration(key, configuration);
                 sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
             }
@@ -415,12 +435,19 @@ public class SSLService extends AbstractComponent {
 
         final Settings transportSSLSettings = settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX);
         final SSLConfiguration transportSSLConfiguration = new SSLConfiguration(transportSSLSettings, globalSSLConfiguration);
+        final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+        if (transportSSLEnabled) {
+            checkSSLConfigurationForFallback(XPackSettings.TRANSPORT_SSL_PREFIX, transportSSLSettings, transportSSLConfiguration);
+        }
         this.transportSSLConfiguration.set(transportSSLConfiguration);
         storeSslConfiguration(XPackSettings.TRANSPORT_SSL_PREFIX, transportSSLConfiguration);
         Map<String, Settings> profileSettings = getTransportProfileSSLSettings(settings);
         sslContextHolders.computeIfAbsent(transportSSLConfiguration, this::createSslContext);
         profileSettings.forEach((key, profileSetting) -> {
             final SSLConfiguration configuration = new SSLConfiguration(profileSetting, transportSSLConfiguration);
+            if (transportSSLEnabled && key.equals("transport.profiles.default.xpack.security.ssl") == false) {
+                checkSSLConfigurationForFallback(key, profileSetting, configuration);
+            }
             storeSslConfiguration(key, configuration);
             sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
         });
@@ -435,6 +462,57 @@ public class SSLService extends AbstractComponent {
         sslConfigurations.put(key, configuration);
     }
 
+    private boolean shouldCheckForFallbackDeprecation(String name) {
+        if (name.startsWith("xpack.security.authc.realms.")) {
+            // try to see if this is actually using TLS
+            Settings realm = settings.getByPrefix(name.substring(0, name.indexOf(".ssl")));
+            String type = realm.get("type");
+            // only check the types we know use ssl. custom realms may but we don't want to cause confusion
+            if (LdapRealmSettings.LDAP_TYPE.equals(type) || LdapRealmSettings.AD_TYPE.equals(type)) {
+                List<String> urls = realm.getAsList("url");
+                return urls.isEmpty() == false && urls.stream().anyMatch(s -> s.startsWith("ldaps://"));
+            } else if (SamlRealmSettings.TYPE.equals(type)) {
+                final String idpMetadataPath = SamlRealmSettings.IDP_METADATA_PATH.get(realm);
+                return Strings.hasText(idpMetadataPath) && idpMetadataPath.startsWith("https://");
+            }
+        } else if (name.startsWith("xpack.monitoring.exporters.")) {
+            Settings exporterSettings = settings.getByPrefix(name.substring(0, name.indexOf(".ssl")));
+            List<String> hosts = exporterSettings.getAsList("host");
+            return hosts.stream().anyMatch(s -> s.startsWith("https"));
+        } else if (name.equals(XPackSettings.HTTP_SSL_PREFIX) && XPackSettings.HTTP_SSL_ENABLED.get(settings)) {
+            return true;
+        } else if (name.equals("xpack.http.ssl") && XPackSettings.WATCHER_ENABLED.get(settings)) {
+            return true;
+        }
+        return false;
+    }
+
+    private void checkSSLConfigurationForFallback(String name, Settings settings, SSLConfiguration config) {
+        final SSLConfiguration noFallBackConfig = new SSLConfiguration(settings);
+        if (config.equals(noFallBackConfig) == false) {
+            List<String> fallbackReliers = new ArrayList<>();
+            if (config.keyConfig().equals(noFallBackConfig.keyConfig()) == false) {
+                fallbackReliers.add("key configuration");
+            }
+            if (config.trustConfig().equals(noFallBackConfig.trustConfig()) == false) {
+                fallbackReliers.add("trust configuration");
+            }
+            if (config.cipherSuites().equals(noFallBackConfig.cipherSuites()) == false) {
+                fallbackReliers.add("enabled cipher suites");
+            }
+            if (config.sslClientAuth() != noFallBackConfig.sslClientAuth()) {
+                fallbackReliers.add("client authentication");
+            }
+            if (config.supportedProtocols().equals(noFallBackConfig.supportedProtocols()) == false) {
+                fallbackReliers.add("supported protocols");
+            }
+            if (config.verificationMode() != noFallBackConfig.verificationMode()) {
+                fallbackReliers.add("certificate verification mode");
+            }
+            deprecationLogger.deprecated("SSL configuration [{}] relies upon fallback to another configuration for {}, which is " +
+                "deprecated.", name, fallbackReliers);
+        }
+    }
 
     /**
      * Returns information about each certificate that is referenced by any SSL configuration.

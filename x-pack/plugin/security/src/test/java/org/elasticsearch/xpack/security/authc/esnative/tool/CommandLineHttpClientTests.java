@@ -62,6 +62,7 @@ public class CommandLineHttpClientTests extends ESTestCase {
             // with global settings
             secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
             settings = Settings.builder()
+                .put("xpack.watcher.enabled", false) // to avoid xpack.http.ssl deprecation warnings
                 .put("xpack.ssl.certificate_authorities", certPath.toString())
                 .put("xpack.ssl.verification_mode", VerificationMode.CERTIFICATE)
                 .setSecureSettings(secureSettings)
@@ -82,6 +83,7 @@ public class CommandLineHttpClientTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
+            .put("xpack.watcher.enabled", false) // to avoid xpack.http.ssl deprecation warnings
             .put("xpack.ssl.key", keyPath.toString())
             .put("xpack.ssl.certificate", certPath.toString())
             .setSecureSettings(secureSettings)

@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -84,6 +85,6 @@ public final class StepListener<Response> implements ActionListener<Response> {
         if (delegate.isDone() == false) {
             throw new IllegalStateException("step is not completed yet");
         }
-        return FutureUtils.get(delegate);
+        return FutureUtils.get(delegate, 0L, TimeUnit.NANOSECONDS); // this future is done already - use a non-blocking method.
     }
 }

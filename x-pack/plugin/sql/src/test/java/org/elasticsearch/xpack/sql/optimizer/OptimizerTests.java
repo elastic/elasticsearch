@@ -585,7 +585,7 @@ public class OptimizerTests extends ESTestCase {
         BooleanLiteralsOnTheRight swapLiteralsToRight = new BooleanLiteralsOnTheRight();
         BinaryComparisonSimplification bcSimpl = new BinaryComparisonSimplification();
         FieldAttribute fa = getFieldAttribute();
-        Source source = new Source(1, 10, StringUtils.EMPTY);
+        Source source = new Source(1, 10, "IS_NULL(a)");
 
         Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, fa, NULL)));
         assertEquals(IsNull.class, e.getClass());

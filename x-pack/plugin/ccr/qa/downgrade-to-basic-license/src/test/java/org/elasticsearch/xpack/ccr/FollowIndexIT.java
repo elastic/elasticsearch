@@ -12,20 +12,21 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.JsonLogLine;
-import org.elasticsearch.common.logging.JsonLogs;
+import org.elasticsearch.common.logging.JsonLogsStream;
 import org.elasticsearch.common.settings.Settings;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.core.Is.is;
 
 public class FollowIndexIT extends ESCCRRestTestCase {
@@ -83,10 +84,10 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             // (does not work on windows...)
             if (Constants.WINDOWS == false) {
                 assertBusy(() -> {
-                    try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(System.getProperty("log")))) {
-                        assertThat(jsonLogs, hasItem(autoFollowCoordinatorWarn()));
+                    Path path = PathUtils.get(System.getProperty("log"));
+                    try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
+                        assertTrue(stream.anyMatch(autoFollowCoordinatorWarn()::matches));
                     }
-
                 });
             }
         });
@@ -97,13 +98,13 @@ public class FollowIndexIT extends ESCCRRestTestCase {
     }
 
     private Matcher<JsonLogLine> autoFollowCoordinatorWarn() {
-        return new FeatureMatcher<JsonLogLine,Boolean>(Matchers.is(true),"autoFollowCoordinatorWarn","autoFollowCoordinatorWarn") {
+        return new FeatureMatcher<JsonLogLine, Boolean>(Matchers.is(true), "autoFollowCoordinatorWarn", "autoFollowCoordinatorWarn") {
 
             @Override
             protected Boolean featureValueOf(JsonLogLine actual) {
                 return actual.level().equals("WARN") &&
                     actual.component().equals("o.e.x.c.a.AutoFollowCoordinator") &&
-                    actual.nodeName().equals("node-0")         &&
+                    actual.nodeName().equals("node-0") &&
                     actual.message().contains("failure occurred while fetching cluster state for auto follow pattern [test_pattern]") &&
                     actual.stacktrace().contains("org.elasticsearch.ElasticsearchStatusException: can not fetch remote cluster state " +
                         "as the remote cluster [leader_cluster] is not licensed for [ccr]; the license mode [BASIC]" +
@@ -114,8 +115,8 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
     private void createNewIndexAndIndexDocs(RestClient client, String index) throws IOException {
         Settings settings = Settings.builder()
-            .put("index.soft_deletes.enabled", true)
-            .build();
+                                    .put("index.soft_deletes.enabled", true)
+                                    .build();
         Request request = new Request("PUT", "/" + index);
         request.setJsonEntity("{\"settings\": " + Strings.toString(settings) +
             ", \"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}} }");

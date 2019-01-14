@@ -25,7 +25,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.JsonLogLine;
-import org.elasticsearch.common.logging.JsonLogs;
+import org.elasticsearch.common.logging.JsonLogsStream;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -38,6 +38,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -93,8 +94,8 @@ public class DieWithDignityIT extends ESRestTestCase {
         try {
             // parse the logs and ensure that Elasticsearch died with the expected cause
             Path path = PathUtils.get(System.getProperty("log"));
-            try (JsonLogs jsonLogs = new JsonLogs(path)) {
-                final Iterator<JsonLogLine> it = jsonLogs.iterator();
+            try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
+                final Iterator<JsonLogLine> it = stream.iterator();
 
                 boolean fatalError = false;
                 boolean fatalErrorInThreadExiting = false;

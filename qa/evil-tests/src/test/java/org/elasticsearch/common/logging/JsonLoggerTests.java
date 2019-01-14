@@ -38,6 +38,8 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JsonLoggerTests extends ESTestCase {
 
@@ -74,8 +76,9 @@ public class JsonLoggerTests extends ESTestCase {
             System.getProperty("file.separator") +
             System.getProperty("es.logs.cluster_name") +
             ".log";
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(PathUtils.get(path))) {
+            List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
 
-        try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(path))) {
             assertThat(jsonLogs, Matchers.contains(
                 logLine("file", Level.ERROR, "sample-name", "test", "This is an error message"),
                 logLine("file", Level.WARN, "sample-name", "test", "This is a warning message"),
@@ -84,6 +87,7 @@ public class JsonLoggerTests extends ESTestCase {
                 logLine("file", Level.TRACE, "sample-name", "test", "This is a trace message")
             ));
         }
+
     }
 
     @SuppressWarnings("unchecked")
@@ -101,11 +105,12 @@ public class JsonLoggerTests extends ESTestCase {
             System.getProperty("es.logs.cluster_name") +
             ".log";
 
-        try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(path))) {
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(PathUtils.get(path))) {
+            List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
             assertThat(jsonLogs, Matchers.contains(
                 logLine("file", Level.INFO, "sample-name", "shardIdLogger", "[indexName][123] This is an info message with a shardId"),
                 logLine("file", Level.INFO, "sample-name", "prefixLogger", "PREFIX This is an info message with a prefix")
-                ));
+            ));
         }
     }
 
@@ -131,7 +136,9 @@ public class JsonLoggerTests extends ESTestCase {
             System.getProperty("es.logs.cluster_name") +
             ".log";
 
-        try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(path))) {
+
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(PathUtils.get(path))) {
+            List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
             assertThat(jsonLogs, Matchers.contains(
                 logLine("file", Level.INFO, "sample-name", "test", json)
             ));
@@ -149,7 +156,8 @@ public class JsonLoggerTests extends ESTestCase {
             System.getProperty("es.logs.cluster_name") +
             ".log";
 
-        try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(path))) {
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(PathUtils.get(path))) {
+            List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
             assertThat(jsonLogs, Matchers.contains(
                 Matchers.allOf(
                     logLine("file", Level.ERROR, "sample-name", "test", "error message"),
@@ -182,7 +190,9 @@ public class JsonLoggerTests extends ESTestCase {
             System.getProperty("es.logs.cluster_name") +
             ".log";
 
-        try (JsonLogs jsonLogs = new JsonLogs(PathUtils.get(path))) {
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(PathUtils.get(path))) {
+            List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
+
             assertThat(jsonLogs, Matchers.contains(
                 Matchers.allOf(
                     //message field will have a single line with json escaped

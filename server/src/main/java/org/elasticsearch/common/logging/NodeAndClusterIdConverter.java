@@ -19,32 +19,30 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.LazyInitializable;
 
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
-
+/**
+ * Pattern converter to format the node_and_cluster_id variable into a json fields node.id and cluster.uuid
+ * Keeping those two fields together assures that the will be atomically set and become visible in logs at the same time
+ */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
 @ConverterKeys({"node_and_cluster_id"})
-public final class NodeAndClusterIdConverter extends LogEventPatternConverter implements ClusterStateListener {
+public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
 
     private static LazyInitializable<NodeAndClusterIdConverter, Exception> INSTANCE =
-        new LazyInitializable(() -> new NodeAndClusterIdConverter());
+        new LazyInitializable(NodeAndClusterIdConverter::new);
 
-    private final Logger logger = LogManager.getLogger(getClass());
-    private final AtomicReference<String> nodeAndClusterIdsReference = new AtomicReference<>();
+    private static final AtomicReference<String> nodeAndClusterIdsReference = new AtomicReference<>();
+
     private final CloseableThreadLocal<String> nodeAndClusterIds = new CloseableThreadLocal();
 
     /**
@@ -62,6 +60,23 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter im
         super("NodeName", "node_and_cluster_id");
     }
 
+    /**
+     * Updates only once the clusterID and nodeId
+     * @param clusterUUID a clusterId received from cluster state update
+     * @param nodeId a nodeId received from cluster state update
+     * @return true if the update was for the first time (successful) or false if for another calls (does not updates)
+     */
+    public static boolean setOnce(String clusterUUID, String nodeId) {
+        return nodeAndClusterIdsReference.compareAndSet(null, formatIds(clusterUUID, nodeId));
+    }
+
+    /**
+     * Formats the node.id and cluster.uuid into json fields.
+     * If it reads these values for the first time - it will get them from AtomicReference nodeAndClusterIdsReference
+     * all succeeding calls of this method will read this from ThreadLocal nodeAndClusterIds - which is supposed to cache that value to
+     * avoid expensive AtomicReference read (TODO discuss the performance)
+     * @param event - a log event is ignored in this method as it uses the nodeId and clusterId to format
+     */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
         if (nodeAndClusterIds.get() != null) {
@@ -73,18 +88,6 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter im
             nodeAndClusterIds.set(nodeAndClusterIdsReference.get());
         }
         // nodeId/clusterUuid not received yet, not appending
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        DiscoveryNode localNode = event.state().getNodes().getLocalNode();
-        String clusterUUID = event.state().getMetaData().clusterUUID();
-        String nodeId = localNode.getId();
-        boolean wasSet = nodeAndClusterIdsReference.compareAndSet(null, formatIds(clusterUUID, nodeId));
-
-        if (wasSet) {
-            logger.info("received first cluster state update. Setting nodeId={} and clusterUuid={}", nodeId, clusterUUID);
-        }
     }
 
     private static String formatIds(String clusterUUID, String nodeId) {

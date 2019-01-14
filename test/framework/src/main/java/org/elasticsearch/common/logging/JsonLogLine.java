@@ -24,6 +24,11 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 
 import java.util.List;
 
+
+/**
+ * Represents a single log line in a json format.
+ * Parsing log lines with this class confirms the json format of logs
+ */
 public class JsonLogLine {
     public static final ObjectParser<JsonLogLine, Void> PARSER = createParser(false);
 

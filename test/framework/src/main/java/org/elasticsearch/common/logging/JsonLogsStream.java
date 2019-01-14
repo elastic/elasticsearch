@@ -25,41 +25,52 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
-import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-public class JsonLogs implements Iterable<JsonLogLine>, Closeable {
+/**
+ * Returns a stream of json log lines.
+ * This is intended to be used for easy and readable assertions for logger tests
+ */
+public class JsonLogsStream {
 
     private final XContentParser parser;
     private final BufferedReader reader;
 
-    public JsonLogs(BufferedReader reader) throws IOException {
+    private JsonLogsStream(BufferedReader reader) throws IOException {
         this.reader = reader;
         this.parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
             reader);
     }
 
-    public JsonLogs(Path path) throws IOException {
-        this(Files.newBufferedReader(path));
+    public static Stream<JsonLogLine> from(BufferedReader reader) throws IOException {
+        return new JsonLogsStream(reader).stream();
     }
 
-    @Override
-    public Iterator<JsonLogLine> iterator() {
-        return new JsonIterator();
-    }
-
-    @Override
-    public void close() throws IOException {
-        reader.close();
+    public static Stream<JsonLogLine> from(Path path) throws IOException {
+        return new JsonLogsStream(Files.newBufferedReader(path)).stream();
     }
 
     public Stream<JsonLogLine> stream() {
-        return StreamSupport.stream(spliterator(), false);
+        Spliterator<JsonLogLine> spliterator = Spliterators.spliteratorUnknownSize(new JsonIterator(), Spliterator.ORDERED);
+        return StreamSupport.stream(spliterator, false)
+            .onClose(this::close);
+    }
+
+    private void close()  {
+        try {
+            parser.close();
+            reader.close();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private class JsonIterator implements Iterator<JsonLogLine> {
@@ -80,10 +91,8 @@ public class JsonLogs implements Iterable<JsonLogLine>, Closeable {
             try {
                 parser.nextToken();
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
             }
         }
     }
-
-
 }

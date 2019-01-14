@@ -37,14 +37,13 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
 
     public void testNoStacktrace() throws IOException {
         LogEvent event = Log4jLogEvent.newBuilder()
-            .build();
+                                      .build();
 
         String result = format(event);
 
-        JsonLogs jsonLogs = new JsonLogs(new BufferedReader(new StringReader(result)));
-        JsonLogLine jsonLogLine = jsonLogs.stream()
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("no logs parsed"));
+        JsonLogLine jsonLogLine = JsonLogsStream.from(new BufferedReader(new StringReader(result)))
+                                                .findFirst()
+                                                .orElseThrow(() -> new AssertionError("no logs parsed"));
 
         assertThat(jsonLogLine.stacktrace(), Matchers.nullValue());
     }
@@ -65,17 +64,17 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
             "}";
         Exception thrown = new Exception(json);
         LogEvent event = Log4jLogEvent.newBuilder()
-            .setMessage(new SimpleMessage("message"))
-            .setThrown(thrown)
-            .build();
+                                      .setMessage(new SimpleMessage("message"))
+                                      .setThrown(thrown)
+                                      .build();
 
         String result = format(event);
 
         //confirms exception is correctly parsed
-        JsonLogs jsonLogs = new JsonLogs(new BufferedReader(new StringReader(result)));
 
-        JsonLogLine jsonLogLine = jsonLogs.stream().findFirst()
-            .orElseThrow(() -> new AssertionError("no logs parsed"));
+        JsonLogLine jsonLogLine = JsonLogsStream.from(new BufferedReader(new StringReader(result)))
+                                                .findFirst()
+                                                .orElseThrow(() -> new AssertionError("no logs parsed"));
 
         int jsonLength = json.split("\n").length;
         int stacktraceLength = thrown.getStackTrace().length;

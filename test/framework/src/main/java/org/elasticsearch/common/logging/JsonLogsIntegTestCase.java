@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
@@ -44,9 +45,8 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
     /**
-     * Number of lines in the log file to check for the node name. We don't
-     * just check the entire log file because it could be quite long and
-     * exceptions don't include the node name.
+     * Number of lines in the log file to check for the node_name, node.id or cluster.uuid. We don't
+     * just check the entire log file because it could be quite long
      */
     private static final int LINES_TO_CHECK = 10;
 
@@ -64,31 +64,34 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
 
 
     public void testElementsPresentOnAllLinesOfLog() throws IOException {
-        try (JsonLogs jsonLogs = new JsonLogs(openReader(getLogFile()))) {
+        JsonLogLine firstLine = findFirstLine();
 
-            JsonLogLine firstLine = jsonLogs.stream()
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("no logs at all?!"));
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()))) {
+            stream.limit(LINES_TO_CHECK)
+                  .forEach(jsonLogLine -> {
+                      assertThat(jsonLogLine.type(), not(isEmptyOrNullString()));
+                      assertThat(jsonLogLine.timestamp(), not(isEmptyOrNullString()));
+                      assertThat(jsonLogLine.level(), not(isEmptyOrNullString()));
+                      assertThat(jsonLogLine.component(), not(isEmptyOrNullString()));
+                      assertThat(jsonLogLine.message(), not(isEmptyOrNullString()));
 
-            jsonLogs.stream()
-                .limit(LINES_TO_CHECK)
-                .forEach(jsonLogLine -> {
-                    assertThat(jsonLogLine.type(), not(isEmptyOrNullString()));
-                    assertThat(jsonLogLine.timestamp(), not(isEmptyOrNullString()));
-                    assertThat(jsonLogLine.level(), not(isEmptyOrNullString()));
-                    assertThat(jsonLogLine.component(), not(isEmptyOrNullString()));
-                    assertThat(jsonLogLine.message(), not(isEmptyOrNullString()));
+                      // all lines should have the same nodeName and clusterName
+                      assertThat(jsonLogLine.nodeName(), equalTo(firstLine.nodeName()));
+                      assertThat(jsonLogLine.clusterName(), equalTo(firstLine.clusterName()));
+                  });
+        }
+    }
 
-                    // all lines should have the same nodeName and clusterName
-                    assertThat(jsonLogLine.nodeName(), equalTo(firstLine.nodeName()));
-                    assertThat(jsonLogLine.clusterName(), equalTo(firstLine.clusterName()));
-                });
+    private JsonLogLine findFirstLine() throws IOException {
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()))) {
+            return stream.findFirst()
+                         .orElseThrow(() -> new AssertionError("no logs at all?!"));
         }
     }
 
     public void testNodeIdAndClusterIdConsistentOnceAvailable() throws IOException {
-        try (JsonLogs jsonLogs = new JsonLogs(openReader(getLogFile()))) {
-            Iterator<JsonLogLine> iterator = jsonLogs.iterator();
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()))) {
+            Iterator<JsonLogLine> iterator = stream.iterator();
 
             JsonLogLine firstLine = null;
             while (iterator.hasNext()) {

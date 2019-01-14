@@ -167,7 +167,7 @@ public class MlConfigMigratorTests extends ESTestCase {
 
         assertThat(MlConfigMigrator.filterFailedJobConfigWrites(Collections.emptySet(), jobs), hasSize(3));
         assertThat(MlConfigMigrator.filterFailedJobConfigWrites(Collections.singleton(Job.documentId("bar")), jobs),
-                contains("foo", "baz"));
+                contains(jobs.get(0), jobs.get(2)));
     }
 
     public void testFilterFailedDatafeedConfigWrites() {
@@ -178,7 +178,7 @@ public class MlConfigMigratorTests extends ESTestCase {
 
         assertThat(MlConfigMigrator.filterFailedDatafeedConfigWrites(Collections.emptySet(), datafeeds), hasSize(3));
         assertThat(MlConfigMigrator.filterFailedDatafeedConfigWrites(Collections.singleton(DatafeedConfig.documentId("df-foo")), datafeeds),
-                contains("df-bar", "df-baz"));
+                contains(datafeeds.get(1), datafeeds.get(2)));
     }
 
     public void testDocumentsNotWritten() {
@@ -227,7 +227,8 @@ public class MlConfigMigratorTests extends ESTestCase {
                 .putDatafeed(datafeedConfig1, Collections.emptyMap());
 
         MlConfigMigrator.RemovalResult removalResult = MlConfigMigrator.removeJobsAndDatafeeds(
-                Arrays.asList(job1, job2), Collections.singletonList(datafeedConfig1), mlMetadata.build());
+                Arrays.asList(job1, JobTests.buildJobBuilder("job-none").build()),
+                Collections.singletonList(createCompatibleDatafeed("job-none")), mlMetadata.build());
 
         assertThat(removalResult.mlMetadata.getJobs().keySet(), contains("job2"));
         assertThat(removalResult.mlMetadata.getDatafeeds().keySet(), contains("df-job1"));

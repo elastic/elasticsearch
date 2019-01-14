@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -71,21 +70,28 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Migrates job and datafeed configurations from the clusterstate to
- * index documents.
+ * index documents for closed or unallocated tasks.
  *
  * There are 3 steps to the migration process
  * 1. Read config from the clusterstate
+ *     - Find all job and datafeed configs that do not have an associated persistent
+ *       task or the persistent task is unallocated
  *     - If a job or datafeed is added after this call it will be added to the index
  *     - If deleted then it's possible the config will be copied before it is deleted.
  *       Mitigate against this by filtering out jobs marked as deleting
  * 2. Copy the config to the index
  *     - The index operation could fail, don't delete from clusterstate in this case
- * 3. Remove config from the clusterstate
+ * 3. Remove config from the clusterstate and update persistent task parameters
  *     - Before this happens config is duplicated in index and clusterstate, all ops
  *       must prefer to use the clusterstate config at this stage
  *     - If the clusterstate update fails then the config will remain duplicated
  *       and the migration process should try again
+ *     - Job and datafeed tasks opened prior to v6.6.0 need to be updated with new
+ *       parameters
  *
+ * If there was an error in step 3 and the config is in both the clusterstate and
+ * index. At this point the clusterstate config is preferred and all update
+ * operations will function on that rather than the index.
  *
  * The number of configs indexed in each bulk operation is limited by {@link #MAX_BULK_WRITE_SIZE}
  * pairs of datafeeds and jobs are migrated together.
@@ -292,6 +298,7 @@ public class MlConfigMigrator {
             if (params.getJob() == null) {
                 Job job = jobs.get(params.getJobId());
                 if (job != null) {
+                    logger.debug("updating persistent task params for job [{}]", params.getJobId());
                     params.setJob(job);
                 } else {
                     logger.error("cannot find job for task [{}]", jobTask.getId());
@@ -307,6 +314,7 @@ public class MlConfigMigrator {
             if (params.getJobId() == null) {
                 DatafeedConfig datafeedConfig = datafeeds.get(params.getDatafeedId());
                 if (datafeedConfig != null) {
+                    logger.debug("Updating persistent task params for datafeed [{}]", params.getDatafeedId());
                     params.setJobId(datafeedConfig.getJobId());
                     params.setDatafeedIndices(datafeedConfig.getIndices());
                 } else {

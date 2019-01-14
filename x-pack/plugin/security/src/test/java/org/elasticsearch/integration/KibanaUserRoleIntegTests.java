@@ -149,33 +149,6 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         assertThat(response.getIndices(), arrayContaining(index));
     }
 
-    public void testCreateIndexDeleteInKibanaIndex() throws Exception {
-        final String index = randomBoolean()? ".kibana" : ".kibana-" + randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ENGLISH);
-
-        if (randomBoolean()) {
-            CreateIndexResponse createIndexResponse = client().filterWithHeader(singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                .admin().indices().prepareCreate(index).get();
-            assertThat(createIndexResponse.isAcknowledged(), is(true));
-        }
-
-        IndexResponse response = client()
-            .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-            .prepareIndex()
-            .setIndex(index)
-            .setType("dashboard")
-            .setSource("foo", "bar")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
-
-        DeleteResponse deleteResponse = client()
-            .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-            .prepareDelete(index, "dashboard", response.getId())
-            .get();
-        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-    }
-
     public void testGetMappings() throws Exception {
         final String index = "logstash-20-12-2015";
         final String type = "event";

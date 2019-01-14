@@ -118,14 +118,14 @@ RTRIM            |SCALAR
 SPACE            |SCALAR         
 SUBSTRING        |SCALAR         
 UCASE            |SCALAR
-ST_ASTEXT        |SCALAR
-ST_ASWKT         |SCALAR
-ST_GEOMFROMTEXT  |SCALAR
-ST_WKTTOSQL      |SCALAR
 CAST             |SCALAR
 CONVERT          |SCALAR
 DATABASE         |SCALAR
 USER             |SCALAR
+ST_ASTEXT        |SCALAR
+ST_ASWKT         |SCALAR
+ST_GEOMFROMTEXT  |SCALAR
+ST_WKTTOSQL      |SCALAR
 SCORE            |SCORE
 ;
 

@@ -242,8 +242,8 @@ public class FunctionRegistry {
                 def(User.class, User::new, "USER"));
 
         // Geo Functions
-        addToMap(def(StAswkt.class, StAswkt::new, "ST_ASTEXT"),
-                def(StWkttosql.class, StWkttosql::new, "ST_GEOMFROMTEXT"));
+        addToMap(def(StAswkt.class, StAswkt::new, "ST_ASWKT", "ST_ASTEXT"),
+                def(StWkttosql.class, StWkttosql::new, "ST_WKTTOSQL", "ST_GEOMFROMTEXT"));
 
         // Special
         addToMap(def(Score.class, Score::new, "SCORE"));

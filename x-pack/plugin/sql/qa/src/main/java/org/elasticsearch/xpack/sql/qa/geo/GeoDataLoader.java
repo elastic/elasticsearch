@@ -116,7 +116,7 @@ public class GeoDataLoader {
     }
 
     private static void loadData(RestClient client, String index, String bulk) throws IOException {
-        Request request = new Request("POST", "/" + index + "/doc/_bulk");
+        Request request = new Request("POST", "/" + index + "/_bulk");
         request.addParameter("refresh", "true");
         request.setJsonEntity(bulk);
         Response response = client.performRequest(request);

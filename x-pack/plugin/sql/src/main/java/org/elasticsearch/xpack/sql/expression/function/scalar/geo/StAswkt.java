@@ -29,7 +29,7 @@ public class StAswkt extends UnaryGeoFunction {
 
     @Override
     protected StAswkt replaceChild(Expression newChild) {
-        return new StAswkt(location(), newChild);
+        return new StAswkt(source(), newChild);
     }
 
     @Override

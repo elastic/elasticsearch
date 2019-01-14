@@ -24,7 +24,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -63,7 +62,7 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testJsonLayout() throws IOException, UserException {
+    public void testJsonLayout() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
 
         testLogger.error("This is an error message");
@@ -86,7 +85,7 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testPrefixLoggerInJson() throws IOException, UserException {
+    public void testPrefixLoggerInJson() throws IOException {
         Logger shardIdLogger = Loggers.getLogger("shardIdLogger", ShardId.fromString("[indexName][123]"));
         shardIdLogger.info("This is an info message with a shardId");
 
@@ -103,7 +102,7 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
-    public void testJsonInMessage() throws IOException, UserException {
+    public void testJsonInMessage() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
         String json = "{\n" +
             "  \"terms\" : {\n" +
@@ -127,7 +126,7 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
-    public void testStacktrace() throws IOException, UserException {
+    public void testStacktrace() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
         testLogger.error("error message", new Exception("exception message", new RuntimeException("cause message")));
 
@@ -144,7 +143,7 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
-    public void testJsonInStacktraceMessageIsSplitted() throws IOException, UserException {
+    public void testJsonInStacktraceMessageIsSplitted() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
 
         String json = "{\n" +
@@ -185,11 +184,11 @@ public class JsonLoggerTests extends ESTestCase {
         return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".log");
     }
 
-    private void setupLogging(final String config) throws IOException, UserException {
+    private void setupLogging(final String config) throws IOException {
         setupLogging(config, Settings.EMPTY);
     }
 
-    private void setupLogging(final String config, final Settings settings) throws IOException, UserException {
+    private void setupLogging(final String config, final Settings settings) throws IOException {
         assertFalse("Environment path.home variable should not be set", Environment.PATH_HOME_SETTING.exists(settings));
         final Path configDir = getDataPath(config);
         final Settings mergedSettings = Settings.builder()

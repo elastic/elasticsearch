@@ -91,7 +91,7 @@ public class CompletionSuggestionTests extends ESTestCase {
             shardSuggestions.add(suggestion);
         }
         List<CompletionSuggestion.Entry.Option> expected = options.stream()
-            .sorted((o1, o2) -> COMPARATOR.compare(o1, o2))
+            .sorted(COMPARATOR)
             .distinct()
             .limit(size)
             .collect(Collectors.toList());

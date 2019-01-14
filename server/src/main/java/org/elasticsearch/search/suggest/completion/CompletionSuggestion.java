@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +43,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.PriorityQueue;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -138,29 +138,34 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         return suggestion;
     }
 
-    private static class SuggestionRef implements Iterator<Entry.Option>, Comparable<SuggestionRef> {
-        final Iterator<Entry.Option> it;
+    private static final class OptionPriorityQueue extends PriorityQueue<ShardOptions> {
+        OptionPriorityQueue(int maxSize) {
+            super(maxSize);
+        }
+
+        @Override
+        protected boolean lessThan(ShardOptions a, ShardOptions b) {
+            return COMPARATOR.compare(a.current, b.current) < 0;
+        }
+    }
+
+    private static class ShardOptions {
+        final Iterator<Entry.Option> optionsIterator;
         Entry.Option current;
 
-        private SuggestionRef(Iterator<Entry.Option> it) {
-            assert it.hasNext();
-            this.it = it;
-            this.current = it.next();
+        private ShardOptions(Iterator<Entry.Option> optionsIterator) {
+            assert optionsIterator.hasNext();
+            this.optionsIterator = optionsIterator;
+            this.current = optionsIterator.next();
         }
 
-        @Override
-        public int compareTo(SuggestionRef o) {
-            return COMPARATOR.compare(current, o.current);
-        }
-
-        @Override
-        public boolean hasNext() {
-            return it.hasNext();
-        }
-
-        @Override
-        public Entry.Option next() {
-            return current = it.next();
+        boolean advanceToNextOption() {
+            if (optionsIterator.hasNext()) {
+                current = optionsIterator.next();
+                return true;
+            } else {
+                return false;
+            }
         }
     }
 
@@ -182,33 +187,33 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 // combine suggestion entries from participating shards on the coordinating node
                 // the global top <code>size</code> entries are collected from the shard results
                 // using a priority queue
-                PriorityQueue<SuggestionRef> pq = new PriorityQueue(leader.getSize());
+                OptionPriorityQueue pq = new OptionPriorityQueue(toReduce.size());
                 for (Suggest.Suggestion<Entry> suggestion : toReduce) {
                     assert suggestion.getName().equals(name) : "name should be identical across all suggestions";
                     Iterator<Entry.Option> it = ((CompletionSuggestion) suggestion).getOptions().iterator();
                     if (it.hasNext()) {
-                        pq.add(new SuggestionRef(it));
+                        pq.add(new ShardOptions(it));
                     }
-
                 }
                 // Dedup duplicate suggestions (based on the surface form) if skip duplicates is activated
                 final CharArraySet seenSurfaceForms = leader.skipDuplicates ? new CharArraySet(leader.getSize(), false) : null;
                 final Entry entry = new Entry(leaderEntry.getText(), leaderEntry.getOffset(), leaderEntry.getLength());
                 final List<Entry.Option> options = entry.getOptions();
-                while (pq.isEmpty() == false) {
-                    final SuggestionRef ref = pq.poll();
-                    final Entry.Option current = ref.current;
-                    if (ref.hasNext()) {
-                        ref.next();
-                        pq.add(ref);
+                while (pq.size() > 0) {
+                    ShardOptions top = pq.top();
+                    Entry.Option current = top.current;
+                    if (top.advanceToNextOption()) {
+                        pq.updateTop();
+                    } else {
+                        //options exhausted for this shard
+                        pq.pop();
                     }
-                    if (leader.skipDuplicates &&
-                            seenSurfaceForms.add(current.getText().toString()) == false) {
-                        continue;
-                    }
-                    options.add(current);
-                    if (options.size() >= size) {
-                        break;
+                    if (leader.skipDuplicates == false ||
+                            seenSurfaceForms.add(current.getText().toString())) {
+                        options.add(current);
+                        if (options.size() >= size) {
+                            break;
+                        }
                     }
                 }
                 final CompletionSuggestion suggestion = new CompletionSuggestion(leader.getName(), leader.getSize(), leader.skipDuplicates);

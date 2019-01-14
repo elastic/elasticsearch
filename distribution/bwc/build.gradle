@@ -134,31 +134,33 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
         artifactFiles.add(file("${checkoutDir}/${baseDir}/${project}/build/distributions/elasticsearch-${bwcVersion}-SNAPSHOT.${project}"))
     }
 
+    Closure setJavaEnvVars = {
+        // Execution time so that the checkouts are available
+        List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
+        environment(
+                'JAVA_HOME',
+                getJavaHome(it, Integer.parseInt(
+                        lines
+                                .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
+                                .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
+                                .join("!!")
+                ))
+        )
+        environment(
+                'RUNTIME_JAVA_HOME',
+                getJavaHome(it, Integer.parseInt(
+                        lines
+                                .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
+                                .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
+                                .join("!!")
+                ))
+        )
+    }
+
     task buildBwcVersion(type: Exec) {
         dependsOn checkoutBwcBranch, writeBuildMetadata
         workingDir = checkoutDir
-        doFirst {
-            // Execution time so that the checkouts are available
-            List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
-            environment(
-                    'JAVA_HOME',
-                    getJavaHome(it, Integer.parseInt(
-                            lines
-                                    .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
-                                    .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
-                                    .join("!!")
-                    ))
-            )
-            environment(
-                    'RUNTIME_JAVA_HOME',
-                    getJavaHome(it, Integer.parseInt(
-                            lines
-                                    .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
-                                    .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
-                                    .join("!!")
-                    ))
-            )
-        }
+        doFirst setJavaEnvVars
 
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             executable 'cmd'
@@ -196,6 +198,32 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
             }
         }
     }
+
+    task resolveAllBwcDependencies(type: Exec) {
+        dependsOn checkoutBwcBranch, writeBuildMetadata
+        workingDir = checkoutDir
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            executable 'cmd'
+            args '/C', 'call', new File(checkoutDir, 'gradlew').toString()
+        } else {
+            executable new File(checkoutDir, 'gradlew').toString()
+        }
+        args 'resolveAllDependencies'
+        final LogLevel logLevel = gradle.startParameter.logLevel
+        if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
+            args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
+        }
+        final String showStacktraceName = gradle.startParameter.showStacktrace.name()
+        assert ["INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL"].contains(showStacktraceName)
+        if (showStacktraceName.equals("ALWAYS")) {
+            args "--stacktrace"
+        } else if (showStacktraceName.equals("ALWAYS_FULL")) {
+            args "--full-stacktrace"
+        }
+        standardOutput = new IndentingOutputStream(System.out, bwcVersion)
+        errorOutput = new IndentingOutputStream(System.err, bwcVersion)
+    }
+    resolveAllDependencies.dependsOn resolveAllBwcDependencies
 
     artifacts {
       for (File artifactFile : artifactFiles) {

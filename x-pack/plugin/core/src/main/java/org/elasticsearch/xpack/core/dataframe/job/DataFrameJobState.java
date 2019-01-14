@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.job;
+package org.elasticsearch.xpack.core.dataframe.job;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;

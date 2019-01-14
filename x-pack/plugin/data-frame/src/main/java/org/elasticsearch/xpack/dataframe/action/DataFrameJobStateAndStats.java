@@ -14,8 +14,8 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.dataframe.job.DataFrameIndexerJobStats;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJobState;
+import org.elasticsearch.xpack.core.dataframe.job.DataFrameIndexerJobStats;
+import org.elasticsearch.xpack.core.dataframe.job.DataFrameJobState;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,7 +23,6 @@ import java.util.Objects;
 public class DataFrameJobStateAndStats implements Writeable, ToXContentObject {
 
     public static final ParseField STATE_FIELD = new ParseField("state");
-    public static final ParseField STATS_FIELD = new ParseField("stats");
 
     private final String id;
     private final DataFrameJobState jobState;
@@ -36,7 +35,8 @@ public class DataFrameJobStateAndStats implements Writeable, ToXContentObject {
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameField.ID);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), DataFrameJobState.PARSER::apply, STATE_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataFrameIndexerJobStats.fromXContent(p), STATS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataFrameIndexerJobStats.fromXContent(p),
+                DataFrameField.STATS_FIELD);
     }
 
     public DataFrameJobStateAndStats(String id, DataFrameJobState state, DataFrameIndexerJobStats stats) {
@@ -56,7 +56,7 @@ public class DataFrameJobStateAndStats implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(DataFrameField.ID.getPreferredName(), id);
         builder.field(STATE_FIELD.getPreferredName(), jobState);
-        builder.field(STATS_FIELD.getPreferredName(), jobStats);
+        builder.field(DataFrameField.STATS_FIELD.getPreferredName(), jobStats);
         builder.endObject();
         return builder;
     }

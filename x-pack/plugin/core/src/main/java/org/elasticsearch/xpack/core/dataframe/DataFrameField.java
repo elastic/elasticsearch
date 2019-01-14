@@ -19,6 +19,7 @@ public final class DataFrameField {
     public static final ParseField COUNT = new ParseField("count");
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
+    public static final ParseField STATS_FIELD = new ParseField("stats");
 
     // common strings
     public static final String TASK_NAME = "data_frame/jobs";

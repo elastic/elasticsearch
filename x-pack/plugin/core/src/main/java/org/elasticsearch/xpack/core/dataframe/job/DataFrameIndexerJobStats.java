@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.job;
+package org.elasticsearch.xpack.core.dataframe.job;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -76,6 +76,21 @@ public class DataFrameIndexerJobStats extends IndexerJobStats {
         builder.field(SEARCH_FAILURES.getPreferredName(), searchFailures);
         builder.endObject();
         return builder;
+    }
+
+    public DataFrameIndexerJobStats merge(DataFrameIndexerJobStats other) {
+        numPages += other.numPages;
+        numInputDocuments += other.numInputDocuments;
+        numOuputDocuments += other.numOuputDocuments;
+        numInvocations += other.numInvocations;
+        indexTime += other.indexTime;
+        searchTime += other.searchTime;
+        indexTotal += other.indexTotal;
+        searchTotal += other.searchTotal;
+        indexFailures += other.indexFailures;
+        searchFailures += other.searchFailures;
+
+        return this;
     }
 
     public static DataFrameIndexerJobStats fromXContent(XContentParser parser) {

@@ -8,14 +8,19 @@ package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.dataframe.job.DataFrameIndexerJobStatsTests;
+import org.elasticsearch.xpack.core.dataframe.job.DataFrameJobStateTests;
 import org.elasticsearch.xpack.dataframe.job.AbstractSerializingDataFrameTestCase;
-import org.elasticsearch.xpack.dataframe.job.DataFrameIndexerJobStatsTests;
-import org.elasticsearch.xpack.dataframe.job.DataFrameJobStateTests;
 
 import java.io.IOException;
 
-public class DataFrameJobStateAndStatsTests
-        extends AbstractSerializingDataFrameTestCase<DataFrameJobStateAndStats> {
+public class DataFrameJobStateAndStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameJobStateAndStats> {
+
+    public static DataFrameJobStateAndStats randomDataFrameJobStateAndStats() {
+        return new DataFrameJobStateAndStats(randomAlphaOfLengthBetween(1, 10),
+                DataFrameJobStateTests.randomDataFrameJobState(),
+                DataFrameIndexerJobStatsTests.randomStats());
+    }
 
     @Override
     protected DataFrameJobStateAndStats doParseInstance(XContentParser parser) throws IOException {
@@ -24,9 +29,7 @@ public class DataFrameJobStateAndStatsTests
 
     @Override
     protected DataFrameJobStateAndStats createTestInstance() {
-        return new DataFrameJobStateAndStats(randomAlphaOfLengthBetween(1,10),
-                DataFrameJobStateTests.randomDataFrameJobState(),
-                DataFrameIndexerJobStatsTests.randomStats());
+        return randomDataFrameJobStateAndStats();
     }
 
     @Override

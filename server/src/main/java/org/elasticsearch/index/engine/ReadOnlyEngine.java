@@ -30,6 +30,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -98,7 +99,17 @@ public class ReadOnlyEngine extends Engine {
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
-                this.seqNoStats = seqNoStats == null ? buildSeqNoStats(lastCommittedSegmentInfos) : seqNoStats;
+                if (seqNoStats == null) {
+                    seqNoStats = buildSeqNoStats(lastCommittedSegmentInfos);
+                    if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_7_0)) {
+                        final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
+                        if (seqNoStats.getMaxSeqNo() != globalCheckpoint) {
+                            throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
+                                + "] from last commit does not match global checkpoint [" + globalCheckpoint + "]");
+                        }
+                    }
+                }
+                this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 reader = open(indexCommit);
                 reader = wrapReader(reader, readerWrapperFunction);

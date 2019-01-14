@@ -30,7 +30,13 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
-public class NioGroupFactory {
+/**
+ * Creates and returns {@link org.elasticsearch.nio.NioGroup} instances. It will return a shared group for
+ * both {@link #getHttpGroup()} and {@link #getTransportGroup()} if
+ * {@link NioTransportPlugin#NIO_HTTP_WORKER_COUNT} is configured to be 0. If that setting is not 0, then it
+ * will return a different group in the {@link #getHttpGroup()} call.
+ */
+public final class NioGroupFactory {
 
     private final Logger logger;
     private final Settings settings;

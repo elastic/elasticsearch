@@ -93,9 +93,10 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
-        if (groupFactory.get() != null) {
-            assert groupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
-            return groupFactory.get();
+        NioGroupFactory nioGroupFactory = groupFactory.get();
+        if (nioGroupFactory != null) {
+            assert nioGroupFactory.getSettings().equals(settings) : "Different settings than originally provided";
+            return nioGroupFactory;
         } else {
             groupFactory.set(new NioGroupFactory(settings, logger));
             return groupFactory.get();

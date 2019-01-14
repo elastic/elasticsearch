@@ -571,13 +571,13 @@ PUT _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 
-[[ilm-unfullow-action]]
+[[ilm-unfollow-action]]
 ==== Unfollow
 
-This action turns a ccr follower index into a regular index.
-This can be desired when moving follower indices into the
-next phase. Also certain actions like shrink and rollover
-can then be performed safely on follower indices.
+This action turns a {ref}/ccr-apis.html[ccr] follower index
+into a regular index. This can be desired when moving follower
+indices into the next phase. Also certain actions like shrink
+and rollover can then be performed safely on follower indices.
 
 If the unfollow action encounters a follower index then
 the following operations will be performed on it:

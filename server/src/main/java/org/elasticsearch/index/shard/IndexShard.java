@@ -106,6 +106,7 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
@@ -140,6 +141,7 @@ import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -305,7 +307,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), threadPool.scheduler(), logger);
         this.replicationTracker =
-                new ReplicationTracker(shardId, aId, indexSettings, UNASSIGNED_SEQ_NO, globalCheckpointListeners::globalCheckpointUpdated);
+                new ReplicationTracker(
+                        shardId,
+                        aId,
+                        indexSettings,
+                        UNASSIGNED_SEQ_NO,
+                        globalCheckpointListeners::globalCheckpointUpdated,
+                        threadPool::absoluteTimeInMillis);
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -1410,6 +1418,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+        replicationTracker.updateRetentionLeasesOnReplica(getRetentionLeases(store.readLastCommittedSegmentsInfo()));
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
@@ -1427,6 +1436,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         onSettingsChanged();
         assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
+    }
+
+    static Collection<RetentionLease> getRetentionLeases(final SegmentInfos segmentInfos) {
+        final String committedRetentionLeases = segmentInfos.getUserData().get(Engine.RETENTION_LEASES);
+        if (committedRetentionLeases == null) {
+            return Collections.emptyList();
+        }
+        return RetentionLease.decodeRetentionLeases(committedRetentionLeases);
     }
 
     private void trimUnsafeCommits() throws IOException {
@@ -1862,6 +1879,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final GlobalCheckpointListeners.GlobalCheckpointListener listener,
             final TimeValue timeout) {
         this.globalCheckpointListeners.add(waitingForGlobalCheckpoint, listener, timeout);
+    }
+
+
+    /**
+     * Adds a new or updates an existing retention lease.
+     *
+     * @param id                      the identifier of the retention lease
+     * @param retainingSequenceNumber the retaining sequence number
+     * @param source                  the source of the retention lease
+     */
+    void addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        replicationTracker.addOrUpdateRetentionLease(id, retainingSequenceNumber, source);
     }
 
     /**
@@ -2310,13 +2341,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private EngineConfig newEngineConfig() {
         Sort indexSort = indexSortSupplier.get();
         return new EngineConfig(shardId, shardRouting.allocationId().getId(),
-            threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
-            mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
-            indexCache.query(), cachingPolicy, translogConfig,
-            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            Collections.singletonList(refreshListeners),
-            Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
-            indexSort, circuitBreakerService, replicationTracker, () -> operationPrimaryTerm, tombstoneDocSupplier());
+                threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
+                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
+                indexCache.query(), cachingPolicy, translogConfig,
+                IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
+                Collections.singletonList(refreshListeners),
+                Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
+                indexSort, circuitBreakerService, replicationTracker, replicationTracker::getRetentionLeases,
+                () -> operationPrimaryTerm, tombstoneDocSupplier());
     }
 
     /**

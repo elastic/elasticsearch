@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
@@ -42,20 +42,20 @@ public abstract class Attribute extends NamedExpression {
     private final String qualifier;
 
     // can the attr be null - typically used in JOINs
-    private final boolean nullable;
+    private final Nullability nullability;
 
     public Attribute(Source source, String name, String qualifier, ExpressionId id) {
-        this(source, name, qualifier, true, id);
+        this(source, name, qualifier, Nullability.TRUE, id);
     }
 
-    public Attribute(Source source, String name, String qualifier, boolean nullable, ExpressionId id) {
-        this(source, name, qualifier, nullable, id, false);
+    public Attribute(Source source, String name, String qualifier, Nullability nullability, ExpressionId id) {
+        this(source, name, qualifier, nullability, id, false);
     }
 
-    public Attribute(Source source, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    public Attribute(Source source, String name, String qualifier, Nullability nullability, ExpressionId id, boolean synthetic) {
         super(source, name, emptyList(), id, synthetic);
         this.qualifier = qualifier;
-        this.nullable = nullable;
+        this.nullability = nullability;
     }
 
     @Override
@@ -77,8 +77,8 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
-        return nullable;
+    public Nullability nullable() {
+        return nullability;
     }
 
     @Override
@@ -94,11 +94,11 @@ public abstract class Attribute extends NamedExpression {
         return Objects.equals(qualifier(), qualifier) ? this : clone(source(), name(), qualifier, nullable(), id(), synthetic());
     }
 
-    public Attribute withNullability(boolean nullable) {
-        return Objects.equals(nullable(), nullable) ? this : clone(source(), name(), qualifier(), nullable, id(), synthetic());
+    public Attribute withNullability(Nullability nullability) {
+        return Objects.equals(nullable(), nullability) ? this : clone(source(), name(), qualifier(), nullability, id(), synthetic());
     }
 
-    protected abstract Attribute clone(Source source, String name, String qualifier, boolean nullable, ExpressionId id,
+    protected abstract Attribute clone(Source source, String name, String qualifier, Nullability nullability, ExpressionId id,
                                        boolean synthetic);
 
     @Override
@@ -123,7 +123,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), qualifier, nullable);
+        return Objects.hash(super.hashCode(), qualifier, nullability);
     }
 
     @Override
@@ -131,7 +131,7 @@ public abstract class Attribute extends NamedExpression {
         if (super.equals(obj)) {
             Attribute other = (Attribute) obj;
             return Objects.equals(qualifier, other.qualifier)
-                    && Objects.equals(nullable, other.nullable);
+                    && Objects.equals(nullability, other.nullability);
         }
 
         return false;

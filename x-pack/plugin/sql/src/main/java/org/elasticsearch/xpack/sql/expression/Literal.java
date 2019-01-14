@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.script.Params;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -36,7 +36,7 @@ public class Literal extends NamedExpression {
     }
 
     public Literal(Source source, String name, Object value, DataType dataType) {
-        super(source, name == null ? String.valueOf(value) : name, emptyList(), null);
+        super(source, name == null ? source.text() : name, emptyList(), null);
         this.dataType = dataType;
         this.value = DataTypeConversion.convert(value, dataType);
     }
@@ -56,8 +56,8 @@ public class Literal extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
-        return value == null;
+    public Nullability nullable() {
+        return value == null ? Nullability.TRUE : Nullability.FALSE;
     }
 
     @Override
@@ -77,7 +77,7 @@ public class Literal extends NamedExpression {
 
     @Override
     public Attribute toAttribute() {
-        return new LiteralAttribute(source(), name(), null, false, id(), false, dataType, this);
+        return new LiteralAttribute(source(), name(), null, Nullability.FALSE, id(), false, dataType, this);
     }
 
     @Override

@@ -124,7 +124,7 @@ When request constructors are used, like in the following example:
 --------------------------------------------------
 include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-request-ctor]
 --------------------------------------------------
-<1> Create an `IndexRequest` using its constructor
+<1> Create an `IndexRequest` using its constructor and id() setter.
 
 The migration is very simple. The execution using the `TransportClient`:
 

@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosqlProcessor;
@@ -80,6 +81,7 @@ public final class Processors {
         // datetime
         entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));
         entries.add(new Entry(Processor.class, NamedDateTimeProcessor.NAME, NamedDateTimeProcessor::new));
+        entries.add(new Entry(Processor.class, NonIsoDateTimeProcessor.NAME, NonIsoDateTimeProcessor::new));
         entries.add(new Entry(Processor.class, QuarterProcessor.NAME, QuarterProcessor::new));
         // math
         entries.add(new Entry(Processor.class, MathProcessor.NAME, MathProcessor::new));

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-job-stats]]
-=== Get Job Statistics API
+=== Get job statistics API
 ++++
-<titleabbrev>Get Job Statistics</titleabbrev>
+<titleabbrev>Get job statistics</titleabbrev>
 ++++
 
 Retrieves usage information for jobs.
@@ -13,13 +13,13 @@ Retrieves usage information for jobs.
 
 
 
-`GET _xpack/ml/anomaly_detectors/<job_id>/_stats`
+`GET _ml/anomaly_detectors/<job_id>/_stats`
 
-`GET _xpack/ml/anomaly_detectors/<job_id>,<job_id>/_stats` +
+`GET _ml/anomaly_detectors/<job_id>,<job_id>/_stats` +
 
-`GET _xpack/ml/anomaly_detectors/_stats` +
+`GET _ml/anomaly_detectors/_stats` +
 
-`GET _xpack/ml/anomaly_detectors/_all/_stats` +
+`GET _ml/anomaly_detectors/_all/_stats` +
 
 
 ===== Description
@@ -60,7 +60,7 @@ The following example gets usage information for the `farequote` job:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/farequote/_stats
+GET _ml/anomaly_detectors/farequote/_stats
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]

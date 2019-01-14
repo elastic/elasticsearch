@@ -47,6 +47,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.watcher.common.http.HttpClientTests.mockClusterService;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsString;
@@ -214,7 +215,8 @@ public class WebhookActionTests extends ESTestCase {
     public void testThatSelectingProxyWorks() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
-        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null);
+        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null,
+            mockClusterService());
              MockWebServer proxyServer = new MockWebServer()) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));

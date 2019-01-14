@@ -105,7 +105,11 @@ public class MembershipAction {
 
     public static class JoinRequest extends TransportRequest {
 
-        public DiscoveryNode node;
+        private DiscoveryNode node;
+
+        public DiscoveryNode getNode() {
+            return node;
+        }
 
         public JoinRequest() {
         }
@@ -132,7 +136,7 @@ public class MembershipAction {
 
         @Override
         public void messageReceived(final JoinRequest request, final TransportChannel channel, Task task) throws Exception {
-            listener.onJoin(request.node, new JoinCallback() {
+            listener.onJoin(request.getNode(), new JoinCallback() {
                 @Override
                 public void onSuccess() {
                     try {
@@ -160,7 +164,7 @@ public class MembershipAction {
 
         public ValidateJoinRequest() {}
 
-        ValidateJoinRequest(ClusterState state) {
+        public ValidateJoinRequest(ClusterState state) {
             this.state = state;
         }
 
@@ -174,6 +178,10 @@ public class MembershipAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.state.writeTo(out);
+        }
+
+        public ClusterState getState() {
+            return state;
         }
     }
 

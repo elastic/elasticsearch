@@ -3,6 +3,8 @@
 [[sql-functions-search]]
 === Full-Text Search Functions
 
+beta[]
+
 Search functions should be used when performing full-text search, namely
 when the `MATCH` or `QUERY` predicates are being used.
 Outside a, so-called, search context, these functions will return default values
@@ -11,7 +13,17 @@ such as `0` or `NULL`.
 [[sql-functions-search-score]]
 ==== `SCORE`
 
-*Input*: None, *Output*: `double`
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+SCORE()
+--------------------------------------------------
+
+*Input*: _none_
+
+*Output*: `double` numeric value
+
+.Description:
 
 Returns the {defguide}/relevance-intro.html[relevance] of a given input to the executed query. 
 The higher score, the more relevant the data.

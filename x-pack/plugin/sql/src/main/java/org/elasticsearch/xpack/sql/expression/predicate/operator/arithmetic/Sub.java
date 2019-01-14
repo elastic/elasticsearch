@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  */
 public class Sub extends DateTimeArithmeticOperation {
 
-    public Sub(Location location, Expression left, Expression right) {
-        super(location, left, right, BinaryArithmeticOperation.SUB);
+    public Sub(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryArithmeticOperation.SUB);
     }
 
     @Override
@@ -26,6 +26,6 @@ public class Sub extends DateTimeArithmeticOperation {
 
     @Override
     protected Sub replaceChildren(Expression newLeft, Expression newRight) {
-        return new Sub(location(), newLeft, newRight);
+        return new Sub(source(), newLeft, newRight);
     }
 }

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-search]]
-=== Rollup Search
+=== Rollup search
 ++++
-<titleabbrev>Rollup Search</titleabbrev>
+<titleabbrev>Rollup search</titleabbrev>
 ++++
 
 experimental[]
@@ -26,6 +26,7 @@ and rewrites it back to what a client would expect given the original query.
   indices.
 
 Rules for the `index` parameter:
+
 - At least one index/index-pattern must be specified.  This can be either a rollup or non-rollup index.  Omitting the index parameter,
 or using `_all`, is not permitted
 - Multiple non-rollup indices may be specified
@@ -52,7 +53,7 @@ Imagine we have an index named `sensor-1` full of raw data, and we have created 
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/rollup/job/sensor
+PUT _rollup/job/sensor
 {
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",

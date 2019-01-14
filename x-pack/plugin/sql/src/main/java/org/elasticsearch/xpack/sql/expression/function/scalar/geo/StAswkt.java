@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor.GeoOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class StAswkt extends UnaryGeoFunction {
 
-    public StAswkt(Location location, Expression field) {
-        super(location, field);
+    public StAswkt(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

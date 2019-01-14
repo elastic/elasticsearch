@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -89,7 +89,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
             client().performRequest(indexRequest);
 
             // create the rollup job
-            final Request createRollupJobRequest = new Request("PUT", "/_xpack/rollup/job/rollup-id-test");
+            final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-id-test");
             createRollupJobRequest.setJsonEntity("{"
                 + "\"index_pattern\":\"target\","
                 + "\"rollup_index\":\"rollup\","
@@ -121,7 +121,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
             client().performRequest(updateSettings);
 
             // start the rollup job
-            final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_start");
+            final Request startRollupJobRequest = new Request("POST", "_rollup/job/rollup-id-test/_start");
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -197,7 +197,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
             collectedIDs.clear();
             client().performRequest(new Request("POST", "rollup/_refresh"));
             final Request searchRequest = new Request("GET", "rollup/_search");
-            searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+            searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
             try {
                 Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                 assertNotNull(ObjectPath.eval("hits.total", searchResponse));
@@ -227,7 +227,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
         waitForRollUpJob(rollupJob, expectedStates);
 
         // check that the rollup job is started using the RollUp API
-        final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
+        final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
         Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
         if (job != null) {
@@ -265,7 +265,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
 
     private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {
         assertBusy(() -> {
-            final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
+            final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 

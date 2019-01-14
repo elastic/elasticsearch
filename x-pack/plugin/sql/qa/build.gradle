@@ -24,7 +24,7 @@ dependencies {
 
 /* disable unit tests because these are all integration tests used
  * other qa projects. */
-test.enabled = false
+unitTest.enabled = false
 
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
@@ -34,7 +34,7 @@ forbiddenApisMain {
   replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
     // jLine's optional dependencies
     'org.apache.sshd.client.SshClient',
     'org.apache.sshd.client.auth.keyboard.UserInteraction',
@@ -78,7 +78,7 @@ thirdPartyAudit.excludes = [
     'org.h2gis.functions.factory.H2GISFunctions',
     'org.h2gis.network.functions.NetworkFunctions',
     'org.mozilla.universalchardet.UniversalDetector',
-]
+)
 
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'

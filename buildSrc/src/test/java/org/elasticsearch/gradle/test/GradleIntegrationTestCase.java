@@ -43,7 +43,7 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         if (index.equals(index.stream().sorted().collect(Collectors.toList())) == false) {
             fail("Expected the following lines to appear in this order:\n" +
                 Stream.of(lines).map(line -> "   - `" + line + "`").collect(Collectors.joining("\n")) +
-                "\nBut they did not. Output is:\n\n```" + output + "\n```\n"
+                "\nTBut the order was different. Output is:\n\n```" + output + "\n```\n"
             );
         }
     }
@@ -90,6 +90,12 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         }
     }
 
+    protected void assertTaskNoSource(BuildResult result, String... taskNames) {
+        for (String taskName : taskNames) {
+            assertTaskOutcome(result, taskName, TaskOutcome.NO_SOURCE);
+        }
+    }
+
     private void assertTaskOutcome(BuildResult result, String taskName, TaskOutcome taskOutcome) {
         BuildTask task = result.task(taskName);
         if (task == null) {
@@ -97,8 +103,8 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
                 "\n\nOutput is:\n" + result.getOutput());
         }
         assertEquals(
-            "Expected task `" + taskName +"` to be successful but it was: " + task.getOutcome() +
-                taskOutcome + "\n\nOutput is:\n" + result.getOutput() ,
+            "Expected task `" + taskName +"` to be " + taskOutcome + " but it was: " + task.getOutcome() +
+                "\n\nOutput is:\n" + result.getOutput() ,
             taskOutcome,
             task.getOutcome()
         );

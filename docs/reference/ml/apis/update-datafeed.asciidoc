@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-datafeed]]
-=== Update {dfeeds-cap} API
+=== Update {dfeeds} API
 ++++
-<titleabbrev>Update {dfeeds-cap}</titleabbrev>
+<titleabbrev>Update {dfeeds}</titleabbrev>
 ++++
 
 Updates certain properties of a {dfeed}.
 
 ==== Request
 
-`POST _xpack/ml/datafeeds/<feed_id>/_update`
+`POST _ml/datafeeds/<feed_id>/_update`
 
 //===== Description
 
@@ -68,26 +68,22 @@ The following properties can be updated after the {dfeed} is created:
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
-`types`::
-  (array) A list of types to search for within the specified indices.
-  For example: `[]`. This property is provided for backwards compatibility with
-  releases earlier than 6.0.0. For more information, see <<removal-of-types>>.
-
 For more information about these properties,
 see <<ml-datafeed-resource>>.
 
 
 ==== Authorization
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
+cluster privileges to use this API. For more information, see
+{stack-ov}/security-privileges.html[Security Privileges].
 
 
 ==== Security Integration
 
-When {security} is enabled, your {dfeed} will remember which roles the user who
-updated it had at the time of update, and run the query using those same roles.
+When {es} {security-features} are enabled, your {dfeed} remembers which roles the
+user who updated it had at the time of update and runs the query using those
+same roles.
 
 
 ==== Examples
@@ -97,7 +93,7 @@ The following example updates the query for the `datafeed-total-requests`
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-total-requests/_update
+POST _ml/datafeeds/datafeed-total-requests/_update
 {
   "query": {
     "term": {
@@ -119,7 +115,6 @@ with the updated values:
   "job_id": "total-requests",
   "query_delay": "83474ms",
   "indices": ["server-metrics"],
-  "types": [],
   "query": {
     "term": {
       "level": {

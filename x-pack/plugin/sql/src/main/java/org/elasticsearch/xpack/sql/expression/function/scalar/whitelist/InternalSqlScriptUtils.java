@@ -10,6 +10,7 @@ import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Bina
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -166,6 +168,7 @@ public final class InternalSqlScriptUtils {
     // Regex
     //
     public static Boolean regex(String value, String pattern) {
+        // TODO: this needs to be improved to avoid creating the pattern on every call
         return RegexOperation.match(value, pattern);
     }
 
@@ -317,6 +320,13 @@ public final class InternalSqlScriptUtils {
         return NameExtractor.DAY_NAME.extract(asDateTime(dateTime), tzId);
     }
 
+    public static Integer dayOfWeek(Object dateTime, String tzId) {
+        if (dateTime == null || tzId == null) {
+            return null;
+        }
+        return NonIsoDateTimeExtractor.DAY_OF_WEEK.extract(asDateTime(dateTime), tzId);
+    }
+    
     public static String monthName(Object dateTime, String tzId) {
         if (dateTime == null || tzId == null) {
             return null;
@@ -330,19 +340,36 @@ public final class InternalSqlScriptUtils {
         }
         return QuarterProcessor.quarter(asDateTime(dateTime), tzId);
     }
+    
+    public static Integer weekOfYear(Object dateTime, String tzId) {
+        if (dateTime == null || tzId == null) {
+            return null;
+        }
+        return NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(asDateTime(dateTime), tzId);
+    }
 
     public static ZonedDateTime asDateTime(Object dateTime) {
+        return (ZonedDateTime) asDateTime(dateTime, false);
+    }
+    
+    private static Object asDateTime(Object dateTime, boolean lenient) {
+        if (dateTime == null) {
+            return null;
+        }
         if (dateTime instanceof JodaCompatibleZonedDateTime) {
             return ((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime();
         }
         if (dateTime instanceof ZonedDateTime) {
             return (ZonedDateTime) dateTime;
         }
-        if (dateTime instanceof Number) {
-            return DateUtils.of(((Number) dateTime).longValue());
+        if (false == lenient) {
+            if (dateTime instanceof Number) {
+                return DateUtils.of(((Number) dateTime).longValue());
+            }
+    
+            throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
         }
-
-        throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
+        return dateTime;
     }
 
     public static IntervalDayTime intervalDayTime(String text, String typeName) {
@@ -457,5 +484,14 @@ public final class InternalSqlScriptUtils {
 
     public static GeoShape wktToSql(String wktString) {
         return StWkttosqlProcessor.apply(wktString);
+    }
+
+    //
+    // Casting
+    //
+    public static Object cast(Object value, String typeName) {
+        // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
+        // since casting works for ZonedDateTime objects only
+        return DataTypeConversion.convert(asDateTime(value, true), DataType.fromTypeName(typeName));
     }
 }

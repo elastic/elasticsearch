@@ -7,15 +7,20 @@
 package org.elasticsearch.xpack.sql.expression.predicate.regex;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
+import org.elasticsearch.xpack.sql.expression.Nullability;
+import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-public abstract class RegexMatch extends BinaryPredicate<String, String, Boolean, RegexOperation> {
+public abstract class RegexMatch extends UnaryScalarFunction {
 
-    protected RegexMatch(Location location, Expression value, Expression pattern) {
-        super(location, value, pattern, RegexOperation.INSTANCE);
+    private final String pattern;
+
+    protected RegexMatch(Source source, Expression value, String pattern) {
+        super(source, value);
+        this.pattern = pattern;
     }
 
     @Override
@@ -24,17 +29,27 @@ public abstract class RegexMatch extends BinaryPredicate<String, String, Boolean
     }
 
     @Override
+    public Nullability nullable() {
+        if (pattern == null) {
+            return Nullability.TRUE;
+        }
+        return field().nullable();
+    }
+
+    @Override
     public boolean foldable() {
         // right() is not directly foldable in any context but Like can fold it.
-        return left().foldable();
+        return field().foldable();
     }
 
     @Override
     public Boolean fold() {
-        Object val = left().fold();
-        val = val != null ? val.toString() : val;
-        return function().apply((String) val, asString(right()));
+        Object val = field().fold();
+        return RegexOperation.match(val, pattern);
     }
 
-    protected abstract String asString(Expression pattern);
+    @Override
+    protected Processor makeProcessor() {
+        return new RegexProcessor(pattern);
+    }
 }

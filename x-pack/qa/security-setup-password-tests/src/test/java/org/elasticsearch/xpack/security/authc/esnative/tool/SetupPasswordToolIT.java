@@ -103,7 +103,7 @@ public class SetupPasswordToolIT extends ESRestTestCase {
             final String basicHeader = "Basic " +
                     Base64.getEncoder().encodeToString((entry.getKey() + ":" + entry.getValue()).getBytes(StandardCharsets.UTF_8));
             try {
-                Request request = new Request("GET", "/_xpack/security/_authenticate");
+                Request request = new Request("GET", "/_security/_authenticate");
                 RequestOptions.Builder options = request.getOptions().toBuilder();
                 options.addHeader("Authorization", basicHeader);
                 request.setOptions(options);

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
@@ -20,13 +21,13 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class StWkttosql extends UnaryScalarFunction {
 
-    public StWkttosql(Location location, Expression field) {
-        super(location, field);
+    public StWkttosql(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
     protected StWkttosql replaceChild(Expression newChild) {
-        return new StWkttosql(location(), newChild);
+        return new StWkttosql(source(), newChild);
     }
 
     @Override

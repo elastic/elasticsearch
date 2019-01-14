@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -46,6 +47,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -95,14 +97,17 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, ClusterState.builder(new ClusterName("cluster")).build()), r -> emptyList(),
-            new NoOpClusterApplier(), new Random(random().nextLong()));
+            new NoOpClusterApplier(), Collections.emptyList(), new Random(random().nextLong()));
     }
 
     public void testHandlesNonstandardDiscoveryImplementation() throws InterruptedException {
         final Discovery discovery = mock(Discovery.class);
         verifyZeroInteractions(discovery);
 
-        new TransportBootstrapClusterAction(Settings.EMPTY, EMPTY_FILTERS, transportService, discovery); // registers action
+        final String nonstandardDiscoveryType = randomFrom(DiscoveryModule.ZEN_DISCOVERY_TYPE, "single-node", "unknown");
+        new TransportBootstrapClusterAction(
+            Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), nonstandardDiscoveryType).build(),
+            EMPTY_FILTERS, transportService, discovery); // registers action
         transportService.start();
         transportService.acceptIncomingRequests();
 
@@ -117,7 +122,8 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
             public void handleException(TransportException exp) {
                 final Throwable rootCause = exp.getRootCause();
                 assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-                assertThat(rootCause.getMessage(), equalTo("cluster bootstrapping is not supported by discovery type [zen]"));
+                assertThat(rootCause.getMessage(), equalTo("cluster bootstrapping is not supported by discovery type [" +
+                    nonstandardDiscoveryType + "]"));
                 countDownLatch.countDown();
             }
         });

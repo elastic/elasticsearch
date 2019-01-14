@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Locale;
@@ -26,8 +26,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public abstract class UnaryGeoFunction extends UnaryScalarFunction {
 
-    protected UnaryGeoFunction(Location location, Expression field) {
-        super(location, field);
+    protected UnaryGeoFunction(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -51,12 +50,12 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.MockNioTransport;
 
 import java.io.IOException;
@@ -110,11 +109,10 @@ public final class MockTransportService extends TransportService {
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
         // a different default port range per JVM unless the incoming settings override it
         int basePort = 10300 + (JVM_ORDINAL * 100); // use a non-default port otherwise some cluster in this JVM might reuse a port
-        settings = Settings.builder().put(TcpTransport.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
+        settings = Settings.builder().put(TransportSettings.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
-            BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(settings), namedWriteableRegistry,
-            new NoneCircuitBreakerService());
+            new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService());
     }
 
     public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
@@ -132,7 +130,8 @@ public final class MockTransportService extends TransportService {
      * Build the service.
      *
      * @param clusterSettings if non null the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-     *                        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
+     *                        updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and
+     *                        {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
                                 @Nullable ClusterSettings clusterSettings) {
@@ -145,7 +144,8 @@ public final class MockTransportService extends TransportService {
      * Build the service.
      *
      * @param clusterSettings if non null the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-     *                        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
+     *                        updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and
+     *                        {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
                                 Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
@@ -321,7 +321,7 @@ public final class MockTransportService extends TransportService {
             }
 
             // TODO: Replace with proper setting
-            TimeValue connectingTimeout = TransportService.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
+            TimeValue connectingTimeout = TransportSettings.CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
             try {
                 if (delay.millis() < connectingTimeout.millis()) {
                     Thread.sleep(delay.millis());

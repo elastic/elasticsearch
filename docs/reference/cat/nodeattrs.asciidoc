@@ -10,7 +10,7 @@ GET /_cat/nodeattrs?v
 --------------------------------------------------
 // CONSOLE
 // TEST[s/\?v/\?v&s=node,attr/]
-// Sort the resulting attributes so we can assert on them more easilly
+// Sort the resulting attributes so we can assert on them more easily
 
 Could look like:
 
@@ -55,7 +55,7 @@ GET /_cat/nodeattrs?v&h=name,pid,attr,value
 --------------------------------------------------
 // CONSOLE
 // TEST[s/,value/,value&s=node,attr/]
-// Sort the resulting attributes so we can assert on them more easilly
+// Sort the resulting attributes so we can assert on them more easily
 
 Might look like:
 

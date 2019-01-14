@@ -7,7 +7,7 @@ setup:
       cluster.health:
         wait_for_status: yellow
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -15,7 +15,7 @@ setup:
               "roles" : [ "x_cluster_role" ]
             }
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "x_cluster_role"
         body:  >
             {
@@ -191,7 +191,7 @@ setup:
 #  request clears the cached reference to the user so we do not need to do
 #  that manually
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {

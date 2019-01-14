@@ -1,9 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-stop-ilm]]
-== Start And Stop {ilm}
-
-beta[]
+== Start and stop {ilm}
 
 All indices that are managed by ILM will continue to execute
 their policies. There may be times when this is not desired on certain

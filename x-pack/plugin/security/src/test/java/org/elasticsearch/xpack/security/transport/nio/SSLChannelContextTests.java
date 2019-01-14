@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.security.transport.nio;
 
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.FlushReadyWrite;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.TaskScheduler;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -26,9 +27,11 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,6 +44,7 @@ public class SSLChannelContextTests extends ESTestCase {
     private SSLChannelContext context;
     private InboundChannelBuffer channelBuffer;
     private NioSelector selector;
+    private TaskScheduler nioTimer;
     private BiConsumer<Void, Exception> listener;
     private Consumer exceptionHandler;
     private SSLDriver sslDriver;
@@ -56,6 +60,7 @@ public class SSLChannelContextTests extends ESTestCase {
 
         messageLength = randomInt(96) + 20;
         selector = mock(NioSelector.class);
+        nioTimer = mock(TaskScheduler.class);
         listener = mock(BiConsumer.class);
         channel = mock(NioSocketChannel.class);
         rawChannel = mock(SocketChannel.class);
@@ -66,6 +71,7 @@ public class SSLChannelContextTests extends ESTestCase {
         context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
 
         when(selector.isOnCurrentThread()).thenReturn(true);
+        when(selector.getTaskScheduler()).thenReturn(nioTimer);
         when(sslDriver.getNetworkReadBuffer()).thenReturn(readBuffer);
         when(sslDriver.getNetworkWriteBuffer()).thenReturn(writeBuffer);
         ByteBuffer buffer = ByteBuffer.allocate(1 << 14);
@@ -86,7 +92,7 @@ public class SSLChannelContextTests extends ESTestCase {
         assertEquals(messageLength, context.read());
 
         assertEquals(0, channelBuffer.getIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE - bytes.length, channelBuffer.getCapacity());
+        assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE - bytes.length, channelBuffer.getCapacity());
         verify(readConsumer, times(1)).apply(channelBuffer);
     }
 
@@ -101,7 +107,7 @@ public class SSLChannelContextTests extends ESTestCase {
         assertEquals(bytes.length, context.read());
 
         assertEquals(0, channelBuffer.getIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE - bytes.length, channelBuffer.getCapacity());
+        assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE - bytes.length, channelBuffer.getCapacity());
         verify(readConsumer, times(2)).apply(channelBuffer);
     }
 
@@ -124,7 +130,7 @@ public class SSLChannelContextTests extends ESTestCase {
         assertEquals(messageLength, context.read());
 
         assertEquals(0, channelBuffer.getIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE - (bytes.length * 2), channelBuffer.getCapacity());
+        assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE - (bytes.length * 2), channelBuffer.getCapacity());
         verify(readConsumer, times(2)).apply(channelBuffer);
     }
 
@@ -332,6 +338,44 @@ public class SSLChannelContextTests extends ESTestCase {
         when(sslDriver.isClosed()).thenReturn(false, true);
         assertFalse(context.selectorShouldClose());
         assertTrue(context.selectorShouldClose());
+    }
+
+    public void testCloseTimeout() {
+        context.closeChannel();
+
+        ArgumentCaptor<WriteOperation> captor = ArgumentCaptor.forClass(WriteOperation.class);
+        verify(selector).writeToChannel(captor.capture());
+
+        ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
+        Runnable cancellable = mock(Runnable.class);
+        when(nioTimer.scheduleAtRelativeTime(taskCaptor.capture(), anyLong())).thenReturn(cancellable);
+        context.queueWriteOperation(captor.getValue());
+        verify(nioTimer).scheduleAtRelativeTime(taskCaptor.capture(), anyLong());
+        assertFalse(context.selectorShouldClose());
+        taskCaptor.getValue().run();
+        assertTrue(context.selectorShouldClose());
+        verify(selector).queueChannelClose(channel);
+        verify(cancellable, never()).run();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCloseTimeoutIsCancelledOnClose() throws IOException {
+        try (SocketChannel realChannel = SocketChannel.open()) {
+            when(channel.getRawChannel()).thenReturn(realChannel);
+            TestReadWriteHandler readWriteHandler = new TestReadWriteHandler(readConsumer);
+            context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
+            context.closeChannel();
+            ArgumentCaptor<WriteOperation> captor = ArgumentCaptor.forClass(WriteOperation.class);
+            verify(selector).writeToChannel(captor.capture());
+            ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
+            Runnable cancellable = mock(Runnable.class);
+            when(nioTimer.scheduleAtRelativeTime(taskCaptor.capture(), anyLong())).thenReturn(cancellable);
+            context.queueWriteOperation(captor.getValue());
+
+            when(channel.isOpen()).thenReturn(true);
+            context.closeFromSelector();
+            verify(cancellable).run();
+        }
     }
 
     public void testInitiateCloseFromDifferentThreadSchedulesCloseNotify() {

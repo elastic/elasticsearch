@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupIndexCapsRequest;
@@ -222,6 +224,42 @@ public class RollupClient {
             options,
             GetRollupJobResponse::fromXContent,
             listener, Collections.emptySet());
+    }
+
+    /**
+     * Perform a rollup search.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-search.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public SearchResponse search(SearchRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+                request,
+                RollupRequestConverters::search,
+                options,
+                SearchResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Perform a rollup search.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-search.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void searchAsync(SearchRequest request, RequestOptions options, ActionListener<SearchResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+                request,
+                RollupRequestConverters::search,
+                options,
+                SearchResponse::fromXContent,
+                listener,
+                Collections.emptySet());
     }
 
     /**

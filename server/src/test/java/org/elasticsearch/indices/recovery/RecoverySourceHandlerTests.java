@@ -35,6 +35,7 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
@@ -433,7 +434,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
         };
-        expectThrows(IndexShardRelocatedException.class, handler::recoverToTarget);
+        PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
+        expectThrows(IndexShardRelocatedException.class, () -> {
+            handler.recoverToTarget(future);
+            future.actionGet();
+        });
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());

@@ -18,8 +18,7 @@ For more information, see {ref}/logging.html#configuring-logging-levels[configur
 [[audit-log-entry-format]]
 === Log entry format
 
-The log entries in the `<clustername>_audit.log` file 
-have the following format:
+The log entries in the `<clustername>_audit.log` file have the following format:
 
 - Each log entry is a one line JSON document and each one is printed on a separate line.
 - The fields of a log entry are ordered. However, if a field does not have a value it

@@ -337,7 +337,7 @@ public class AutodetectProcessManager {
     public void writeUpdateProcessMessage(JobTask jobTask, UpdateParams updateParams, Consumer<Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            String message = "Cannot process update model debug config because job [" + jobTask.getJobId() +
+            String message = "Cannot update the job config because job [" + jobTask.getJobId() +
                 "] does not have a corresponding autodetect process";
             logger.debug(message);
             handler.accept(ExceptionsHelper.conflictStatusException(message));

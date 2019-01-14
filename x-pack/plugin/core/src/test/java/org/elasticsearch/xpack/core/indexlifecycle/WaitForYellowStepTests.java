@@ -97,4 +97,24 @@ public class WaitForYellowStepTests extends AbstractStepTestCase<WaitForYellowSt
         assertThat(info, notNullValue());
         assertThat(info.getMessage(), equalTo("index is red; not all primary shards are active"));
     }
+
+    public void testConditionNotMetNoIndexRoutingTable() {
+        IndexMetaData indexMetadata = IndexMetaData.builder("former-follower-index")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder().put(indexMetadata, true).build())
+            .routingTable(RoutingTable.builder().build())
+            .build();
+
+        WaitForYellowStep step = new WaitForYellowStep(randomStepKey(), randomStepKey());
+        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        assertThat(result.isComplete(), is(false));
+        WaitForYellowStep.Info info = (WaitForYellowStep.Info) result.getInfomationContext();
+        assertThat(info, notNullValue());
+        assertThat(info.getMessage(), equalTo("index is red; no IndexRoutingTable"));
+    }
 }

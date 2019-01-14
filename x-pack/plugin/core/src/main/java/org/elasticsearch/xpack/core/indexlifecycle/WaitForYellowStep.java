@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,11 +26,17 @@ class WaitForYellowStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        boolean indexIsAtLeastYellow = clusterState.routingTable().index(index).allPrimaryShardsActive();
+        RoutingTable routingTable = clusterState.routingTable();
+        IndexRoutingTable indexShardRoutingTable = routingTable.index(index);
+        if (indexShardRoutingTable == null) {
+            return new Result(false, new Info("index is red; no IndexRoutingTable"));
+        }
+
+        boolean indexIsAtLeastYellow = indexShardRoutingTable.allPrimaryShardsActive();
         if (indexIsAtLeastYellow) {
             return new Result(true, null);
         } else {
-            return new Result(false, new Info());
+            return new Result(false, new Info("index is red; not all primary shards are active"));
         }
     }
 
@@ -38,8 +46,8 @@ class WaitForYellowStep extends ClusterStateWaitStep {
 
         private final String message;
 
-        Info() {
-            this.message = "index is red; not all primary shards are active";
+        Info(String message) {
+            this.message = message;
         }
 
         String getMessage() {

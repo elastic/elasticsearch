@@ -365,13 +365,19 @@ public abstract class MappedFieldType extends FieldType {
 
     public abstract Query existsQuery(QueryShardContext context);
 
-    public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    public Query phrasePrefixQuery(TokenStream stream, int slop,
+                                   int maxExpansions, boolean enablePositionIncrements) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase prefix queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 

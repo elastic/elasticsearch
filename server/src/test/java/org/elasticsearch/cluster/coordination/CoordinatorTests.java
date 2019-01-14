@@ -1102,7 +1102,7 @@ public class CoordinatorTests extends ESTestCase {
         private final Set<String> blackholedNodes = new HashSet<>();
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
 
-        private final Function<DiscoveryNode, PersistedState> persistedStateSupplier = localNode -> new MockPersistedState(0L,
+        private final Function<DiscoveryNode, PersistedState> defaultPersistedStateSupplier = localNode -> new MockPersistedState(0L,
                 clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L));
 
         Cluster(int initialNodeCount) {
@@ -1537,7 +1537,7 @@ public class CoordinatorTests extends ESTestCase {
             private ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
 
             ClusterNode(int nodeIndex, boolean masterEligible) {
-                this(nodeIndex, createDiscoveryNode(nodeIndex, masterEligible), persistedStateSupplier);
+                this(nodeIndex, createDiscoveryNode(nodeIndex, masterEligible), defaultPersistedStateSupplier);
             }
 
             ClusterNode(int nodeIndex, DiscoveryNode localNode, Function<DiscoveryNode, PersistedState> persistedStateSupplier) {

@@ -3,8 +3,6 @@
 [[using-policies-rollover]]
 == Using policies to manage index rollover
 
-beta[]
-
 The rollover action enables you to automatically roll over to a new index based
 on the index size, document count, or age. When a rollover is triggered, a new
 index is created, the write alias is updated to point to the new index, and all
@@ -126,8 +124,6 @@ index for the rolled over alias. Documents sent to the alias are indexed into
 the new index, enabling indexing to continue uninterrupted.
 
 === Skipping Rollover
-
-beta[]
 
 The `index.lifecycle.indexing_complete` setting indicates to {ilm} whether this
 index has already been rolled over. If it is set to `true`, that indicates that

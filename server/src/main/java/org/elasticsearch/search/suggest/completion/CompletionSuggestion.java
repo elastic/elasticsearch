@@ -71,11 +71,8 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
     private boolean skipDuplicates;
 
-    public CompletionSuggestion() {
-    }
-
     /**
-     * Ctr
+     * Creates a completion suggestion given its name, size and whether it should skip duplicates
      * @param name The name for the suggestions
      * @param size The number of suggestions to return
      * @param skipDuplicates Whether duplicate suggestions should be filtered out
@@ -240,11 +237,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     }
 
     @Override
-    protected Entry newEntry() {
-        return new Entry();
-    }
-
-    @Override
     protected Entry newEntry(StreamInput in) throws IOException {
         return new Entry(in);
     }
@@ -255,15 +247,10 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             super(text, offset, length);
         }
 
-        Entry() {}
+        private Entry() {}
 
         public Entry(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        protected Option newOption() {
-            return new Option();
         }
 
         @Override
@@ -284,8 +271,8 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         }
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
-            private Map<String, Set<String>> contexts = Collections.emptyMap();
-            private ScoreDoc doc;
+            private final Map<String, Set<String>> contexts;
+            private final ScoreDoc doc;
             private SearchHit hit;
 
             public static final ParseField CONTEXTS = new ParseField("contexts");
@@ -294,10 +281,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 super(text, score);
                 this.doc = new ScoreDoc(docID, score);
                 this.contexts = Objects.requireNonNull(contexts, "context map cannot be null");
-            }
-
-            protected Option() {
-                super();
             }
 
             public Option(StreamInput in) throws IOException {
@@ -459,5 +442,4 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             }
         }
     }
-
 }

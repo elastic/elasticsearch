@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunctio
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class Not extends UnaryScalarFunction {
@@ -37,7 +37,7 @@ public class Not extends UnaryScalarFunction {
         if (DataType.BOOLEAN == field().dataType()) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return Expressions.typeMustBeBoolean(field(), functionName(), ParamOrdinal.DEFAULT);
+        return Expressions.typeMustBeBoolean(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

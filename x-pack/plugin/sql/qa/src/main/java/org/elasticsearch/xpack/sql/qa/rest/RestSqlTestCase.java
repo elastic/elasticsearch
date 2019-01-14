@@ -75,7 +75,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testNextPage() throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
@@ -141,7 +141,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testScoreWithFieldNamedScore() throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
@@ -719,7 +719,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     protected void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/_doc/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {

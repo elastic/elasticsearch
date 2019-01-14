@@ -15,7 +15,9 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
@@ -71,9 +73,28 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             return;
         }
 
-        String[] concreteIndices =
-            resolver.concreteIndexNames(clusterService.state(), IndicesOptions.strictExpandOpenAndForbidClosed(), request.indices());
-        request.setIndices(concreteIndices);
+        final ClusterState state = clusterService.state();
+        try {
+            String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.strictExpand(), request.indices());
+
+            // Also include matching shard follow task's follower indices:
+            // A follower index may be removed and therefor concreteIndexNames(...) does not include it.
+            // Shard follow tasks for these removed follower indices do exist (with a fatal error set).
+            Set<String> shardFollowTaskFollowerIndices = new HashSet<>(Arrays.asList(concreteIndices));
+            shardFollowTaskFollowerIndices.addAll(findFollowerIndicesFromShardFollowTasks(state, request.indices()));
+
+            request.setIndices(shardFollowTaskFollowerIndices.toArray(new String[0]));
+        } catch (IndexNotFoundException e) {
+            // It is possible that there are failed shard follow tasks (with fatal error set) for a none existing index
+            // (in case the follower index has been removed)
+            // we should also include the stats for these shard follow tasks:
+            final Set<String> followerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
+            if (followerIndices.size() != 0) {
+                request.setIndices(followerIndices.toArray(new String[0]));
+            } else {
+                throw e;
+            }
+        }
         super.doExecute(task, request, listener);
     }
 
@@ -89,21 +110,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     @Override
     protected void processTasks(final FollowStatsAction.StatsRequest request, final Consumer<ShardFollowNodeTask> operation) {
         final ClusterState state = clusterService.state();
-        final PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        if (persistentTasksMetaData == null) {
-            return;
-        }
-
-        final Set<String> requestedFollowerIndices = request.indices() != null ?
-            new HashSet<>(Arrays.asList(request.indices())) : Collections.emptySet();
-        final Set<String> followerIndices = persistentTasksMetaData.tasks().stream()
-            .filter(persistentTask -> persistentTask.getTaskName().equals(ShardFollowTask.NAME))
-            .map(persistentTask -> {
-                ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
-                return shardFollowTask.getFollowShardId().getIndexName();
-            })
-            .filter(followerIndex -> requestedFollowerIndices.isEmpty() || requestedFollowerIndices.contains(followerIndex))
-            .collect(Collectors.toSet());
+        final Set<String> followerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
 
         for (final Task task : taskManager.getTasks().values()) {
             if (task instanceof ShardFollowNodeTask) {
@@ -121,6 +128,24 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             final ShardFollowNodeTask task,
             final ActionListener<FollowStatsAction.StatsResponse> listener) {
         listener.onResponse(new FollowStatsAction.StatsResponse(task.getStatus()));
+    }
+
+    static Set<String> findFollowerIndicesFromShardFollowTasks(ClusterState state, String[] indices) {
+        final PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        if (persistentTasksMetaData == null) {
+            return Collections.emptySet();
+        }
+
+        final Set<String> requestedFollowerIndices = indices != null ?
+            new HashSet<>(Arrays.asList(indices)) : Collections.emptySet();
+        return persistentTasksMetaData.tasks().stream()
+            .filter(persistentTask -> persistentTask.getTaskName().equals(ShardFollowTask.NAME))
+            .map(persistentTask -> {
+                ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
+                return shardFollowTask.getFollowShardId().getIndexName();
+            })
+            .filter(followerIndex -> Strings.isAllOrWildcard(indices) || requestedFollowerIndices.contains(followerIndex))
+            .collect(Collectors.toSet());
     }
 
 }

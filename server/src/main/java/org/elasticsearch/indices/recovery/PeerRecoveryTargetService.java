@@ -605,8 +605,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
-            )) {
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
                 final RecoveryState.Index indexState = recoveryTarget.state().getIndex();
                 if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
@@ -624,12 +623,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         recoveryTarget.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
                     }
                 }
-
-                recoveryTarget.writeFileChunk(request.metadata(), request.position(), request.content(),
-                        request.lastChunk(), request.totalTranslogOps()
-                );
+                final ActionListener<TransportResponse> listener =
+                    new HandledTransportAction.ChannelActionListener<>(channel, Actions.FILE_CHUNK, request);
+                recoveryTarget.writeFileChunk(request.metadata(), request.position(), request.content(), request.lastChunk(),
+                    request.totalTranslogOps(),
+                    ActionListener.wrap(nullVal -> listener.onResponse(TransportResponse.Empty.INSTANCE), listener::onFailure));
             }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 

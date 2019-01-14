@@ -147,8 +147,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content, boolean
-            lastChunk, int totalTranslogOps) throws IOException {
+    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                               boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
         // Pause using the rate limiter, if desired, to throttle the recovery
         final long throttleTimeInNanos;
         // always fetch the ratelimiter - it might be updated in real-time on the recovery settings
@@ -178,7 +178,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                  * see how many translog ops we accumulate while copying files across the network. A future optimization
                  * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
                  */
-                throttleTimeInNanos), fileChunkRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                throttleTimeInNanos), fileChunkRequestOptions, new ActionListenerResponseHandler<>(
+                    ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure), in -> TransportResponse.Empty.INSTANCE));
     }
 
 }

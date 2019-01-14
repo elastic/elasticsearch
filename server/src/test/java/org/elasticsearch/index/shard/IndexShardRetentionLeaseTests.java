@@ -134,6 +134,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37420")
     public void testCommit() throws IOException {
         final Settings settings = Settings.builder()
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)

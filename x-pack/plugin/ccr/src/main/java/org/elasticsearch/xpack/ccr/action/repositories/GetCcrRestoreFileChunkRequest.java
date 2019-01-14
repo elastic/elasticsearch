@@ -70,6 +70,7 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
 
     @Override
     public DiscoveryNode getPreferredTargetNode() {
+        assert node != null : "Target node is null";
         return node;
     }
 }

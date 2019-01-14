@@ -377,15 +377,15 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 throw new IOException("More bytes [" + bytesReceived + "] received than requested [" + bytesRequested + "]");
             }
 
+            long leaderOffset = response.getOffset();
+            assert pos == leaderOffset : "Position [" + pos + "] should be equal to the leader file offset [" + leaderOffset + "].";
+
             try (StreamInput streamInput = fileChunk.streamInput()) {
                 int bytesRead = streamInput.read(bytes, 0, bytesReceived);
                 assert bytesRead == bytesReceived : "Did not read the correct number of bytes";
             }
 
             pos += bytesReceived;
-
-            long leaderOffset = response.getOffset();
-            assert pos == leaderOffset : "Position [" + pos + "] should be equal to the leader file offset [" + leaderOffset + "].";
 
             return bytesReceived;
         }

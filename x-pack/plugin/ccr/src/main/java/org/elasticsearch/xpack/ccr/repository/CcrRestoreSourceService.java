@@ -59,7 +59,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             if (sessions != null) {
                 for (String sessionUUID : sessions) {
                     RestoreSession restore = onGoingRestores.remove(sessionUUID);
-                    assert restore != null : "Restore registered for shard but not found in ongoing restores";
+                    assert restore != null : "Session UUID [" + sessionUUID + "] registered for shard but not found in ongoing restores";
                     restore.decRef();
                 }
             }
@@ -146,10 +146,10 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
             }
             HashSet<String> sessions = sessionsForShard.get(restore.indexShard);
-            assert sessions != null : "No session UUIDs for shard even though once is active in ongoing restores";
+            assert sessions != null : "No session UUIDs for shard even though one [" + sessionUUID + "] is active in ongoing restores";
             if (sessions != null) {
                 boolean removed = sessions.remove(sessionUUID);
-                assert removed : "No session found for UUID";
+                assert removed : "No session found for UUID [" + sessionUUID +"]";
                 if (sessions.isEmpty()) {
                     sessionsForShard.remove(restore.indexShard);
                 }
@@ -226,6 +226,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         @Override
         protected void closeInternal() {
             logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
+            assert keyedLock.hasLockedKeys() == false : "Should not hold any file locks when closing";
             IOUtils.closeWhileHandlingException(cachedInputs.values());
         }
     }

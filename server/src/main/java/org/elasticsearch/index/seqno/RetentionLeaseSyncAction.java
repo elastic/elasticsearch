@@ -151,9 +151,12 @@ public class RetentionLeaseSyncAction extends
 
         @Override
         public String toString() {
-            return "ReplicaRequest{" +
-                    "shardId=" + shardId +
-                    ", retentionLeases=" + retentionLeases +
+            return "Request{" +
+                    "retentionLeases=" + retentionLeases +
+                    ", shardId=" + shardId +
+                    ", timeout=" + timeout +
+                    ", index='" + index + '\'' +
+                    ", waitForActiveShards=" + waitForActiveShards +
                     '}';
         }
 

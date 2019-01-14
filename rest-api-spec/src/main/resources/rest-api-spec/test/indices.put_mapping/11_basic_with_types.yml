@@ -6,6 +6,7 @@
 
   - do:
       indices.put_mapping:
+        include_type_name: true
         index: test_index
         type: test_type
         body:
@@ -22,6 +23,7 @@
 
   - do:
       indices.get_mapping:
+        include_type_name: true
         index: test_index
   
   - match: {test_index.mappings.test_type.properties.text1.type:     text}
@@ -31,6 +33,7 @@
 
   - do:
       indices.put_mapping:
+        include_type_name: true
         index: test_index
         type: test_type
         body:
@@ -46,6 +49,7 @@
 
   - do:
       indices.get_mapping:
+        include_type_name: true
         index: test_index
   
   - match: {test_index.mappings.test_type.properties.text1.type:     text}
@@ -60,6 +64,7 @@
   - do:
       catch: /illegal_argument_exception/
       indices.put_mapping:
+        include_type_name: true
         index: test_index
         type: test_type
         body:

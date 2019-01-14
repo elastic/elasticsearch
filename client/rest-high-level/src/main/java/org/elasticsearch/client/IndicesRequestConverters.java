@@ -57,6 +57,8 @@ import org.elasticsearch.common.Strings;
 import java.io.IOException;
 import java.util.Locale;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+
 final class IndicesRequestConverters {
 
     private IndicesRequestConverters() {}
@@ -103,6 +105,7 @@ final class IndicesRequestConverters {
         parameters.withTimeout(createIndexRequest.timeout());
         parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
         parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
+        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         request.setEntity(RequestConverters.createEntity(createIndexRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -131,6 +134,7 @@ final class IndicesRequestConverters {
         RequestConverters.Params parameters = new RequestConverters.Params(request);
         parameters.withTimeout(putMappingRequest.timeout());
         parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
+        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         request.setEntity(RequestConverters.createEntity(putMappingRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -146,6 +150,8 @@ final class IndicesRequestConverters {
         parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());
         parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
         parameters.withLocal(getMappingsRequest.local());
+        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
+
         return request;
     }
 
@@ -165,6 +171,8 @@ final class IndicesRequestConverters {
         parameters.withIndicesOptions(getFieldMappingsRequest.indicesOptions());
         parameters.withIncludeDefaults(getFieldMappingsRequest.includeDefaults());
         parameters.withLocal(getFieldMappingsRequest.local());
+        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
+
         return request;
     }
 
@@ -357,6 +365,7 @@ final class IndicesRequestConverters {
         if (Strings.hasText(putIndexTemplateRequest.cause())) {
             params.putParam("cause", putIndexTemplateRequest.cause());
         }
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
         request.setEntity(RequestConverters.createEntity(putIndexTemplateRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -395,6 +404,7 @@ final class IndicesRequestConverters {
         final RequestConverters.Params params = new RequestConverters.Params(request);
         params.withLocal(getIndexTemplatesRequest.isLocal());
         params.withMasterTimeout(getIndexTemplatesRequest.getMasterNodeTimeout());
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
         return request;
     }
 

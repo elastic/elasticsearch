@@ -19,7 +19,7 @@ The specified field must be of type `geo_point` (which can only be set explicitl
 
 [source,js]
 --------------------------------------------------
-PUT /museums
+PUT /museums?include_type_name=true
 {
     "mappings": {
         "_doc": {

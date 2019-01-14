@@ -1,8 +1,6 @@
 ---
 setup:
-  - skip:
-      version: " - 6.99.99"
-      reason: include_type_name defaults to true before 7.0
+
   - do:
       indices.create:
         index: test_1
@@ -15,7 +13,8 @@ setup:
 "Check empty mapping when getting all mappings via /_mapping":
 
  - do:
-    indices.get_mapping: {}
+    indices.get_mapping:
+      include_type_name: true
 
  - match: { test_1.mappings: {}}
  - match: { test_2.mappings: {}}

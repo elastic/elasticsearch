@@ -13,7 +13,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
@@ -105,12 +104,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Request createEmptyAirlineDataRequest = new Request("PUT", "/airline-data-empty");
         createEmptyAirlineDataRequest.setJsonEntity("{"
                 + "  \"mappings\": {"
-                + "    \"response\": {"
-                + "      \"properties\": {"
-                + "        \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
-                + "        \"airline\": { \"type\":\"keyword\"},"
-                + "        \"responsetime\": { \"type\":\"float\"}"
-                + "      }"
+                + "    \"properties\": {"
+                + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
+                + "      \"airline\": { \"type\":\"keyword\"},"
+                + "      \"responsetime\": { \"type\":\"float\"}"
                 + "    }"
                 + "  }"
                 + "}");
@@ -120,116 +117,106 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
         createAirlineDataRequest.setJsonEntity("{"
                 + "  \"mappings\": {"
-                + "    \"response\": {"
-                + "      \"properties\": {"
-                + "        \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
-                + "        \"airline\": {"
-                + "          \"type\":\"text\","
-                + "          \"fields\":{"
-                + "            \"text\":{\"type\":\"text\"},"
-                + "            \"keyword\":{\"type\":\"keyword\"}"
-                + "           }"
-                + "         },"
-                + "        \"responsetime\": { \"type\":\"float\"}"
-                + "      }"
+                + "    \"properties\": {"
+                + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
+                + "      \"airline\": {"
+                + "        \"type\":\"text\","
+                + "        \"fields\":{"
+                + "          \"text\":{\"type\":\"text\"},"
+                + "          \"keyword\":{\"type\":\"keyword\"}"
+                + "         }"
+                + "       },"
+                + "      \"responsetime\": { \"type\":\"float\"}"
                 + "    }"
                 + "  }"
                 + "}");
         client().performRequest(createAirlineDataRequest);
 
-        bulk.append("{\"index\": {\"_index\": \"airline-data\", \"_type\": \"response\", \"_id\": 1}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data\", \"_id\": 1}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data\", \"_type\": \"response\", \"_id\": 2}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data\", \"_id\": 2}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}\n");
 
         // Create index with source = enabled, doc_values = disabled (except time), stored = false
         Request createAirlineDataDisabledDocValues = new Request("PUT", "/airline-data-disabled-doc-values");
         createAirlineDataDisabledDocValues.setJsonEntity("{"
                 + "  \"mappings\": {"
-                + "    \"response\": {"
-                + "      \"properties\": {"
-                + "        \"time stamp\": { \"type\":\"date\"},"
-                + "        \"airline\": { \"type\":\"keyword\", \"doc_values\":false},"
-                + "        \"responsetime\": { \"type\":\"float\", \"doc_values\":false}"
-                + "      }"
+                + "    \"properties\": {"
+                + "      \"time stamp\": { \"type\":\"date\"},"
+                + "      \"airline\": { \"type\":\"keyword\", \"doc_values\":false},"
+                + "      \"responsetime\": { \"type\":\"float\", \"doc_values\":false}"
                 + "    }"
                 + "  }"
                 + "}");
         client().performRequest(createAirlineDataDisabledDocValues);
 
-        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-doc-values\", \"_type\": \"response\", \"_id\": 1}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-doc-values\", \"_id\": 1}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-doc-values\", \"_type\": \"response\", \"_id\": 2}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-doc-values\", \"_id\": 2}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}\n");
 
         // Create index with source = disabled, doc_values = enabled (except time), stored = true
         Request createAirlineDataDisabledSource = new Request("PUT", "/airline-data-disabled-source");
         createAirlineDataDisabledSource.setJsonEntity("{"
                 + "  \"mappings\": {"
-                + "    \"response\": {"
-                + "      \"_source\":{\"enabled\":false},"
-                + "      \"properties\": {"
-                + "        \"time stamp\": { \"type\":\"date\", \"store\":true},"
-                + "        \"airline\": { \"type\":\"keyword\", \"store\":true},"
-                + "        \"responsetime\": { \"type\":\"float\", \"store\":true}"
-                + "      }"
+                + "    \"_source\":{\"enabled\":false},"
+                + "    \"properties\": {"
+                + "      \"time stamp\": { \"type\":\"date\", \"store\":true},"
+                + "      \"airline\": { \"type\":\"keyword\", \"store\":true},"
+                + "      \"responsetime\": { \"type\":\"float\", \"store\":true}"
                 + "    }"
                 + "  }"
                 + "}");
 
-        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-source\", \"_type\": \"response\", \"_id\": 1}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-source\", \"_id\": 1}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-source\", \"_type\": \"response\", \"_id\": 2}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-source\", \"_id\": 2}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}\n");
 
         // Create index with nested documents
         Request createAirlineDataNested = new Request("PUT", "/nested-data");
         createAirlineDataNested.setJsonEntity("{"
                 + "  \"mappings\": {"
-                + "    \"response\": {"
-                + "      \"properties\": {"
-                + "        \"time\": { \"type\":\"date\"}"
-                + "      }"
+                + "    \"properties\": {"
+                + "      \"time\": { \"type\":\"date\"}"
                 + "    }"
                 + "  }"
                 + "}");
         client().performRequest(createAirlineDataNested);
 
-        bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_type\": \"response\", \"_id\": 1}}\n");
+        bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_id\": 1}}\n");
         bulk.append("{\"time\":\"2016-06-01T00:00:00Z\", \"responsetime\":{\"millis\":135.22}}\n");
-        bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_type\": \"response\", \"_id\": 2}}\n");
+        bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_id\": 2}}\n");
         bulk.append("{\"time\":\"2016-06-01T01:59:00Z\",\"responsetime\":{\"millis\":222.0}}\n");
 
         // Create index with multiple docs per time interval for aggregation testing
         Request createAirlineDataAggs = new Request("PUT", "/airline-data-aggs");
         createAirlineDataAggs.setJsonEntity("{"
                 + "  \"mappings\": {"
-                + "    \"response\": {"
-                + "      \"properties\": {"
-                + "        \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
-                + "        \"airline\": { \"type\":\"keyword\"},"
-                + "        \"responsetime\": { \"type\":\"float\"}"
-                + "      }"
+                + "    \"properties\": {"
+                + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
+                + "      \"airline\": { \"type\":\"keyword\"},"
+                + "      \"responsetime\": { \"type\":\"float\"}"
                 + "    }"
                 + "  }"
                 + "}");
         client().performRequest(createAirlineDataAggs);
 
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_type\": \"response\", \"_id\": 1}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 1}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":100.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_type\": \"response\", \"_id\": 2}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 2}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T00:01:00Z\",\"airline\":\"AAA\",\"responsetime\":200.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_type\": \"response\", \"_id\": 3}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 3}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"BBB\",\"responsetime\":1000.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_type\": \"response\", \"_id\": 4}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 4}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T00:01:00Z\",\"airline\":\"BBB\",\"responsetime\":2000.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_type\": \"response\", \"_id\": 5}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 5}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T01:00:00Z\",\"airline\":\"AAA\",\"responsetime\":300.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_type\": \"response\", \"_id\": 6}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 6}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T01:01:00Z\",\"airline\":\"AAA\",\"responsetime\":400.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_type\": \"response\", \"_id\": 7}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 7}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T01:00:00Z\",\"airline\":\"BBB\",\"responsetime\":3000.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_type\": \"response\", \"_id\": 8}}\n");
+        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 8}}\n");
         bulk.append("{\"time stamp\":\"2016-06-01T01:01:00Z\",\"airline\":\"BBB\",\"responsetime\":4000.0}\n");
 
         bulkIndex(bulk.toString());
@@ -240,18 +227,16 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Request createIndexRequest = new Request("PUT", index);
         createIndexRequest.setJsonEntity("{"
                 + "  \"mappings\": {"
-                + "    \"doc\": {"
-                + "      \"properties\": {"
-                + "        \"timestamp\": { \"type\":\"date\"},"
-                + "        \"host\": {"
-                + "          \"type\":\"text\","
-                + "          \"fields\":{"
-                + "            \"text\":{\"type\":\"text\"},"
-                + "            \"keyword\":{\"type\":\"keyword\"}"
-                + "           }"
-                + "         },"
-                + "        \"network_bytes_out\": { \"type\":\"long\"}"
-                + "      }"
+                + "    \"properties\": {"
+                + "      \"timestamp\": { \"type\":\"date\"},"
+                + "      \"host\": {"
+                + "        \"type\":\"text\","
+                + "        \"fields\":{"
+                + "          \"text\":{\"type\":\"text\"},"
+                + "          \"keyword\":{\"type\":\"keyword\"}"
+                + "         }"
+                + "       },"
+                + "      \"network_bytes_out\": { \"type\":\"long\"}"
                 + "    }"
                 + "  }"
                 + "}");;
@@ -262,11 +247,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Date date = new Date(1464739200735L);
         for (int i = 0; i < 120; i++) {
             long byteCount = randomNonNegativeLong();
-            bulk.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"doc\"}}\n");
+            bulk.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
             bulk.append(String.format(Locale.ROOT, docTemplate, date.getTime(), "hostA", byteCount)).append('\n');
 
             byteCount = randomNonNegativeLong();
-            bulk.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"doc\"}}\n");
+            bulk.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
             bulk.append(String.format(Locale.ROOT, docTemplate, date.getTime(), "hostB", byteCount)).append('\n');
 
             date = new Date(date.getTime() + 10_000);
@@ -1197,7 +1182,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         bulkRequest.setJsonEntity(bulk);
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.addParameter("pretty", null);
-        bulkRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         String bulkResponse = EntityUtils.toString(client().performRequest(bulkRequest).getEntity());
         assertThat(bulkResponse, not(containsString("\"errors\": false")));
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
@@ -85,9 +86,6 @@ public class DisruptableMockTransportTests extends ESTestCase {
     public void initTransports() {
         node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
         node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT);
-        List<DiscoveryNode> discoNodes = new ArrayList<>();
-        discoNodes.add(node1);
-        discoNodes.add(node2);
 
         disconnectedLinks = new HashSet<>();
         blackholedLinks = new HashSet<>();
@@ -97,57 +95,37 @@ public class DisruptableMockTransportTests extends ESTestCase {
         deterministicTaskQueue = new DeterministicTaskQueue(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "dummy").build(), random());
 
-        transport1 = new DisruptableMockTransport(logger) {
+        transport1 = new DisruptableMockTransport(node1, logger) {
             @Override
-            protected DiscoveryNode getLocalNode() {
-                return node1;
+            protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
+                return DisruptableMockTransportTests.this.getConnectionStatus(getLocalNode(), destination);
             }
 
             @Override
-            protected ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination) {
-                return DisruptableMockTransportTests.this.getConnectionStatus(sender, destination);
+            protected Optional<DisruptableMockTransport> getDisruptableMockTransport(TransportAddress address) {
+                return transports.stream().filter(t -> t.getLocalNode().getAddress().equals(address)).findAny();
             }
 
             @Override
-            protected Optional<DisruptableMockTransport> getDisruptedCapturingTransport(DiscoveryNode destination, String action) {
-                int index = discoNodes.indexOf(destination);
-                if (index == -1) {
-                    return Optional.empty();
-                } else {
-                    return Optional.of(transports.get(index));
-                }
-            }
-
-            @Override
-            protected void handle(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
-                deterministicTaskQueue.scheduleNow(doDelivery);
+            protected void execute(Runnable runnable) {
+                deterministicTaskQueue.scheduleNow(runnable);
             }
         };
 
-        transport2 = new DisruptableMockTransport(logger) {
+        transport2 = new DisruptableMockTransport(node2, logger) {
             @Override
-            protected DiscoveryNode getLocalNode() {
-                return node2;
+            protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
+                return DisruptableMockTransportTests.this.getConnectionStatus(getLocalNode(), destination);
             }
 
             @Override
-            protected ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination) {
-                return DisruptableMockTransportTests.this.getConnectionStatus(sender, destination);
+            protected Optional<DisruptableMockTransport> getDisruptableMockTransport(TransportAddress address) {
+                return transports.stream().filter(t -> t.getLocalNode().getAddress().equals(address)).findAny();
             }
 
             @Override
-            protected Optional<DisruptableMockTransport> getDisruptedCapturingTransport(DiscoveryNode destination, String action) {
-                int index = discoNodes.indexOf(destination);
-                if (index == -1) {
-                    return Optional.empty();
-                } else {
-                    return Optional.of(transports.get(index));
-                }
-            }
-
-            @Override
-            protected void handle(DiscoveryNode sender, DiscoveryNode destination, String action, Runnable doDelivery) {
-                deterministicTaskQueue.scheduleNow(doDelivery);
+            protected void execute(Runnable runnable) {
+                deterministicTaskQueue.scheduleNow(runnable);
             }
         };
 
@@ -161,6 +139,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         service1.start();
         service2.start();
+
+        service1.connectToNode(node2);
+        service2.connectToNode(node1);
     }
 
 

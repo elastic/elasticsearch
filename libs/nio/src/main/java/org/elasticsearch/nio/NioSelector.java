@@ -69,7 +69,7 @@ public class NioSelector implements Closeable {
     public NioSelector(EventHandler eventHandler, Selector selector) {
         this.selector = selector;
         this.eventHandler = eventHandler;
-        this.ioBuffer = ByteBuffer.allocateDirect(1 << 16);
+        this.ioBuffer = ByteBuffer.allocateDirect(1 << 18);
     }
 
     /**

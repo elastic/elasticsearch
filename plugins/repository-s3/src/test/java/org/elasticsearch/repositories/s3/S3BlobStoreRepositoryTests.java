@@ -59,7 +59,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
 
     private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
     private static String bucket;
-    private static String client;
     private static ByteSizeValue bufferSize;
     private static boolean serverSideEncryption;
     private static String cannedACL;
@@ -68,7 +67,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     @BeforeClass
     public static void setUpRepositorySettings() {
         bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        client = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         bufferSize = new ByteSizeValue(randomIntBetween(5, 50), ByteSizeUnit.MB);
         serverSideEncryption = randomBoolean();
         if (randomBoolean()) {

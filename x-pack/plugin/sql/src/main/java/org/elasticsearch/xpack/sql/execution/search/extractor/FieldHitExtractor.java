@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -148,16 +149,14 @@ public class FieldHitExtractor implements HitExtractor {
 
         // Used to avoid recursive method calls
         // Holds the sub-maps in the document hierarchy that are pending to be inspected.
-        Deque<Map<String, Object>> queue = new ArrayDeque<>();
         // along with the current index of the `path`.
-        Deque<Integer> idxQueue = new ArrayDeque<>();
-
-        queue.add(map);
-        idxQueue.add(-1);
+        Deque<Tuple<Integer, Map<String, Object>>> queue = new ArrayDeque<>();
+        queue.add(new Tuple<>(-1, map));
 
         while (!queue.isEmpty()) {
-            int idx = idxQueue.removeLast();
-            Map<String, Object> subMap = queue.removeLast();
+            Tuple<Integer, Map<String, Object>> tuple = queue.removeLast();
+            int idx = tuple.v1();
+            Map<String, Object> subMap = tuple.v2();
 
             // Find all possible entries by examining all combinations under the current level ("idx") of the "path"
             // e.g.: If the path == "a.b.c.d" and the idx == 0, we need to check the current subMap against the keys:
@@ -168,8 +167,7 @@ public class FieldHitExtractor implements HitExtractor {
                 Object node = subMap.get(sj.toString());
                 if (node instanceof Map) {
                     // Add the sub-map to the queue along with the current path index
-                    queue.add((Map<String, Object>) node);
-                    idxQueue.add(i);
+                    queue.add(new Tuple<>(i, (Map<String, Object>) node));
                 } else if (node != null) {
                     if (i < path.length - 1) {
                         // If we reach a concrete value without exhausting the full path, something is wrong with the mapping

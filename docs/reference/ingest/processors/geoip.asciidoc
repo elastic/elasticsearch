@@ -196,7 +196,7 @@ You can use the following mapping for the example index above:
 
 [source,js]
 --------------------------------------------------
-PUT my_ip_locations
+PUT my_ip_locations?include_type_name=true
 {
   "mappings": {
     "_doc": {

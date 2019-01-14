@@ -73,7 +73,7 @@ public class JsonLoggerTests extends ESTestCase {
         testLogger.trace("This is a trace message");
         final Path path = clusterLogsPath();
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
-            List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
+            List<JsonLogLine> jsonLogs = collectLines(stream);
 
             assertThat(jsonLogs, Matchers.contains(
                 logLine("file", Level.ERROR, "sample-name", "test", "This is an error message"),
@@ -83,7 +83,6 @@ public class JsonLoggerTests extends ESTestCase {
                 logLine("file", Level.TRACE, "sample-name", "test", "This is a trace message")
             ));
         }
-
     }
 
     @SuppressWarnings("unchecked")
@@ -96,7 +95,7 @@ public class JsonLoggerTests extends ESTestCase {
 
         final Path path = clusterLogsPath();
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
-            List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
+            List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, Matchers.contains(
                 logLine("file", Level.INFO, "sample-name", "shardIdLogger", "[indexName][123] This is an info message with a shardId"),
                 logLine("file", Level.INFO, "sample-name", "prefixLogger", "PREFIX This is an info message with a prefix")
@@ -121,7 +120,7 @@ public class JsonLoggerTests extends ESTestCase {
 
         final Path path = clusterLogsPath();
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
-            List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
+            List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, Matchers.contains(
                 logLine("file", Level.INFO, "sample-name", "test", json)
             ));
@@ -134,7 +133,7 @@ public class JsonLoggerTests extends ESTestCase {
 
         final Path path = clusterLogsPath();
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
-            List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
+            List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, Matchers.contains(
                 Matchers.allOf(
                     logLine("file", Level.ERROR, "sample-name", "test", "error message"),
@@ -162,7 +161,7 @@ public class JsonLoggerTests extends ESTestCase {
 
         final Path path = clusterLogsPath();
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
-            List<JsonLogLine> jsonLogs = stream.collect(Collectors.toList());
+            List<JsonLogLine> jsonLogs = collectLines(stream);
 
             assertThat(jsonLogs, Matchers.contains(
                 Matchers.allOf(
@@ -176,8 +175,14 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
+    private List<JsonLogLine> collectLines(Stream<JsonLogLine> stream) {
+        return stream
+            .skip(1)//skip the first line from super class
+            .collect(Collectors.toList());
+    }
+
     private Path clusterLogsPath() {
-        return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name"), ".log");
+        return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".log");
     }
 
     private void setupLogging(final String config) throws IOException, UserException {

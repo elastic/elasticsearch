@@ -1,0 +1,633 @@
+FORMAT: 1A
+HOST: http://polls.apiblueprint.org/
+
+# Cryptide Exchange
+
+Public API methods
+There are 6 public methods that accept HTTP GET requests and return the response in JSON format:
+
+ReturnTicker
+The method returns tickers for all/specified markets; examples of request and response:
+
+Example 1. Return of all tickers.
+
+Request: https://cryptide.docs.apiary.io/CryptoExchangeService/BotPublic/ReturnTicker
+
+Response:
+
+{
+  Tickers: [{
+    BaseVolume: "0.00000000",
+    HighPrice: "0.09611615",
+    Last: "0.05125186",
+    LowPrice: "0.04456261",
+    ...
+  },  {
+    BaseVolume: "0.00000000",
+    HighPrice: "0.02062280",
+    Last: "0.01025148",
+    LowPrice: "0.00972667",
+    ...
+  },  {
+    BaseVolume: "0.00000000",
+    HighPrice: "0.00105385",
+    Last: "0.00050066",
+    LowPrice: "0.00040122",
+    ...
+  },  ...]
+}
+
+Example 2. Return of BTC_LTC and BTC_DOGE tickers.
+
+Request: https://cryptide.docs.apiary.io/CryptoExchangeService/BotPublic/ReturnTicker?request=[NamePairs=BTC_LTC,BTC_DOGE]
+
+Response:
+
+{
+  Tickers:  [{
+    BaseVolume: "0.00000000",
+    HighPrice: "0.02062280",
+    Last: "0.01023842",
+    LowPrice: "0.00972667",
+    ...
+  },  {
+    BaseVolume: "0.47617000",
+    HighPrice: "0.00000080",
+    Last: "0.00000041",
+    LowPrice: "0.00000035",
+    ...
+  }]
+}
+
+Return24Volume
+The method returns the trading volume for 24 hours for all/specified markets:
+
+Example. Return of volume for BTC_DOGE.
+
+Request:https://cryptide.docs.apiary.io/CryptoExchangeService/BotPublic/Return24Volume?request=[NamePairs=BTC_DOGE]
+
+Response:
+
+{
+  Volume: {
+    VolumesByOne: [{
+      Name: "BTC",
+      Volume: 0.23673
+    }, {
+      Name: "DOGE",
+      Volume: 577000
+    }],
+    VolumesByTwo: [{
+      First: {
+        Name: "BTC",
+        Volume: 0.23673
+      },
+      Name: "BTC_DOGE",
+      Second: {
+        Name: "DOGE",
+        Volume: 577000
+      }
+    }]
+  }
+}
+
+ReturnOrderBook
+The method returns the orders' stack for the specified market
+
+Example. Return of the orders' stack for BTC_DOGE.
+
+Request:https://cryptide.docs.apiary.io/CryptoExchangeService/BotPublic/ReturnOrderBook?request=[PairName=BTC_DOGE]
+
+Response:
+
+{
+  BuyOrders: [{
+    AccumulateMoneyCount: "36826.27800846",
+    AccumulateMoneyVolume: "0.01509877",
+    CoinCount: "36826.27800846",
+    ...
+  },  {
+    AccumulateMoneyCount: "67304.76798074",
+    AccumulateMoneyVolume: "0.02729017",
+    CoinCount: "30478.48997228",
+    ...
+  },  {
+    AccumulateMoneyCount: "75084.76074510",
+    AccumulateMoneyVolume: "0.03032437",
+    CoinCount: "7779.99276436",
+    ...
+  },  {
+    AccumulateMoneyCount: "75433.94286209",
+    AccumulateMoneyVolume: "0.03045706",
+    CoinCount: "349.18211699",
+    ...
+  }],
+  SellOrders: [{
+    AccumulateMoneyCount: "10642.66536957",
+    AccumulateMoneyVolume: "0.00446992",
+    CoinCount: "10642.66536957",
+    ...
+  },  {
+    AccumulateMoneyCount: "31738.44031685",
+    AccumulateMoneyVolume: "0.01354110",
+    CoinCount: "21095.77494728",
+    ...
+  }, {
+    AccumulateMoneyCount: "41156.60557210",
+    AccumulateMoneyVolume: "0.01768510",
+    CoinCount: "9418.16525525",
+    ...
+  }, {
+    AccumulateMoneyCount: "50937.97566773",
+    AccumulateMoneyVolume: "0.02208671",
+    CoinCount: "9781.37009563",
+    ...
+  }]
+}
+
+ReturnTradeHistoryPub
+The method returns last 1,000 (or less if the Count parameter is specified) transactions or transactions for the time specified by the StartTS and EndTS parameters in the UNIX timestamp format.
+
+Example. Return of transactions history for BTC_DOGE.
+
+Request:https://cryptide.docs.apiary.io/CryptoExchangeService/BotPublic/ReturnTradeHistoryPub?request=[PairName=BTC_DOGE]
+
+Response:
+
+{
+  Trades: [{
+    CoinCount: "716.23394813",
+    CoinPrice: "0.00000037",
+    Commission: "0.00000027",
+    DtCreateTS: 1502771794,
+    ...
+  }, {
+    CoinCount: "283.76605187",
+    CoinPrice: "0.00000037",
+    Commission: "0.00000010",
+    DtCreateTS: 1502771794,
+    ...
+  }]
+}
+
+ReturnChartData
+The method returns candlestick data for a specified market. The candlestick time in minutes can be set by the CandleTimeInMinutes parameter, the beginning and the end of the interval can be set by the StartTS and EndTS parameters in the UNIX timestamp format.
+
+Example. The method returns the five-minute candlesticks for BTC_DOGE before August 16, 2017.
+
+Request:https://cryptide.docs.apiary.io/CryptoExchangeService/BotPublic/ReturnChartData?request=\ [PairName=BTC_DOGE][CandleTimeInMinutes=5][StartTS=1][EndTS=1502876344]
+
+Response:
+
+{
+  Candles:  [{
+    EndOrderPrice: "0.00000099",
+    MaxOrderPrice: "0.00000100",
+    MinOrderPrice: "0.00000098",
+    OrderCount: 4,
+    ...
+  },  {
+    EndOrderPrice: "0.00000100",
+    MaxOrderPrice: "0.00000101",
+    MinOrderPrice: "0.00000099",
+    OrderCount: 2,
+    ...
+  },  {
+    EndOrderPrice: "0.00000102",
+    MaxOrderPrice: "0.00000103",
+    MinOrderPrice: "0.00000100",
+    OrderCount: 4 ,
+    ...
+  },  ...]
+}
+
+ReturnCurrencies
+The method returns information about all/specified currencies.
+
+Example. Information about DOGE currency
+
+Request:https://cryptide.docs.apiary.io/CryptoExchangeService/BotPublic/ReturnCurrencies?request=[Names=DOGE]
+
+Response:
+
+{
+  Currencies: [{
+    Delisted: false,
+    Disabled: false,
+    Frozen: false,
+    MinConf: 6,
+    Name: "Dogecoin",
+    ...
+  }]
+}
+
+Trading API methods
+Url for API trading: https://cryptide.docs.apiary.io/CryptoExchangeService/BotTrade/<MethodName>
+
+It's needed to create API key to use trading API(https://crex24.com/settings/tokens).
+
+Please note that the default limit is 6 requests per second. If it's not enough, please contact the Customer Support Team to discuss increasing the limit.
+
+All trading API requests are sent to HTTP address by POST method and should contain the following headers:
+UserKey — API key.
+Sign — Signature of POST request body created using a secret key via HMACSHA512.
+All the requests should contain POST parameter Nonce. Nonce is unsigned int64 that must be always greater than previous value. You may use timestamp parameter for these aims.
+
+A response is sent in JSON format. If an error occurs, the response will be in the following format:
+
+{"Error" : {"Message" : "<error message>"}}
+
+Examples of requests sent to trading API in various programming languages:
+
+Readme: https://github.com/iiw/Crex24.Examples
+
+Python: https://github.com/iiw/Crex24.Examples/blob/master/python/app.py
+
+C#: https://github.com/3P3C/Crex24.Example/blob/master/Crex24Example/Program.cs
+
+JS: https://github.com/iiw/Crex24.Examples/tree/master/js
+
+PHP: https://github.com/iiw/Crex24.Examples/blob/master/php/app.php
+
+ReturnBalances
+Get available balances.
+
+Example.
+
+Request: https://cryptide.docs.apiary.io/CryptoExchangeService/BotTrade/ReturnBalances
+
+Request body:
+
+{
+    "Names" : ["BTC", "LTC"],    # Currency list. If not available, then retrieve for all currencies.
+    "NeedNull" : "true"          # Include zero balances to the list.
+}
+
+Response:
+
+{
+  "Balances": [
+    {
+      "AvailableBalances": 10.00000000,
+      "InOrderBalances": 10.00000000,
+      "Name": "BTC"
+    },
+    {
+      "AvailableBalances": 0.00000000,
+      "InOrderBalances": 0.00000000,
+      "Name": "LTC"
+    }
+  ]
+}
+
+ReturnOpenOrders
+Get open orders.
+
+Example.
+
+Request: https://cryptide.docs.apiary.io/CryptoExchangeService/BotTrade/ReturnOpenOrders
+
+Request body:
+
+{
+  "Pairs": ["BTC_LTC", "BTC_ETH"]    # List of trading pairs. If absent then retrieve for all trading pairs.
+}
+
+Response:
+
+{
+  "Orders": [
+    {
+      "CoinCount": 1.00000000,
+      "CoinPrice": 0.01135442,
+      "Id": 71463796,
+      "IsCloseRequired": false,
+      "IsSell": true,
+      "PairName": "BTC_LTC"
+    },
+    {
+      "CoinCount": 1.00000000,
+      "CoinPrice": 0.06835904,
+      "Id": 71463169,
+      "IsCloseRequired": false,
+      "IsSell": true,
+      "PairName": "BTC_ETH"
+    },
+    ...
+  ]
+}
+
+ReturnTradeHistory
+Get trading history.
+
+Example.
+
+Request: https://cryptide.docs.apiary.io/CryptoExchangeService/BotTrade/ReturnTradeHistory
+
+Request body:
+
+{
+  "Pairs": ["BTC_LTC", "BTC_ETH"]   # List of trading pairs. If absent then retrieve for all trading pairs.
+}
+
+Response:
+
+{
+  "Trades": [
+    {
+      "CoinCount": 1.00000000,
+      "CoinPrice": 0.06835904,
+      "Commission": 0.00000166,
+      "DtCreateTS": 1506517638,
+      "Id": 185197,
+      "IsMaker": true,
+      "IsSell": true,
+      "PairName": "BTC_ETH"
+    },
+    {
+      "CoinCount": 1.00000000,
+      "CoinPrice": 0.01135442,
+      "Commission": 0.00000166,
+      "DtCreateTS": 1506085177,
+      "Id": 185169,
+      "IsMaker": true,
+      "IsSell": false,
+      "PairName": "BTC_LTC"
+    },
+    ...
+  ]
+}
+
+ReturnOrderTrades
+Get all trading transactions by order.
+
+Example.
+
+Request: https://cryptide.docs.apiary.io/CryptoExchangeService/BotTrade/ReturnOrderTrades
+
+Request body:
+
+{
+  "OrderId": 51893150
+}
+
+Response:
+
+{
+  "Trades": [
+    {
+      "CoinCount": 10.00000000,
+      "CoinPrice":  0.06835904,
+      "Commission": 0.00000166,
+      "DtCreateTS": 1506517638,
+      "Id": 185197,
+      "IsMaker": true,
+      "IsSell": true,
+      "PairName": "BTC_ETH"
+    },
+    ...
+  ]
+}
+
+Buy
+Place order to buy.
+
+Example. Place order to buy 10 LTC for BTC at a price of 0.01194538:
+
+Request: https://cryptide.docs.apiary.io/CryptoExchangeService/BotTrade/Buy
+
+Request body:
+
+{
+  "Pair": "BTC_LTC",
+  "Course": 0.01194538,
+  "Volume": 10.0
+}
+
+Response:
+
+{
+  "Id": 51893288
+}
+
+Sell
+Place order to sell.
+
+Example. Place order to sell 10 LTC for BTC at a price of 0.01194538:
+
+Request: https://app.apiary.io/cryptideCryptoExchangeService/BotTrade/Sell
+
+Request body:
+
+{
+  "Pair": "BTC_LTC",
+  "Course": 0.01194538,
+  "Volume": 10.0
+}
+
+Response:
+
+{
+  "Id": 51893294
+}
+
+CancelOrder
+Cancel order.
+
+Example.
+
+Request: https://cryptide.docs.apiary.io/CryptoExchangeService/BotTrade/CancelOrder
+
+Request body:
+
+{
+  "OrderId": 51893294
+}
+
+Response:
+
+{
+  "Success": true
+}
+
+CancelOrderMulti
+Cancel several orders by list of IDs or by trading pairs.
+
+Request: https://cryptide.docs.apiary.io/CryptoExchangeService/BotTrade/CancelOrderMulti
+
+Example 1. Cancel orders by list of IDs:
+
+Request body:
+
+{
+  "OrderIds": [51893293, 51893292]
+}
+
+Example 2. Cancel all orders by trading pairs:
+
+Request body:
+
+{
+  "PairNames": ["BTC_ETH", "BTC_LTC"]
+}
+
+Response:
+
+{
+  "Success": true
+}
+
+ReturnOrderStatus
+Get information and all trading transactions by order.
+
+Example.
+
+Request: https://cryptide.docs.apiary.io/cryptideCryptoExchangeService/BotTrade/ReturnOrderStatus
+
+Request body:
+
+{
+  "OrderId": 51893312
+}
+
+Response:
+
+{
+  "CurrentOrder": {               # Current order status.
+    "CoinCount": 9.00000000,
+    "CoinPrice": 0.01194538,
+    "Id": 51893314,
+    "IsCloseRequired": false,
+    "IsSell": false,
+    "PairName": "BTC_LTC"
+  },
+  "SourceOrder": {                # Initial order status.
+    "CoinCount": 10.00000000,
+    "CoinPrice": 0.01194538,
+    "Id": 51893314,
+    "IsCloseRequired": false,
+    "IsSell": false,
+    "PairName": "BTC_LTC"
+  },
+  "Trades": [                     # List of trading transactions by order.
+    {
+      "CoinCount": 1.00000000,
+      "CoinPrice": 0.01194538,
+      "Commission": 0.00000000,
+      "DtCreateTS": 1507465556,
+      "Id": 185250,
+      "IsMaker": true,
+      "IsSell": false,
+      "PairName": "BTC_LTC"
+    }
+  ]
+}
+
+ReturnDepositsWithdrawals
+Get deposit and withdrawal history. Transactions will be displayed page by page, starting from the most recent. To view the next page complete the FromId field with the lowest record ID from the previous response.
+
+Example. Get last 100 records:
+
+Request: https://app.apiary.io/cryptideCryptoExchangeService/BotTrade/ReturnDepositsWithdrawals
+
+Request body:
+
+{
+  "Names": ["BTC", "LTC"],       # Currency list. If not available, then retrieve for all currencies.
+  "FromId": 0,                   # 0 or the lowest record ID from the previous response.
+  "Take": 100                    # Number of records to return. Maximum number of records is 1,000.
+}
+
+Response:
+
+{
+  "CountRemain": 1000,                          # Number of records remaining. If 0 then it is the last page.
+  "Changes": [
+    {
+      "Address": "17XjwyX78jusTPXHxxF14ST9fWrCUcLT6L",   # Payment address.
+      "AgentName": null,                        # Payment system name for fiat currencies.
+      "CurrenceName": "BTC",
+      "Id": 151,                                # Record ID.
+      "NeedConfirm": 15,
+      "NumConfirm": 17,
+      "Status": 3,                              # Payment status. See below.
+      "Sum": 0.20000000,
+      "TimeTs": 1504100143,                     # Time of record creation in UTC format.
+      "TxId": "4f37855e4ecfc8f15b58f3397a6f339ca6f941d63d097c08004f7c9dfc4ec700",   # Transaction ID
+      "Type": 2                                 # Record type. See below.
+    },
+    ...
+  ],
+}
+
+Possible values for the "Status" field:
+- Confirmed by user
+- Transaction created
+- First confirmation
+- Successfully processed
+- Transaction declined
+- Processing
+- Canceled by user
+- Waiting to send
+Possible values for the "Type" field:
+- Cryptocurrency deposit
+- Cryptocurrency withdrawal
+- Fiat currency deposit
+- Fiat currency withdrawal
+Withdraw
+Create a withdrawal request.
+
+Example.
+
+Request: https://cryptide.docs.apiary.io/cryptideCryptoExchangeService/BotTrade/Withdraw
+
+Request body:
+
+{
+  "Currency": "BTC",
+  "Sum": 1.0,
+  "Address": "17XjwyX78jusTPXHxxF14ST9fWrCUcLT6L",
+  "Message": "any_message"         # Message for transactions (will be sent if the currency supports it).
+}
+
+Response:
+
+{
+  "NewBalance": 9.00000000,                         # New balance.
+  "OutId": 613                                      # Id of request to withdraw. If not 0, the request has been successfully created.
+}
+
+ReturnDepositAddress
+Get address to deposit currency. If a message must be stated for depositing, the message will be present in the response.
+
+Request: https://cryptide.docs.apiary.io/CryptoExchangeService/BotTrade/ReturnDepositAddress
+
+Example 1. Get address to deposit BTC:
+
+Request body:
+
+{
+  "Currency": "BTC"
+}
+
+Response:
+
+{
+  "Address": "1JH6h3qDbAMEzAD8e7usWEqePddHzpSTgK",
+  "Message": null 
+}
+
+Example 2. Get address to deposit XMR:
+
+Request body:
+
+{
+  "Currency": "XMR"
+}
+
+Response:
+
+{
+  "Address": "NC6GOUR4ICVVPPK7N4UIYWDJM6LTUBJFR7OVXDS5",
+  "Message": "950a239c0f98ca41"                             # A message that must be stated while depositing.
+}

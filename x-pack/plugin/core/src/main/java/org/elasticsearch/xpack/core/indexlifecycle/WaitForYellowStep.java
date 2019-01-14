@@ -5,41 +5,31 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.Objects;
 
-class WaitForYellowStep extends AsyncWaitStep {
+class WaitForYellowStep extends ClusterStateWaitStep {
 
     static final String NAME = "wait-for-yellow-step";
 
-    WaitForYellowStep(StepKey key, StepKey nextStepKey, Client client) {
-        super(key, nextStepKey, client);
+    WaitForYellowStep(StepKey key, StepKey nextStepKey) {
+        super(key, nextStepKey);
     }
 
     @Override
-    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
-        String indexName = indexMetaData.getIndex().getName();
-        ClusterHealthRequest request = new ClusterHealthRequest(indexName);
-        request.waitForYellowStatus();
-        CheckedConsumer<ClusterHealthResponse, Exception> handler = clusterHealthResponse -> {
-            boolean success = clusterHealthResponse.isTimedOut() == false;
-            if (success) {
-                listener.onResponse(success, null);
-            } else {
-                listener.onResponse(false, new Info());
-            }
-        };
-        getClient().admin().cluster().health(request, ActionListener.wrap(handler, listener::onFailure));
+    public Result isConditionMet(Index index, ClusterState clusterState) {
+        boolean indexIsAtLeastYellow = clusterState.routingTable().index(index).allPrimaryShardsActive();
+        if (indexIsAtLeastYellow) {
+            return new Result(true, null);
+        } else {
+            return new Result(false, new Info());
+        }
     }
 
     static final class Info implements ToXContentObject {
@@ -49,7 +39,7 @@ class WaitForYellowStep extends AsyncWaitStep {
         private final String message;
 
         Info() {
-            this.message = "cluster health request timed out waiting for yellow status";
+            this.message = "index is red; not all primary shards are active";
         }
 
         String getMessage() {

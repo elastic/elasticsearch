@@ -50,7 +50,7 @@ public final class UnfollowAction implements LifecycleAction {
         CloseFollowerIndexStep step4 = new CloseFollowerIndexStep(closeFollowerIndex, unfollowFollowerIndex, client);
         UnfollowFollowIndexStep step5 = new UnfollowFollowIndexStep(unfollowFollowerIndex, openFollowerIndex, client);
         OpenFollowerIndexStep step6 = new OpenFollowerIndexStep(openFollowerIndex, waitForYellowStep, client);
-        WaitForYellowStep step7 = new WaitForYellowStep(waitForYellowStep, nextStepKey, client);
+        WaitForYellowStep step7 = new WaitForYellowStep(waitForYellowStep, nextStepKey);
         return Arrays.asList(step1, step2, step3, step4, step5, step6, step7);
     }
 

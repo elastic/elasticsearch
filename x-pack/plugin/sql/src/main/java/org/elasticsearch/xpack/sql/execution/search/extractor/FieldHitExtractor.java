@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -144,39 +145,45 @@ public class FieldHitExtractor implements HitExtractor {
     Object extractFromSource(Map<String, Object> map) {
         Object value = null;
 
-        for (int i = 0; i < path.length; i++) {
-            // each node is a key inside the map
-            value = map.get(path[i]);
+        // Used to avoid recursive method calls
+        // Holds the sub-maps in the document hierarchy that are pending to be inspected.
+        LinkedList<Map<String, Object>> queue = new LinkedList<>();
+        // along with the current index of the `path`.
+        LinkedList<Integer> idxQueue = new LinkedList<>();
 
-            // If value is not found or the map has multiple entries with common prefix
-            // (e.g.: <"a","value">, <"a.b", "value">) try to extract field with dots (e.g.: "a.b")
-            if (value == null || map.size() > 1) {
-                StringJoiner sj = new StringJoiner(".");
+        queue.add(map);
+        idxQueue.add(-1);
+
+
+        while (!queue.isEmpty()) {
+            int idx = idxQueue.removeLast();
+            Map<String, Object> subMap = queue.removeLast();
+
+            // Find all possible entries by examining all combinations under the current level ("idx") of the "path"
+            // e.g.: If the path == "a.b.c.d" and the idx == 0, we need to check the current subMap against the keys:
+            //       "b", "b.c" and "b.c.d"
+            StringJoiner sj = new StringJoiner(".");
+            for (int i = idx + 1; i < path.length; i++) {
                 sj.add(path[i]);
-                int valueFoundIdx = i;
-                // Try to find the longest path in the map, e.g.:
-                // for <"a.b", "value">, <"a.b.c", "value">) extract the latter.
-                for (int j = i + 1; j < path.length; j++) {
-                    sj.add(path[j]);
-                    Object v = map.get(sj.toString());
-                    if (v != null) {
-                        value = v;
-                        valueFoundIdx = j;
+                Object node = subMap.get(sj.toString());
+                if (node instanceof Map) {
+                    // Add the sub-map to the queue along with the current path index
+                    queue.add((Map<String, Object>) node);
+                    idxQueue.add(i);
+                } else if (node != null) {
+                    if (i < path.length - 1) {
+                        // If we reach a concrete value without exhausting the full path, something is wrong with the mapping
+                        // e.g.: map is {"a" : { "b" : "value }} and we are looking for a path: "a.b.c.d"
+                        throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
                     }
+                    if (value != null) {
+                        // A value has already been found so this means that there are more than one
+                        // values in the document for the same path but different hierarchy.
+                        // e.g.: {"a" : {"b" : {"c" : "value"}}}, {"a.b" : {"c" : "value"}}, ...
+                        throw new SqlIllegalArgumentException("Multiple values (returned by [{}]) are not supported", fieldName);
+                    }
+                    value = node;
                 }
-                // If it is a nested object advance `i` to the current index in the `path`.
-                // e.g.: if the hierarchy is {"a" : { "b.c" : { "d" : "value" }}} then i was
-                // previously 0 and it becomes 2 since "a" and "b.c" are consumed.
-                i = valueFoundIdx;
-                if (value instanceof Map) {
-                    map = (Map<String, Object>) value;
-                }
-            } else if (value instanceof Map) {
-                map = (Map<String, Object>) value;
-            } else if (i < path.length - 1) {
-                // If we reach a concrete value without exhausting the full path, something is wrong with the mapping
-                // e.g.: map is {"a" : { "b" : "value }} and we are looking for a path: "a.b.c.d"
-                throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
             }
         }
         return unwrapMultiValue(value);

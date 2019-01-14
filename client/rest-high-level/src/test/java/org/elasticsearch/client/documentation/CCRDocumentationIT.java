@@ -630,6 +630,22 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetFollowStats() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
+        {
+            // Create leader index:
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
+            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
+            CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+            assertThat(response.isAcknowledged(), is(true));
+        }
+        {
+            // Follow index, so that we can query for follow stats:
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", "follower");
+            PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
+            assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
+            assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
+            assertThat(putFollowResponse.isIndexFollowingStarted(), is(true));
+        }
+
         // tag::ccr-get-follow-stats-request
         FollowStatsRequest request =
             new FollowStatsRequest("follower"); // <1>
@@ -671,6 +687,12 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ccr-get-follow-stats-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        {
+            PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
+            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            assertThat(pauseFollowResponse.isAcknowledged(), is(true));
+        }
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {

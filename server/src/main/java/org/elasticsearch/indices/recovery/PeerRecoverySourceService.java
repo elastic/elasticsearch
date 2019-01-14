@@ -22,6 +22,8 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -81,7 +83,7 @@ public class PeerRecoverySourceService implements IndexEventListener {
         }
     }
 
-    private RecoveryResponse recover(final StartRecoveryRequest request) throws IOException {
+    private void recover(StartRecoveryRequest request, ActionListener<RecoveryResponse> listener) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
@@ -101,18 +103,13 @@ public class PeerRecoverySourceService implements IndexEventListener {
         RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);
         logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(),
             request.targetNode());
-        try {
-            return handler.recoverToTarget();
-        } finally {
-            ongoingRecoveries.remove(shard, handler);
-        }
+        handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.remove(shard, handler)));
     }
 
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
         @Override
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
-            RecoveryResponse response = recover(request);
-            channel.sendResponse(response);
+            recover(request, new HandledTransportAction.ChannelActionListener<>(channel, Actions.START_RECOVERY, request));
         }
     }
 

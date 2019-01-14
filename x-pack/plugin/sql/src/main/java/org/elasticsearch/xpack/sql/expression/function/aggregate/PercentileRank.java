@@ -10,8 +10,8 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
@@ -52,7 +52,7 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
             return resolution;
         }
 
-        return Expressions.typeMustBeNumeric(value, functionName(), ParamOrdinal.DEFAULT);
+        return Expressions.typeMustBeNumeric(value, sourceText(), ParamOrdinal.DEFAULT);
     }
 
     public Expression value() {

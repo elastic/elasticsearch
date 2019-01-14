@@ -6,8 +6,10 @@ is a group of nodes that have the same `cluster.name` attribute. As nodes join
 or leave a cluster, the cluster automatically reorganizes itself to evenly
 distribute the data across the available nodes.
 
-If you are running a single instance of {es}, then you have a cluster of one
-node.
+If you are running a single instance of {es}, you have a cluster of one node.
+All primary shards reside on the single node. No replica shards can be
+allocated, therefore the cluster state remains yellow. The cluster is fully
+functional but is at risk of data loss in the event of a failure.
 
 image::setup/images/elas_0202.png["A cluster with one node and three primary shards"]
 
@@ -16,6 +18,10 @@ a node is both a data node and eligible to be elected as the master node that
 controls the cluster. You can also configure a new node for a specific purpose,
 such as handling ingest requests. For more information, see
 <<modules-node,Nodes>>.
+
+When you add more nodes to a cluster, it automatically allocates replica shards.
+When all primary and replica shards are active, the cluster state changes to
+green.
 
 image::setup/images/elas_0204.png["A cluster with three nodes"]
 
@@ -26,5 +32,6 @@ To add a node to a cluster:
 to add a node to the `logging-prod` cluster, set `cluster.name: "logging-prod"`
 in `elasticsearch.yml`.
 . Start {es}. The node automatically discovers and joins the specified cluster.
-For more information about how the discovery process works, see
-<<modules-discovery-hosts-providers, Discovery>>.
+
+For more information about discovery and shard allocation, see
+<<modules-discovery>> and <<modules-cluster>>.

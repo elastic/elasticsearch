@@ -127,7 +127,7 @@ public class OpenIdConnectRealm extends Realm {
             addParameter(builder, "redirect_uri", rpConfiguration.getRedirectUri());
             return new OpenIdConnectPrepareAuthenticationResponse(builder.toString(), state);
         } catch (UnsupportedEncodingException e) {
-            throw new ElasticsearchException("Cannot build OIDC Authentication Request", e);
+            throw new ElasticsearchException("Cannot build OpenID Connect Authentication Request", e);
         }
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTransportAction<OpenIdConnectPrepareAuthenticationRequest,
@@ -33,7 +33,7 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
     public TransportOpenIdConnectPrepareAuthenticationAction(TransportService transportService,
                                                              ActionFilters actionFilters, Realms realms) {
         super(OpenIdConnectPrepareAuthenticationAction.NAME, transportService, actionFilters,
-            (Supplier<OpenIdConnectPrepareAuthenticationRequest>) OpenIdConnectPrepareAuthenticationRequest::new);
+            (Writeable.Reader<OpenIdConnectPrepareAuthenticationRequest>) OpenIdConnectPrepareAuthenticationRequest::new);
         this.realms = realms;
     }
 
@@ -46,11 +46,13 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
             .filter(r -> r.name().equals(request.getRealmName()))
             .collect(Collectors.toList());
         if (realms.isEmpty()) {
-            listener.onFailure(new ElasticsearchSecurityException("Cannot find OIDC realm with name [{}]", request.getRealmName()));
+            listener.onFailure(
+                new ElasticsearchSecurityException("Cannot find OpenID Connect realm with name [{}]", request.getRealmName()));
         } else if (realms.size() > 1) {
             // Can't define multiple realms with the same name in configuration, but check, still.
-            listener.onFailure(new ElasticsearchSecurityException("Found multiple ([{}]) OIDC realms with name [{}]", realms.size(),
-                request.getRealmName()));
+            listener.onFailure(
+                new ElasticsearchSecurityException("Found multiple ([{}]) OpenID Connect realms with name [{}]", realms.size(),
+                    request.getRealmName()));
         } else {
             prepareAuthenticationResponse(realms.get(0), request.getState(), request.getNonce(), listener);
         }

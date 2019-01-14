@@ -472,7 +472,7 @@ public class JobConfigProvider {
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(boolQueryBuilder);
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -557,8 +557,8 @@ public class JobConfigProvider {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
-        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
+        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), null);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -602,8 +602,8 @@ public class JobConfigProvider {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
-        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
+        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), null);
 
         return client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -686,7 +686,7 @@ public class JobConfigProvider {
                 .query(new TermsQueryBuilder(Job.GROUPS.getPreferredName(), groupIds));
         sourceBuilder.sort(Job.ID.getPreferredName(), SortOrder.DESC);
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())

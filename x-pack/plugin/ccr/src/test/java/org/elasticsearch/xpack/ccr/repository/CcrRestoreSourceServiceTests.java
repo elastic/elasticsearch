@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +22,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 

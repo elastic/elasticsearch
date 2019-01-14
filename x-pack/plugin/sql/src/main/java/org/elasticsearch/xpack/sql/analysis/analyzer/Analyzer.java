@@ -772,7 +772,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 for (Function seenFunction : list) {
                     if (seenFunction != f && f.arguments().equals(seenFunction.arguments())) {
                         // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
-                        // matches the one from the unresolved function to be checked. 
+                        // matches the one from the unresolved function to be checked.
                         if (seenFunction instanceof Count) {
                             if (seenFunction.equals(f)){
                                 return seenFunction;
@@ -818,7 +818,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         for (Function seenFunction : list) {
                             if (uf.arguments().equals(seenFunction.arguments())) {
                                 // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
-                                // matches the one from the unresolved function to be checked. 
+                                // matches the one from the unresolved function to be checked.
                                 if (seenFunction instanceof Count) {
                                     if (uf.sameAs((Count) seenFunction)) {
                                         return seenFunction;
@@ -899,8 +899,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             return new Alias(c.source(), ((NamedExpression) c.field()).name(), c);
                         }
                     }
-                    //TODO: maybe add something closer to SQL
-                    return new Alias(child.source(), child.toString(), child);
+                    return new Alias(child.source(), child.sourceText(), child);
                 }, UnresolvedAlias.class);
                 newExpr.add(expr.equals(transformed) ? expr : transformed);
             }
@@ -1031,7 +1030,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         private boolean functionsEquals(Function f, Function seenFunction) {
-            return f.name().equals(seenFunction.name()) && f.arguments().equals(seenFunction.arguments());
+            return f.sourceText().equals(seenFunction.sourceText()) && f.arguments().equals(seenFunction.arguments());
         }
     }
 

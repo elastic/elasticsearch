@@ -16,7 +16,8 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
-import java.util.LinkedList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -147,13 +148,12 @@ public class FieldHitExtractor implements HitExtractor {
 
         // Used to avoid recursive method calls
         // Holds the sub-maps in the document hierarchy that are pending to be inspected.
-        LinkedList<Map<String, Object>> queue = new LinkedList<>();
+        Deque<Map<String, Object>> queue = new ArrayDeque<>();
         // along with the current index of the `path`.
-        LinkedList<Integer> idxQueue = new LinkedList<>();
+        Deque<Integer> idxQueue = new ArrayDeque<>();
 
         queue.add(map);
         idxQueue.add(-1);
-
 
         while (!queue.isEmpty()) {
             int idx = idxQueue.removeLast();

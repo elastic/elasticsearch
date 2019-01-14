@@ -135,6 +135,10 @@ The HTTP status code indicates if the template with the given name
 exists or not. Status code `200` means it exists and `404` means
 it does not.
 
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although mappings
+no longer contain a type name by default, you can still use the old format by setting
+the parameter include_type_name. For more details, please see <<removal-of-types>>.
+
 [float]
 [[multiple-templates]]
 === Multiple Templates Matching

@@ -117,7 +117,7 @@ public abstract class JdbcTestUtils {
 
         for (int i = 1; i <= columns; i++) {
             cols.add(new ColumnInfo(metaData.getTableName(i), metaData.getColumnName(i), metaData.getColumnTypeName(i),
-                    metaData.getColumnType(i), metaData.getColumnDisplaySize(i)));
+                    metaData.getColumnDisplaySize(i)));
         }
 
 

@@ -2395,6 +2395,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Runs the specified runnable under a permit and otherwise calling back the specified failure callback. This method is really a
+     * convenience for {@link #acquirePrimaryOperationPermit(ActionListener, String, Object)} where the listener equates to
+     * try-with-resources closing the releasable after executing the runnable on successfully acquiring the permit, an otherwise calling
+     * back the failure callback.
+     *
+     * @param runnable the runnable to execute under permit
+     * @param onFailure the callback on failure
+     * @param executorOnDelay the executor to execute the runnable on if permit acquisition is blocked
+     * @param debugInfo debug info
+     */
+    public void runUnderPrimaryPermit(
+            final Runnable runnable,
+            final Consumer<Exception> onFailure,
+            final String executorOnDelay,
+            final Object debugInfo) {
+        verifyNotClosed();
+        assert shardRouting.primary() : "runUnderPrimaryPermit should only be called on primary shard but was " + shardRouting;
+        final ActionListener<Releasable> onPermitAcquired = ActionListener.wrap(
+                releasable -> {
+                    try (Releasable ignore = releasable) {
+                        runnable.run();
+                    }
+                },
+                onFailure);
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, debugInfo);
+    }
+
     private <E extends Exception> void bumpPrimaryTerm(final long newPrimaryTerm,
                                                        final CheckedRunnable<E> onBlocked,
                                                        @Nullable ActionListener<Releasable> combineWithAction) {

@@ -26,38 +26,38 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
-public final class ParameterMap implements Map<String, Object> {
+public final class DeprecationMap implements Map<String, Object> {
 
     private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(ParameterMap.class));
+        new DeprecationLogger(LogManager.getLogger(DeprecationMap.class));
 
-    private final Map<String, Object> params;
+    private final Map<String, Object> delegate;
 
     private final Map<String, String> deprecations;
 
-    public ParameterMap(Map<String, Object> params, Map<String, String> deprecations) {
-        this.params = params;
+    public DeprecationMap(Map<String, Object> delegate, Map<String, String> deprecations) {
+        this.delegate = delegate;
         this.deprecations = deprecations;
     }
 
     @Override
     public int size() {
-        return params.size();
+        return delegate.size();
     }
 
     @Override
     public boolean isEmpty() {
-        return params.isEmpty();
+        return delegate.isEmpty();
     }
 
     @Override
     public boolean containsKey(final Object key) {
-        return params.containsKey(key);
+        return delegate.containsKey(key);
     }
 
     @Override
     public boolean containsValue(final Object value) {
-        return params.containsValue(value);
+        return delegate.containsValue(value);
     }
 
     @Override
@@ -66,41 +66,41 @@ public final class ParameterMap implements Map<String, Object> {
         if (deprecationMessage != null) {
             deprecationLogger.deprecated(deprecationMessage);
         }
-        return params.get(key);
+        return delegate.get(key);
     }
 
     @Override
     public Object put(final String key, final Object value) {
-        return params.put(key, value);
+        return delegate.put(key, value);
     }
 
     @Override
     public Object remove(final Object key) {
-        return params.remove(key);
+        return delegate.remove(key);
     }
 
     @Override
     public void putAll(final Map<? extends String, ?> m) {
-        params.putAll(m);
+        delegate.putAll(m);
     }
 
     @Override
     public void clear() {
-        params.clear();
+        delegate.clear();
     }
 
     @Override
     public Set<String> keySet() {
-        return params.keySet();
+        return delegate.keySet();
     }
 
     @Override
     public Collection<Object> values() {
-        return params.values();
+        return delegate.values();
     }
 
     @Override
     public Set<Entry<String, Object>> entrySet() {
-        return params.entrySet();
+        return delegate.entrySet();
     }
 }

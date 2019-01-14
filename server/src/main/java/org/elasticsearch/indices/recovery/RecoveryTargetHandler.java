@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.store.Store;
@@ -26,7 +27,6 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.List;
-
 
 public interface RecoveryTargetHandler {
 
@@ -90,6 +90,6 @@ public interface RecoveryTargetHandler {
 
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                        boolean lastChunk, int totalTranslogOps) throws IOException;
+                        boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener);
 
 }

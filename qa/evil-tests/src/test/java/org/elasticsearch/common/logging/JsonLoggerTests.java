@@ -24,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -184,11 +185,11 @@ public class JsonLoggerTests extends ESTestCase {
         return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".log");
     }
 
-    private void setupLogging(final String config) throws IOException {
+    private void setupLogging(final String config) throws IOException, UserException {
         setupLogging(config, Settings.EMPTY);
     }
 
-    private void setupLogging(final String config, final Settings settings) throws IOException {
+    private void setupLogging(final String config, final Settings settings) throws IOException, UserException {
         assertFalse("Environment path.home variable should not be set", Environment.PATH_HOME_SETTING.exists(settings));
         final Path configDir = getDataPath(config);
         final Settings mergedSettings = Settings.builder()

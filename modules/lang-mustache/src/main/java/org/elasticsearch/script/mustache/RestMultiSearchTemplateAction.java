@@ -79,6 +79,14 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
+
+        // Emit a single deprecation message if any search template contains types.
+        for (SearchTemplateRequest searchTemplateRequest : multiRequest.requests()) {
+            if (searchTemplateRequest.getRequest().types().length > 0) {
+                deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
+                break;
+            }
+        }
         return channel -> client.execute(MultiSearchTemplateAction.INSTANCE, multiRequest, new RestToXContentListener<>(channel));
     }
 
@@ -93,9 +101,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
         RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
                 (searchRequest, bytes) -> {
-                    if (searchRequest.types().length > 0) {
-                        deprecationLogger.deprecatedAndMaybeLog("msearch_template_with_types", TYPES_DEPRECATION_MESSAGE);
-                    }
                     SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
                     if (searchTemplateRequest.getScript() != null) {
                         searchTemplateRequest.setRequest(searchRequest);

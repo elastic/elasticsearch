@@ -229,7 +229,7 @@ Closure commonPackageConfig(String type, boolean oss) {
         dirMode mode
       }
     }
-    copyEmptyDir('/var/run/elasticsearch', 'elasticsearch', 'elasticsearch', 02755)
+    copyEmptyDir('/var/run/elasticsearch', 'elasticsearch', 'elasticsearch', 0755)
     copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)

@@ -316,6 +316,15 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertInvalidAction("hot", ShrinkAction.NAME, new String[] { RolloverAction.NAME });
 
         // Warm Phase
+        assertNextActionName("warm", UnfollowAction.NAME, ReadOnlyAction.NAME,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", UnfollowAction.NAME, AllocateAction.NAME,
+            new String[] { AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", UnfollowAction.NAME, ShrinkAction.NAME,
+            new String[] { ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", UnfollowAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
+        assertNextActionName("warm", UnfollowAction.NAME, null, new String[] {});
+
         assertNextActionName("warm", ReadOnlyAction.NAME, AllocateAction.NAME,
                 new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", ReadOnlyAction.NAME, ShrinkAction.NAME,
@@ -360,6 +369,10 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
 
         // Cold Phase
+        assertNextActionName("cold", UnfollowAction.NAME, AllocateAction.NAME,
+            new String[] {AllocateAction.NAME, FreezeAction.NAME});
+        assertNextActionName("cold", UnfollowAction.NAME, FreezeAction.NAME, new String[] {FreezeAction.NAME});
+        assertNextActionName("cold", UnfollowAction.NAME, null, new String[] {});
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] { AllocateAction.NAME });
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
@@ -383,6 +396,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertInvalidAction("delete", ReadOnlyAction.NAME, new String[] { DeleteAction.NAME });
         assertInvalidAction("delete", RolloverAction.NAME, new String[] { DeleteAction.NAME });
         assertInvalidAction("delete", ShrinkAction.NAME, new String[] { DeleteAction.NAME });
+        assertInvalidAction("delete", UnfollowAction.NAME, new String[] { DeleteAction.NAME });
 
         Phase phase = new Phase("foo", TimeValue.ZERO, Collections.emptyMap());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,

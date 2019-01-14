@@ -709,12 +709,12 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchHit[] searchHits = searchResponse.getHits().getHits();
 
             while (searchHits != null && searchHits.length > 0) { // <2>
-                SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId); // <3>
+                // <3>
+                SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId); // <4>
                 scrollRequest.scroll(scroll);
                 searchResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
                 scrollId = searchResponse.getScrollId();
                 searchHits = searchResponse.getHits().getHits();
-                // <4>
             }
 
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest(); // <5>

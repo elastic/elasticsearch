@@ -1,0 +1,48 @@
+
+--
+:api: get-users
+:request: GetUsersRequest
+:response: GetUsersResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Users API
+
+[id="{upid}-{api}-request"]
+==== Get Users Request
+
+Retrieving a user can be performed using the `security().getUsers()`
+method and by setting the username on +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+Retrieving multiple users can be performed using the `security().getUsers()`
+method and by setting multiple usernames on +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-list-request]
+--------------------------------------------------
+
+Retrieving all users can be performed using the `security().getUsers()`
+method without specifying any usernames on +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-all-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Users Response
+
+The returned +{response}+ allows getting information about the retrieved users as follows.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

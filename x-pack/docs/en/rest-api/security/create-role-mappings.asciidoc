@@ -1,14 +1,17 @@
 [role="xpack"]
 [[security-api-put-role-mapping]]
 === Create or update role mappings API
+++++
+<titleabbrev>Create or update role mappings</titleabbrev>
+++++
 
 Creates and updates role mappings.
 
 ==== Request
 
-`POST /_xpack/security/role_mapping/<name>` +
+`POST /_security/role_mapping/<name>` +
 
-`PUT /_xpack/security/role_mapping/<name>`
+`PUT /_security/role_mapping/<name>`
 
 
 ==== Description
@@ -68,7 +71,7 @@ The following example assigns the "user" role to all users:
 
 [source, js]
 ------------------------------------------------------------
-POST /_xpack/security/role_mapping/mapping1
+POST /_security/role_mapping/mapping1
 {
   "roles": [ "user"],
   "enabled": true, <1>
@@ -103,7 +106,7 @@ The following example assigns the "user" and "admin" roles to specific users:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/security/role_mapping/mapping2
+POST /_security/role_mapping/mapping2
 {
   "roles": [ "user", "admin" ],
   "enabled": true,
@@ -119,7 +122,7 @@ or the user is in the `cn=admin,dc=example,dc=com` group:
 
 [source, js]
 ------------------------------------------------------------
-POST /_xpack/security/role_mapping/mapping3
+POST /_security/role_mapping/mapping3
 {
   "roles": [ "superuser" ],
   "enabled": true,
@@ -144,7 +147,7 @@ POST /_xpack/security/role_mapping/mapping3
 The following example matches users who authenticated against a specific realm:
 [source, js]
 ------------------------------------------------------------
-POST /_xpack/security/role_mapping/mapping4
+POST /_security/role_mapping/mapping4
 {
   "roles": [ "ldap-user" ],
   "enabled": true,
@@ -159,7 +162,7 @@ The following example matches users within a specific LDAP sub-tree:
 
 [source, js]
 ------------------------------------------------------------
-POST /_xpack/security/role_mapping/mapping5
+POST /_security/role_mapping/mapping5
 {
   "roles": [ "example-user" ],
   "enabled": true,
@@ -175,7 +178,7 @@ specific realm:
 
 [source, js]
 ------------------------------------------------------------
-POST /_xpack/security/role_mapping/mapping6
+POST /_security/role_mapping/mapping6
 {
   "roles": [ "ldap-example-user" ],
   "enabled": true,
@@ -200,7 +203,7 @@ following mapping matches any user where *all* of these conditions are met:
 
 [source, js]
 ------------------------------------------------------------
-POST /_xpack/security/role_mapping/mapping7
+POST /_security/role_mapping/mapping7
 {
   "roles": [ "superuser" ],
   "enabled": true,

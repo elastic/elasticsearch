@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-job]]
-=== Get Jobs API
+=== Get jobs API
 ++++
-<titleabbrev>Get Jobs</titleabbrev>
+<titleabbrev>Get jobs</titleabbrev>
 ++++
 
 Retrieves configuration information for jobs.
@@ -11,13 +11,13 @@ Retrieves configuration information for jobs.
 
 ==== Request
 
-`GET _xpack/ml/anomaly_detectors/<job_id>` +
+`GET _ml/anomaly_detectors/<job_id>` +
 
-`GET _xpack/ml/anomaly_detectors/<job_id>,<job_id>` +
+`GET _ml/anomaly_detectors/<job_id>,<job_id>` +
 
-`GET _xpack/ml/anomaly_detectors/` +
+`GET _ml/anomaly_detectors/` +
 
-`GET _xpack/ml/anomaly_detectors/_all`
+`GET _ml/anomaly_detectors/_all`
 
 
 ===== Description
@@ -57,7 +57,7 @@ The following example gets configuration information for the `total-requests` jo
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/total-requests
+GET _ml/anomaly_detectors/total-requests
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_job]

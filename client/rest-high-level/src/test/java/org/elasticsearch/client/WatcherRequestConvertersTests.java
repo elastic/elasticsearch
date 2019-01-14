@@ -67,13 +67,13 @@ public class WatcherRequestConvertersTests extends ESTestCase {
     public void testStartWatchService() {
         Request request = WatcherRequestConverters.startWatchService(new StartWatchServiceRequest());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/watcher/_start", request.getEndpoint());
+        assertEquals("/_watcher/_start", request.getEndpoint());
     }
 
     public void testStopWatchService() {
         Request request = WatcherRequestConverters.stopWatchService(new StopWatchServiceRequest());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/watcher/_stop", request.getEndpoint());
+        assertEquals("/_watcher/_stop", request.getEndpoint());
     }
 
     public void testPutWatch() throws Exception {
@@ -95,7 +95,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
 
         Request request = WatcherRequestConverters.putWatch(putWatchRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertEquals("/_watcher/watch/" + watchId, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -109,7 +109,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
 
         Request request = WatcherRequestConverters.getWatch(getWatchRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertEquals("/_watcher/watch/" + watchId, request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
     }
 
@@ -119,7 +119,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         Request request = WatcherRequestConverters.deactivateWatch(deactivateWatchRequest);
 
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/watcher/watch/" + watchId + "/_deactivate", request.getEndpoint());
+        assertEquals("/_watcher/watch/" + watchId + "/_deactivate", request.getEndpoint());
     }
 
     public void testDeleteWatch() {
@@ -128,7 +128,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
 
         Request request = WatcherRequestConverters.deleteWatch(deleteWatchRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertEquals("/_watcher/watch/" + watchId, request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
     }
 
@@ -142,7 +142,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
 
         StringJoiner expectedEndpoint = new StringJoiner("/", "/", "")
-            .add("_xpack").add("watcher").add("watch").add(watchId).add("_ack");
+            .add("_watcher").add("watch").add(watchId).add("_ack");
         if (ackWatchRequest.getActionIds().length > 0) {
             String actionsParam = String.join(",", ackWatchRequest.getActionIds());
             expectedEndpoint.add(actionsParam);
@@ -158,7 +158,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
 
         Request request = WatcherRequestConverters.activateWatch(activateWatchRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/watcher/watch/" + watchId + "/_activate", request.getEndpoint());
+        assertEquals("/_watcher/watch/" + watchId + "/_activate", request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
     }
 
@@ -169,7 +169,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         WatcherStatsRequest watcherStatsRequest = new WatcherStatsRequest(includeCurrent, includeQueued);
 
         Request request = WatcherRequestConverters.watcherStats(watcherStatsRequest);
-        assertThat(request.getEndpoint(), equalTo("/_xpack/watcher/stats"));
+        assertThat(request.getEndpoint(), equalTo("/_watcher/stats"));
         assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
         if (includeCurrent || includeQueued) {
             assertThat(request.getParameters(), hasKey("metric"));
@@ -218,7 +218,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         }
 
         Request req = WatcherRequestConverters.executeWatch(request);
-        assertThat(req.getEndpoint(), equalTo("/_xpack/watcher/watch/my_id/_execute"));
+        assertThat(req.getEndpoint(), equalTo("/_watcher/watch/my_id/_execute"));
         assertThat(req.getMethod(), equalTo(HttpPost.METHOD_NAME));
 
         if (ignoreCondition) {
@@ -293,7 +293,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         }
 
         Request req = WatcherRequestConverters.executeWatch(request);
-        assertThat(req.getEndpoint(), equalTo("/_xpack/watcher/watch/_execute"));
+        assertThat(req.getEndpoint(), equalTo("/_watcher/watch/_execute"));
         assertThat(req.getMethod(), equalTo(HttpPost.METHOD_NAME));
 
         if (ignoreCondition) {

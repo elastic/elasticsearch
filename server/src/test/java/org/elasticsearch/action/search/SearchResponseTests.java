@@ -114,7 +114,7 @@ public class SearchResponseTests extends ESTestCase {
         int skippedShards = randomIntBetween(0, totalShards);
         InternalSearchResponse internalSearchResponse;
         if (minimal == false) {
-            SearchHits hits = SearchHitsTests.createTestItem();
+            SearchHits hits = SearchHitsTests.createTestItem(true, true);
             InternalAggregations aggregations = aggregationsTests.createTestInstance();
             Suggest suggest = SuggestTests.createTestItem();
             SearchProfileShardResults profileShardResults = SearchProfileShardResultsTests.createTestItem();

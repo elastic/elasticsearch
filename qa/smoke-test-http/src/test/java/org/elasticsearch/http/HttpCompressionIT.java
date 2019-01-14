@@ -52,7 +52,7 @@ public class HttpCompressionIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
 
-        Request request = new Request("POST", "/company/employees/1");
+        Request request = new Request("POST", "/company/_doc/1");
         request.setJsonEntity(SAMPLE_DOCUMENT);
         response = client().performRequest(request);
         assertEquals(201, response.getStatusLine().getStatusCode());

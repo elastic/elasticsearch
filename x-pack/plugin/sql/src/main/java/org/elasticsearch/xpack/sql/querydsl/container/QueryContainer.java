@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
@@ -183,7 +183,7 @@ public class QueryContainer {
 
         String name = aliasName(attr);
         String format = attr.field().getDataType() == DataType.DATE ? "epoch_millis" : null;
-        Query q = rewriteToContainNestedField(query, attr.location(),
+        Query q = rewriteToContainNestedField(query, attr.source(),
                 attr.nestedParent().name(), name, format, attr.field().isAggregatable());
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(),
@@ -193,13 +193,13 @@ public class QueryContainer {
         return new Tuple<>(new QueryContainer(q, aggs, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit), nestedFieldRef);
     }
 
-    static Query rewriteToContainNestedField(@Nullable Query query, Location location, String path, String name, String format,
+    static Query rewriteToContainNestedField(@Nullable Query query, Source source, String path, String name, String format,
             boolean hasDocValues) {
         if (query == null) {
             /* There is no query so we must add the nested query
              * ourselves to fetch the field. */
-            return new NestedQuery(location, path, singletonMap(name, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format)),
-                    new MatchAll(location));
+            return new NestedQuery(source, path, singletonMap(name, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format)),
+                    new MatchAll(source));
         }
         if (query.containsNestedField(path, name)) {
             // The query already has the nested field. Nothing to do.
@@ -215,9 +215,9 @@ public class QueryContainer {
         }
         /* There is no nested query with a matching path so we must
          * add the nested query ourselves just to fetch the field. */
-        NestedQuery nested = new NestedQuery(location, path,
-                singletonMap(name, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format)), new MatchAll(location));
-        return new BoolQuery(location, true, query, nested);
+        NestedQuery nested = new NestedQuery(source, path,
+                singletonMap(name, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format)), new MatchAll(source));
+        return new BoolQuery(source, true, query, nested);
     }
 
     // replace function/operators's input with references

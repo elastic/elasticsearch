@@ -5,7 +5,7 @@ The multi search API allows to execute several search requests within
 the same API. The endpoint for it is `_msearch`.
 
 The format of the request is similar to the bulk API format and makes
-use of the newline delimited JSON (NDJSON) format. the structure is as
+use of the newline delimited JSON (NDJSON) format. The structure is as
 follows (the structure is specifically optimized to reduce parsing if
 a specific search ends up redirected to another node):
 

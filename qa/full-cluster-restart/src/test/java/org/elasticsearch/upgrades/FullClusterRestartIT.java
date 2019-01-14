@@ -33,6 +33,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestUpdateAction;
+import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -492,6 +496,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request bulkRequest = new Request("POST", "/" + index + "_write/doc/_bulk");
         bulkRequest.setJsonEntity(bulk.toString());
         bulkRequest.addParameter("refresh", "");
+        bulkRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(EntityUtils.toString(client().performRequest(bulkRequest).getEntity()), containsString("\"errors\":false"));
 
         if (isRunningAgainstOldCluster()) {
@@ -567,14 +572,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertNotNull(stringValue);
         String type = (String) bestHit.get("_type");
         String id = (String) bestHit.get("_id");
-        Request explanationRequest = new Request("GET", "/" + index + "/" + type + "/" + id + "/_explain");
-        explanationRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
-        String explanation = toStr(client().performRequest(explanationRequest));
+
+        Request explainRequest = new Request("GET", "/" + index + "/" + type + "/" + id + "/_explain");
+        explainRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
+        explainRequest.setOptions(expectWarnings(RestExplainAction.TYPES_DEPRECATION_MESSAGE));
+        String explanation = toStr(client().performRequest(explainRequest));
         assertFalse("Could not find payload boost in explanation\n" + explanation, explanation.contains("payloadBoost"));
 
         // Make sure the query can run on the whole index
         Request searchRequest = new Request("GET", "/" + index + "/_search");
-        searchRequest.setEntity(explanationRequest.getEntity());
+        searchRequest.setEntity(explainRequest.getEntity());
         searchRequest.addParameter("explain", "true");
         Map<?, ?> matchAllResponse = entityAsMap(client().performRequest(searchRequest));
         assertNoFailures(matchAllResponse);
@@ -620,10 +627,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         String docId = (String) hit.get("_id");
 
         Request updateRequest = new Request("POST", "/" + index + "/doc/" + docId + "/_update");
+        updateRequest.setOptions(expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
         updateRequest.setJsonEntity("{ \"doc\" : { \"foo\": \"bar\"}}");
         client().performRequest(updateRequest);
 
-        Map<String, Object> getRsp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/doc/" + docId)));
+        Request getRequest = new Request("GET", "/" + index + "/doc/" + docId);
+        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        Map<String, Object> getRsp = entityAsMap(client().performRequest(getRequest));
         Map<?, ?> source = (Map<?, ?>) getRsp.get("_source");
         assertTrue("doc does not contain 'foo' key: " + source, source.containsKey("foo"));
 
@@ -685,7 +695,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createDoc);
         }
 
-        assertThat(toStr(client().performRequest(new Request("GET", docLocation))), containsString(doc));
+
+        Request request = new Request("GET", docLocation);
+        request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        assertThat(toStr(client().performRequest(request)), containsString(doc));
     }
 
     /**
@@ -961,7 +974,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 mappingsAndSettings.startObject("settings");
                 mappingsAndSettings.field("number_of_shards", 1);
                 mappingsAndSettings.field("number_of_replicas", 1);
-                if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+                if (getOldClusterVersion().onOrAfter(Version.V_6_5_0) && randomBoolean()) {
                     mappingsAndSettings.field("soft_deletes.enabled", true);
                 }
                 mappingsAndSettings.endObject();
@@ -1059,6 +1072,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/doc/_bulk");
         writeToRestoredRequest.addParameter("refresh", "true");
         writeToRestoredRequest.setJsonEntity(bulk.toString());
+        writeToRestoredRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(EntityUtils.toString(client().performRequest(writeToRestoredRequest).getEntity()), containsString("\"errors\":false"));
 
         // And count to make sure the add worked
@@ -1143,6 +1157,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String loadInfoDocument(String type) throws IOException {
         Request request = new Request("GET", "/info/doc/" + index + "_" + type);
         request.addParameter("filter_path", "_source");
+        request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         String doc = toStr(client().performRequest(request));
         Matcher m = Pattern.compile("\"value\":\"(.+)\"").matcher(doc);
         assertTrue(doc, m.find());

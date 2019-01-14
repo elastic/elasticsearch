@@ -27,7 +27,7 @@ flush can be executed if another flush operation is already executing.
 The default is `false` and will cause an exception to be thrown on
 the shard level if another flush operation is already running.
 
-`force`:: Whether a flush should be forced even if it is not necessarily needed ie.
+`force`:: Whether a flush should be forced even if it is not necessarily needed i.e.
 if no changes will be committed to the index. This is useful if transaction log IDs
 should be incremented even if no uncommitted changes are present.
 (This setting can be considered as internal)
@@ -101,7 +101,9 @@ which returns something similar to:
                      "translog_generation" : "2",
                      "max_seq_no" : "-1",
                      "sync_id" : "AVvFY-071siAOuFGEO9P", <1>
-                     "max_unsafe_auto_id_timestamp" : "-1"
+                     "max_unsafe_auto_id_timestamp" : "-1",
+                     "min_retained_seq_no" : "0",
+                     "retention_leases" : "id:replica-0;retaining_seq_no:0;timestamp:1547235588;source:replica"
                    },
                    "num_docs" : 0
                  }
@@ -116,6 +118,7 @@ which returns something similar to:
 // TESTRESPONSE[s/"translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA"/"translog_uuid": $body.indices.twitter.shards.0.0.commit.user_data.translog_uuid/]
 // TESTRESPONSE[s/"history_uuid" : "XP7KDJGiS1a2fHYiFL5TXQ"/"history_uuid": $body.indices.twitter.shards.0.0.commit.user_data.history_uuid/]
 // TESTRESPONSE[s/"sync_id" : "AVvFY-071siAOuFGEO9P"/"sync_id": $body.indices.twitter.shards.0.0.commit.user_data.sync_id/]
+// TESTRESPONSE[s/"retention_leases" : "id:replica-0;retaining_seq_no:0;timestamp:1547235588;source:replica"/"retention_leases": $body.indices.twitter.shards.0.0.commit.user_data.retention_leases/]
 <1> the `sync id` marker
 
 [float]

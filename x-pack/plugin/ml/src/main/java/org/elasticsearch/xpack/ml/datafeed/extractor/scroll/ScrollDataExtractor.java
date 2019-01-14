@@ -106,7 +106,6 @@ class ScrollDataExtractor implements DataExtractor {
                 .setScroll(SCROLL_TIMEOUT)
                 .addSort(context.extractedFields.timeField(), SortOrder.ASC)
                 .setIndices(context.indices)
-                .setTypes(context.types)
                 .setSize(context.scrollSize)
                 .setQuery(ExtractorUtils.wrapInTimeRangeQuery(
                         context.query, context.extractedFields.timeField(), start, context.end));

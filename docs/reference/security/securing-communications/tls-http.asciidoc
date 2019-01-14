@@ -1,8 +1,8 @@
 [role="xpack"]
 [[tls-http]]
-==== Encrypting HTTP Client Communications
+==== Encrypting HTTP Client communications
 
-When {security} is enabled, you can optionally use TLS to ensure that
+When {security-features} are enabled, you can optionally use TLS to ensure that
 communication between HTTP clients and the cluster is encrypted.
 
 NOTE: Enabling TLS on the HTTP layer is strongly recommended but is not required.

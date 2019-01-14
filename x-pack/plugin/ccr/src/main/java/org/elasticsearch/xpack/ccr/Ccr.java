@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.license.XPackLicenseState;
@@ -58,10 +59,13 @@ import org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction;
 import org.elasticsearch.xpack.ccr.action.TransportUnfollowAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
+import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
+import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
+import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 import org.elasticsearch.xpack.ccr.rest.RestCcrStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestDeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestFollowStatsAction;
@@ -111,7 +115,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final boolean enabled;
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
-    private final SetOnce<CcrRepositoryManager> repositoryManager = new SetOnce<>();
+    private final SetOnce<CcrRestoreSourceService> restoreSourceService = new SetOnce<>();
+    private Client client;
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -146,15 +151,19 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry) {
+        this.client = client;
         if (enabled == false) {
             return emptyList();
         }
 
-        this.repositoryManager.set(new CcrRepositoryManager(settings, clusterService, client));
-
+        CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(settings);
+        this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
             ccrLicenseChecker,
-            new AutoFollowCoordinator(client, threadPool, clusterService, ccrLicenseChecker)
+            restoreSourceService,
+            new CcrRepositoryManager(settings, clusterService, client),
+            new AutoFollowCoordinator(settings, client, clusterService, ccrLicenseChecker,
+                threadPool::relativeTimeInMillis, threadPool::absoluteTimeInMillis)
         );
     }
 
@@ -180,6 +189,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                     PutInternalCcrRepositoryAction.TransportPutInternalRepositoryAction.class),
                 new ActionHandler<>(DeleteInternalCcrRepositoryAction.INSTANCE,
                     DeleteInternalCcrRepositoryAction.TransportDeleteInternalRepositoryAction.class),
+                new ActionHandler<>(PutCcrRestoreSessionAction.INSTANCE,
+                    PutCcrRestoreSessionAction.TransportPutCcrRestoreSessionAction.class),
+                new ActionHandler<>(ClearCcrRestoreSessionAction.INSTANCE,
+                    ClearCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction.class),
                 // stats action
                 new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
@@ -275,8 +288,13 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(metadata, settings);
+        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings);
         return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        indexModule.addIndexEventListener(this.restoreSourceService.get());
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }

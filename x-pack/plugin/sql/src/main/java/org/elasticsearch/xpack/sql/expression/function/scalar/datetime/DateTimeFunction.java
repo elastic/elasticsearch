@@ -10,13 +10,12 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
-import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -24,8 +23,8 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
 
     private final DateTimeExtractor extractor;
 
-    DateTimeFunction(Location location, Expression field, TimeZone timeZone, DateTimeExtractor extractor) {
-        super(location, field, timeZone);
+    DateTimeFunction(Source source, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
+        super(source, field, zoneId);
         this.extractor = extractor;
     }
 
@@ -50,7 +49,7 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
         ScriptTemplate script = super.asScript();
         String template = formatTemplate("{sql}.dateTimeChrono(" + script.template() + ", {}, {})");
         params.script(script.params())
-              .variable(timeZone().getID())
+              .variable(zoneId().getId())
               .variable(extractor.chronoField().name());
         
         return new ScriptTemplate(template, params.build(), dataType());
@@ -59,7 +58,7 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
 
     @Override
     protected Processor makeProcessor() {
-        return new DateTimeProcessor(extractor, timeZone());
+        return new DateTimeProcessor(extractor, zoneId());
     }
 
     @Override

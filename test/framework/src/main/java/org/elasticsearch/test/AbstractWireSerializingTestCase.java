@@ -27,6 +27,6 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
 
     @Override
     protected T copyInstance(T instance, Version version) throws IOException {
-        return copyWriteable(instance, getNamedWriteableRegistry(), instanceReader());
+        return copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), version);
     }
 }

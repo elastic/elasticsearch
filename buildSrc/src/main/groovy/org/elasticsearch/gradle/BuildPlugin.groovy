@@ -40,6 +40,7 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionGraph
+import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -57,6 +58,7 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.util.regex.Matcher
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -245,9 +247,16 @@ class BuildPlugin implements Plugin<Project> {
              *
              *  If either of these fail, we fail the build.
              */
+
+            // check if the Docker binary exists and record its path
+            final List<String> maybeDockerBinaries = ['/usr/bin/docker', '/usr/local/bin/docker']
+            final String dockerBinary = maybeDockerBinaries.find { it -> new File(it).exists() }
+
             final boolean buildDocker
             final String buildDockerProperty = System.getProperty("build.docker")
-            if (buildDockerProperty == null || buildDockerProperty == "true") {
+            if (buildDockerProperty == null) {
+                buildDocker = dockerBinary != null
+            } else if (buildDockerProperty == "true") {
                 buildDocker = true
             } else if (buildDockerProperty == "false") {
                 buildDocker = false
@@ -258,29 +267,6 @@ class BuildPlugin implements Plugin<Project> {
             rootProject.rootProject.ext.buildDocker = buildDocker
             rootProject.rootProject.ext.requiresDocker = []
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
-                // check if the Docker binary exists and record its path
-                final List<String> maybeDockerBinaries = ['/usr/bin/docker', '/usr/local/bin/docker']
-                final String dockerBinary = maybeDockerBinaries.find { it -> new File(it).exists() }
-
-                int exitCode
-                String dockerErrorOutput
-                if (dockerBinary == null) {
-                    exitCode = -1
-                    dockerErrorOutput = null
-                } else {
-                    // the Docker binary executes, check that we can execute a privileged command
-                    final ByteArrayOutputStream output = new ByteArrayOutputStream()
-                    final ExecResult result = LoggedExec.exec(rootProject, { ExecSpec it ->
-                        it.commandLine dockerBinary, "images"
-                        it.errorOutput = output
-                        it.ignoreExitValue = true
-                    })
-                    if (result.exitValue == 0) {
-                        return
-                    }
-                    exitCode = result.exitValue
-                    dockerErrorOutput = output.toString()
-                }
                 final List<String> tasks =
                         ((List<Task>)rootProject.requiresDocker).findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString()}
                 if (tasks.isEmpty() == false) {
@@ -288,30 +274,50 @@ class BuildPlugin implements Plugin<Project> {
                      * There are tasks in the task graph that require Docker. Now we are failing because either the Docker binary does not
                      * exist or because execution of a privileged Docker command failed.
                      */
-                    String message
                     if (dockerBinary == null) {
-                        message = String.format(
+                        final String message = String.format(
                                 Locale.ROOT,
                                 "Docker (checked [%s]) is required to run the following task%s: \n%s",
                                 maybeDockerBinaries.join(","),
                                 tasks.size() > 1 ? "s" : "",
                                 tasks.join('\n'))
-                    } else {
-                        assert exitCode > 0 && dockerErrorOutput != null
-                        message = String.format(
+                        throwDockerRequiredException(message)
+                    }
+
+                    // we use a multi-stage Docker build, check the Docker version since 17.05
+                    final ByteArrayOutputStream dockerVersionOutput = new ByteArrayOutputStream()
+                    LoggedExec.exec(
+                            rootProject,
+                            { ExecSpec it ->
+                                it.commandLine = [dockerBinary, '--version']
+                                it.standardOutput = dockerVersionOutput
+                            })
+                    final String dockerVersion = dockerVersionOutput.toString().trim()
+                    checkDockerVersionRecent(dockerVersion)
+
+                    final ByteArrayOutputStream dockerImagesErrorOutput = new ByteArrayOutputStream()
+                    // the Docker binary executes, check that we can execute a privileged command
+                    final ExecResult dockerImagesResult = LoggedExec.exec(
+                            rootProject,
+                            { ExecSpec it ->
+                                it.commandLine = [dockerBinary, "images"]
+                                it.errorOutput = dockerImagesErrorOutput
+                                it.ignoreExitValue = true
+                            })
+
+                    if (dockerImagesResult.exitValue != 0) {
+                        final String message = String.format(
                                 Locale.ROOT,
                                 "a problem occurred running Docker from [%s] yet it is required to run the following task%s: \n%s\n" +
                                         "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
                                 dockerBinary,
                                 tasks.size() > 1 ? "s" : "",
                                 tasks.join('\n'),
-                                exitCode,
-                                dockerErrorOutput.trim())
+                                dockerImagesResult.exitValue,
+                                dockerImagesErrorOutput.toString().trim())
+                        throwDockerRequiredException(message)
                     }
-                    throw new GradleException(
-                            message + "\nyou can address this by attending to the reported issue, "
-                                    + "removing the offending tasks from being executed, "
-                                    + "or by passing -Dbuild.docker=false")
+
                 }
             }
         }
@@ -320,6 +326,28 @@ class BuildPlugin implements Plugin<Project> {
         } else {
             task.enabled = false
         }
+    }
+
+    protected static void checkDockerVersionRecent(String dockerVersion) {
+        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-ce)?, build [0-9a-f]{7,40}/
+        assert matcher.matches(): dockerVersion
+        final dockerMajorMinorVersion = matcher.group(1)
+        final String[] majorMinor = dockerMajorMinorVersion.split("\\.")
+        if (Integer.parseInt(majorMinor[0]) < 17
+                || (Integer.parseInt(majorMinor[0]) == 17 && Integer.parseInt(majorMinor[1]) < 5)) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
+                    dockerVersion)
+            throwDockerRequiredException(message)
+        }
+    }
+
+    private static void throwDockerRequiredException(final String message) {
+        throw new GradleException(
+                message + "\nyou can address this by attending to the reported issue, "
+                        + "removing the offending tasks from being executed, "
+                        + "or by passing -Dbuild.docker=false")
     }
 
     private static String findCompilerJavaHome() {
@@ -863,17 +891,23 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(RandomizedTestingTask) {task ->
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
-            ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
+            project.sourceSets.matching { it.name == "test" }.all { test ->
+                task.testClassesDirs = test.output.classesDirs
+                task.classpath = test.runtimeClasspath
+            }
+            group =  JavaBasePlugin.VERIFICATION_GROUP
+            dependsOn 'testClasses'
 
             // Make sure all test tasks are configured properly
             if (name != "test") {
                 project.tasks.matching { it.name == "test"}.all { testTask ->
-                    task.testClassesDirs = testTask.testClassesDirs
-                    task.classpath = testTask.classpath
                     task.shouldRunAfter testTask
                 }
+            }
+            if (name == "unitTest") {
+                include("**/*Tests.class")
             }
 
             // TODO: why are we not passing maxmemory to junit4?
@@ -963,8 +997,6 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             exclude '**/*$*.class'
-
-            dependsOn(project.tasks.testClasses)
 
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
                 // Test against a shadow jar if we made one

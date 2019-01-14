@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesAction
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesRequest;
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -44,45 +45,106 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
 public class ClusterBootstrapService {
 
     private static final Logger logger = LogManager.getLogger(ClusterBootstrapService.class);
 
-    // The number of master-eligible nodes which, if discovered, can be used to bootstrap the cluster. This setting is unsafe in the event
-    // that more master nodes are started than expected.
-    public static final Setting<Integer> INITIAL_MASTER_NODE_COUNT_SETTING =
-        Setting.intSetting("cluster.unsafe_initial_master_node_count", 0, 0, Property.NodeScope);
-
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING =
         Setting.listSetting("cluster.initial_master_nodes", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
-    private final int initialMasterNodeCount;
+    public static final Setting<TimeValue> UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING =
+        Setting.timeSetting("discovery.unconfigured_bootstrap_timeout",
+            TimeValue.timeValueSeconds(3), TimeValue.timeValueMillis(1), Property.NodeScope);
+
     private final List<String> initialMasterNodes;
+    @Nullable
+    private final TimeValue unconfiguredBootstrapTimeout;
     private final TransportService transportService;
     private volatile boolean running;
 
     public ClusterBootstrapService(Settings settings, TransportService transportService) {
-        initialMasterNodeCount = INITIAL_MASTER_NODE_COUNT_SETTING.get(settings);
         initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
+        unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
+    }
+
+    public static boolean discoveryIsConfigured(Settings settings) {
+        return Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING, INITIAL_MASTER_NODES_SETTING)
+            .anyMatch(s -> s.exists(settings));
     }
 
     public void start() {
         assert running == false;
         running = true;
 
-        if ((initialMasterNodeCount > 0 || initialMasterNodes.isEmpty() == false) && transportService.getLocalNode().isMasterNode()) {
-            logger.debug("unsafely waiting for discovery of [{}] master-eligible nodes", initialMasterNodeCount);
+        if (transportService.getLocalNode().isMasterNode() == false) {
+            return;
+        }
+
+        if (unconfiguredBootstrapTimeout != null) {
+            logger.info("no discovery configuration found, will perform best-effort cluster bootstrapping after [{}] " +
+                    "unless existing master is discovered", unconfiguredBootstrapTimeout);
+            final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                threadContext.markAsSystemContext();
+
+                transportService.getThreadPool().scheduleUnlessShuttingDown(unconfiguredBootstrapTimeout, Names.SAME, new Runnable() {
+                    @Override
+                    public void run() {
+                        // TODO: remove the following line once schedule method properly preserves thread context
+                        threadContext.markAsSystemContext();
+                        final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
+                        logger.trace("sending {}", request);
+                        transportService.sendRequest(transportService.getLocalNode(), GetDiscoveredNodesAction.NAME, request,
+                            new TransportResponseHandler<GetDiscoveredNodesResponse>() {
+                                @Override
+                                public void handleResponse(GetDiscoveredNodesResponse response) {
+                                    logger.debug("discovered {}, starting to bootstrap", response.getNodes());
+                                    awaitBootstrap(response.getBootstrapConfiguration());
+                                }
+
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    final Throwable rootCause = exp.getRootCause();
+                                    if (rootCause instanceof ClusterAlreadyBootstrappedException) {
+                                        logger.debug(rootCause.getMessage(), rootCause);
+                                    } else {
+                                        logger.warn("discovery attempt failed", exp);
+                                    }
+                                }
+
+                                @Override
+                                public String executor() {
+                                    return Names.SAME;
+                                }
+
+                                @Override
+                                public GetDiscoveredNodesResponse read(StreamInput in) throws IOException {
+                                    return new GetDiscoveredNodesResponse(in);
+                                }
+                            });
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "unconfigured-discovery delayed bootstrap";
+                    }
+                });
+
+            }
+        } else if (initialMasterNodes.isEmpty() == false) {
+            logger.debug("waiting for discovery of master-eligible nodes matching {}", initialMasterNodes);
 
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 threadContext.markAsSystemContext();
 
                 final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
-                if (initialMasterNodeCount > 0) {
-                    request.setWaitForNodes(initialMasterNodeCount);
-                }
                 request.setRequiredNodes(initialMasterNodes);
                 request.setTimeout(null);
                 logger.trace("sending {}", request);
@@ -90,7 +152,6 @@ public class ClusterBootstrapService {
                     new TransportResponseHandler<GetDiscoveredNodesResponse>() {
                         @Override
                         public void handleResponse(GetDiscoveredNodesResponse response) {
-                            assert response.getNodes().size() >= initialMasterNodeCount;
                             assert response.getNodes().stream().allMatch(DiscoveryNode::isMasterNode);
                             logger.debug("discovered {}, starting to bootstrap", response.getNodes());
                             awaitBootstrap(response.getBootstrapConfiguration());
@@ -116,7 +177,6 @@ public class ClusterBootstrapService {
     }
 
     public void stop() {
-        assert running == true;
         running = false;
     }
 
@@ -148,6 +208,8 @@ public class ClusterBootstrapService {
                     transportService.getThreadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), Names.SAME, new Runnable() {
                         @Override
                         public void run() {
+                            // TODO: remove the following line once schedule method properly preserves thread context
+                            transportService.getThreadPool().getThreadContext().markAsSystemContext();
                             awaitBootstrap(bootstrapConfiguration);
                         }
 

@@ -53,16 +53,16 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     public RestTermVectorsAction(Settings settings, RestController controller) {
         super(settings);
-
-        controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
-
         controller.registerHandler(GET, "/{index}/_termvectors", this);
         controller.registerHandler(POST, "/{index}/_termvectors", this);
         controller.registerHandler(GET, "/{index}/_termvectors/{id}", this);
         controller.registerHandler(POST, "/{index}/_termvectors/{id}", this);
+
+        // Deprecated typed endpoints.
+        controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
+        controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
+        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
     }
 
     @Override
@@ -74,7 +74,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TermVectorsRequest termVectorsRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
             termVectorsRequest = new TermVectorsRequest(request.param("index"),
                 request.param("type"),
                 request.param("id"));

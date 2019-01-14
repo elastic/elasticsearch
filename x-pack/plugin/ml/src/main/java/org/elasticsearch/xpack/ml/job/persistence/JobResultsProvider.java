@@ -157,14 +157,14 @@ public class JobResultsProvider {
      */
     public void checkForLeftOverDocuments(Job job, ActionListener<Boolean> listener) {
 
-        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1),
                         CategorizerState.v54DocumentId(job.getId(), 1)))
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+                .setIndicesOptions(IndicesOptions.strictExpand());
 
-        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+                .setIndicesOptions(IndicesOptions.strictExpand());
 
         String resultsIndexName = job.getResultsIndexName();
         SearchRequestBuilder resultDocSearch = client.prepareSearch(resultsIndexName)
@@ -336,7 +336,7 @@ public class JobResultsProvider {
 
     private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
         // Put the whole "doc" mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
-        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.docMapping(termFields)) {
+        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(termFields)) {
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName).setType(ElasticsearchMappings.DOC_TYPE)
                     .setSource(termFieldsMapping).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
@@ -396,7 +396,7 @@ public class JobResultsProvider {
 
         AutodetectParams.Builder paramsBuilder = new AutodetectParams.Builder(job.getId());
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        String stateIndex = AnomalyDetectorsIndex.jobStateIndexName();
+        String stateIndex = AnomalyDetectorsIndex.jobStateIndexPattern();
 
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
                 .add(createLatestDataCountsSearch(resultsIndex, jobId))
@@ -490,20 +490,6 @@ public class JobResultsProvider {
         }
     }
 
-    private <T, U> T parseGetHit(GetResponse getResponse, BiFunction<XContentParser, U, T> objectParser,
-                                 Consumer<Exception> errorHandler) {
-        BytesReference source = getResponse.getSourceAsBytesRef();
-
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return objectParser.apply(parser, null);
-        } catch (IOException e) {
-            errorHandler.accept(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
-            return null;
-        }
-    }
-
     /**
      * Search for buckets with the parameters in the {@link BucketsQueryBuilder}
      * Uses the internal client, so runs as the _xpack user
@@ -522,7 +508,7 @@ public class JobResultsProvider {
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequest searchRequest = new SearchRequest(indexName);
-        searchRequest.source(query.build());
+        searchRequest.source(query.build().trackTotalHits(true));
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -658,6 +644,7 @@ public class JobResultsProvider {
         } else {
             throw new IllegalStateException("Both categoryId and pageParams are not specified");
         }
+        sourceBuilder.trackTotalHits(true);
         searchRequest.source(sourceBuilder);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
@@ -706,7 +693,7 @@ public class JobResultsProvider {
         SearchSourceBuilder searchSourceBuilder = recordsQueryBuilder.build();
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
-        searchRequest.source(recordsQueryBuilder.build());
+        searchRequest.source(recordsQueryBuilder.build().trackTotalHits(true));
 
         LOGGER.trace("ES API CALL: search all of records from index {} with query {}", indexName, searchSourceBuilder);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -756,7 +743,7 @@ public class JobResultsProvider {
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
         FieldSortBuilder sb = query.getSortField() == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)
                 : new FieldSortBuilder(query.getSortField()).order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
-        searchRequest.source(new SearchSourceBuilder().query(qb).from(query.getFrom()).size(query.getSize()).sort(sb));
+        searchRequest.source(new SearchSourceBuilder().query(qb).from(query.getFrom()).size(query.getSize()).sort(sb).trackTotalHits(true));
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(response -> {
@@ -877,6 +864,7 @@ public class JobResultsProvider {
         sourceBuilder.query(finalQuery);
         sourceBuilder.from(from);
         sourceBuilder.size(size);
+        sourceBuilder.trackTotalHits(true);
         searchRequest.source(sourceBuilder);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
@@ -901,6 +889,7 @@ public class JobResultsProvider {
                     .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
                     .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), ModelPlot.RESULT_TYPE_VALUE))
                     .setFrom(from).setSize(size)
+                    .setTrackTotalHits(true)
                     .get();
         }
 
@@ -952,19 +941,6 @@ public class JobResultsProvider {
                             }
                         }, errorHandler
                 ), client::search);
-    }
-
-    private <U, T> void getResult(String jobId, String resultDescription, GetRequest get, BiFunction<XContentParser, U, T> objectParser,
-            Consumer<Result<T>> handler, Consumer<Exception> errorHandler, Supplier<T> notFoundSupplier) {
-
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, get, ActionListener.<GetResponse>wrap(getDocResponse -> {
-            if (getDocResponse.isExists()) {
-                handler.accept(new Result<>(getDocResponse.getIndex(), parseGetHit(getDocResponse, objectParser, errorHandler)));
-            } else {
-                LOGGER.trace("No {} for job with id {}", resultDescription, jobId);
-                handler.accept(new Result<>(null, notFoundSupplier.get()));
-            }
-        }, errorHandler), client::get);
     }
 
     private SearchRequestBuilder createLatestModelSizeStatsSearch(String indexName) {
@@ -1088,7 +1064,8 @@ public class JobResultsProvider {
     public void scheduledEvents(ScheduledEventsQueryBuilder query, ActionListener<QueryPage<ScheduledEvent>> handler) {
         SearchRequestBuilder request = client.prepareSearch(MlMetaIndex.INDEX_NAME)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(query.build());
+                .setSource(query.build())
+                .setTrackTotalHits(true);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request.request(),
                 ActionListener.<SearchResponse>wrap(
@@ -1111,11 +1088,14 @@ public class JobResultsProvider {
     public void getForecastRequestStats(String jobId, String forecastId, Consumer<ForecastRequestStats> handler,
             Consumer<Exception> errorHandler) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        GetRequest getRequest = new GetRequest(indexName, ElasticsearchMappings.DOC_TYPE,
-                ForecastRequestStats.documentId(jobId, forecastId));
+        SearchRequestBuilder forecastSearch = client.prepareSearch(indexName)
+            .setQuery(QueryBuilders.idsQuery().addIds(ForecastRequestStats.documentId(jobId, forecastId)));
 
-        getResult(jobId, ForecastRequestStats.RESULTS_FIELD.getPreferredName(), getRequest, ForecastRequestStats.LENIENT_PARSER,
-                result -> handler.accept(result.result), errorHandler, () -> null);
+        searchSingleResult(jobId,
+            ForecastRequestStats.RESULTS_FIELD.getPreferredName(),
+            forecastSearch,
+            ForecastRequestStats.LENIENT_PARSER,result -> handler.accept(result.result),
+            errorHandler, () -> null);
     }
 
     public void getForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {
@@ -1138,6 +1118,7 @@ public class JobResultsProvider {
         sourceBuilder.aggregation(
                 AggregationBuilders.terms(ForecastStats.Fields.STATUSES).field(ForecastRequestStats.STATUS.getPreferredName()));
         sourceBuilder.size(0);
+        sourceBuilder.trackTotalHits(true);
 
         searchRequest.source(sourceBuilder);
 
@@ -1211,6 +1192,7 @@ public class JobResultsProvider {
     public void calendars(CalendarQueryBuilder queryBuilder, ActionListener<QueryPage<Calendar>> listener) {
         SearchRequest searchRequest = client.prepareSearch(MlMetaIndex.INDEX_NAME)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setTrackTotalHits(true)
                 .setSource(queryBuilder.build()).request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -1222,7 +1204,7 @@ public class JobResultsProvider {
                                 calendars.add(parseSearchHit(hit, Calendar.LENIENT_PARSER, listener::onFailure).build());
                             }
 
-                            listener.onResponse(new QueryPage<Calendar>(calendars, response.getHits().getTotalHits().value,
+                            listener.onResponse(new QueryPage<>(calendars, response.getHits().getTotalHits().value,
                                     Calendar.RESULTS_FIELD));
                         },
                         listener::onFailure)

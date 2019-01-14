@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-calendar-job]]
-=== Delete Jobs from Calendar API
+=== Delete jobs from calendar API
 ++++
-<titleabbrev>Delete Jobs from Calendar</titleabbrev>
+<titleabbrev>Delete jobs from calendar</titleabbrev>
 ++++
 
 Deletes jobs from a calendar.
@@ -11,7 +11,7 @@ Deletes jobs from a calendar.
 
 ==== Request
 
-`DELETE _xpack/ml/calendars/<calendar_id>/jobs/<job_id>`
+`DELETE _ml/calendars/<calendar_id>/jobs/<job_id>`
 
 
 ==== Path Parameters
@@ -36,7 +36,7 @@ calendar and `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/ml/calendars/planned-outages/jobs/total-requests
+DELETE _ml/calendars/planned-outages/jobs/total-requests
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:calendar_outages_addjob]

@@ -148,4 +148,10 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         query = new WildcardQueryBuilder("_index", "index_" + index + "*").doToQuery(context);
         assertThat(query instanceof MatchNoDocsQuery, equalTo(true));
     }
+
+    public void testTypeField() throws IOException {
+        WildcardQueryBuilder builder = QueryBuilders.wildcardQuery("_type", "doc*");
+        builder.doToQuery(createShardContext());
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+    }
 }

@@ -3,43 +3,77 @@
 [[sql-data-types]]
 == Data Types
 
+beta[]
+
 Most of {es} <<mapping-types, data types>> are available in {es-sql}, as indicated below:
 
-[cols="^,^,^",options="header"]
+[cols="^,^m,^"]
 
 |===
-| {es} type | SQL type | SQL precision
+s|{es} type
+s|SQL type
+s|SQL precision
 
 3+h| Core types
 
-| <<null-value, `null`>>      | `null`      | 0
-| <<boolean, `boolean`>>      | `boolean`   | 1
-| <<number, `byte`>>          | `tinyint`   | 3
-| <<number, `short`>>         | `smallint`  | 5
-| <<number, `integer`>>       | `integer`   | 10
-| <<number, `long`>>          | `bigint`    | 19
-| <<number, `double`>>        | `double`    | 15
-| <<number, `float`>>         | `real`      | 7
-| <<number, `half_float`>>    | `float`     | 16
-| <<number, `scaled_float`>>  | `float`     | 19
-| <<keyword, `keyword`>>      | `varchar`   | based on <<ignore-above>>
-| <<text, `text`>>            | `varchar`   | 2,147,483,647
-| <<binary, `binary`>>        | `varbinary` | 2,147,483,647
-| <<date, `date`>>            | `timestamp` | 24
-
-3+h| Complex types
-
-| <<object, `object`>>         | `struct`    | 0
-| <<nested, `nested`>>         | `struct`    | 0
+| <<null-value, `null`>>      | null        | 0
+| <<boolean, `boolean`>>      | boolean     | 1
+| <<number, `byte`>>          | tinyint     | 3
+| <<number, `short`>>         | smallint    | 5
+| <<number, `integer`>>       | integer     | 10
+| <<number, `long`>>          | bigint      | 19
+| <<number, `double`>>        | double      | 15
+| <<number, `float`>>         | real        | 7
+| <<number, `half_float`>>    | float       | 16
+| <<number, `scaled_float`>>  | float       | 19
+| <<keyword, `keyword`>>      | varchar     | based on <<ignore-above>>
+| <<text, `text`>>            | varchar     | 2,147,483,647
+| <<binary, `binary`>>        | varbinary   | 2,147,483,647
+| <<date, `date`>>            | timestamp   | 24
+| <<ip, `ip`>>                | varchar     | 39
+                                
+3+h| Complex types              
+                                
+| <<object, `object`>>        | struct      | 0
+| <<nested, `nested`>>        | struct      | 0
 
 3+h| Unsupported types
 
-| _types not mentioned above_  | `unsupported`| 0
+| _types not mentioned above_ | unsupported | 0
 
 |===
 
+
 Obviously, not all types in {es} have an equivalent in SQL and vice-versa hence why, {es-sql}
 uses the data type _particularities_ of the former over the latter as ultimately {es} is the backing store.
+
+In addition to the types above, {es-sql} also supports at _runtime_ SQL-specific types that do not have an equivalent in {es}.
+Such types cannot be loaded from {es} (as it does not know about them) however can be used inside {es-sql} in queries or their results.
+
+The table below indicates these types:
+
+[cols="^m,^"]
+
+|===
+s|SQL type
+s|SQL precision
+
+
+| interval_year             | 7
+| interval_month            | 7
+| interval_day              | 23
+| interval_hour             | 23
+| interval_minute           | 23
+| interval_second           | 23
+| interval_year_to_month    | 7
+| interval_day_to_hour      | 23
+| interval_day_to_minute    | 23
+| interval_day_to_second    | 23
+| interval_hour_to_minute   | 23
+| interval_hour_to_second   | 23
+| interval_minute_to_second | 23
+
+|===
 
 
 [[sql-multi-field]]

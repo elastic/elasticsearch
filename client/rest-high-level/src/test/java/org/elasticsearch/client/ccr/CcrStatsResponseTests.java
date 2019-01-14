@@ -20,6 +20,7 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.ccr.AutoFollowStats.AutoFollowedCluster;
 import org.elasticsearch.client.ccr.IndicesFollowStats.ShardFollowStats;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -50,7 +51,7 @@ public class CcrStatsResponseTests extends ESTestCase {
             CcrStatsResponseTests::createTestInstance,
             CcrStatsResponseTests::toXContent,
             CcrStatsResponse::fromXContent)
-            .supportsUnknownFields(false)
+            .supportsUnknownFields(true)
             .assertEqualsConsumer(CcrStatsResponseTests::assertEqualInstances)
             .assertToXContentEquivalence(false)
             .test();
@@ -73,15 +74,18 @@ public class CcrStatsResponseTests extends ESTestCase {
                 equalTo(expectedAutoFollowStats.getRecentAutoFollowErrors().size()));
             assertThat(newAutoFollowStats.getRecentAutoFollowErrors().keySet(),
                 equalTo(expectedAutoFollowStats.getRecentAutoFollowErrors().keySet()));
-            for (final Map.Entry<String, ElasticsearchException> entry : newAutoFollowStats.getRecentAutoFollowErrors().entrySet()) {
+            for (final Map.Entry<String, Tuple<Long, ElasticsearchException>> entry :
+                newAutoFollowStats.getRecentAutoFollowErrors().entrySet()) {
                 // x-content loses the exception
-                final ElasticsearchException expected = expectedAutoFollowStats.getRecentAutoFollowErrors().get(entry.getKey());
-                assertThat(entry.getValue().getMessage(), containsString(expected.getMessage()));
-                assertNotNull(entry.getValue().getCause());
+                final Tuple<Long, ElasticsearchException> expected =
+                    expectedAutoFollowStats.getRecentAutoFollowErrors().get(entry.getKey());
+                assertThat(entry.getValue().v2().getMessage(), containsString(expected.v2().getMessage()));
+                assertThat(entry.getValue().v1(), equalTo(expected.v1()));
+                assertNotNull(entry.getValue().v2().getCause());
                 assertThat(
-                    entry.getValue().getCause(),
+                    entry.getValue().v2().getCause(),
                     anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class)));
-                assertThat(entry.getValue().getCause().getMessage(), containsString(expected.getCause().getMessage()));
+                assertThat(entry.getValue().v2().getCause().getMessage(), containsString(expected.v2().getCause().getMessage()));
             }
         }
         {
@@ -171,16 +175,31 @@ public class CcrStatsResponseTests extends ESTestCase {
                 builder.field(AutoFollowStats.NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED.getPreferredName(),
                     autoFollowStats.getNumberOfFailedFollowIndices());
                 builder.startArray(AutoFollowStats.RECENT_AUTO_FOLLOW_ERRORS.getPreferredName());
-                for (Map.Entry<String, ElasticsearchException> entry : autoFollowStats.getRecentAutoFollowErrors().entrySet()) {
+                for (Map.Entry<String, Tuple<Long, ElasticsearchException>> entry :
+                    autoFollowStats.getRecentAutoFollowErrors().entrySet()) {
                     builder.startObject();
                     {
                         builder.field(AutoFollowStats.LEADER_INDEX.getPreferredName(), entry.getKey());
+                        builder.field(AutoFollowStats.TIMESTAMP.getPreferredName(), entry.getValue().v1());
                         builder.field(AutoFollowStats.AUTO_FOLLOW_EXCEPTION.getPreferredName());
                         builder.startObject();
                         {
-                            ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, entry.getValue());
+                            ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, entry.getValue().v2());
                         }
                         builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
+                builder.startArray(AutoFollowStats.AUTO_FOLLOWED_CLUSTERS.getPreferredName());
+                for (Map.Entry<String, AutoFollowedCluster> entry : autoFollowStats.getAutoFollowedClusters().entrySet()) {
+                    builder.startObject();
+                    {
+                        builder.field(AutoFollowStats.CLUSTER_NAME.getPreferredName(), entry.getKey());
+                        builder.field(AutoFollowStats.TIME_SINCE_LAST_CHECK_MILLIS.getPreferredName(),
+                            entry.getValue().getTimeSinceLastCheckMillis());
+                        builder.field(AutoFollowStats.LAST_SEEN_METADATA_VERSION.getPreferredName(),
+                            entry.getValue().getLastSeenMetadataVersion());
                     }
                     builder.endObject();
                 }
@@ -311,19 +330,25 @@ public class CcrStatsResponseTests extends ESTestCase {
 
     private static AutoFollowStats randomAutoFollowStats() {
         final int count = randomIntBetween(0, 16);
-        final NavigableMap<String, ElasticsearchException> readExceptions = new TreeMap<>();
+        final NavigableMap<String, Tuple<Long, ElasticsearchException>> readExceptions = new TreeMap<>();
         for (int i = 0; i < count; i++) {
-            readExceptions.put("" + i, new ElasticsearchException(new IllegalStateException("index [" + i + "]")));
+            readExceptions.put("" + i, Tuple.tuple(randomNonNegativeLong(),
+                new ElasticsearchException(new IllegalStateException("index [" + i + "]"))));
+        }
+        final NavigableMap<String, AutoFollowedCluster> autoFollowClusters = new TreeMap<>();
+        for (int i = 0; i < count; i++) {
+            autoFollowClusters.put("" + i, new AutoFollowedCluster(randomLong(), randomNonNegativeLong()));
         }
         return new AutoFollowStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            readExceptions
+            readExceptions,
+            autoFollowClusters
         );
     }
 
-    private static IndicesFollowStats randomIndicesFollowStats() {
+    static IndicesFollowStats randomIndicesFollowStats() {
         int numIndices = randomIntBetween(0, 16);
         NavigableMap<String, List<ShardFollowStats>> shardFollowStats = new TreeMap<>();
         for (int i = 0; i < numIndices; i++) {

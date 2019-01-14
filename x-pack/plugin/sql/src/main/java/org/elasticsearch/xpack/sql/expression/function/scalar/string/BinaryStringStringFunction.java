@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
@@ -15,13 +15,13 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public abstract class BinaryStringStringFunction extends BinaryStringFunction<String, Number> {
 
-    public BinaryStringStringFunction(Location location, Expression left, Expression right) {
-        super(location, left, right);
+    public BinaryStringStringFunction(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     @Override
     protected TypeResolution resolveSecondParameterInputType(Expression e) {
-        return Expressions.typeMustBeString(e, functionName(), Expressions.ParamOrdinal.SECOND);
+        return Expressions.typeMustBeString(e, sourceText(), Expressions.ParamOrdinal.SECOND);
     }
 
     @Override

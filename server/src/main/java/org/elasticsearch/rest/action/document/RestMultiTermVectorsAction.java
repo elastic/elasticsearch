@@ -49,6 +49,8 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_mtermvectors", this);
         controller.registerHandler(GET, "/{index}/_mtermvectors", this);
         controller.registerHandler(POST, "/{index}/_mtermvectors", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/_mtermvectors", this);
         controller.registerHandler(POST, "/{index}/{type}/_mtermvectors", this);
     }
@@ -65,7 +67,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
             .index(request.param("index"));
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecatedAndMaybeLog("mtermvectors_with_types", TYPES_DEPRECATION_MESSAGE);
             template.type(request.param("type"));
         } else {
             template.type(MapperService.SINGLE_MAPPING_NAME);

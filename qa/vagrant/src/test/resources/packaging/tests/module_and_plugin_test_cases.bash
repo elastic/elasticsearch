@@ -231,16 +231,16 @@ fi
     install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-4.0.0.jar poi-ooxml-4.0.0.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
-@test "[$GROUP] install ingest-geoip plugin" {
-    install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
-}
-
-@test "[$GROUP] install ingest-user-agent plugin" {
-    install_and_check_plugin ingest user-agent
-}
-
 @test "[$GROUP] check ingest-common module" {
     check_module ingest-common jcodings-*.jar joni-*.jar
+}
+
+@test "[$GROUP] check ingest-geoip module" {
+    check_module ingest-geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
+}
+
+@test "[$GROUP] check ingest-user-agent module" {
+    check_module ingest-user-agent
 }
 
 @test "[$GROUP] check lang-expression module" {
@@ -362,14 +362,6 @@ fi
 
 @test "[$GROUP] remove ingest-attachment plugin" {
     remove_plugin ingest-attachment
-}
-
-@test "[$GROUP] remove ingest-geoip plugin" {
-    remove_plugin ingest-geoip
-}
-
-@test "[$GROUP] remove ingest-user-agent plugin" {
-    remove_plugin ingest-user-agent
 }
 
 @test "[$GROUP] remove murmur3 mapper plugin" {

@@ -449,6 +449,16 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
+     * Creates a new empty shard and starts it.
+     *
+     * @param primary controls whether the shard will be a primary or a replica.
+     * @param settings the settings to use for this shard
+     */
+    protected IndexShard newStartedShard(final boolean primary, Settings settings) throws IOException {
+        return newStartedShard(primary, settings, new InternalEngineFactory());
+    }
+
+    /**
      * Creates a new empty shard with the specified settings and engine factory and starts it.
      *
      * @param primary       controls whether the shard will be a primary or a replica.

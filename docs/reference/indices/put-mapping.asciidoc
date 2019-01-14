@@ -23,6 +23,10 @@ PUT twitter/_mapping <2>
 
 More information on how to define mappings can be found in the <<mapping,mapping>> section.
 
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
+types in requests is now deprecated, a type can still be provided if the request parameter
+include_type_name is set. For more details, please see <<removal-of-types>>.
+
 [float]
 === Multi-index
 

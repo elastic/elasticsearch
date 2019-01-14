@@ -128,9 +128,9 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-example]
 <1> Initialize the search context by sending the initial `SearchRequest`
 <2> Retrieve all the search hits by calling the Search Scroll api in a loop
 until no documents are returned
-<3> Create a new `SearchScrollRequest` holding the last returned scroll
+<3> Process the returned search results
+<4> Create a new `SearchScrollRequest` holding the last returned scroll
 identifier and the scroll interval
-<4> Process the returned search results
 <5> Clear the scroll context once the scroll is completed
 
 [[java-rest-high-clear-scroll]]

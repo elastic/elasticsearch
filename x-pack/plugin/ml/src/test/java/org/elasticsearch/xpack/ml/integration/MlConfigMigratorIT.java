@@ -310,7 +310,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
     }
 
     public void assertSnapshot(MlMetadata expectedMlMetadata) throws IOException {
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern()).execute();
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern()).get();
         SearchResponse searchResponse = client()
             .prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setTypes(ElasticsearchMappings.DOC_TYPE)

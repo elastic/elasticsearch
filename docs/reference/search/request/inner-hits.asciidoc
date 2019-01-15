@@ -84,7 +84,7 @@ The nested `inner_hits` can be used to include nested inner objects as inner hit
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -210,7 +210,7 @@ including the source and solely rely on doc values fields. Like this:
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -329,7 +329,7 @@ with the root hits then the following path can be defined:
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -451,7 +451,7 @@ The parent/child `inner_hits` can be used to include parent or child:
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=true
 {
   "mappings": {
     "_doc": {

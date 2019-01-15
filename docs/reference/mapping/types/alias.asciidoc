@@ -7,7 +7,7 @@ and selected other APIs like <<search-field-caps, field capabilities>>.
 
 [source,js]
 --------------------------------
-PUT trips
+PUT trips?include_type_name=true
 {
   "mappings": {
     "_doc": {

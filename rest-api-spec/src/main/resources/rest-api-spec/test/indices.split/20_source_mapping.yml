@@ -32,14 +32,14 @@
   # create template matching shrink target
   - do:
       indices.put_template:
+        include_type_name: false
         name: tpl1
         body:
           index_patterns: targ*
           mappings:
-            test:
-              properties:
-                count:
-                  type: integer
+            properties:
+              count:
+                type: integer
 
   # make it read-only
   - do:

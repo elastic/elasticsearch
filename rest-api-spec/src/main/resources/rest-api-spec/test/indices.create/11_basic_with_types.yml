@@ -3,6 +3,7 @@
 
   - do:
       indices.create:
+        include_type_name: true
         index: test_index
         body:
           mappings:
@@ -10,6 +11,7 @@
 
   - do:
       indices.get_mapping:
+        include_type_name: true
         index: test_index
 
   - is_true: test_index.mappings.type_1
@@ -19,6 +21,7 @@
 
   - do:
       indices.create:
+        include_type_name: true
         index: test_index
         body:
           settings:
@@ -35,6 +38,7 @@
 
   - do:
       indices.create:
+        include_type_name: true
         index: test_index
 
   - match: { acknowledged: true }
@@ -45,6 +49,7 @@
 
   - do:
       indices.create:
+        include_type_name: true
         index: test_index
         wait_for_active_shards: all
         body:
@@ -59,6 +64,7 @@
 
   - do:
       indices.create:
+        include_type_name: true
         index: test_index
         body:
           mappings:
@@ -93,6 +99,7 @@
       reason: is_write_index is not implemented in ES <= 6.x
   - do:
       indices.create:
+        include_type_name: true
         index: test_index
         body:
           aliases:
@@ -115,6 +122,7 @@
   - do:
       catch: /illegal_argument_exception/
       indices.create:
+        include_type_name: true
         index: test_index
         body:
           mappings:
@@ -125,6 +133,7 @@
   - do:
       catch: /illegal_argument_exception/
       indices.create:
+        include_type_name: true
         index: test_index
         body:
           mappings:

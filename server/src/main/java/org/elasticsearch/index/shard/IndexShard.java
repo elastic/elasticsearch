@@ -2966,7 +2966,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.
      *
      * @see #acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)
-     * @see org.elasticsearch.indices.recovery.RecoveryTarget#indexTranslogOperations(List, int, long, long)
+     * @see org.elasticsearch.indices.recovery.RecoveryTarget#indexTranslogOperations(List, int, long, long, ActionListener)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
         assert seqNo != UNASSIGNED_SEQ_NO

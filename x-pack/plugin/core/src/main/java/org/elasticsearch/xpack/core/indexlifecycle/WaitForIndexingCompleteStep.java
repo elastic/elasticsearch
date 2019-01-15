@@ -46,19 +46,22 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
         if (indexingComplete) {
             return new Result(true, null);
         } else {
-            return new Result(false, new Info());
+            return new Result(false, new Info(indexingComplete));
         }
     }
 
     static final class Info implements ToXContentObject {
 
         static final ParseField MESSAGE_FIELD = new ParseField("message");
+        static final ParseField INDEXING_COMPLETE = new ParseField(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE);
 
         private final String message;
+        private final boolean indexingComplete;
 
-        Info() {
-            this.message = "the [" + LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE +
-                "] setting has not been set to true on the leader index";
+        Info(boolean indexingComplete) {
+            this.indexingComplete = indexingComplete;
+            this.message = "waiting for the [" + LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE +
+                "] setting to be set to true on the leader index, it is currently [" + indexingComplete + "]";
         }
 
         String getMessage() {
@@ -69,6 +72,7 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(MESSAGE_FIELD.getPreferredName(), message);
+            builder.field(INDEXING_COMPLETE.getPreferredName(), indexingComplete);
             builder.endObject();
             return builder;
         }

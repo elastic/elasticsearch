@@ -717,9 +717,8 @@ public final class SearchPhaseController {
             // no matter what the value of track_total_hits is
             return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
         }
-        Integer trackTotalHits = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
-            request.source().trackTotalHitsUpTo();
-        return trackTotalHits == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : trackTotalHits;
+        return request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : request.source().trackTotalHitsUpTo() == null ?
+                SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : request.source().trackTotalHitsUpTo();
     }
 
     /**

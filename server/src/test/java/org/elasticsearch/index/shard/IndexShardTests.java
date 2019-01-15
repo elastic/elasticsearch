@@ -363,20 +363,20 @@ public class IndexShardTests extends IndexShardTestCase {
                     ThreadPool.Names.SAME,
                     "test");
             assertTrue(invoked.get());
-            assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
         } finally {
             closeShards(indexShard);
         }
     }
 
-    public void testRunUnderPrimaryPermitDelaysToExecutorWhenBlocked() throws InterruptedException, IOException {
+    public void testRunUnderPrimaryPermitDelaysToExecutorWhenBlocked() throws Exception {
         final IndexShard indexShard = newStartedShard(true);
         try {
             final PlainActionFuture<Releasable> onAcquired = new PlainActionFuture<>();
             indexShard.acquireAllPrimaryOperationsPermits(onAcquired, new TimeValue(Long.MAX_VALUE, TimeUnit.NANOSECONDS));
             final Releasable permit = onAcquired.actionGet();
             final CountDownLatch latch = new CountDownLatch(1);
-            final String executorOnDelay = randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.SAME);
+            final String executorOnDelay =
+                    randomFrom(ThreadPool.Names.FLUSH, ThreadPool.Names.GENERIC, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.SAME);
             indexShard.runUnderPrimaryPermit(
                     () -> {
                         final String expectedThreadPoolName =
@@ -389,7 +389,8 @@ public class IndexShardTests extends IndexShardTestCase {
                     "test");
             permit.close();
             latch.await();
-            assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
+            // we could race and assert on the count before the permit is returned
+            assertBusy(() -> assertThat(indexShard.getActiveOperationsCount(), equalTo(0)));
         } finally {
             closeShards(indexShard);
         }

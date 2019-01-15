@@ -428,7 +428,7 @@ public class RoleDescriptor implements ToXContentObject {
         String[] privileges = null;
         String[] grantedFields = null;
         String[] deniedFields = null;
-        boolean allow_restricted_indices = false;
+        boolean allowRestrictedIndices = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -447,7 +447,7 @@ public class RoleDescriptor implements ToXContentObject {
                 }
             } else if (Fields.ALLOW_RESTRICTED_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                    allow_restricted_indices = parser.booleanValue();
+                    allowRestrictedIndices = parser.booleanValue();
                 } else {
                     throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] " +
                             "value to be a boolean, but found [{}] instead", roleName, currentFieldName, token);
@@ -551,7 +551,7 @@ public class RoleDescriptor implements ToXContentObject {
                 .grantedFields(grantedFields)
                 .deniedFields(deniedFields)
                 .query(query)
-                .allowRestrictedIndices(allow_restricted_indices)
+                .allowRestrictedIndices(allowRestrictedIndices)
                 .build();
     }
 
@@ -602,7 +602,7 @@ public class RoleDescriptor implements ToXContentObject {
         // by default certain restricted indices are exempted when granting privileges, as they should generally be hidden for ordinary
         // users. Setting this flag eliminates this special status, and any index name pattern in the permission will cover restricted
         // indices as well.
-        private boolean allow_restricted_indices = false;
+        private boolean allowRestrictedIndices = false;
 
         private IndicesPrivileges() {
         }
@@ -614,9 +614,9 @@ public class RoleDescriptor implements ToXContentObject {
             this.privileges = in.readStringArray();
             this.query = in.readOptionalBytesReference();
             if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                allow_restricted_indices = in.readBoolean();
+                allowRestrictedIndices = in.readBoolean();
             } else {
-                allow_restricted_indices = false;
+                allowRestrictedIndices = false;
             }
         }
 
@@ -628,7 +628,7 @@ public class RoleDescriptor implements ToXContentObject {
             out.writeStringArray(privileges);
             out.writeOptionalBytesReference(query);
             if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                out.writeBoolean(allow_restricted_indices);
+                out.writeBoolean(allowRestrictedIndices);
             }
         }
 
@@ -668,7 +668,7 @@ public class RoleDescriptor implements ToXContentObject {
         }
 
         public boolean allowsRestrictedIndices() {
-            return allow_restricted_indices;
+            return allowRestrictedIndices;
         }
 
         private boolean hasDeniedFields() {
@@ -691,7 +691,7 @@ public class RoleDescriptor implements ToXContentObject {
         public String toString() {
             StringBuilder sb = new StringBuilder("IndicesPrivileges[");
             sb.append("indices=[").append(Strings.arrayToCommaDelimitedString(indices));
-            sb.append("], allows_restricted_indices=[").append(allow_restricted_indices);
+            sb.append("], allowsRestrictedIndices=[").append(allowRestrictedIndices);
             sb.append("], privileges=[").append(Strings.arrayToCommaDelimitedString(privileges));
             sb.append("], ");
             if (grantedFields != null || deniedFields != null) {
@@ -728,7 +728,7 @@ public class RoleDescriptor implements ToXContentObject {
             IndicesPrivileges that = (IndicesPrivileges) o;
 
             if (!Arrays.equals(indices, that.indices)) return false;
-            if (allow_restricted_indices != that.allow_restricted_indices) return false;
+            if (allowRestrictedIndices != that.allowRestrictedIndices) return false;
             if (!Arrays.equals(privileges, that.privileges)) return false;
             if (!Arrays.equals(grantedFields, that.grantedFields)) return false;
             if (!Arrays.equals(deniedFields, that.deniedFields)) return false;
@@ -738,7 +738,7 @@ public class RoleDescriptor implements ToXContentObject {
         @Override
         public int hashCode() {
             int result = Arrays.hashCode(indices);
-            result = 31 * result + (allow_restricted_indices ? 1 : 0);
+            result = 31 * result + (allowRestrictedIndices ? 1 : 0);
             result = 31 * result + Arrays.hashCode(privileges);
             result = 31 * result + Arrays.hashCode(grantedFields);
             result = 31 * result + Arrays.hashCode(deniedFields);
@@ -764,7 +764,7 @@ public class RoleDescriptor implements ToXContentObject {
             if (query != null) {
                 builder.field("query", query.utf8ToString());
             }
-            builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allow_restricted_indices);
+            builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
             return builder.endObject();
         }
 
@@ -804,7 +804,7 @@ public class RoleDescriptor implements ToXContentObject {
             }
 
             public Builder allowRestrictedIndices(boolean allow) {
-                indicesPrivileges.allow_restricted_indices = allow;
+                indicesPrivileges.allowRestrictedIndices = allow;
                 return this;
             }
 

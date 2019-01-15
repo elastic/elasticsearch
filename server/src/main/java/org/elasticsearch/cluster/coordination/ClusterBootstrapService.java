@@ -126,6 +126,8 @@ public class ClusterBootstrapService {
     }
 
     private void startBootstrap(Set<DiscoveryNode> discoveryNodes) {
+        assert discoveryNodes.stream().allMatch(DiscoveryNode::isMasterNode) : discoveryNodes;
+        assert discoveryNodes.stream().noneMatch(Coordinator::isZen1Node) : discoveryNodes;
         if (bootstrappingPermitted.compareAndSet(true, false)) {
             doBootstrap(new VotingConfiguration(discoveryNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet())));
         }

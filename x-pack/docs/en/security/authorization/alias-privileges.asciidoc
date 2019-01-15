@@ -54,7 +54,7 @@ added to an index directly as part of the index creation:
 
 [source,shell]
 -------------------------------------------------------------------------------
-PUT /2015
+PUT /2015?include_type_name=true
 {
     "aliases" : {
         "current_year" : {}

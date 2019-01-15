@@ -9,12 +9,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
 
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.BYTE;
 import static org.elasticsearch.xpack.sql.type.DataType.DATE;
@@ -291,9 +292,10 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testIpToString() {
+        Source s = new Source(Location.EMPTY, "10.0.0.1");
         Conversion ipToString = conversionFor(IP, KEYWORD);
-        assertEquals("10.0.0.1", ipToString.convert(new Literal(EMPTY, "10.0.0.1", IP)));
+        assertEquals("10.0.0.1", ipToString.convert(new Literal(s, "10.0.0.1", IP)));
         Conversion stringToIp = conversionFor(KEYWORD, IP);
-        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(Literal.of(EMPTY, "10.0.0.1"))));
+        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(Literal.of(s, "10.0.0.1"))));
     }
 }

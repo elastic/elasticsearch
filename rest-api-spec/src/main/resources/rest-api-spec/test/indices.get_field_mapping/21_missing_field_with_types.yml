@@ -14,6 +14,7 @@
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         index: test_index
         type: test_type
         fields: not_existent

@@ -54,43 +54,47 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
 
- - is_true: test-xxx.mappings.type_1
- - is_true: test-xxy.mappings.type_2
+ - is_true: test-xxx.mappings
+ - is_true: test-xxy.mappings
 
 ---
 "Get test-* with wildcard_expansion=all":
 
  - do:
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
         expand_wildcards: all
 
- - is_true: test-xxx.mappings.type_1
- - is_true: test-xxy.mappings.type_2
- - is_true: test-xyy.mappings.type_3
+ - is_true: test-xxx.mappings
+ - is_true: test-xxy.mappings
+ - is_true: test-xyy.mappings
 
 ---
 "Get test-* with wildcard_expansion=open":
 
  - do:
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
         expand_wildcards: open
 
- - is_true: test-xxx.mappings.type_1
- - is_true: test-xxy.mappings.type_2
+ - is_true: test-xxx.mappings
+ - is_true: test-xxy.mappings
 
 ---
 "Get test-* with wildcard_expansion=closed":
 
  - do:
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
         expand_wildcards: closed
 
- - is_true: test-xyy.mappings.type_3
+ - is_true: test-xyy.mappings
 
 ---
 "Get test-* with wildcard_expansion=none":
@@ -99,6 +103,7 @@ setup:
     reason: allow_no_indices (defaults to true) was ignored in previous versions
  - do:
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
         expand_wildcards: none
 
@@ -111,6 +116,7 @@ setup:
  - do:
     catch: missing
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
         expand_wildcards: none
         allow_no_indices: false
@@ -119,9 +125,10 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: false
         index: test-x*
         expand_wildcards: open,closed
 
- - is_true: test-xxx.mappings.type_1
- - is_true: test-xxy.mappings.type_2
- - is_true: test-xyy.mappings.type_3
+ - is_true: test-xxx.mappings
+ - is_true: test-xxy.mappings
+ - is_true: test-xyy.mappings

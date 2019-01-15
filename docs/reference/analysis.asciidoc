@@ -39,7 +39,7 @@ Each <<text,`text`>> field in a mapping can specify its own
 
 [source,js]
 -------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

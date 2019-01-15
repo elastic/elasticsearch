@@ -27,12 +27,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 
 public class RestDeleteIndexActionTests extends ESTestCase {

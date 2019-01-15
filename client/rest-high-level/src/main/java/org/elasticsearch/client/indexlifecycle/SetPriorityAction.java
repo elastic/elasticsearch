@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.client.indexlifecycle;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.OptionalInt;
 
 /**
  * A {@link LifecycleAction} which sets the index's priority. The higher the priority, the faster the recovery.
@@ -37,22 +40,24 @@ public class SetPriorityAction implements LifecycleAction, ToXContentObject {
     private static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
         a -> new SetPriorityAction((Integer) a[0]));
 
     //package private for testing
     final Integer recoveryPriority;
 
     static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), RECOVERY_PRIORITY_FIELD);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue()
+            , RECOVERY_PRIORITY_FIELD, ObjectParser.ValueType.INT_OR_NULL);
     }
 
     public static SetPriorityAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public SetPriorityAction(int recoveryPriority) {
-        if (recoveryPriority <= 0) {
+    public SetPriorityAction(@Nullable Integer recoveryPriority) {
+        if (recoveryPriority != null && recoveryPriority <= 0) {
             throw new IllegalArgumentException("[" + RECOVERY_PRIORITY_FIELD.getPreferredName() + "] must be 0 or greater");
         }
         this.recoveryPriority = recoveryPriority;

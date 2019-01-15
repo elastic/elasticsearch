@@ -20,7 +20,7 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
     private final int priority = randomIntBetween(0, Integer.MAX_VALUE);
 
     static SetPriorityAction randomInstance() {
-        return new SetPriorityAction(randomIntBetween(1, Integer.MAX_VALUE));
+        return new SetPriorityAction(randomIntBetween(2, Integer.MAX_VALUE));
     }
 
     @Override
@@ -43,6 +43,11 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         assertThat(e.getMessage(), equalTo("[priority] must be 0 or greater"));
     }
 
+    public void testNullPriorityAllowed(){
+        SetPriorityAction nullPriority = new SetPriorityAction((Integer) null);
+        assertNull(nullPriority.recoveryPriority);
+    }
+
     public void testToSteps() {
         SetPriorityAction action = createTestInstance();
         String phase = randomAlphaOfLengthBetween(1, 10);
@@ -57,6 +62,23 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
         assertThat(firstStep.getSettings().size(), equalTo(1));
         assertEquals(priority, (long) IndexMetaData.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()));
+    }
+
+    public void testNullPriorityStep() {
+        SetPriorityAction action = new SetPriorityAction((Integer)null);
+        String phase = randomAlphaOfLengthBetween(1, 10);
+        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10));
+        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        assertNotNull(steps);
+        assertEquals(1, steps.size());
+        StepKey expectedFirstStepKey = new StepKey(phase, SetPriorityAction.NAME, SetPriorityAction.NAME);
+        UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
+        assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
+        assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
+        assertThat(firstStep.getSettings().size(), equalTo(1));
+        assertThat(IndexMetaData.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()),
+            equalTo(IndexMetaData.INDEX_PRIORITY_SETTING.getDefault(firstStep.getSettings())));
     }
 
     public void testEqualsAndHashCode() {

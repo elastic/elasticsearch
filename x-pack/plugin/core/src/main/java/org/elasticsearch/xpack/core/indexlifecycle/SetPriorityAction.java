@@ -7,12 +7,14 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -36,22 +38,24 @@ public class SetPriorityAction implements LifecycleAction {
     final Integer recoveryPriority;
 
     static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), RECOVERY_PRIORITY_FIELD);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue()
+            , RECOVERY_PRIORITY_FIELD, ObjectParser.ValueType.INT_OR_NULL);
     }
 
     public static SetPriorityAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public SetPriorityAction(Integer recoveryPriority) {
-        if (recoveryPriority < 0) {
+    public SetPriorityAction(@Nullable Integer recoveryPriority) {
+        if (recoveryPriority != null && recoveryPriority < 0) {
             throw new IllegalArgumentException("[" + RECOVERY_PRIORITY_FIELD.getPreferredName() + "] must be 0 or greater");
         }
         this.recoveryPriority = recoveryPriority;
     }
 
     public SetPriorityAction(StreamInput in) throws IOException {
-        this(in.readVInt());
+        this(in.readOptionalVInt());
     }
 
     @Override
@@ -69,7 +73,7 @@ public class SetPriorityAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(recoveryPriority);
+        out.writeOptionalVInt(recoveryPriority);
     }
 
     @Override
@@ -80,7 +84,9 @@ public class SetPriorityAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey key = new StepKey(phase, NAME, NAME);
-        Settings indexPriority = Settings.builder().put(IndexMetaData.INDEX_PRIORITY_SETTING.getKey(), recoveryPriority).build();
+        Settings indexPriority = recoveryPriority == null ?
+            Settings.builder().putNull(IndexMetaData.INDEX_PRIORITY_SETTING.getKey()).build()
+            : Settings.builder().put(IndexMetaData.INDEX_PRIORITY_SETTING.getKey(), recoveryPriority).build();
         return Collections.singletonList(new UpdateSettingsStep(key, nextStepKey, client, indexPriority));
     }
 

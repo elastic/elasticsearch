@@ -52,6 +52,11 @@ public class SetPriorityActionTests extends AbstractXContentTestCase<SetPriority
         assertThat(e.getMessage(), equalTo("[priority] must be 0 or greater"));
     }
 
+    public void testNullPriorityAllowed(){
+        SetPriorityAction nullPriority = new SetPriorityAction(null);
+        assertNull(nullPriority.recoveryPriority);
+    }
+
     public void testEqualsAndHashCode() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copy);
     }

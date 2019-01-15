@@ -454,6 +454,18 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+    public void testSetNullPriority() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.INDEX_PRIORITY_SETTING.getKey(), 100));
+        createNewSingletonPolicy("warm", new SetPriorityAction((Integer) null));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertNull(settings.get(IndexMetaData.INDEX_PRIORITY_SETTING.getKey()));
+        });
+    }
+
     @SuppressWarnings("unchecked")
     public void testNonexistentPolicy() throws Exception {
         String indexPrefix = randomAlphaOfLengthBetween(5,15).toLowerCase(Locale.ROOT);

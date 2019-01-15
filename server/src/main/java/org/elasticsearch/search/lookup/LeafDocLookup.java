@@ -81,7 +81,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     public ScriptDocValues<?> get(Object key) {
         // deprecate _type
         if ("_type".equals(key)) {
-            DEPRECATION_LOGGER.deprecated(TYPES_DEPRECATION_MESSAGE);
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog(TYPES_DEPRECATION_MESSAGE, TYPES_DEPRECATION_MESSAGE);
         }
         // assume its a string...
         String fieldName = key.toString();

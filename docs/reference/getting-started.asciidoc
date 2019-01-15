@@ -583,7 +583,7 @@ Updates can also be performed by using simple scripts. This example uses a scrip
 --------------------------------------------------
 POST /customer/_doc/1/_update?pretty
 {
-  "script" : "ctx._source.age += 5"
+  "script" : "ctx._source.doc.age += 5"
 }
 --------------------------------------------------
 // CONSOLE

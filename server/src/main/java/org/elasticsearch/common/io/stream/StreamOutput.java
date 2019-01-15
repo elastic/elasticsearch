@@ -1025,13 +1025,21 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes a collection to this stream. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readList(Writeable.Reader)}.
+     *
+     * @param collection the collection to write to this stream
+     * @throws IOException if an I/O exception occurs writing the collection
+     */
+    public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
+        writeCollection(collection, (o, v) -> v.writeTo(o));
+    }
+
+    /**
      * Writes a list of {@link Writeable} objects
      */
     public void writeList(List<? extends Writeable> list) throws IOException {
-        writeVInt(list.size());
-        for (Writeable obj: list) {
-            obj.writeTo(this);
-        }
+        writeCollection(list);
     }
 
     /**

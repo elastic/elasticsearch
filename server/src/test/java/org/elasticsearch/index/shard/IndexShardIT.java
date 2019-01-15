@@ -638,8 +638,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         return newShard;
     }
 
-    public static final IndexShard newIndexShard(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper,
-                                                 CircuitBreakerService cbs, IndexingOperationListener... listeners) throws IOException {
+    public static final IndexShard newIndexShard(
+            final IndexService indexService,
+            final IndexShard shard,IndexSearcherWrapper wrapper,
+            final CircuitBreakerService cbs,
+            final IndexingOperationListener... listeners) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
         return new IndexShard(
                 initializingShardRouting,

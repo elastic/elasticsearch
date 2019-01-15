@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.XPackSettings;
 
@@ -35,6 +37,14 @@ public final class CcrSettings {
     public static final Setting<TimeValue> CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT = Setting.timeSetting(
         "ccr.auto_follow.wait_for_metadata_timeout", TimeValue.timeValueSeconds(60), Property.NodeScope, Property.Dynamic);
 
+
+    /**
+     * Max bytes a follower node can recover per second.
+     */
+    public static final Setting<ByteSizeValue> FOLLOWER_RECOVERY_MAX_BYTES_READ_PER_SECOND =
+        Setting.byteSizeSetting("ccr.follower.recovery.max_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB),
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     /**
      * The settings defined by CCR.
      *
@@ -44,6 +54,7 @@ public final class CcrSettings {
         return Arrays.asList(
                 XPackSettings.CCR_ENABLED_SETTING,
                 CCR_FOLLOWING_INDEX_SETTING,
+                FOLLOWER_RECOVERY_MAX_BYTES_READ_PER_SECOND,
                 CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT);
     }
 

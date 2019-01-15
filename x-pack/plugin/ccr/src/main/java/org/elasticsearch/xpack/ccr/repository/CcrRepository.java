@@ -25,8 +25,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -37,7 +37,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.elasticsearch.index.snapshots.blobstore.RateLimitingInputStream;
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -69,6 +68,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.xpack.ccr.CcrSettings.FOLLOWER_RECOVERY_MAX_BYTES_READ_PER_SECOND;
 
 /**
  * This repository relies on a remote cluster for Ccr restores. It is read-only so it can only be used to
@@ -85,7 +87,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private final String remoteClusterAlias;
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
+
     private final RateLimiter.SimpleRateLimiter rateLimiter;
+    private final CounterMetric throttledTime = new CounterMetric();
+    private final AtomicLong bytesSinceLastPause = new AtomicLong();
 
     public CcrRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings) {
         super(settings);
@@ -94,7 +99,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
         this.ccrLicenseChecker = ccrLicenseChecker;
         this.client = client;
-        this.rateLimiter = new RateLimiter.SimpleRateLimiter(new ByteSizeValue(40, ByteSizeUnit.MB).getMbFrac());
+        this.rateLimiter = new RateLimiter.SimpleRateLimiter(FOLLOWER_RECOVERY_MAX_BYTES_READ_PER_SECOND.get(settings).getMbFrac());
     }
 
     @Override
@@ -212,7 +217,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public long getRestoreThrottleTimeInNanos() {
-        return 0;
+        return throttledTime.count();
     }
 
     @Override
@@ -330,8 +335,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         @Override
         protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
-            RestoreFileInputStream restoreInputStream = new RestoreFileInputStream(remoteClient, sessionUUID, node, fileInfo.metadata());
-            return new RateLimitingInputStream(restoreInputStream, rateLimiter, (n) -> {});
+            return new RestoreFileInputStream(remoteClient, sessionUUID, node, fileInfo.metadata());
         }
 
         @Override
@@ -372,6 +376,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             }
 
             int bytesRequested = (int) Math.min(remainingBytes, len);
+
+            maybePause(bytesRequested);
+
             String fileName = fileToRecover.name();
             GetCcrRestoreFileChunkRequest request = new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileName, bytesRequested);
             GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse response =
@@ -394,6 +401,18 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             pos += bytesReceived;
 
             return bytesReceived;
+        }
+
+        private void maybePause(int bytesRequested) {
+            long bytesSincePause = bytesSinceLastPause.addAndGet(bytesRequested);
+            if (bytesSincePause > rateLimiter.getMinPauseCheckBytes()) {
+                // Time to pause
+                bytesSinceLastPause.addAndGet(-bytesSincePause);
+                long throttleTimeInNanos = rateLimiter.pause(bytesSincePause);
+                if (throttleTimeInNanos > 0) {
+                    throttledTime.inc(throttleTimeInNanos);
+                }
+            }
         }
     }
 }

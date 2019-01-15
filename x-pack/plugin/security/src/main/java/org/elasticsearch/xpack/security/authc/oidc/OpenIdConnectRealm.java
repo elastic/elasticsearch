@@ -24,7 +24,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT;
@@ -46,8 +45,8 @@ public class OpenIdConnectRealm extends Realm {
 
     public OpenIdConnectRealm(RealmConfig config) {
         super(config);
-        this.rpConfiguration = buildRPConfiguration(config);
-        this.opConfiguration = buildOPConfiguration(config);
+        this.rpConfiguration = buildRelyingPartyConfiguration(config);
+        this.opConfiguration = buildOpenIdConnectProviderConfiguration(config);
     }
 
     @Override
@@ -70,17 +69,20 @@ public class OpenIdConnectRealm extends Realm {
 
     }
 
-    private RelyingPartyConfiguration buildRPConfiguration(RealmConfig config) {
+    private RelyingPartyConfiguration buildRelyingPartyConfiguration(RealmConfig config) {
         String redirectUri = require(config, RP_REDIRECT_URI);
         String clientId = require(config, RP_CLIENT_ID);
         String responseType = require(config, RP_RESPONSE_TYPE);
-        List<String> requestedScopes = config.hasSetting(RP_REQUESTED_SCOPES) ?
-            config.getSetting(RP_REQUESTED_SCOPES) : Collections.emptyList();
+        if (responseType.equals("id_token") == false && responseType.equals("code") == false) {
+            throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, RP_RESPONSE_TYPE)
+                + "] value can only be code or id_token");
+        }
+        List<String> requestedScopes = config.getSetting(RP_REQUESTED_SCOPES);
 
         return new RelyingPartyConfiguration(clientId, redirectUri, responseType, requestedScopes);
     }
 
-    private OpenIdConnectProviderConfiguration buildOPConfiguration(RealmConfig config) {
+    private OpenIdConnectProviderConfiguration buildOpenIdConnectProviderConfiguration(RealmConfig config) {
         String providerName = require(config, OP_NAME);
         String authorizationEndpoint = require(config, OP_AUTHORIZATION_ENDPOINT);
         String issuer = require(config, OP_ISSUER);

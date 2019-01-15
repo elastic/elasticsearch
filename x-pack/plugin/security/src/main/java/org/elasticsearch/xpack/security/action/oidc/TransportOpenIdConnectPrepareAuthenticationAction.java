@@ -17,11 +17,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 
-import java.util.List;
-import java.util.stream.Collectors;
 
 public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTransportAction<OpenIdConnectPrepareAuthenticationRequest,
     OpenIdConnectPrepareAuthenticationResponse> {
@@ -39,21 +38,12 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
     @Override
     protected void doExecute(Task task, OpenIdConnectPrepareAuthenticationRequest request,
                              ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener) {
-        List<OpenIdConnectRealm> realms = this.realms.stream()
-            .filter(r -> r instanceof OpenIdConnectRealm)
-            .map(r -> (OpenIdConnectRealm) r)
-            .filter(r -> r.name().equals(request.getRealmName()))
-            .collect(Collectors.toList());
-        if (realms.isEmpty()) {
+        final Realm realm = this.realms.realm(request.getRealmName());
+        if (null == realm || realm instanceof OpenIdConnectRealm == false) {
             listener.onFailure(
                 new ElasticsearchSecurityException("Cannot find OpenID Connect realm with name [{}]", request.getRealmName()));
-        } else if (realms.size() > 1) {
-            // Can't define multiple realms with the same name in configuration, but check, still.
-            listener.onFailure(
-                new ElasticsearchSecurityException("Found multiple ([{}]) OpenID Connect realms with name [{}]", realms.size(),
-                    request.getRealmName()));
         } else {
-            prepareAuthenticationResponse(realms.get(0), listener);
+            prepareAuthenticationResponse((OpenIdConnectRealm) realm, listener);
         }
     }
 

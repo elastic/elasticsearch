@@ -31,7 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectBaseRestHandler {
 
-    static final ObjectParser<OpenIdConnectPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>("oidc_prepare_auithentication",
+    static final ObjectParser<OpenIdConnectPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>("oidc_prepare_authentication",
         OpenIdConnectPrepareAuthenticationRequest::new);
 
     static {

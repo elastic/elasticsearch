@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -21,21 +17,11 @@ public class RelyingPartyConfiguration {
     private final String responseType;
     private final List<String> requestedScopes;
 
-    public RelyingPartyConfiguration(String clientId, String redirectUri, String responseType, @Nullable List<String> requestedScopes) {
-        this.clientId = Objects.requireNonNull(clientId, "RP Client ID must be provided");
-        this.redirectUri = Objects.requireNonNull(redirectUri, "RP Redirect URI must be provided");
-        if (Strings.hasText(responseType) == false) {
-            throw new IllegalArgumentException("Response type must be provided");
-        } else if (responseType.equals("code") == false && responseType.equals("id_token") == false) {
-            throw new IllegalArgumentException("Invalid response type provided. Only code or id_token are allowed");
-        } else {
-            this.responseType = responseType;
-        }
-        if (null == requestedScopes || requestedScopes.isEmpty()) {
-            this.requestedScopes = Collections.singletonList("openid");
-        } else {
-            this.requestedScopes = requestedScopes;
-        }
+    public RelyingPartyConfiguration(String clientId, String redirectUri, String responseType, List<String> requestedScopes) {
+        this.clientId = Objects.requireNonNull(clientId, "clientId must be provided");
+        this.redirectUri = Objects.requireNonNull(redirectUri, "redirectUri must be provided");
+        this.responseType = Objects.requireNonNull(responseType, "responseType must be provided");
+        this.requestedScopes = Objects.requireNonNull(requestedScopes, "responseType must be provided");
     }
 
     public String getClientId() {

@@ -45,10 +45,10 @@ public class OpenIdConnectRealmTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "hybrid");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+        SettingsException exception = expectThrows(SettingsException.class, () -> {
             new OpenIdConnectRealm(buildConfig(settingsBuilder.build()));
         });
-        assertThat(exception.getMessage(), Matchers.containsString("Invalid response type provided"));
+        assertThat(exception.getMessage(), Matchers.containsString("value can only be code or id_token"));
     }
 
     public void testMissingAuthorizationEndpointThrowsError() {

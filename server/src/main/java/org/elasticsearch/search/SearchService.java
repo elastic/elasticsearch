@@ -330,7 +330,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
             processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
+            throw e;
         } finally {
             cleanContext(context);
         }
@@ -381,7 +381,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         });
     }
 
-    private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws IOException {
+    private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws Exception {
         final SearchContext context = createAndPutContext(request);
         context.incRef();
         try {
@@ -409,7 +409,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             logger.trace("Query phase failed", e);
             processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
+            throw e;
         } finally {
             cleanContext(context);
         }
@@ -425,8 +425,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 contextProcessedSuccessfully(context);
             }
             executor.success();
-        } catch (Exception e) {
-            throw ExceptionsHelper.convertToRuntime(e);
         }
         return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
@@ -446,7 +444,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
                 processFailure(context, e);
-                throw ExceptionsHelper.convertToRuntime(e);
+                throw e;
             } finally {
                 cleanContext(context);
             }
@@ -473,7 +471,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
                 processFailure(context, e);
-                throw ExceptionsHelper.convertToRuntime(e);
+                throw e;
             } finally {
                 cleanContext(context);
             }
@@ -507,24 +505,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                   ActionListener<ScrollQueryFetchSearchResult> listener) {
         runAsync(request.id(), () -> {
             final SearchContext context = findContext(request.id(), request);
+            context.setTask(task);
             context.incRef();
-            try {
-                context.setTask(task);
+            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)){
                 contextProcessing(context);
                 processScroll(request, context);
-                final long afterQueryTime;
-                try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)){
-                    queryPhase.execute(context);
-                    afterQueryTime = executor.success();
-                } catch (Exception e) {
-                    throw ExceptionsHelper.convertToRuntime(e);
-                }
+                queryPhase.execute(context);
+                final long afterQueryTime = executor.success();
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(context, afterQueryTime);
                 return new ScrollQueryFetchSearchResult(fetchSearchResult, context.shardTarget());
             } catch (Exception e) {
                 logger.trace("Fetch phase failed", e);
                 processFailure(context, e);
-                throw ExceptionsHelper.convertToRuntime(e);
+                throw e;
             } finally {
                 cleanContext(context);
             }
@@ -555,7 +548,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } catch (Exception e) {
                 logger.trace("Fetch phase failed", e);
                 processFailure(context, e);
-                throw ExceptionsHelper.convertToRuntime(e);
+                throw e;
             } finally {
                 cleanContext(context);
             }
@@ -635,7 +628,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.lowLevelCancellation(lowLevelCancellation);
         } catch (Exception e) {
             context.close();
-            throw ExceptionsHelper.convertToRuntime(e);
+            throw e;
         }
 
         return context;
@@ -707,7 +700,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private void contextScrollKeepAlive(SearchContext context, long keepAlive) throws IOException {
+    private void contextScrollKeepAlive(SearchContext context, long keepAlive) {
         if (keepAlive > maxKeepAlive) {
             throw new IllegalArgumentException(
                 "Keep alive for scroll (" + TimeValue.timeValueMillis(keepAlive) + ") is too large. " +
@@ -960,7 +953,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
     }
 
-    private void processScroll(InternalScrollSearchRequest request, SearchContext context) throws IOException {
+    private void processScroll(InternalScrollSearchRequest request, SearchContext context) {
         // process scroll
         context.from(context.from() + context.size());
         context.scrollContext().scroll = request.scroll();

@@ -86,14 +86,17 @@ The below list shows the actions which are available in each phase.
 
 * Hot
   - <<ilm-rollover-action,Rollover>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Warm
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-readonly-action,Read-Only>>
   - <<ilm-forcemerge-action,Force Merge>>
   - <<ilm-shrink-action,Shrink>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Cold
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-freeze-action,Freeze>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Delete
   - <<ilm-delete-action,Delete>>
 

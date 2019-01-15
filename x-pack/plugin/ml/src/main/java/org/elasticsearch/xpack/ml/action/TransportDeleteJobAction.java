@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -387,7 +386,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 failureHandler);
 
         // Step 2. Delete state done, delete the quantiles
-        ActionListener<BulkResponse> deleteStateHandler = ActionListener.wrap(
+        ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(
                 bulkResponse -> deleteQuantiles(parentTaskClient, jobId, deleteQuantilesHandler),
                 failureHandler);
 
@@ -397,7 +396,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
     private void deleteQuantiles(ParentTaskAssigningClient parentTaskClient, String jobId, ActionListener<Boolean> finishedHandler) {
         // The quantiles type and doc ID changed in v5.5 so delete both the old and new format
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexName());
+        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId));
         request.setQuery(query);
@@ -417,7 +416,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 }));
     }
 
-    private void deleteModelState(ParentTaskAssigningClient parentTaskClient, String jobId, ActionListener<BulkResponse> listener) {
+    private void deleteModelState(ParentTaskAssigningClient parentTaskClient, String jobId, ActionListener<BulkByScrollResponse> listener) {
         GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request(jobId, null);
         request.setPageParams(new PageParams(0, MAX_SNAPSHOTS_TO_DELETE));
         executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, GetModelSnapshotsAction.INSTANCE, request, ActionListener.wrap(
@@ -432,7 +431,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private void deleteCategorizerState(ParentTaskAssigningClient parentTaskClient, String jobId, int docNum,
                                         ActionListener<Boolean> finishedHandler) {
         // The categorizer state type and doc ID changed in v5.5 so delete both the old and new format
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexName());
+        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum));
         request.setQuery(query);

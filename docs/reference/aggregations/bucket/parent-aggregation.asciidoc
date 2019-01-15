@@ -11,7 +11,7 @@ For example, let's say we have an index of questions and answers. The answer typ
 
 [source,js]
 --------------------------------------------------
-PUT parent_example
+PUT parent_example?include_type_name=true
 {
   "mappings": {
     "_doc": {

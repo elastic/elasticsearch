@@ -32,7 +32,7 @@ public class SmbSimpleFsIndexStore extends IndexStore {
 
     @Override
     public DirectoryService newDirectoryService(ShardPath path) {
-        return new SmbSimpleFsDirectoryService(indexSettings, this, path);
+        return new SmbSimpleFsDirectoryService(indexSettings, path);
     }
 }
 

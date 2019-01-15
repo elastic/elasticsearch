@@ -49,11 +49,10 @@ public class FsDirectoryServiceTests extends ESTestCase {
                 .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
                 .build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("foo", build);
-        IndexStore store = new IndexStore(settings);
         Path tempDir = createTempDir().resolve(settings.getUUID()).resolve("0");
         Files.createDirectories(tempDir);
         ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(settings.getIndex(), 0));
-        FsDirectoryService fsDirectoryService = new FsDirectoryService(settings, store, path);
+        FsDirectoryService fsDirectoryService = new FsDirectoryService(settings, path);
         Directory directory = fsDirectoryService.newDirectory();
         assertFalse(directory instanceof SleepingLockWrapper);
         if (preload.length == 0) {

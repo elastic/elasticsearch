@@ -72,7 +72,7 @@ public class RestCountAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser == null) {

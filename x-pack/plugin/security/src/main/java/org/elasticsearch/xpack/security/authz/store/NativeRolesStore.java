@@ -253,6 +253,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     client.prepareMultiSearch()
                         .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                             .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                            .setTrackTotalHits(true)
                             .setSize(0))
                         .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                             .setQuery(QueryBuilders.boolQuery()
@@ -262,12 +263,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                     .should(existsQuery("indices.field_security.except"))
                                     // for backwardscompat with 2.x
                                     .should(existsQuery("indices.fields"))))
+                            .setTrackTotalHits(true)
                             .setSize(0)
                             .setTerminateAfter(1))
                         .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                             .setQuery(QueryBuilders.boolQuery()
                                 .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                                 .filter(existsQuery("indices.query")))
+                            .setTrackTotalHits(true)
                             .setSize(0)
                             .setTerminateAfter(1))
                         .request(),

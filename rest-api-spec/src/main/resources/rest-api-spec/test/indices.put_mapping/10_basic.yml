@@ -70,25 +70,3 @@
           properties:
             "":
               type:     keyword
-
----
-"PUT mapping with a type and include_type_name: false":
-
-  - skip:
-      version: " - 6.99.99"
-      reason: include_type_name defaults to true before 7.0
-  - do:
-      indices.create:
-        index: index
-        include_type_name: false
-
-  - do:
-      catch: /illegal_argument_exception/
-      indices.put_mapping:
-        index: index
-        type: _doc
-        body:
-          properties:
-            bar:
-              type: float
-

@@ -75,7 +75,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
                       assertThat(jsonLogLine.message(), not(isEmptyOrNullString()));
 
                       // all lines should have the same nodeName and clusterName
-                      assertThat(jsonLogLine.nodeName(), equalTo(nodeNameMatcher()));
+                      assertThat(jsonLogLine.nodeName(), nodeNameMatcher());
                       assertThat(jsonLogLine.clusterName(), equalTo(firstLine.clusterName()));
                   });
         }

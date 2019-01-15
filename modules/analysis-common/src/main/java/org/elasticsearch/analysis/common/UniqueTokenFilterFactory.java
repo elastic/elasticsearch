@@ -20,6 +20,7 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -36,6 +37,9 @@ public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0) == false) {
+            return new XUniqueTokenFilter(tokenStream, onlyOnSamePosition);
+        }
         return new UniqueTokenFilter(tokenStream, onlyOnSamePosition);
     }
 }

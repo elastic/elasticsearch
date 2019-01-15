@@ -202,18 +202,20 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
             List<Map<String, Object>> jobs =
                     (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.jobs", responseMap);
-            assertNotNull(jobs);
 
-            for (String jobId : expectedMigratedJobs) {
-                assertJobNotPresent(jobId, jobs);
+            if (jobs != null) {
+                for (String jobId : expectedMigratedJobs) {
+                    assertJobNotPresent(jobId, jobs);
+                }
             }
 
             List<Map<String, Object>> datafeeds =
                     (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.datafeeds", responseMap);
-            assertNotNull(datafeeds);
 
-            for (String datafeedId : expectedMigratedDatafeeds) {
-                assertDatafeedNotPresent(datafeedId, datafeeds);
+            if (datafeeds != null) {
+                for (String datafeedId : expectedMigratedDatafeeds) {
+                    assertDatafeedNotPresent(datafeedId, datafeeds);
+                }
             }
         }, 30, TimeUnit.SECONDS);
     }

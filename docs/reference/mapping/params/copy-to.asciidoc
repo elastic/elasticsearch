@@ -8,7 +8,7 @@ the `full_name` field as follows:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

@@ -41,7 +41,7 @@ in the field mapping, as follows:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index
+PUT /my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -93,7 +93,7 @@ To disable stop words for phrases a field utilising three analyzer settings will
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
    "settings":{
       "analysis":{

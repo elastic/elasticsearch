@@ -63,10 +63,10 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
 
-        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, true);
+        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         if (includeTypeName == false && types.length > 0) {
-            throw new IllegalArgumentException("Cannot set include_type_name=false and specify" +
-                " types at the same time.");
+            throw new IllegalArgumentException("Types cannot be specified unless include_type_name" +
+                " is set to true.");
         }
 
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();

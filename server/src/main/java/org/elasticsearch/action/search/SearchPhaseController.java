@@ -712,6 +712,16 @@ public final class SearchPhaseController {
         int getNumReducePhases() { return numReducePhases; }
     }
 
+    private int resolveTrackTotalHits(SearchRequest request) {
+        if (request.scroll() != null) {
+            // no matter what the value of track_total_hits is
+            return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+        }
+        Integer trackTotalHits = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
+            request.source().trackTotalHitsUpTo();
+        return trackTotalHits == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : trackTotalHits;
+    }
+
     /**
      * Returns a new ArraySearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
      */
@@ -720,7 +730,7 @@ public final class SearchPhaseController {
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
-        final int trackTotalHitsUpTo = source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
+        final int trackTotalHitsUpTo = resolveTrackTotalHits(request);
         final boolean finalReduce = request.getLocalClusterAlias() == null;
 
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {

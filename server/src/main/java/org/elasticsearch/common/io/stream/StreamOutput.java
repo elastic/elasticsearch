@@ -322,6 +322,15 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeOptionalInt(@Nullable Integer integer) throws IOException {
+        if (integer == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeInt(integer);
+        }
+    }
+
     public void writeOptionalVInt(@Nullable Integer integer) throws IOException {
         if (integer == null) {
             writeBoolean(false);

@@ -36,7 +36,7 @@ import static org.elasticsearch.snapshots.RestoreService.restoreInProgress;
 
 public class RestoreClusterStateListener implements ClusterStateListener {
 
-    private static final Logger LOGGER = LogManager.getLogger(RestoreClusterStateListener.class);
+    private static final Logger logger = LogManager.getLogger(RestoreClusterStateListener.class);
 
     private final ClusterService clusterService;
     private final String uuid;
@@ -72,7 +72,7 @@ public class RestoreClusterStateListener implements ClusterStateListener {
                 shards.size(),
                 shards.size() - RestoreService.failedShards(shards));
             RestoreSnapshotResponse response = new RestoreSnapshotResponse(ri);
-            LOGGER.debug("restore of [{}] completed", snapshot);
+            logger.debug("restore of [{}] completed", snapshot);
             listener.onResponse(response);
         } else {
             // restore not completed yet, wait for next cluster state update

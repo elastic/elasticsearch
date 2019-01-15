@@ -954,6 +954,39 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
         Translog.Operation next() throws IOException;
+
+        /**
+         * Wraps a given snapshot and returns a synchronized (thread-safe) snapshot.
+         */
+        static Snapshot synchronizedSnapshot(final Snapshot delegate) {
+            return new Snapshot() {
+
+                @Override
+                public synchronized Operation next() throws IOException {
+                    return delegate.next();
+                }
+
+                @Override
+                public synchronized void close() throws IOException {
+                    delegate.close();
+                }
+
+                @Override
+                public synchronized int totalOperations() {
+                    return delegate.totalOperations();
+                }
+
+                @Override
+                public synchronized int skippedOperations() {
+                    return delegate.skippedOperations();
+                }
+
+                @Override
+                public synchronized int overriddenOperations() {
+                    return delegate.overriddenOperations();
+                }
+            };
+        }
     }
 
     /**

@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -46,13 +47,23 @@ class ListKeyStoreCommand extends EnvironmentAwareCommand {
         if (keystore == null) {
             throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
         }
-
-        keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
-
-        List<String> sortedEntries = new ArrayList<>(keystore.getSettingNames());
-        Collections.sort(sortedEntries);
-        for (String entry : sortedEntries) {
-            terminal.println(entry);
+        char[] password;
+        if (keystore.hasPassword()) {
+            password = terminal.readSecret("Enter elasticsearch keystore passphrase (empty for no passphrase): ");
+        } else {
+            password = new char[0];
+        }
+        try {
+            keystore.decrypt(password);
+            List<String> sortedEntries = new ArrayList<>(keystore.getSettingNames());
+            Collections.sort(sortedEntries);
+            for (String entry : sortedEntries) {
+                terminal.println(entry);
+            }
+        } catch (SecurityException e) {
+            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the passphrase was correct.");
+        } finally {
+            Arrays.fill(password, '\u0000');
         }
     }
 }

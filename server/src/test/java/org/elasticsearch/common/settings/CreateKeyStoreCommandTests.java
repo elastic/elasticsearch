@@ -25,8 +25,11 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
@@ -40,13 +43,28 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
+    public void testNotMatchingPasswords() throws Exception {
+        String passphrase = randomFrom("", "keystorepassphrase");
+        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput("notthekeystorepassphraseyouarelookingfor");
+        UserException e = expectThrows(UserException.class, this::execute);
+        assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
+        assertThat(e.getMessage(), containsString("Passphrases are not equal, exiting"));
+    }
+
     public void testPosix() throws Exception {
+        String passphrase = randomFrom("", "keystorepassphrase");
+        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(passphrase);
         execute();
         Path configDir = env.configFile();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testNotPosix() throws Exception {
+        String passphrase = randomFrom("", "keystorepassphrase");
+        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(passphrase);
         env = setupEnv(false, fileSystems);
         execute();
         Path configDir = env.configFile();
@@ -54,6 +72,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testOverwrite() throws Exception {
+        String passphrase = randomFrom("", "keystorepassphrase");
         Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
         byte[] content = "not a keystore".getBytes(StandardCharsets.UTF_8);
         Files.write(keystoreFile, content);
@@ -67,6 +86,8 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertArrayEquals(content, Files.readAllBytes(keystoreFile));
 
         terminal.addTextInput("y");
+        terminal.addSecretInput(passphrase);
+        terminal.addSecretInput(passphrase);
         execute();
         assertNotNull(KeyStoreWrapper.load(env.configFile()));
     }

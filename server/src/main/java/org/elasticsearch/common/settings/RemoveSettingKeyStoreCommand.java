@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import java.util.Arrays;
 import java.util.List;
 
 import joptsimple.OptionSet;
@@ -52,15 +53,28 @@ class RemoveSettingKeyStoreCommand extends EnvironmentAwareCommand {
         if (keystore == null) {
             throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
         }
-
-        keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
-
-        for (String setting : arguments.values(options)) {
-            if (keystore.getSettingNames().contains(setting) == false) {
-                throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
+        char[] password = null;
+        try {
+            if (keystore.hasPassword()) {
+                password = terminal.readSecret("Enter passphrase for the elasticsearch keystore: ");
+            } else {
+                password = new char[0];
             }
-            keystore.remove(setting);
+            keystore.decrypt(password);
+
+            for (String setting : arguments.values(options)) {
+                if (keystore.getSettingNames().contains(setting) == false) {
+                    throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
+                }
+                keystore.remove(setting);
+            }
+            keystore.save(env.configFile(), password);
+        } catch (SecurityException e) {
+            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the passphrase was correct.");
+        } finally {
+            if (null != password) {
+                Arrays.fill(password, '\u0000');
+            }
         }
-        keystore.save(env.configFile(), new char[0]);
     }
 }

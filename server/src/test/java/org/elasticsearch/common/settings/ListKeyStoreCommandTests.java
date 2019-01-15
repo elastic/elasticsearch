@@ -47,20 +47,42 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testEmpty() throws Exception {
-        createKeystore("");
+        String passphrase = randomFrom("", "keystorepassphrase");
+        createKeystore(passphrase);
+        terminal.addSecretInput(passphrase);
         execute();
         assertEquals("keystore.seed\n", terminal.getOutput());
     }
 
     public void testOne() throws Exception {
-        createKeystore("", "foo", "bar");
+        String passphrase = randomFrom("", "keystorepassphrase");
+        createKeystore(passphrase, "foo", "bar");
+        terminal.addSecretInput(passphrase);
         execute();
         assertEquals("foo\nkeystore.seed\n", terminal.getOutput());
     }
 
     public void testMultiple() throws Exception {
-        createKeystore("", "foo", "1", "baz", "2", "bar", "3");
+        String passphrase = randomFrom("", "keystorepassphrase");
+        createKeystore(passphrase, "foo", "1", "baz", "2", "bar", "3");
+        terminal.addSecretInput(passphrase);
         execute();
         assertEquals("bar\nbaz\nfoo\nkeystore.seed\n", terminal.getOutput()); // sorted
+    }
+
+    public void testListWithIncorrectPassphrase() throws Exception {
+        String passphrase = "keystorepassphrase";
+        createKeystore(passphrase, "foo", "bar");
+        terminal.addSecretInput("thewrongkeystorepassphrase");
+        UserException e = expectThrows(UserException.class, this::execute);
+        assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
+        assertThat(e.getMessage(), containsString("Please make sure the passphrase was correct"));
+    }
+
+    public void testListWithUnprotectedKeystore() throws Exception {
+        createKeystore("", "foo", "bar");
+        execute();
+        // Not prompted for a password
+        assertEquals("foo\nkeystore.seed\n", terminal.getOutput());
     }
 }

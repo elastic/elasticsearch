@@ -21,10 +21,13 @@ package org.elasticsearch.common.settings;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 /**
@@ -38,24 +41,33 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
-        if (Files.exists(keystoreFile)) {
-            if (terminal.promptYesNo("An elasticsearch keystore already exists. Overwrite?", false) == false) {
-                terminal.println("Exiting without creating keystore.");
-                return;
+        char[] password = null;
+        char[] passwordVerification = null;
+        try {
+            Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
+            if (Files.exists(keystoreFile)) {
+                if (terminal.promptYesNo("An elasticsearch keystore already exists. Overwrite?", false) == false) {
+                    terminal.println("Exiting without creating keystore.");
+                    return;
+                }
+            }
+            password = terminal.readSecret("Enter passphrase (empty for no passphrase): ");
+            passwordVerification = terminal.readSecret("Enter same passphrase again: ");
+            if (Arrays.equals(password, passwordVerification) == false) {
+                throw new UserException(ExitCodes.DATA_ERROR, "Passphrases are not equal, exiting.");
+            }
+            KeyStoreWrapper keystore = KeyStoreWrapper.create();
+            keystore.save(env.configFile(), password);
+            terminal.println("Created elasticsearch keystore in " + env.configFile());
+        } catch (SecurityException e) {
+            throw new UserException(ExitCodes.IO_ERROR, "Error creating the elasticsearch keystore.", e);
+        } finally {
+            if (null != password) {
+                Arrays.fill(password, '\u0000');
+            }
+            if (null != passwordVerification) {
+                Arrays.fill(passwordVerification, '\u0000');
             }
         }
-
-
-        char[] password = new char[0];// terminal.readSecret("Enter passphrase (empty for no passphrase): ");
-        /* TODO: uncomment when entering passwords on startup is supported
-        char[] passwordRepeat = terminal.readSecret("Enter same passphrase again: ");
-        if (Arrays.equals(password, passwordRepeat) == false) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Passphrases are not equal, exiting.");
-        }*/
-
-        KeyStoreWrapper keystore = KeyStoreWrapper.create();
-        keystore.save(env.configFile(), password);
-        terminal.println("Created elasticsearch keystore in " + env.configFile());
     }
 }

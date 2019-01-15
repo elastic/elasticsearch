@@ -41,39 +41,66 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
-    public void testMissing() throws Exception {
+    public void testMissing() {
+        String passphrase = "keystorepassphrase";
+        terminal.addSecretInput(passphrase);
         UserException e = expectThrows(UserException.class, () -> execute("foo"));
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertThat(e.getMessage(), containsString("keystore not found"));
     }
 
     public void testNoSettings() throws Exception {
-        createKeystore("");
+        String passphrase = "keystorepassphrase";
+        createKeystore(passphrase);
+        terminal.addSecretInput(passphrase);
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertThat(e.getMessage(), containsString("Must supply at least one setting"));
     }
 
     public void testNonExistentSetting() throws Exception {
-        createKeystore("");
+        String passphrase = "keystorepassphrase";
+        createKeystore(passphrase);
+        terminal.addSecretInput(passphrase);
         UserException e = expectThrows(UserException.class, () -> execute("foo"));
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertThat(e.getMessage(), containsString("[foo] does not exist"));
     }
 
     public void testOne() throws Exception {
-        createKeystore("", "foo", "bar");
+        String passphrase = "keystorepassphrase";
+        createKeystore(passphrase, "foo", "bar");
+        terminal.addSecretInput(passphrase);
         execute("foo");
-        assertFalse(loadKeystore("").getSettingNames().contains("foo"));
+        assertFalse(loadKeystore(passphrase).getSettingNames().contains("foo"));
     }
 
     public void testMany() throws Exception {
-        createKeystore("", "foo", "1", "bar", "2", "baz", "3");
+        String passphrase = "keystorepassphrase";
+        createKeystore(passphrase, "foo", "1", "bar", "2", "baz", "3");
+        terminal.addSecretInput(passphrase);
         execute("foo", "baz");
-        Set<String> settings = loadKeystore("").getSettingNames();
+        Set<String> settings = loadKeystore(passphrase).getSettingNames();
         assertFalse(settings.contains("foo"));
         assertFalse(settings.contains("baz"));
         assertTrue(settings.contains("bar"));
         assertEquals(2, settings.size()); // account for keystore.seed too
+    }
+
+    public void testRemoveWithIncorrectPassword() throws Exception {
+        String passphrase = "keystorepassphrase";
+        createKeystore(passphrase, "foo", "bar");
+        terminal.addSecretInput("thewrongpassphrase");
+        UserException e = expectThrows(UserException.class, () -> execute("foo"));
+        assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
+        assertThat(e.getMessage(), containsString("Please make sure the passphrase was correct"));
+    }
+
+    public void testRemoveFromUnprotectedKeystore() throws Exception {
+        String passphrase = "";
+        createKeystore(passphrase, "foo", "bar");
+        // will not be prompted for a passphrase
+        execute("foo");
+        assertFalse(loadKeystore(passphrase).getSettingNames().contains("foo"));
     }
 }

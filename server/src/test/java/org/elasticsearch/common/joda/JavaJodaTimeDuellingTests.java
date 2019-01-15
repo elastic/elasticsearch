@@ -142,11 +142,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-12-31T12:12:12.1", "date_hour_minute_second_millis");
         assertSameDate("2018-12-31T12:12:12.1", "date_hour_minute_second_fraction");
 
-        // this is valid anymore when using java time, you need at least a month
-//        assertSameDate("10000", "date_optional_time");
-//        assertSameDate("10000T", "date_optional_time");
-//        assertSameDate("2018", "date_optional_time");
-//        assertSameDate("2018T", "date_optional_time");
         assertSameDate("2018-05", "date_optional_time");
         assertSameDate("2018-05-30", "date_optional_time");
         assertSameDate("2018-05-30T20", "date_optional_time");

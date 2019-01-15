@@ -897,7 +897,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo("4.0"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo("5.0"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo("6.0"));
-        // TODO: switch to java date formatter, but will require special casing java 8 as there is a bug with epoch formatting there
         assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
                 equalTo(DateFormatter.forPattern("epoch_millis").format(date)));
     }

@@ -176,7 +176,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
                 fromInMillis = queryBuilder.from() == null ? null :
                     ((DateFieldMapper.DateFieldType) mappedFieldType).parseToMilliseconds(queryBuilder.from(),
-                        !queryBuilder.includeLower(),
+                        queryBuilder.includeLower() == false,
                         queryBuilder.getDateTimeZone(),
                         queryBuilder.getForceDateParser(), context.getQueryShardContext());
                 toInMillis = queryBuilder.to() == null ? null :

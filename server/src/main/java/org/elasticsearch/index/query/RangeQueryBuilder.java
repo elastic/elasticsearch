@@ -294,7 +294,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     DateMathParser getForceDateParser() { // pkg private for testing
-        if (Strings.isEmpty(format) == false) {
+        if (Strings.hasText(format)) {
             return DateFormatter.forPattern(this.format).toDateMathParser();
         }
         return null;
@@ -329,7 +329,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (timeZone != null) {
             builder.field(TIME_ZONE_FIELD.getPreferredName(), timeZone.getId());
         }
-        if (Strings.isEmpty(format) == false) {
+        if (Strings.hasText(format)) {
             builder.field(FORMAT_FIELD.getPreferredName(), format);
         }
         if (relation != null) {

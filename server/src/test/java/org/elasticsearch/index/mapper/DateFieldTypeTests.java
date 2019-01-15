@@ -163,7 +163,6 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createDefaultFieldType();
         String date = "2015-10-12T12:09:55.000Z";
         long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
-//        long instant = DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         assertEquals(date, ft.valueForDisplay(instant));
     }
 

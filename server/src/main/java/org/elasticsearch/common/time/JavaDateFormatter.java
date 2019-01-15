@@ -144,7 +144,7 @@ class JavaDateFormatter implements DateFormatter {
         DateFormatter roundUpFormatter = this.parseDefaulting(ROUND_UP_BASE_FIELDS).withLocale(locale());
         ZoneId zone = zone();
         if (zone != null) {
-            roundUpFormatter.withZone(zone);
+            roundUpFormatter = roundUpFormatter.withZone(zone);
         }
         return new JavaDateMathParser(this, roundUpFormatter);
     }

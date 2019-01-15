@@ -298,8 +298,6 @@ public class DateDerivativeIT extends ESIntegTestCase {
      * also check for time zone shifts that are not one hour, e.g.
      * "Asia/Kathmandu, 1 Jan 1986 - Time Zone Change (IST → NPT), at 00:00:00 clocks were turned forward 00:15 minutes
      */
-    // This test fails because we cannot parse negative epoch milli seconds yet... but perhaps we dont have to if we use instants in the
-    // rangefield method?
     public void testSingleValuedFieldNormalised_timeZone_AsiaKathmandu() throws Exception {
         createIndex(IDX_DST_KATHMANDU);
         ZoneId timezone = ZoneId.of("Asia/Kathmandu");

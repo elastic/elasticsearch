@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -53,8 +54,8 @@ import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAct
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkRequest;
-import org.elasticsearch.xpack.ccr.action.repositories.StartCcrRestoreSessionAction;
-import org.elasticsearch.xpack.ccr.action.repositories.StartCcrRestoreSessionRequest;
+import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
+import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionRequest;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -305,10 +306,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         static RestoreSession openSession(String repositoryName, Client remoteClient, ShardId leaderShardId, IndexShard indexShard,
                                           RecoveryState recoveryState) {
-            StartCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(StartCcrRestoreSessionAction.INSTANCE,
-                new StartCcrRestoreSessionRequest(leaderShardId)).actionGet();
-            return new RestoreSession(repositoryName, remoteClient, response.getSessionUUID(), response.getNode(), indexShard,
-                recoveryState, response.getStoreFileMetaData());
+            String sessionUUID = UUIDs.randomBase64UUID();
+            PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
+                new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)).actionGet();
+            return new RestoreSession(repositoryName, remoteClient, sessionUUID, response.getNode(), indexShard, recoveryState,
+                response.getStoreFileMetaData());
         }
 
         void restoreFiles() throws IOException {

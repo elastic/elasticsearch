@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,12 +30,12 @@ import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
 import java.io.IOException;
 
-public class StartCcrRestoreSessionAction extends Action<StartCcrRestoreSessionAction.PutCcrRestoreSessionResponse> {
+public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> {
 
-    public static final StartCcrRestoreSessionAction INSTANCE = new StartCcrRestoreSessionAction();
+    public static final PutCcrRestoreSessionAction INSTANCE = new PutCcrRestoreSessionAction();
     private static final String NAME = "internal:admin/ccr/restore/session/put";
 
-    private StartCcrRestoreSessionAction() {
+    private PutCcrRestoreSessionAction() {
         super(NAME);
     }
 
@@ -46,12 +45,12 @@ public class StartCcrRestoreSessionAction extends Action<StartCcrRestoreSessionA
     }
 
     @Override
-    public Writeable.Reader<StartCcrRestoreSessionAction.PutCcrRestoreSessionResponse> getResponseReader() {
-        return StartCcrRestoreSessionAction.PutCcrRestoreSessionResponse::new;
+    public Writeable.Reader<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> getResponseReader() {
+        return PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse::new;
     }
 
     public static class TransportPutCcrRestoreSessionAction
-        extends TransportSingleShardAction<StartCcrRestoreSessionRequest, PutCcrRestoreSessionResponse> {
+        extends TransportSingleShardAction<PutCcrRestoreSessionRequest, PutCcrRestoreSessionResponse> {
 
         private final IndicesService indicesService;
         private final CcrRestoreSourceService ccrRestoreService;
@@ -60,20 +59,20 @@ public class StartCcrRestoreSessionAction extends Action<StartCcrRestoreSessionA
         public TransportPutCcrRestoreSessionAction(ThreadPool threadPool, ClusterService clusterService, ActionFilters actionFilters,
                                                    IndexNameExpressionResolver resolver, TransportService transportService,
                                                    IndicesService indicesService, CcrRestoreSourceService ccrRestoreService) {
-            super(NAME, threadPool, clusterService, transportService, actionFilters, resolver, StartCcrRestoreSessionRequest::new,
+            super(NAME, threadPool, clusterService, transportService, actionFilters, resolver, PutCcrRestoreSessionRequest::new,
                 ThreadPool.Names.GENERIC);
             this.indicesService = indicesService;
             this.ccrRestoreService = ccrRestoreService;
         }
 
         @Override
-        protected PutCcrRestoreSessionResponse shardOperation(StartCcrRestoreSessionRequest request, ShardId shardId) throws IOException {
+        protected PutCcrRestoreSessionResponse shardOperation(PutCcrRestoreSessionRequest request, ShardId shardId) throws IOException {
             IndexShard indexShard = indicesService.getShardOrNull(shardId);
             if (indexShard == null) {
                 throw new ShardNotFoundException(shardId);
             }
-            Tuple<String, Store.MetadataSnapshot> session = ccrRestoreService.openSession(indexShard);
-            return new PutCcrRestoreSessionResponse(clusterService.localNode(), session.v1(), session.v2());
+            Store.MetadataSnapshot storeFileMetaData = ccrRestoreService.openSession(request.getSessionUUID(), indexShard);
+            return new PutCcrRestoreSessionResponse(clusterService.localNode(), storeFileMetaData);
         }
 
         @Override
@@ -82,7 +81,7 @@ public class StartCcrRestoreSessionAction extends Action<StartCcrRestoreSessionA
         }
 
         @Override
-        protected boolean resolveIndex(StartCcrRestoreSessionRequest request) {
+        protected boolean resolveIndex(PutCcrRestoreSessionRequest request) {
             return false;
         }
 
@@ -97,22 +96,19 @@ public class StartCcrRestoreSessionAction extends Action<StartCcrRestoreSessionA
     public static class PutCcrRestoreSessionResponse extends ActionResponse {
 
         private DiscoveryNode node;
-        private String sessionUUID;
         private Store.MetadataSnapshot storeFileMetaData;
 
         PutCcrRestoreSessionResponse() {
         }
 
-        PutCcrRestoreSessionResponse(DiscoveryNode node, String sessionUUID, Store.MetadataSnapshot storeFileMetaData) {
+        PutCcrRestoreSessionResponse(DiscoveryNode node, Store.MetadataSnapshot storeFileMetaData) {
             this.node = node;
-            this.sessionUUID = sessionUUID;
             this.storeFileMetaData = storeFileMetaData;
         }
 
         PutCcrRestoreSessionResponse(StreamInput in) throws IOException {
             super(in);
             node = new DiscoveryNode(in);
-            sessionUUID = in.readString();
             storeFileMetaData = new Store.MetadataSnapshot(in);
         }
 
@@ -120,7 +116,6 @@ public class StartCcrRestoreSessionAction extends Action<StartCcrRestoreSessionA
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             node = new DiscoveryNode(in);
-            sessionUUID = in.readString();
             storeFileMetaData = new Store.MetadataSnapshot(in);
         }
 
@@ -128,16 +123,11 @@ public class StartCcrRestoreSessionAction extends Action<StartCcrRestoreSessionA
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             node.writeTo(out);
-            out.writeString(sessionUUID);
             storeFileMetaData.writeTo(out);
         }
 
         public DiscoveryNode getNode() {
             return node;
-        }
-
-        public String getSessionUUID() {
-            return sessionUUID;
         }
 
         public Store.MetadataSnapshot getStoreFileMetaData() {

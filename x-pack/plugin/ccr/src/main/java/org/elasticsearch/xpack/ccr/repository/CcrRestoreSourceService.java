@@ -13,9 +13,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +29,7 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -42,7 +41,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class CcrRestoreSourceService extends AbstractLifecycleComponent implements IndexEventListener {
@@ -56,7 +54,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     private final TimeValue sessionIdleTimeout;
 
     public CcrRestoreSourceService(Settings settings, ThreadPool threadPool) {
-        this(settings, threadPool, new TimeValue(1, TimeUnit.MINUTES));
+        this(settings, threadPool, RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings));
     }
 
     CcrRestoreSourceService(Settings settings, ThreadPool threadPool, TimeValue sessionIdleTimeout) {
@@ -102,23 +100,26 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         closeSessionListeners.add(listener);
     }
 
-    public synchronized Tuple<String, Store.MetadataSnapshot> openSession(IndexShard indexShard) throws IOException {
+    public synchronized Store.MetadataSnapshot openSession(String sessionUUID, IndexShard indexShard) throws IOException {
         boolean success = false;
         RestoreSession restore = null;
-        String sessionUUID = createUUID();
         try {
-            logger.debug("opening session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
-            if (indexShard.state() == IndexShardState.CLOSED) {
-                throw new IndexShardClosedException(indexShard.shardId(), "cannot open ccr restore session if shard closed");
+            if (onGoingRestores.containsKey(sessionUUID)) {
+                logger.debug("not opening new session [{}] as it already exists", sessionUUID);
+                restore = onGoingRestores.get(sessionUUID);
+            } else {
+                logger.debug("opening session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
+                if (indexShard.state() == IndexShardState.CLOSED) {
+                    throw new IndexShardClosedException(indexShard.shardId(), "cannot open ccr restore session if shard closed");
+                }
+                restore = new RestoreSession(sessionUUID, indexShard, indexShard.acquireSafeIndexCommit(), scheduleTimeout(sessionUUID));
+                onGoingRestores.put(sessionUUID, restore);
+                HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) -> new HashSet<>());
+                sessions.add(sessionUUID);
             }
-            restore = new RestoreSession(sessionUUID, indexShard, indexShard.acquireSafeIndexCommit(), scheduleTimeout(sessionUUID));
-            onGoingRestores.put(sessionUUID, restore);
-            HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) -> new HashSet<>());
-            sessions.add(sessionUUID);
             Store.MetadataSnapshot metaData = restore.getMetaData();
-
             success = true;
-            return new Tuple<>(sessionUUID, metaData);
+            return metaData;
         } finally {
             if (success == false) {
                 onGoingRestores.remove(sessionUUID);
@@ -168,14 +169,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
         restore.decRef();
 
-    }
-
-    private String createUUID() {
-        String sessionUUID = UUIDs.randomBase64UUID();
-        while (onGoingRestores.containsKey(sessionUUID)) {
-            sessionUUID = UUIDs.randomBase64UUID();
-        }
-        return sessionUUID;
     }
 
     private Scheduler.Cancellable scheduleTimeout(String sessionUUID) {
@@ -275,7 +268,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
          * Read bytes into the reference from the file. This method will return the offset in the file where
          * the read completed.
          *
-         * @param fileName  to read
+         * @param fileName to read
          * @param reference to read bytes into
          * @return the offset of the file after the read is complete
          * @throws IOException if the read fails

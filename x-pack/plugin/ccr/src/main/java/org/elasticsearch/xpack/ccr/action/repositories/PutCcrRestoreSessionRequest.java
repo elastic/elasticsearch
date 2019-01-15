@@ -14,15 +14,17 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class StartCcrRestoreSessionRequest extends SingleShardRequest<StartCcrRestoreSessionRequest> {
+public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestoreSessionRequest> {
 
+    private String sessionUUID;
     private ShardId shardId;
 
-    StartCcrRestoreSessionRequest() {
+    PutCcrRestoreSessionRequest() {
     }
 
-    public StartCcrRestoreSessionRequest(ShardId shardId) {
+    public PutCcrRestoreSessionRequest(String sessionUUID, ShardId shardId) {
         super(shardId.getIndexName());
+        this.sessionUUID = sessionUUID;
         this.shardId = shardId;
     }
 
@@ -34,13 +36,19 @@ public class StartCcrRestoreSessionRequest extends SingleShardRequest<StartCcrRe
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        sessionUUID = in.readString();
         shardId = ShardId.readShardId(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(sessionUUID);
         shardId.writeTo(out);
+    }
+
+    String getSessionUUID() {
+        return sessionUUID;
     }
 
     ShardId getShardId() {

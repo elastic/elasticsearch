@@ -153,9 +153,7 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
             Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE));
             final boolean needsUpdating = maybeMeta
                 .flatMap(ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policyOnDisk.getName())))
-                // TODO: do we want to leave an existing policy as-is instead of replacing it with the one on disk?
-                .map(current -> current.equals(policyOnDisk) == false)
-                .orElse(true); // If there is no policy then one needs to be put;
+                .isPresent() == false; // If there is no policy then one needs to be put;
 
             if (needsUpdating) {
                 putPolicy(policyOnDisk, historyPolicyCreationInProgress);

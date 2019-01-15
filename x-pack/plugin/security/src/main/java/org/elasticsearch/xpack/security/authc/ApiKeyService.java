@@ -36,9 +36,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -53,9 +51,9 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.core.security.authc.support.ApiKeysInvalidationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -79,13 +77,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.crypto.SecretKeyFactory;
 
-import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -95,7 +91,6 @@ public class ApiKeyService {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private static final String TYPE = "doc";
-    private static final int MAX_RETRY_ATTEMPTS = 5;
     static final String API_KEY_ID_KEY = "_security_api_key_id";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     static final String API_KEY_ROLE_KEY = "_security_api_key_role";
@@ -115,10 +110,6 @@ public class ApiKeyService {
             }
         }
     }, Setting.Property.NodeScope);
-    public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.api_key.delete.timeout",
-            TimeValue.MINUS_ONE, Property.NodeScope);
-    public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting("xpack.security.authc.api_key.delete.interval",
-            TimeValue.timeValueMinutes(30L), Property.NodeScope);
 
     private final Clock clock;
     private final Client client;
@@ -127,9 +118,6 @@ public class ApiKeyService {
     private final Hasher hasher;
     private final boolean enabled;
     private final Settings settings;
-    private final ExpiredApiKeysRemover expiredApiKeysRemover;
-    private volatile long lastExpirationRunMs;
-    private final TimeValue deleteInterval;
 
     public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService) {
         this.clock = clock;
@@ -138,9 +126,7 @@ public class ApiKeyService {
         this.clusterService = clusterService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
-        this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.settings = settings;
-        this.expiredApiKeysRemover = new ExpiredApiKeysRemover(settings, client);
     }
 
     /**
@@ -301,32 +287,32 @@ public class ApiKeyService {
             listener.onResponse(AuthenticationResult.terminate("api key document is missing invalidated field", null));
         } else if (invalidated) {
             listener.onResponse(AuthenticationResult.terminate("api key has been invalidated", null));
-        }
-
-        final String apiKeyHash = (String) source.get("api_key_hash");
-        if (apiKeyHash == null) {
-            throw new IllegalStateException("api key hash is missing");
-        }
-        final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
-
-        if (verified) {
-            final Long expirationEpochMilli = (Long) source.get("expiration_time");
-            if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
-                final Map<String, Object> creator = Objects.requireNonNull((Map<String, Object>) source.get("creator"));
-                final String principal = Objects.requireNonNull((String) creator.get("principal"));
-                final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
-                final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
-                final String[] roleNames = roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
-                final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
-                final Map<String, Object> authResultMetadata = new HashMap<>();
-                authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
-                authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
-                listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
-            } else {
-                listener.onResponse(AuthenticationResult.terminate("api key is expired", null));
-            }
         } else {
-            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+            final String apiKeyHash = (String) source.get("api_key_hash");
+            if (apiKeyHash == null) {
+                throw new IllegalStateException("api key hash is missing");
+            }
+            final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
+
+            if (verified) {
+                final Long expirationEpochMilli = (Long) source.get("expiration_time");
+                if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
+                    final Map<String, Object> creator = Objects.requireNonNull((Map<String, Object>) source.get("creator"));
+                    final String principal = Objects.requireNonNull((String) creator.get("principal"));
+                    final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
+                    final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
+                    final String[] roleNames = roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
+                    final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
+                    final Map<String, Object> authResultMetadata = new HashMap<>();
+                    authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
+                    authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
+                    listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
+                } else {
+                    listener.onResponse(AuthenticationResult.terminate("api key is expired", null));
+                }
+            } else {
+                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+            }
         }
     }
 
@@ -439,10 +425,10 @@ public class ApiKeyService {
      * Invalidate API keys for given realm and user name.
      * @param realmName realm name
      * @param userName user name
-     * @param invalidateListener listener for {@link ApiKeysInvalidationResult}
+     * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
     public void invalidateApiKeysForRealmAndUser(String realmName, String userName,
-            ActionListener<ApiKeysInvalidationResult> invalidateListener) {
+            ActionListener<InvalidateApiKeyResponse> invalidateListener) {
         ensureEnabled();
         if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false) {
             logger.trace("No realm name or username provided");
@@ -451,7 +437,7 @@ public class ApiKeyService {
             findActiveApiKeysForUserAndRealm(userName, realmName, ActionListener.wrap(apiKeyIds -> {
                     if (apiKeyIds.isEmpty()) {
                         logger.warn("No api keys to invalidate for realm [{}] and username [{}]", realmName, userName);
-                        invalidateListener.onResponse(ApiKeysInvalidationResult.emptyResult());
+                        invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
                         invalidateAllApiKeys(apiKeyIds, invalidateListener);
                     }
@@ -459,17 +445,16 @@ public class ApiKeyService {
         }
     }
 
-    private void invalidateAllApiKeys(Collection<String> apiKeyIds, ActionListener<ApiKeysInvalidationResult> invalidateListener) {
-        maybeStartApiKeyRemover();
-        indexInvalidation(apiKeyIds, invalidateListener, new AtomicInteger(0), null);
+    private void invalidateAllApiKeys(Collection<String> apiKeyIds, ActionListener<InvalidateApiKeyResponse> invalidateListener) {
+        indexInvalidation(apiKeyIds, invalidateListener, null);
     }
 
     /**
      * Invalidate API keys for given API key id
      * @param apiKeyId API key id
-     * @param invalidateListener listener for {@link ApiKeysInvalidationResult}
+     * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
-    public void invalidateApiKeysForApiKeyId(String apiKeyId, ActionListener<ApiKeysInvalidationResult> invalidateListener) {
+    public void invalidateApiKeysForApiKeyId(String apiKeyId, ActionListener<InvalidateApiKeyResponse> invalidateListener) {
         ensureEnabled();
         invalidateAllApiKeys(Collections.singleton(apiKeyId), invalidateListener);
     }
@@ -477,9 +462,9 @@ public class ApiKeyService {
     /**
      * Invalidate API keys for given API key name
      * @param apiKeyName API key name
-     * @param invalidateListener listener for {@link ApiKeysInvalidationResult}
+     * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
-    public void invalidateApiKeysForApiKeyName(String apiKeyName, ActionListener<ApiKeysInvalidationResult> invalidateListener) {
+    public void invalidateApiKeysForApiKeyName(String apiKeyName, ActionListener<InvalidateApiKeyResponse> invalidateListener) {
         ensureEnabled();
         if (Strings.hasText(apiKeyName) == false) {
             logger.trace("No api key name provided");
@@ -488,7 +473,7 @@ public class ApiKeyService {
             findActiveApiKeysForApiKeyName(apiKeyName, ActionListener.wrap(apiKeyIds -> {
                     if (apiKeyIds.isEmpty()) {
                         logger.warn("No api keys to invalidate for api key name [{}]", apiKeyName);
-                        invalidateListener.onResponse(ApiKeysInvalidationResult.emptyResult());
+                        invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
                         invalidateAllApiKeys(apiKeyIds, invalidateListener);
                     }
@@ -553,19 +538,14 @@ public class ApiKeyService {
      *
      * @param apiKeyIds       the api keys to invalidate
      * @param listener        the listener to notify upon completion
-     * @param attemptCount    the number of attempts to invalidate that have already been tried
      * @param previousResult  if this not the initial attempt for invalidation, it contains the result of invalidating
      *                        api keys up to the point of the retry. This result is added to the result of the current attempt
      */
-    private void indexInvalidation(Collection<String> apiKeyIds, ActionListener<ApiKeysInvalidationResult> listener,
-                                   AtomicInteger attemptCount, @Nullable ApiKeysInvalidationResult previousResult) {
+    private void indexInvalidation(Collection<String> apiKeyIds, ActionListener<InvalidateApiKeyResponse> listener,
+                                   @Nullable InvalidateApiKeyResponse previousResult) {
         if (apiKeyIds.isEmpty()) {
             logger.warn("No api key ids provided for invalidation");
             listener.onFailure(new ElasticsearchSecurityException("No api key ids provided for invalidation"));
-        } else if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
-            logger.warn("Failed to invalidate [{}] api keys after [{}] attempts", apiKeyIds.size(),
-                attemptCount.get());
-            listener.onFailure(new ElasticsearchSecurityException("failed to invalidate api keys"));
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String apiKeyId : apiKeyIds) {
@@ -578,7 +558,6 @@ public class ApiKeyService {
             securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequestBuilder.request(),
                     ActionListener.<BulkResponse>wrap(bulkResponse -> {
-                        ArrayList<String> retryApiKeyIds = new ArrayList<>();
                         ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
                         ArrayList<String> previouslyInvalidated = new ArrayList<>();
                         ArrayList<String> invalidated = new ArrayList<>();
@@ -591,13 +570,8 @@ public class ApiKeyService {
                             if (bulkItemResponse.isFailed()) {
                                 Throwable cause = bulkItemResponse.getFailure().getCause();
                                 final String failedApiKeyId = bulkItemResponse.getFailure().getId();
-                                if (isShardNotAvailableException(cause)) {
-                                    retryApiKeyIds.add(failedApiKeyId);
-                                }
-                                else {
-                                    traceLog("invalidate api key", failedApiKeyId, cause);
-                                    failedRequestResponses.add(new ElasticsearchException("Error invalidating api key", cause));
-                                }
+                                traceLog("invalidate api key", failedApiKeyId, cause);
+                                failedRequestResponses.add(new ElasticsearchException("Error invalidating api key", cause));
                             } else {
                                 UpdateResponse updateResponse = bulkItemResponse.getResponse();
                                 if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
@@ -608,24 +582,13 @@ public class ApiKeyService {
                                 }
                             }
                         }
-                        if (retryApiKeyIds.isEmpty() == false) {
-                            ApiKeysInvalidationResult incompleteResult = new ApiKeysInvalidationResult(invalidated, previouslyInvalidated,
-                                failedRequestResponses, attemptCount.get());
-                            attemptCount.incrementAndGet();
-                            indexInvalidation(retryApiKeyIds, listener, attemptCount, incompleteResult);
-                        }
-                        ApiKeysInvalidationResult result = new ApiKeysInvalidationResult(invalidated, previouslyInvalidated,
-                            failedRequestResponses, attemptCount.get());
+                        InvalidateApiKeyResponse result = new InvalidateApiKeyResponse(invalidated, previouslyInvalidated,
+                            failedRequestResponses);
                         listener.onResponse(result);
                     }, e -> {
                         Throwable cause = ExceptionsHelper.unwrapCause(e);
                         traceLog("invalidate api keys", cause);
-                        if (isShardNotAvailableException(cause)) {
-                            attemptCount.incrementAndGet();
-                            indexInvalidation(apiKeyIds, listener, attemptCount, previousResult);
-                        } else {
-                            listener.onFailure(e);
-                        }
+                        listener.onFailure(e);
                     }), client::bulk));
         }
     }
@@ -672,12 +635,4 @@ public class ApiKeyService {
         return exception;
     }
 
-    private void maybeStartApiKeyRemover() {
-        if (securityIndex.isAvailable()) {
-            if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
-                expiredApiKeysRemover.submit(client.threadPool());
-                lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
-            }
-        }
-    }
 }

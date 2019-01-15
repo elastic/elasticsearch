@@ -30,6 +30,14 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     public InvalidateApiKeyRequest() {
     }
 
+    public InvalidateApiKeyRequest(StreamInput in) throws IOException {
+        super(in);
+        realmName = in.readOptionalString();
+        userName = in.readOptionalString();
+        apiKeyId = in.readOptionalString();
+        apiKeyName = in.readOptionalString();
+    }
+
     private InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
             @Nullable String apiKeyName) {
         this.realmName = realmName;
@@ -121,10 +129,6 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        realmName = in.readOptionalString();
-        userName = in.readOptionalString();
-        apiKeyId = in.readOptionalString();
-        apiKeyName = in.readOptionalString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

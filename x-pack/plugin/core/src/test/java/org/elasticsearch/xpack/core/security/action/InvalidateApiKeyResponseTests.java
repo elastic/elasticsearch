@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.ApiKeysInvalidationResult;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,50 +25,43 @@ import static org.hamcrest.Matchers.equalTo;
 public class InvalidateApiKeyResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        ApiKeysInvalidationResult result = new ApiKeysInvalidationResult(Arrays.asList("api-key-id-1"),
+        InvalidateApiKeyResponse response = new InvalidateApiKeyResponse(Arrays.asList("api-key-id-1"),
                 Arrays.asList("api-key-id-2", "api-key-id-3"),
                 Arrays.asList(new ElasticsearchException("error1"),
-                        new ElasticsearchException("error2")),
-                randomIntBetween(0, 5));
-        InvalidateApiKeyResponse response = new InvalidateApiKeyResponse(result);
+                        new ElasticsearchException("error2")));
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
-                InvalidateApiKeyResponse serialized = new InvalidateApiKeyResponse();
-                serialized.readFrom(input);
-                assertThat(serialized.getResult().getInvalidatedApiKeys(), equalTo(response.getResult().getInvalidatedApiKeys()));
-                assertThat(serialized.getResult().getPreviouslyInvalidatedApiKeys(),
-                    equalTo(response.getResult().getPreviouslyInvalidatedApiKeys()));
-                assertThat(serialized.getResult().getErrors().size(), equalTo(response.getResult().getErrors().size()));
-                assertThat(serialized.getResult().getErrors().get(0).toString(), containsString("error1"));
-                assertThat(serialized.getResult().getErrors().get(1).toString(), containsString("error2"));
+                InvalidateApiKeyResponse serialized = new InvalidateApiKeyResponse(input);
+                assertThat(serialized.getInvalidatedApiKeys(), equalTo(response.getInvalidatedApiKeys()));
+                assertThat(serialized.getPreviouslyInvalidatedApiKeys(),
+                    equalTo(response.getPreviouslyInvalidatedApiKeys()));
+                assertThat(serialized.getErrors().size(), equalTo(response.getErrors().size()));
+                assertThat(serialized.getErrors().get(0).toString(), containsString("error1"));
+                assertThat(serialized.getErrors().get(1).toString(), containsString("error2"));
             }
         }
 
-        result = new ApiKeysInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false)),
+        response = new InvalidateApiKeyResponse(Arrays.asList(generateRandomStringArray(20, 15, false)),
             Arrays.asList(generateRandomStringArray(20, 15, false)),
-            Collections.emptyList(), randomIntBetween(0, 5));
-        response = new InvalidateApiKeyResponse(result);
+            Collections.emptyList());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
-                InvalidateApiKeyResponse serialized = new InvalidateApiKeyResponse();
-                serialized.readFrom(input);
-                assertThat(serialized.getResult().getInvalidatedApiKeys(), equalTo(response.getResult().getInvalidatedApiKeys()));
-                assertThat(serialized.getResult().getPreviouslyInvalidatedApiKeys(),
-                    equalTo(response.getResult().getPreviouslyInvalidatedApiKeys()));
-                assertThat(serialized.getResult().getErrors().size(), equalTo(response.getResult().getErrors().size()));
+                InvalidateApiKeyResponse serialized = new InvalidateApiKeyResponse(input);
+                assertThat(serialized.getInvalidatedApiKeys(), equalTo(response.getInvalidatedApiKeys()));
+                assertThat(serialized.getPreviouslyInvalidatedApiKeys(),
+                    equalTo(response.getPreviouslyInvalidatedApiKeys()));
+                assertThat(serialized.getErrors().size(), equalTo(response.getErrors().size()));
             }
         }
     }
 
     public void testToXContent() throws IOException {
-        ApiKeysInvalidationResult result = new ApiKeysInvalidationResult(Arrays.asList("api-key-id-1"),
+        InvalidateApiKeyResponse response = new InvalidateApiKeyResponse(Arrays.asList("api-key-id-1"),
                 Arrays.asList("api-key-id-2", "api-key-id-3"),
                 Arrays.asList(new ElasticsearchException("error1", new IllegalArgumentException("msg - 1")),
-                        new ElasticsearchException("error2", new IllegalArgumentException("msg - 2"))),
-                randomIntBetween(0, 5));
-        InvalidateApiKeyResponse response = new InvalidateApiKeyResponse(result);
+                        new ElasticsearchException("error2", new IllegalArgumentException("msg - 2"))));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder),

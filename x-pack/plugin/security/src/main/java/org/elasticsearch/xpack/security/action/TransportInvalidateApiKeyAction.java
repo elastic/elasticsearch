@@ -11,12 +11,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.authc.support.ApiKeysInvalidationResult;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 public final class TransportInvalidateApiKeyAction extends HandledTransportAction<InvalidateApiKeyRequest, InvalidateApiKeyResponse> {
@@ -25,21 +25,19 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
 
     @Inject
     public TransportInvalidateApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService) {
-        super(InvalidateApiKeyAction.NAME, transportService, actionFilters, InvalidateApiKeyRequest::new);
+        super(InvalidateApiKeyAction.NAME, transportService, actionFilters,
+                (Writeable.Reader<InvalidateApiKeyRequest>) InvalidateApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
     }
 
     @Override
     protected void doExecute(Task task, InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
-        final ActionListener<ApiKeysInvalidationResult> invalidateListener = ActionListener.wrap(
-                tokensInvalidationResult -> listener.onResponse(new InvalidateApiKeyResponse(tokensInvalidationResult)),
-                listener::onFailure);
         if (Strings.hasText(request.getRealmName()) || Strings.hasText(request.getUserName())) {
-            apiKeyService.invalidateApiKeysForRealmAndUser(request.getRealmName(), request.getUserName(), invalidateListener);
+            apiKeyService.invalidateApiKeysForRealmAndUser(request.getRealmName(), request.getUserName(), listener);
         } else if (Strings.hasText(request.getApiKeyId())) {
-            apiKeyService.invalidateApiKeysForApiKeyId(request.getApiKeyId(), invalidateListener);
+            apiKeyService.invalidateApiKeysForApiKeyId(request.getApiKeyId(), listener);
         } else {
-            apiKeyService.invalidateApiKeysForApiKeyName(request.getApiKeyName(), invalidateListener);
+            apiKeyService.invalidateApiKeysForApiKeyName(request.getApiKeyName(), listener);
         }
     }
 

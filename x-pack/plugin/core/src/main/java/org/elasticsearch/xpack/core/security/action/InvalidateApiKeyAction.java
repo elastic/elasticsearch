@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Action for invalidating API key
@@ -22,6 +23,11 @@ public final class InvalidateApiKeyAction extends Action<InvalidateApiKeyRespons
 
     @Override
     public InvalidateApiKeyResponse newResponse() {
-        return new InvalidateApiKeyResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<InvalidateApiKeyResponse> getResponseReader() {
+        return InvalidateApiKeyResponse::new;
     }
 }

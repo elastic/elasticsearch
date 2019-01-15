@@ -526,17 +526,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 listener::onFailure
             );
 
-            // Manually create the state index and its alias if necessary
-            ActionListener<Boolean> createMLStateListener = ActionListener.wrap(
-                response -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, jobUpdateListener),
-                listener::onFailure
-            );
-
             // Try adding state doc mapping
             ActionListener<Boolean> resultsPutMappingHandler = ActionListener.wrap(
                     response -> {
                         addDocMappingIfMissing(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), ElasticsearchMappings::stateMapping,
-                                state, createMLStateListener);
+                                state, jobUpdateListener);
                     }, listener::onFailure
             );
 
@@ -679,6 +673,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private volatile int maxConcurrentJobAllocations;
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
+        private volatile ClusterState clusterState;
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
                                               AutodetectProcessManager autodetectProcessManager, MlMemoryTracker memoryTracker,
@@ -695,6 +690,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
+            clusterService.addListener(event -> clusterState = event.state());
         }
 
         @Override
@@ -747,7 +743,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }
 
             String jobId = jobTask.getJobId();
-            autodetectProcessManager.openJob(jobTask, e2 -> {
+            autodetectProcessManager.openJob(jobTask, clusterState, e2 -> {
                 if (e2 == null) {
                     FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
                     executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,

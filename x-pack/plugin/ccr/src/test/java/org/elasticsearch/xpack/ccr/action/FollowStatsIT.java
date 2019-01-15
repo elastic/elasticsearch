@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -116,6 +117,36 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
                 client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet().getFollowStats().getStatsResponses();
             assertThat(responseList.size(), equalTo(0));
         });
+    }
+
+    public void testFollowStatsApiResourceNotFound() throws Exception {
+        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+        FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(0));
+
+        statsRequest.setIndices(new String[] {"follower1"});
+        Exception e = expectThrows(ResourceNotFoundException.class,
+            () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("No shard follow tasks for index [follower1]"));
+
+        final String leaderIndexSettings = getIndexSettings(1, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader1");
+
+        PutFollowAction.Request followRequest = getPutFollowRequest("leader1", "follower1");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+        assertThat(response.getStatsResponses().size(), equalTo(1));
+        assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
+
+        statsRequest.setIndices(new String[] {"follower2"});
+        e = expectThrows(ResourceNotFoundException.class,
+            () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("No shard follow tasks for index [follower2]"));
+
+        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
     }
 
     public void testFollowStatsApiIncludeShardFollowStatsWithRemovedFollowerIndex() throws Exception {

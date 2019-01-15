@@ -6,14 +6,13 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -41,15 +40,13 @@ public class TransportFollowStatsAction extends TransportTasksAction<
         FollowStatsAction.StatsResponses, FollowStatsAction.StatsResponse> {
 
     private final CcrLicenseChecker ccrLicenseChecker;
-    private final IndexNameExpressionResolver resolver;
 
     @Inject
     public TransportFollowStatsAction(
             final ClusterService clusterService,
             final TransportService transportService,
             final ActionFilters actionFilters,
-            final CcrLicenseChecker ccrLicenseChecker,
-            final IndexNameExpressionResolver resolver) {
+            final CcrLicenseChecker ccrLicenseChecker) {
         super(
                 FollowStatsAction.NAME,
                 clusterService,
@@ -60,7 +57,6 @@ public class TransportFollowStatsAction extends TransportTasksAction<
                 FollowStatsAction.StatsResponse::new,
                 Ccr.CCR_THREAD_POOL_NAME);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
-        this.resolver = resolver;
     }
 
     @Override
@@ -74,27 +70,11 @@ public class TransportFollowStatsAction extends TransportTasksAction<
         }
 
         final ClusterState state = clusterService.state();
-        try {
-            String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.strictExpand(), request.indices());
-
-            // Also include matching shard follow task's follower indices:
-            // A follower index may be removed and therefor concreteIndexNames(...) does not include it.
-            // Shard follow tasks for these removed follower indices do exist (with a fatal error set).
-            Set<String> shardFollowTaskFollowerIndices = new HashSet<>(Arrays.asList(concreteIndices));
-            shardFollowTaskFollowerIndices.addAll(findFollowerIndicesFromShardFollowTasks(state, request.indices()));
-
-            request.setIndices(shardFollowTaskFollowerIndices.toArray(new String[0]));
-        } catch (IndexNotFoundException e) {
-            // It is possible that there are failed shard follow tasks (with fatal error set) for a none existing index
-            // (in case the follower index has been removed)
-            // we should also include the stats for these shard follow tasks:
-            final Set<String> followerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
-            if (followerIndices.size() != 0) {
-                request.setIndices(followerIndices.toArray(new String[0]));
-            } else {
-                throw e;
-            }
+        Set<String> shardFollowTaskFollowerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
+        if (Strings.isAllOrWildcard(request.indices()) == false && shardFollowTaskFollowerIndices.isEmpty()) {
+            throw new ResourceNotFoundException("No shard follow tasks for index [{}]", request.indices()[0]);
         }
+        request.setIndices(shardFollowTaskFollowerIndices.toArray(new String[0]));
         super.doExecute(task, request, listener);
     }
 

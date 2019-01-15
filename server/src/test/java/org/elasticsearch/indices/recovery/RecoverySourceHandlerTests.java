@@ -288,7 +288,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                                                 long msu, ActionListener<Long> listener) {
                 if (randomBoolean()) {
                     maybeExecuteAsync(() -> listener.onResponse(SequenceNumbers.NO_OPS_PERFORMED));
-                }else {
+                } else {
                     maybeExecuteAsync(() -> listener.onFailure(new RuntimeException("test - failed to index")));
                     wasFailed.set(true);
                 }

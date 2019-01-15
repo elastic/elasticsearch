@@ -816,6 +816,15 @@ public class AutodetectProcessManager {
 
         @Override
         public void execute(Runnable command) {
+            if (isShutdown()) {
+                EsRejectedExecutionException rejected = new EsRejectedExecutionException("autodetect worker service has stopped", true);
+                if (command instanceof AbstractRunnable) {
+                    ((AbstractRunnable) command).onRejection(rejected);
+                } else {
+                    throw rejected;
+                }
+            }
+
             boolean added = queue.offer(contextHolder.preserveContext(command));
             if (added == false) {
                 throw new ElasticsearchStatusException("Unable to submit operation", RestStatus.TOO_MANY_REQUESTS);

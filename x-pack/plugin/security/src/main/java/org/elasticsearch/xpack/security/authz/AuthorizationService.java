@@ -448,7 +448,9 @@ public class AuthorizationService {
                     new GroupedActionListener<>(bulkAuthzListener, actionToIndicesMap.size(), Collections.emptyList()), threadContext);
 
                 actionToIndicesMap.forEach((bulkItemAction, indices) -> {
-                    authzEngine.authorizeIndexAction(requestInfo, authzInfo,
+                    final RequestInfo bulkItemInfo =
+                        new RequestInfo(requestInfo.getAuthentication(), requestInfo.getRequest(), bulkItemAction);
+                    authzEngine.authorizeIndexAction(bulkItemInfo, authzInfo,
                         ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
                         metaData.getAliasAndIndexLookup()::get, ActionListener.wrap(indexAuthorizationResult ->
                                 groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),

@@ -94,7 +94,7 @@ the node:
 --------------------------------------------------
 PUT _cluster/settings
 {
-  "transient": {
+  "persistent": {
     "cluster.routing.allocation.enable": "all"
   }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 

@@ -26,11 +26,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestDocument.MetaData;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 
@@ -41,23 +41,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.ingest.IngestDocument.MetaData;
-
 public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
 
     private String id;
     private boolean verbose;
     private BytesReference source;
     private XContentType xContentType;
-
-    /**
-     * Create a new request
-     * @deprecated use {@link #SimulatePipelineRequest(BytesReference, XContentType)} that does not attempt content autodetection
-     */
-    @Deprecated
-    public SimulatePipelineRequest(BytesReference source) {
-        this(source, XContentHelper.xContentType(source));
-    }
 
     /**
      * Creates a new request with the given source and its content type

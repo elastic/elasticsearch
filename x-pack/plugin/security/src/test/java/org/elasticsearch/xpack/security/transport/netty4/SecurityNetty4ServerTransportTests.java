@@ -21,11 +21,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
-import javax.net.ssl.SSLEngine;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Locale;
@@ -44,11 +42,11 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
             .put("xpack.security.transport.ssl.enabled", true)
-            .put("xpack.ssl.key", testnodeKey)
-            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
             .setSecureSettings(secureSettings)
             .put("path.home", createTempDir())
             .build();
@@ -97,7 +95,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
                 .put(env.settings())
-                .put("xpack.ssl.client_authentication", value)
+                .put("xpack.security.transport.ssl.client_authentication", value)
                 .build();
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
@@ -111,7 +109,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         String value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
                 .put(env.settings())
-                .put("xpack.ssl.client_authentication", value)
+                .put("xpack.security.transport.ssl.client_authentication", value)
                 .build();
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
@@ -125,7 +123,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
                 .put(env.settings())
-                .put("xpack.ssl.client_authentication", value)
+                .put("xpack.security.transport.ssl.client_authentication", value)
                 .build();
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
@@ -178,37 +176,5 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(true));
-    }
-
-    public void testTransportSSLOverridesGlobalSSL() throws Exception {
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
-        Settings.Builder builder = Settings.builder()
-            .put("xpack.security.transport.ssl.enabled", true)
-            .put("xpack.security.transport.ssl.key",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
-            .put("xpack.security.transport.ssl.certificate",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .put("xpack.security.transport.ssl.client_authentication", "none")
-            .put("xpack.ssl.certificate_authorities",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .setSecureSettings(secureSettings)
-            .put("path.home", createTempDir());
-        Settings settings = builder.build();
-        env = TestEnvironment.newEnvironment(settings);
-        sslService = new SSLService(settings, env);
-        SecurityNetty4Transport transport = createTransport(settings);
-        final ChannelHandler handler = transport.getServerChannelInitializer("default");
-        final EmbeddedChannel ch = new EmbeddedChannel(handler);
-        final SSLEngine engine = ch.pipeline().get(SslHandler.class).engine();
-        assertFalse(engine.getNeedClientAuth());
-        assertFalse(engine.getWantClientAuth());
-
-        // get the global and verify that it is different in that it requires client auth
-        SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.ssl");
-        assertNotNull(configuration);
-        final SSLEngine globalEngine = sslService.createSSLEngine(configuration, null, -1);
-        assertTrue(globalEngine.getNeedClientAuth());
-        assertFalse(globalEngine.getWantClientAuth());
     }
 }

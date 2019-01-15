@@ -50,7 +50,7 @@ public class FakeRestRequest extends RestRequest {
 
     @Override
     public boolean hasContent() {
-        return content() != null;
+        return content(false) != null;
     }
 
     private static class FakeHttpRequest implements HttpRequest {

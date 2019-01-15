@@ -11,7 +11,7 @@ one field to the mappings for each of them.
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

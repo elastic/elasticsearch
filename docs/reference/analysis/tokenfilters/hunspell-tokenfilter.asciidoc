@@ -42,7 +42,7 @@ settings:
 
 [source,js]
 --------------------------------------------------
-PUT /hunspell_example
+PUT /hunspell_example?include_type_name=true
 {
     "settings": {
         "analysis" : {

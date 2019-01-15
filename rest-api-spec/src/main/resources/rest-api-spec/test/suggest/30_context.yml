@@ -195,7 +195,8 @@ setup:
       indices.refresh: {}
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: false
 
   - do:
       search:
@@ -247,7 +248,8 @@ setup:
       indices.refresh: {}
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: false
 
   - do:
       search:

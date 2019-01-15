@@ -245,6 +245,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
                 .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
                 .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
+                .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
                 .put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME,
                         includeRequestBody && Strings.hasLength(expectedMessage) ? expectedMessage : null)
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
@@ -346,6 +347,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                      .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, mockToken.principal())
                      .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
                      .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
+                     .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
                      .put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME,
                              includeRequestBody && Strings.hasLength(expectedMessage) ? expectedMessage : null)
                      .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
@@ -386,6 +388,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                      .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, null)
                      .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
                      .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
+                     .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
                      .put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME,
                              includeRequestBody && Strings.hasLength(expectedMessage) ? expectedMessage : null)
                      .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
@@ -468,6 +471,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                      .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
                      .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, mockToken.principal())
                      .put(LoggingAuditTrail.ACTION_FIELD_NAME, null)
+                     .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
                      .put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME,
                              includeRequestBody && Strings.hasLength(expectedMessage) ? expectedMessage : null)
                      .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
@@ -627,6 +631,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "tampered_request")
                 .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
                 .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
+                .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
                 .put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME,
                         includeRequestBody && Strings.hasLength(expectedMessage) ? expectedMessage : null)
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
@@ -891,6 +896,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                      .put(LoggingAuditTrail.REALM_FIELD_NAME, realm)
                      .put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
                      .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address))
+                     .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
                      .put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME,
                              includeRequestBody && Strings.hasLength(expectedMessage) ? expectedMessage : null)
                      .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
@@ -1080,6 +1086,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         builder.withRemoteAddress(remoteAddress);
         builder.withParams(params);
+        builder.withMethod(randomFrom(RestRequest.Method.values()));
         return new Tuple<>(content, builder.build());
     }
 

@@ -14,9 +14,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
@@ -40,14 +44,20 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
 /**
  * An authentication service that delegates the authentication process to its configured {@link Realm realms}.
@@ -56,6 +66,12 @@ import java.util.function.Consumer;
  */
 public class AuthenticationService {
 
+    static final Setting<Boolean> SUCCESS_AUTH_CACHE_ENABLED =
+        Setting.boolSetting("xpack.security.authc.success_cache.enabled", true, Property.NodeScope);
+    private static final Setting<Integer> SUCCESS_AUTH_CACHE_MAX_SIZE =
+        Setting.intSetting("xpack.security.authc.success_cache.size", 10000, Property.NodeScope);
+    private static final Setting<TimeValue> SUCCESS_AUTH_CACHE_EXPIRE_AFTER_ACCESS =
+        Setting.timeSetting("xpack.security.authc.success_cache.expire_after_access", TimeValue.timeValueHours(1L), Property.NodeScope);
     private static final Logger logger = LogManager.getLogger(AuthenticationService.class);
 
     private final Realms realms;
@@ -65,6 +81,8 @@ public class AuthenticationService {
     private final String nodeName;
     private final AnonymousUser anonymousUser;
     private final TokenService tokenService;
+    private final Cache<String, Realm> lastSuccessfulAuthCache;
+    private final AtomicLong numInvalidation = new AtomicLong();
     private final ApiKeyService apiKeyService;
     private final boolean runAsEnabled;
     private final boolean isAnonymousUserEnabled;
@@ -81,6 +99,14 @@ public class AuthenticationService {
         this.runAsEnabled = AuthenticationServiceField.RUN_AS_ENABLED.get(settings);
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.tokenService = tokenService;
+        if (SUCCESS_AUTH_CACHE_ENABLED.get(settings)) {
+            this.lastSuccessfulAuthCache = CacheBuilder.<String, Realm>builder()
+                .setMaximumWeight(Integer.toUnsignedLong(SUCCESS_AUTH_CACHE_MAX_SIZE.get(settings)))
+                .setExpireAfterAccess(SUCCESS_AUTH_CACHE_EXPIRE_AFTER_ACCESS.get(settings))
+                .build();
+        } else {
+            this.lastSuccessfulAuthCache = null;
+        }
         this.apiKeyService = apiKeyService;
     }
 
@@ -125,6 +151,28 @@ public class AuthenticationService {
         new Authenticator(action, message, null, listener).authenticateToken(token);
     }
 
+    public void expire(String principal) {
+        if (lastSuccessfulAuthCache != null) {
+            numInvalidation.incrementAndGet();
+            lastSuccessfulAuthCache.invalidate(principal);
+        }
+    }
+
+    public void expireAll() {
+        if (lastSuccessfulAuthCache != null) {
+            numInvalidation.incrementAndGet();
+            lastSuccessfulAuthCache.invalidateAll();
+        }
+    }
+
+    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+        if (lastSuccessfulAuthCache != null) {
+            if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)) {
+                expireAll();
+            }
+        }
+    }
+
     // pkg private method for testing
     Authenticator createAuthenticator(RestRequest request, ActionListener<Authentication> listener) {
         return new Authenticator(request, listener);
@@ -133,6 +181,11 @@ public class AuthenticationService {
     // pkg private method for testing
     Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
         return new Authenticator(action, message, fallbackUser, listener);
+    }
+
+    // pkg private method for testing
+    long getNumInvalidation() {
+        return numInvalidation.get();
     }
 
     /**
@@ -294,7 +347,8 @@ public class AuthenticationService {
                 handleNullToken();
             } else {
                 authenticationToken = token;
-                final List<Realm> realmsList = realms.asList();
+                final List<Realm> realmsList = getRealmList(authenticationToken.principal());
+                final long startInvalidation = numInvalidation.get();
                 final Map<Realm, Tuple<String, Exception>> messages = new LinkedHashMap<>();
                 final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
                     if (realm.supports(authenticationToken)) {
@@ -304,6 +358,9 @@ public class AuthenticationService {
                                 // user was authenticated, populate the authenticated by information
                                 authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
                                 authenticationResult = result;
+                                if (lastSuccessfulAuthCache != null && startInvalidation == numInvalidation.get()) {
+                                    lastSuccessfulAuthCache.put(authenticationToken.principal(), realm);
+                                }
                                 userListener.onResponse(result.getUser());
                             } else {
                                 // the user was not authenticated, call this so we can audit the correct event
@@ -342,6 +399,27 @@ public class AuthenticationService {
                     listener.onFailure(request.exceptionProcessingRequest(e, token));
                 }
             }
+        }
+
+        private List<Realm> getRealmList(String principal) {
+            final List<Realm> defaultOrderedRealms = realms.asList();
+            if (lastSuccessfulAuthCache != null) {
+                final Realm lastSuccess = lastSuccessfulAuthCache.get(principal);
+                if (lastSuccess != null) {
+                    final int index = defaultOrderedRealms.indexOf(lastSuccess);
+                    if (index > 0) {
+                        final List<Realm> smartOrder = new ArrayList<>(defaultOrderedRealms.size());
+                        smartOrder.add(lastSuccess);
+                        for (int i = 1; i < defaultOrderedRealms.size(); i++) {
+                            if (i != index) {
+                                smartOrder.add(defaultOrderedRealms.get(i));
+                            }
+                        }
+                        return Collections.unmodifiableList(smartOrder);
+                    }
+                }
+            }
+            return defaultOrderedRealms;
         }
 
         /**
@@ -424,7 +502,8 @@ public class AuthenticationService {
          * names of users that exist using a timing attack
          */
         private void lookupRunAsUser(final User user, String runAsUsername, Consumer<User> userConsumer) {
-            final RealmUserLookup lookup = new RealmUserLookup(realms.asList(), threadContext);
+            final RealmUserLookup lookup = new RealmUserLookup(getRealmList(runAsUsername), threadContext);
+            final long startInvalidationNum = numInvalidation.get();
             lookup.lookup(runAsUsername, ActionListener.wrap(tuple -> {
                 if (tuple == null) {
                     // the user does not exist, but we still create a User object, which will later be rejected by authz
@@ -433,6 +512,11 @@ public class AuthenticationService {
                     User foundUser = Objects.requireNonNull(tuple.v1());
                     Realm realm = Objects.requireNonNull(tuple.v2());
                     lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
+                    if (lastSuccessfulAuthCache != null && startInvalidationNum == numInvalidation.get()) {
+                        // only cache this as last success if it doesn't exist since this really isn't an auth attempt but
+                        // this might provide a valid hint
+                        lastSuccessfulAuthCache.computeIfAbsent(runAsUsername, s -> realm);
+                    }
                     userConsumer.accept(new User(foundUser, user));
                 }
             }, exception -> listener.onFailure(request.exceptionProcessingRequest(exception, authenticationToken))));
@@ -635,5 +719,8 @@ public class AuthenticationService {
 
     public static void addSettings(List<Setting<?>> settings) {
         settings.add(AuthenticationServiceField.RUN_AS_ENABLED);
+        settings.add(SUCCESS_AUTH_CACHE_ENABLED);
+        settings.add(SUCCESS_AUTH_CACHE_MAX_SIZE);
+        settings.add(SUCCESS_AUTH_CACHE_EXPIRE_AFTER_ACCESS);
     }
 }

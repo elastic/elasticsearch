@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -116,6 +117,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -147,6 +149,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws Exception {
         token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         message = new InternalMessage();
         remoteAddress = new InetSocketAddress(InetAddress.getLocalHost(), 100);
         message.remoteAddress(new TransportAddress(remoteAddress));
@@ -273,6 +276,134 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
         assertTrue(completed.get());
         verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", message);
+    }
+
+    public void testAuthenticateSmartRealmOrdering() {
+        User user = new User("_username", "r1");
+        when(firstRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(firstRealm, token, null);
+        when(secondRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(secondRealm, token, user);
+        when(secondRealm.token(threadContext)).thenReturn(token);
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
+            assertThat(result, notNullValue());
+            assertThat(result.getUser(), is(user));
+            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThreadContextContainsAuthentication(result);
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        assertTrue(completed.get());
+
+        completed.set(false);
+        service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
+            assertThat(result, notNullValue());
+            assertThat(result.getUser(), is(user));
+            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThreadContextContainsAuthentication(result);
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", message);
+        verify(auditTrail, times(2)).authenticationSuccess(reqId, secondRealm.name(), user, "_action", message);
+        verify(firstRealm, times(2)).name(); // used above one time
+        verify(secondRealm, times(3)).name(); // used above one time
+        verify(secondRealm, times(2)).type(); // used to create realm ref
+        verify(firstRealm, times(2)).token(threadContext);
+        verify(secondRealm, times(2)).token(threadContext);
+        verify(firstRealm).supports(token);
+        verify(secondRealm, times(2)).supports(token);
+        verify(firstRealm).authenticate(eq(token), any(ActionListener.class));
+        verify(secondRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
+        verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
+    }
+
+    public void testCacheClearOnSecurityIndexChange() {
+        long expectedInvalidation = 0L;
+        assertEquals(expectedInvalidation, service.getNumInvalidation());
+
+        // existing to no longer present
+        SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        SecurityIndexManager.State currentState = dummyState(null);
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(++expectedInvalidation, service.getNumInvalidation());
+
+        // doesn't exist to exists
+        previousState = dummyState(null);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(++expectedInvalidation, service.getNumInvalidation());
+
+        // green or yellow to red
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(ClusterHealthStatus.RED);
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(expectedInvalidation, service.getNumInvalidation());
+
+        // red to non red
+        previousState = dummyState(ClusterHealthStatus.RED);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(++expectedInvalidation, service.getNumInvalidation());
+
+        // green to yellow or yellow to green
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
+            ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
+        service.onSecurityIndexStateChange(previousState, currentState);
+        assertEquals(expectedInvalidation, service.getNumInvalidation());
+    }
+
+    public void testAuthenticateSmartRealmOrderingDisabled() {
+        final Settings settings = Settings.builder()
+            .put(AuthenticationService.SUCCESS_AUTH_CACHE_ENABLED.getKey(), false)
+            .build();
+        service = new AuthenticationService(settings, realms, auditTrail,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(Settings.EMPTY),
+            tokenService, apiKeyService);
+        User user = new User("_username", "r1");
+        when(firstRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(firstRealm, token, null);
+        when(secondRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(secondRealm, token, user);
+        when(secondRealm.token(threadContext)).thenReturn(token);
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
+            assertThat(result, notNullValue());
+            assertThat(result.getUser(), is(user));
+            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThreadContextContainsAuthentication(result);
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        assertTrue(completed.get());
+
+        completed.set(false);
+        service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {
+            assertThat(result, notNullValue());
+            assertThat(result.getUser(), is(user));
+            assertThat(result.getLookedUpBy(), is(nullValue()));
+            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThreadContextContainsAuthentication(result);
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        verify(auditTrail, times(2)).authenticationFailed(reqId, firstRealm.name(), token, "_action", message);
+        verify(auditTrail, times(2)).authenticationSuccess(reqId, secondRealm.name(), user, "_action", message);
+        verify(firstRealm, times(3)).name(); // used above one time
+        verify(secondRealm, times(3)).name(); // used above one time
+        verify(secondRealm, times(2)).type(); // used to create realm ref
+        verify(firstRealm, times(2)).token(threadContext);
+        verify(secondRealm, times(2)).token(threadContext);
+        verify(firstRealm, times(2)).supports(token);
+        verify(secondRealm, times(2)).supports(token);
+        verify(firstRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
+        verify(secondRealm, times(2)).authenticate(eq(token), any(ActionListener.class));
+        verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
     }
 
     public void testAuthenticateFirstNotSupportingSecondSucceeds() throws Exception {
@@ -641,6 +772,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRealmSupportsMethodThrowingException() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenThrow(authenticationError("realm doesn't like supports"));
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -655,6 +787,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRealmSupportsMethodThrowingExceptionRest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenThrow(authenticationError("realm doesn't like supports"));
         try {
@@ -670,6 +803,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testRealmAuthenticateTerminatingAuthenticationProcess() throws Exception {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         final AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         final boolean terminateWithNoException = rarely();
@@ -711,6 +845,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRealmAuthenticateThrowingException() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         doThrow(authenticationError("realm doesn't like authenticate"))
@@ -727,6 +862,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRealmAuthenticateThrowingExceptionRest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         doThrow(authenticationError("realm doesn't like authenticate"))
@@ -743,6 +879,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRealmLookupThrowingException() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
@@ -763,6 +900,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRealmLookupThrowingExceptionRest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
@@ -782,6 +920,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRunAsLookupSameRealm() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
@@ -831,6 +970,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testRunAsLookupDifferentRealm() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
@@ -868,6 +1008,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRunAsWithEmptyRunAsUsernameRest() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         User user = new User("lookup user", new String[]{"user"});
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "");
         when(secondRealm.token(threadContext)).thenReturn(token);
@@ -886,6 +1027,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testRunAsWithEmptyRunAsUsername() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         User user = new User("lookup user", new String[]{"user"});
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "");
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -905,6 +1047,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testAuthenticateTransportDisabledRunAsUser() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         when(secondRealm.token(threadContext)).thenReturn(token);
@@ -926,6 +1069,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testAuthenticateRestDisabledRunAsUser() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.principal()).thenReturn(randomAlphaOfLength(5));
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
@@ -1233,5 +1377,9 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     private void setCompletedToTrue(AtomicBoolean completed) {
         assertTrue(completed.compareAndSet(false, true));
+    }
+
+    private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
+        return new SecurityIndexManager.State(true, true, true, true, null, indexStatus);
     }
 }

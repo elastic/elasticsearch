@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -140,20 +141,19 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
     }
 
     public void testGlobalType() throws IOException {
-        BulkRequest request = new BulkRequest(null, "_doc");
+        BulkRequest request = new BulkRequest(null, "global_type");
         request.add(new IndexRequest("index").id("1")
             .source(XContentType.JSON, "field", "bulk1"));
         request.add(new IndexRequest("index").id("2")
             .source(XContentType.JSON, "field", "bulk2"));
 
-        bulk(request);
+        bulkWithTypes(request);
 
         Iterable<SearchHit> hits = searchAll("index");
-        assertThat(hits, everyItem(hasType("_doc")));
+        assertThat(hits, everyItem(hasType("global_type")));
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/36549")
     public void testTypeGlobalAndPerRequest() throws IOException {
         BulkRequest request = new BulkRequest(null, "global_type");
         request.add(new IndexRequest("index1", "local_type", "1")
@@ -161,7 +161,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         request.add(new IndexRequest("index2").id("2") // will take global type
             .source(XContentType.JSON, "field", "bulk2"));
 
-        bulk(request);
+        bulkWithTypes(request);
 
         Iterable<SearchHit> hits = searchAll("index1", "index2");
         assertThat(hits, containsInAnyOrder(
@@ -174,7 +174,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
     @SuppressWarnings("unchecked")
     public void testGlobalRouting() throws IOException {
         createIndexWithMultipleShards("index");
-        BulkRequest request = new BulkRequest(null, null);
+        BulkRequest request = new BulkRequest(null);
         request.add(new IndexRequest("index").id("1")
             .source(XContentType.JSON, "field", "bulk1"));
         request.add(new IndexRequest("index").id("2")
@@ -191,7 +191,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
     @SuppressWarnings("unchecked")
     public void testMixLocalAndGlobalRouting() throws IOException {
-        BulkRequest request = new BulkRequest(null, null);
+        BulkRequest request = new BulkRequest(null);
         request.routing("globalRouting");
         request.add(new IndexRequest("index").id("1")
             .source(XContentType.JSON, "field", "bulk1"));
@@ -204,12 +204,32 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         Iterable<SearchHit> hits = searchAll(new SearchRequest("index").routing("globalRouting", "localRouting"));
         assertThat(hits, containsInAnyOrder(hasId("1"), hasId("2")));
     }
+    
+    public void testGlobalIndexNoTypes() throws IOException {
+        BulkRequest request = new BulkRequest("global_index");
+        request.add(new IndexRequest().id("1")
+            .source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest().id("2")
+            .source(XContentType.JSON, "field", "bulk2"));
 
-    private BulkResponse bulk(BulkRequest request) throws IOException {
-        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync);
+        bulk(request);
+
+        Iterable<SearchHit> hits = searchAll("global_index");
+        assertThat(hits, everyItem(hasIndex("global_index")));
+    }    
+
+    private BulkResponse bulkWithTypes(BulkRequest request) throws IOException {
+        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync, 
+                expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         assertFalse(bulkResponse.hasFailures());
         return bulkResponse;
     }
+    
+    private BulkResponse bulk(BulkRequest request) throws IOException {
+        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync, RequestOptions.DEFAULT);
+        assertFalse(bulkResponse.hasFailures());
+        return bulkResponse;
+    }    
 
     @SuppressWarnings("unchecked")
     private static <T> Function<SearchHit, T> fieldFromSource(String fieldName) {

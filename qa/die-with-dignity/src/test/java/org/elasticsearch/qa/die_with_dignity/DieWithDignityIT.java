@@ -104,7 +104,7 @@ public class DieWithDignityIT extends ESRestTestCase {
                     final JsonLogLine line = it.next();
                     if (isFatalError(line)) {
                         fatalError = true;
-                    } else if (isFatalErrorInThreadExiting(line) || isWarnExceptionReceived(line)) {
+                    } else if (isFatalErrorInThreadExiting(line) || isErrorExceptionReceived(line)) {
                         fatalErrorInThreadExiting = true;
                         assertThat(line.stacktrace(),
                             hasItem(Matchers.containsString("java.lang.OutOfMemoryError: die with dignity")));
@@ -121,7 +121,7 @@ public class DieWithDignityIT extends ESRestTestCase {
         }
     }
 
-    private boolean isWarnExceptionReceived(JsonLogLine line) {
+    private boolean isErrorExceptionReceived(JsonLogLine line) {
         return line.level().equals("ERROR")
             && line.component().equals("o.e.h.AbstractHttpServerTransport")
             && line.nodeName().equals("node-0")

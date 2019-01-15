@@ -273,57 +273,79 @@ public class MlConfigMigrator {
     }
 
     /**
-     * Update the persistent task parameters of datafeed and job tasks
-     * that are missing the fields added in v6.6. If a task exists with
-     * the missing field it must have been created in an earlier version
-     * and survived an elasticsearch upgrade.
+     * Find any unallocated datafeed and job tasks and update their persistent
+     * task parameters if they have missing fields that were added in v6.6. If
+     * a task exists with a missing field it must have been created in an earlier
+     * version and survived an elasticsearch upgrade.
      *
-     * The return value is the same as the {@code currentTasks} parameter.
-     * Rather than a deep copy being made the tasks are modifed in place.
+     * If there are no unallocated tasks the {@code currentTasks} argument is returned.
      *
      * @param jobs          Job configs
      * @param datafeeds     Datafeed configs
      * @param currentTasks  The persistent tasks
      * @param nodes         The nodes in the cluster
-     * @return  The argument {@code currentTasks}
+     * @return  The updated tasks
      */
     public static PersistentTasksCustomMetaData rewritePersistentTaskParams(Map<String, Job> jobs, Map<String, DatafeedConfig> datafeeds,
                                                                             PersistentTasksCustomMetaData currentTasks,
                                                                             DiscoveryNodes nodes) {
 
         Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedJobTasks = MlTasks.unallocatedJobTasks(currentTasks, nodes);
+        Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedDatafeedsTasks =
+                MlTasks.unallocatedDatafeedTasks(currentTasks, nodes);
+
+        if (unallocatedJobTasks.isEmpty() && unallocatedDatafeedsTasks.isEmpty()) {
+            return currentTasks;
+        }
+
+        PersistentTasksCustomMetaData.Builder taskBuilder = PersistentTasksCustomMetaData.builder(currentTasks);
 
         for (PersistentTasksCustomMetaData.PersistentTask jobTask : unallocatedJobTasks) {
-            OpenJobAction.JobParams params = (OpenJobAction.JobParams) jobTask.getParams();
-            if (params.getJob() == null) {
-                Job job = jobs.get(params.getJobId());
+            OpenJobAction.JobParams originalParams = (OpenJobAction.JobParams) jobTask.getParams();
+            if (originalParams.getJob() == null) {
+                Job job = jobs.get(originalParams.getJobId());
                 if (job != null) {
-                    logger.debug("updating persistent task params for job [{}]", params.getJobId());
-                    params.setJob(job);
+                    logger.debug("updating persistent task params for job [{}]", originalParams.getJobId());
+
+                    // copy and update the job parameters
+                    OpenJobAction.JobParams updatedParams = new OpenJobAction.JobParams(originalParams.getJobId());
+                    updatedParams.setTimeout(originalParams.getTimeout());
+                    updatedParams.setJob(job);
+
+                    // replace with the updated params
+                    taskBuilder.removeTask(jobTask.getId());
+                    taskBuilder.addTask(jobTask.getId(), jobTask.getTaskName(), updatedParams, jobTask.getAssignment());
                 } else {
                     logger.error("cannot find job for task [{}]", jobTask.getId());
                 }
             }
         }
 
-        Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedDatafeedsTasks =
-                MlTasks.unallocatedDatafeedTasks(currentTasks, nodes);
-
         for (PersistentTasksCustomMetaData.PersistentTask datafeedTask : unallocatedDatafeedsTasks) {
-            StartDatafeedAction.DatafeedParams params = (StartDatafeedAction.DatafeedParams) datafeedTask.getParams();
-            if (params.getJobId() == null) {
-                DatafeedConfig datafeedConfig = datafeeds.get(params.getDatafeedId());
+            StartDatafeedAction.DatafeedParams originalParams = (StartDatafeedAction.DatafeedParams) datafeedTask.getParams();
+
+            if (originalParams.getJobId() == null) {
+                DatafeedConfig datafeedConfig = datafeeds.get(originalParams.getDatafeedId());
                 if (datafeedConfig != null) {
-                    logger.debug("Updating persistent task params for datafeed [{}]", params.getDatafeedId());
-                    params.setJobId(datafeedConfig.getJobId());
-                    params.setDatafeedIndices(datafeedConfig.getIndices());
+                    logger.debug("Updating persistent task params for datafeed [{}]", originalParams.getDatafeedId());
+
+                    StartDatafeedAction.DatafeedParams updatedParams =
+                            new StartDatafeedAction.DatafeedParams(originalParams.getDatafeedId(), originalParams.getStartTime());
+                    updatedParams.setTimeout(originalParams.getTimeout());
+                    updatedParams.setEndTime(originalParams.getEndTime());
+                    updatedParams.setJobId(datafeedConfig.getJobId());
+                    updatedParams.setDatafeedIndices(datafeedConfig.getIndices());
+
+                    // replace with the updated params
+                    taskBuilder.removeTask(datafeedTask.getId());
+                    taskBuilder.addTask(datafeedTask.getId(), datafeedTask.getTaskName(), updatedParams, datafeedTask.getAssignment());
                 } else {
                     logger.error("cannot find datafeed for task [{}]", datafeedTask.getId());
                 }
             }
         }
 
-        return currentTasks;
+        return taskBuilder.build();
     }
 
     static class RemovalResult {

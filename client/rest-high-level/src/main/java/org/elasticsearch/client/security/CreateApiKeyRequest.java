@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -37,9 +36,9 @@ import java.util.Objects;
  */
 public final class CreateApiKeyRequest implements Validatable, ToXContentObject {
 
-    private String name;
-    private TimeValue expiration;
-    private List<Role> roles = Collections.emptyList();
+    private final String name;
+    private final TimeValue expiration;
+    private final List<Role> roles;
     private final RefreshPolicy refreshPolicy;
 
     /**
@@ -48,8 +47,7 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
      * @param roles list of {@link Role}s
      * @param expiration to specify expiration for the API key
      */
-    public CreateApiKeyRequest(String name, List<Role> roles, @Nullable TimeValue expiration,
-            @Nullable final RefreshPolicy refreshPolicy) {
+    public CreateApiKeyRequest(String name, List<Role> roles, @Nullable TimeValue expiration, @Nullable final RefreshPolicy refreshPolicy) {
         if (Strings.hasText(name)) {
             this.name = name;
         } else {
@@ -64,24 +62,12 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public TimeValue getExpiration() {
         return expiration;
     }
 
-    public void setExpiration(TimeValue expiration) {
-        this.expiration = expiration;
-    }
-
     public List<Role> getRoles() {
         return roles;
-    }
-
-    public void setRoles(List<Role> roles) {
-        this.roles = roles;
     }
 
     public RefreshPolicy getRefreshPolicy() {

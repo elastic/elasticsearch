@@ -228,6 +228,8 @@ documents. If the total number of hits that match the query is greater than this
          "hits": ...
      }
 }
+--------------------------------------------------
+// NOTCONSOLE
 
 <1> There are at least 10000 documents that match the query
 <2> This is a lower bound (`"gte"`).

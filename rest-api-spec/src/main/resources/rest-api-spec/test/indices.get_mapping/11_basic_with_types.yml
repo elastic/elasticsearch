@@ -21,6 +21,7 @@ setup:
 
  - do:
      indices.get_mapping:
+       include_type_name: true
        index: t
 
  - match: { t.mappings: {}}
@@ -29,7 +30,8 @@ setup:
 "Get /_mapping":
 
  - do:
-    indices.get_mapping: {}
+    indices.get_mapping:
+      include_type_name: true
 
  - is_true: test_1.mappings.doc
  - is_true: test_2.mappings.doc
@@ -39,6 +41,7 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: true
         index: test_1
 
  - is_true: test_1.mappings.doc
@@ -50,6 +53,7 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: true
         index: test_1
         type:  _all
 
@@ -61,6 +65,7 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: true
         index: test_1
         type:  '*'
 
@@ -72,6 +77,7 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: true
         index: test_1
         type:  doc
 
@@ -83,6 +89,7 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: true
         index: test_1
         type:  'd*'
 
@@ -94,6 +101,7 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: true
         type: doc
 
  - is_true: test_1.mappings.doc
@@ -104,6 +112,7 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: true
         index: _all
         type: doc
 
@@ -115,6 +124,7 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: true
         index: '*'
         type: doc
 
@@ -126,6 +136,7 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: true
         index: test_1,test_2
         type: doc
 
@@ -137,6 +148,7 @@ setup:
 
  - do:
     indices.get_mapping:
+        include_type_name: true
         index: '*2'
         type: doc
 

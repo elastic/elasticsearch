@@ -7,7 +7,7 @@ metadata, such as the class that a document belongs to:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -31,7 +31,7 @@ The `_meta` field can be updated on an existing type using the
 
 [source,js]
 --------------------------------------------------
-PUT my_index/_mapping/_doc
+PUT my_index/_mapping
 {
   "_meta": {
     "class": "MyApp2::User3",

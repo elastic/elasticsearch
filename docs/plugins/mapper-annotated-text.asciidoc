@@ -24,7 +24,7 @@ the search index:
 
 [source,js]
 --------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -168,7 +168,7 @@ sense to include them in dedicated structured fields to support discovery via ag
 
 [source,js]
 --------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

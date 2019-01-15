@@ -82,9 +82,20 @@ public class ClusterBootstrapService {
     void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
         if (transportService.getLocalNode().isMasterNode() && initialMasterNodes.isEmpty() == false
-            && nodes.stream().noneMatch(Coordinator::isZen1Node) && checkWaitRequirements(nodes)) {
+            && nodes.stream().noneMatch(Coordinator::isZen1Node)) {
 
-            startBootstrap(nodes);
+            final boolean waitRequirementsPassed;
+            try {
+                waitRequirementsPassed = checkWaitRequirements(nodes);
+            } catch (IllegalStateException e) {
+                logger.warn("bootstrapping cancelled", e);
+                bootstrappingPermitted.set(false);
+                return;
+            }
+
+            if (waitRequirementsPassed) {
+                startBootstrap(nodes);
+            }
         }
     }
 
@@ -172,17 +183,13 @@ public class ClusterBootstrapService {
                 return false;
             }
             if (matchingNodes.size() > 1) {
-                bootstrappingPermitted.set(false);
-                logger.warn("bootstrapping cancelled: requirement [{}] matches multiple nodes: {}", requirement, matchingNodes);
-                return false;
+                throw new IllegalStateException("requirement [" + requirement + "] matches multiple nodes: " + matchingNodes);
             }
 
             for (final DiscoveryNode matchingNode : matchingNodes) {
                 if (selectedNodes.add(matchingNode) == false) {
-                    bootstrappingPermitted.set(false);
-                    logger.warn("bootstrapping cancelled: node [{}] matches multiple requirements: {}", matchingNode,
+                    throw new IllegalStateException("node [" + matchingNode + "] matches multiple requirements: " +
                         initialMasterNodes.stream().filter(r -> matchesRequirement(matchingNode, r)).collect(Collectors.toList()));
-                    return false;
                 }
             }
         }

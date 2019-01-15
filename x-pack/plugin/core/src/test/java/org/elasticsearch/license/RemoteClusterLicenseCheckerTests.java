@@ -82,26 +82,26 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
     }
 
     public void testNoRemoteClusterAliases() {
-        Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
         final List<String> indices = Arrays.asList("local-index1", "local-index2");
         assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), empty());
     }
 
     public void testOneRemoteClusterAlias() {
-        Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
         final List<String> indices = Arrays.asList("local-index1", "remote-cluster1:remote-index1");
         assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), contains("remote-cluster1"));
     }
 
     public void testMoreThanOneRemoteClusterAlias() {
-        Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
         final List<String> indices = Arrays.asList("remote-cluster1:remote-index1", "local-index1", "remote-cluster2:remote-index1");
         assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices),
                 containsInAnyOrder("remote-cluster1", "remote-cluster2"));
     }
 
     public void testDuplicateRemoteClusterAlias() {
-        Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
         final List<String> indices = Arrays.asList(
                 "remote-cluster1:remote-index1", "local-index1", "remote-cluster2:index1", "remote-cluster2:remote-index2");
         assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices),
@@ -109,20 +109,20 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
     }
 
     public void testSimpleWildcardRemoteClusterAlias() {
-        Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
         final List<String> indices = Arrays.asList("*:remote-index1", "local-index1");
         assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices),
                 containsInAnyOrder("remote-cluster1", "remote-cluster2"));
     }
 
     public void testPartialWildcardRemoteClusterAlias() {
-        Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
         final List<String> indices = Arrays.asList("*2:remote-index1", "local-index1");
         assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), contains("remote-cluster2"));
     }
 
     public void testNonMatchingWildcardRemoteClusterAlias() {
-        Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
         final List<String> indices = Arrays.asList("*3:remote-index1", "local-index1");
         assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), empty());
     }

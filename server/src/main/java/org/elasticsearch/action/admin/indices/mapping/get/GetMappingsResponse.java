@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 
 import java.io.IOException;
@@ -101,22 +102,17 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         for (Map.Entry<String, Object> entry : parts.entrySet()) {
             final String indexName = entry.getKey();
             assert entry.getValue() instanceof Map : "expected a map as type mapping, but got: " + entry.getValue().getClass();
-            @SuppressWarnings("unchecked")
-            final Map<String, Object> mapping = (Map<String, Object>) ((Map<String, ?>) entry.getValue()).get(MAPPINGS.getPreferredName());
-
             ImmutableOpenMap.Builder<String, MappingMetaData> typeBuilder = new ImmutableOpenMap.Builder<>();
-            for (Map.Entry<String, Object> typeEntry : mapping.entrySet()) {
-                final String typeName = typeEntry.getKey();
-                assert typeEntry.getValue() instanceof Map : "expected a map as inner type mapping, but got: " +
-                    typeEntry.getValue().getClass();
-                @SuppressWarnings("unchecked")
-                final Map<String, Object> fieldMappings = (Map<String, Object>) typeEntry.getValue();
-                MappingMetaData mmd = new MappingMetaData(typeName, fieldMappings);
-                typeBuilder.put(typeName, mmd);
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> fieldMappings = (Map<String, Object>) ((Map<String, ?>) entry.getValue())
+                    .get(MAPPINGS.getPreferredName());
+            if (fieldMappings.isEmpty() == false) {
+                assert fieldMappings instanceof Map : "expected a map as inner type mapping, but got: " + fieldMappings.getClass();
+                MappingMetaData mmd = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, fieldMappings);
+                typeBuilder.put(MapperService.SINGLE_MAPPING_NAME, mmd);
             }
             builder.put(indexName, typeBuilder.build());
         }
-
         return new GetMappingsResponse(builder.build());
     }
 

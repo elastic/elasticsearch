@@ -5,13 +5,11 @@ setup:
       reason: include_type_name defaults to true before 7.0
   - do:
         indices.create:
-          include_type_name: false
           index: test_1
           body:
             mappings: {}
   - do:
         indices.create:
-          include_type_name: false
           index: test_2
           body:
             mappings: {}

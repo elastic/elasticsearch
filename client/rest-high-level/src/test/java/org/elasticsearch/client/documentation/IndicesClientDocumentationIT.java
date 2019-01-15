@@ -609,7 +609,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::get-mappings-request
             GetMappingsRequest request = new GetMappingsRequest(); // <1>
             request.indices("twitter"); // <2>
-            request.types("_doc"); // <3>
             // end::get-mappings-request
 
             // tag::get-mappings-request-masterTimeout
@@ -665,7 +664,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             GetMappingsRequest request = new GetMappingsRequest();
             request.indices("twitter");
-            request.types("_doc");
 
             // tag::get-mappings-execute-listener
             ActionListener<GetMappingsResponse> listener =

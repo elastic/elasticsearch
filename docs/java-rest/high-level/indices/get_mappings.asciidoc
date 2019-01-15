@@ -18,7 +18,6 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> An empty request that will return all indices and types
 <2> Setting the indices to fetch mapping for
-<3> The types to be returned
 
 ==== Optional arguments
 The following arguments can also optionally be provided:

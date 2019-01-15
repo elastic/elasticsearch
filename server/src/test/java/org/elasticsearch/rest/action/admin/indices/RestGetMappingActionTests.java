@@ -69,4 +69,20 @@ public class RestGetMappingActionTests extends RestActionTestCase {
         assertEquals(1, channel.errors().get());
         assertEquals(RestStatus.BAD_REQUEST, channel.capturedResponse().status());
     }
+
+    public void testTypeUrlParamerterDeprecation() throws Exception {
+        Map<String, String> params = new HashMap<>();
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.GET)
+            .withParams(params)
+            .withPath("some_index/some_type/_mapping/some_field")
+            .build();
+
+        RestGetMappingAction handler = new RestGetMappingAction(Settings.EMPTY, mock(RestController.class));
+        handler.prepareRequest(request, mock(NodeClient.class));
+
+        assertWarnings(RestGetMappingAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
 }

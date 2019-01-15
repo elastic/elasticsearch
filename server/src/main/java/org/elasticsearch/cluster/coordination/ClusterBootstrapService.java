@@ -173,15 +173,15 @@ public class ClusterBootstrapService {
             }
             if (matchingNodes.size() > 1) {
                 bootstrappingPermitted.set(false);
-                logger.warn("bootstrapping cancelled: [{}] matches {}", requirement, matchingNodes);
+                logger.warn("bootstrapping cancelled: requirement [{}] matches multiple nodes: {}", requirement, matchingNodes);
                 return false;
             }
 
             for (final DiscoveryNode matchingNode : matchingNodes) {
                 if (selectedNodes.add(matchingNode) == false) {
                     bootstrappingPermitted.set(false);
-                    logger.warn("bootstrapping cancelled: [{}] matches {}", matchingNode, initialMasterNodes.stream()
-                        .filter(r -> matchesRequirement(matchingNode, requirement)).collect(Collectors.toList()));
+                    logger.warn("bootstrapping cancelled: node [{}] matches multiple requirements: {}", matchingNode,
+                        initialMasterNodes.stream().filter(r -> matchesRequirement(matchingNode, r)).collect(Collectors.toList()));
                     return false;
                 }
             }

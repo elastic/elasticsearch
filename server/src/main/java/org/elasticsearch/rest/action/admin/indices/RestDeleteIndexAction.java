@@ -32,6 +32,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 
 public class RestDeleteIndexAction extends BaseRestHandler {
+
     public RestDeleteIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.DELETE, "/", this);
@@ -48,10 +49,11 @@ public class RestDeleteIndexAction extends BaseRestHandler {
         if (request.hasContent()) {
             throw new IllegalArgumentException("delete index requests can not have a request body");
         }
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        final DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteIndexRequest.timeout(request.paramAsTime("timeout", deleteIndexRequest.timeout()));
         deleteIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexRequest.masterNodeTimeout()));
         deleteIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteIndexRequest.indicesOptions()));
         return channel -> client.admin().indices().delete(deleteIndexRequest, new RestToXContentListener<>(channel));
     }
+
 }

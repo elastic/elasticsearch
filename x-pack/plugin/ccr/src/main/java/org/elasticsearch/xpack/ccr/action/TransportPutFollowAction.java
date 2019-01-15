@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -158,14 +159,20 @@ public final class TransportPutFollowAction
         RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(leaderClusterRepoName,
             CcrRepository.LATEST, new String[]{request.getLeaderIndex()}, request.indicesOptions(),
             "^(.*)$", request.getFollowRequest().getFollowerIndex(), Settings.EMPTY, request.masterNodeTimeout(), false,
-            false, true, settingsBuilder.build(), new String[0],
+            false, false, settingsBuilder.build(), new String[0],
             "restore_snapshot[" + leaderClusterRepoName + ":" + request.getLeaderIndex() + "]");
         initiateRestore(restoreRequest, restoreCompleteHandler);
     }
 
     private void initiateRestore(RestoreService.RestoreRequest restoreRequest, ActionListener<RestoreSnapshotResponse> listener) {
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-            try {
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
                 restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
                     @Override
                     public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
@@ -179,10 +186,9 @@ public final class TransportPutFollowAction
                         listener.onFailure(e);
                     }
                 });
-            } catch (Exception e) {
-                listener.onFailure(e);
             }
         });
+
     }
 
     private void initiateFollowing(

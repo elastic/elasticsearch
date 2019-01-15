@@ -240,7 +240,7 @@ Let's see how it works with a real sample. Considering the following mapping:
 
 [source,js]
 --------------------------------------------------
-PUT /sales
+PUT /sales?include_type_name=true
 {
     "mappings": {
         "_doc" : {

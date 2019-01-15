@@ -42,7 +42,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -331,19 +330,47 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return new IndexTemplateMetaData(name, order, version, indexPatterns, settings, mappings.build(), aliases.build());
         }
 
-        public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
-                throws IOException {
+        /**
+         * Serializes the template to xContent, using the legacy format where the mappings are
+         * nested under the type name.
+         *
+         * This method is used for serializing templates before storing them in the cluster metadata,
+         * and also in the REST layer when returning a deprecated typed response.
+         */
+        public static void toXContentWithTypes(IndexTemplateMetaData indexTemplateMetaData,
+                                               XContentBuilder builder,
+                                               ToXContent.Params params) throws IOException {
             builder.startObject(indexTemplateMetaData.name());
-
-            toInnerXContent(indexTemplateMetaData, builder, params);
-
+            toInnerXContent(indexTemplateMetaData, builder, params, true);
             builder.endObject();
         }
 
-        public static void toInnerXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
-            throws IOException {
+        /**
+         * Serializes the template to xContent, making sure not to nest mappings under the
+         * type name.
+         *
+         * Note that this method should currently only be used for creating REST responses,
+         * and not when directly updating stored templates. Index templates are still stored
+         * in the old, typed format, and have yet to be migrated to be typeless.
+         */
+        public static void toXContent(IndexTemplateMetaData indexTemplateMetaData,
+                                      XContentBuilder builder,
+                                      ToXContent.Params params) throws IOException {
+            builder.startObject(indexTemplateMetaData.name());
+            toInnerXContent(indexTemplateMetaData, builder, params, false);
+            builder.endObject();
+        }
 
-            boolean includeTypeName = params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, true);
+        static void toInnerXContentWithTypes(IndexTemplateMetaData indexTemplateMetaData,
+                                             XContentBuilder builder,
+                                             ToXContent.Params params) throws IOException {
+            toInnerXContent(indexTemplateMetaData, builder, params, true);
+        }
+
+        private static void toInnerXContent(IndexTemplateMetaData indexTemplateMetaData,
+                                            XContentBuilder builder,
+                                            ToXContent.Params params,
+                                            boolean includeTypeName) throws IOException {
 
             builder.field("order", indexTemplateMetaData.order());
             if (indexTemplateMetaData.version() != null) {

@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -80,6 +83,20 @@ public class RetentionLeaseTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> new RetentionLease("id", randomNonNegativeLong(), randomNonNegativeLong(), ""));
         assertThat(e, hasToString(containsString("retention lease source can not be empty")));
+    }
+
+    public void testRetentionLeaseSerialization() throws IOException {
+        final String id = randomAlphaOfLength(8);
+        final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        final long timestamp = randomNonNegativeLong();
+        final String source = randomAlphaOfLength(8);
+        final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            retentionLease.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(retentionLease, equalTo(new RetentionLease(in)));
+            }
+        }
     }
 
     public void testRetentionLeaseEncoding() {

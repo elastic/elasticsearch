@@ -137,7 +137,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         case INDEXING:
         case STOPPING:
         case ABORTING:
-            logger.warn("Schedule was triggered for job [" + getJobId() + "], but prior indexer is still running.");
+            logger.warn("Schedule was triggered for job [" + getJobId() + "], but prior indexer is still running " +
+                "(with state [" + currentState + "]");
             return false;
 
         case STOPPED:
@@ -381,8 +382,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
         case STOPPING:
             logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-            doSaveState(finishAndSetState(), getPosition(), () -> {
-            });
+            doSaveState(finishAndSetState(), getPosition(), () -> {});
             return false;
 
         case STOPPED:

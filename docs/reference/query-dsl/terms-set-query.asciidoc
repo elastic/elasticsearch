@@ -12,7 +12,7 @@ be a number field:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index
+PUT /my-index?include_type_name=true
 {
     "mappings": {
         "_doc": {

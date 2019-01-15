@@ -72,8 +72,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     public void testDuellingFormatsValidParsing() {
         assertSameDate("1522332219", "epoch_second");
-        assertSameDate("1522332219.", "epoch_second");
-        assertSameDate("1522332219.0", "epoch_second");
         assertSameDate("0", "epoch_second");
         assertSameDate("1", "epoch_second");
         assertSameDate("1522332219321", "epoch_millis");
@@ -86,18 +84,36 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("20181126T121212.123-0800", "basic_date_time");
 
         assertSameDate("20181126T121212Z", "basic_date_time_no_millis");
+        assertSameDate("20181126T121212+01:00", "basic_date_time_no_millis");
+        assertSameDate("20181126T121212+0100", "basic_date_time_no_millis");
         assertSameDate("2018363", "basic_ordinal_date");
         assertSameDate("2018363T121212.123Z", "basic_ordinal_date_time");
+        assertSameDate("2018363T121212.123+0100", "basic_ordinal_date_time");
+        assertSameDate("2018363T121212.123+01:00", "basic_ordinal_date_time");
         assertSameDate("2018363T121212Z", "basic_ordinal_date_time_no_millis");
+        assertSameDate("2018363T121212+0100", "basic_ordinal_date_time_no_millis");
+        assertSameDate("2018363T121212+01:00", "basic_ordinal_date_time_no_millis");
         assertSameDate("121212.123Z", "basic_time");
+        assertSameDate("121212.123+0100", "basic_time");
+        assertSameDate("121212.123+01:00", "basic_time");
         assertSameDate("121212Z", "basic_time_no_millis");
+        assertSameDate("121212+0100", "basic_time_no_millis");
+        assertSameDate("121212+01:00", "basic_time_no_millis");
         assertSameDate("T121212.123Z", "basic_t_time");
+        assertSameDate("T121212.123+0100", "basic_t_time");
+        assertSameDate("T121212.123+01:00", "basic_t_time");
         assertSameDate("T121212Z", "basic_t_time_no_millis");
+        assertSameDate("T121212+0100", "basic_t_time_no_millis");
+        assertSameDate("T121212+01:00", "basic_t_time_no_millis");
         assertSameDate("2018W313", "basic_week_date");
         assertSameDate("1W313", "basic_week_date");
         assertSameDate("18W313", "basic_week_date");
         assertSameDate("2018W313T121212.123Z", "basic_week_date_time");
+        assertSameDate("2018W313T121212.123+0100", "basic_week_date_time");
+        assertSameDate("2018W313T121212.123+01:00", "basic_week_date_time");
         assertSameDate("2018W313T121212Z", "basic_week_date_time_no_millis");
+        assertSameDate("2018W313T121212+0100", "basic_week_date_time_no_millis");
+        assertSameDate("2018W313T121212+01:00", "basic_week_date_time_no_millis");
 
         assertSameDate("2018-12-31", "date");
         assertSameDate("18-5-6", "date");
@@ -127,6 +143,9 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-05-30T20:21", "date_optional_time");
         assertSameDate("2018-05-30T20:21:23", "date_optional_time");
         assertSameDate("2018-05-30T20:21:23.123", "date_optional_time");
+        assertSameDate("2018-05-30T20:21:23.123Z", "date_optional_time");
+        assertSameDate("2018-05-30T20:21:23.123+0100", "date_optional_time");
+        assertSameDate("2018-05-30T20:21:23.123+01:00", "date_optional_time");
         assertSameDate("2018-12-1", "date_optional_time");
         assertSameDate("2018-12-31T10:15:30", "date_optional_time");
         assertSameDate("2018-12-31T10:15:3", "date_optional_time");
@@ -134,13 +153,27 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-12-31T1:15:30", "date_optional_time");
 
         assertSameDate("2018-12-31T10:15:30.123Z", "date_time");
+        assertSameDate("2018-12-31T10:15:30.123+0100", "date_time");
+        assertSameDate("2018-12-31T10:15:30.123+01:00", "date_time");
         assertSameDate("2018-12-31T10:15:30.11Z", "date_time");
+        assertSameDate("2018-12-31T10:15:30.11+0100", "date_time");
+        assertSameDate("2018-12-31T10:15:30.11+01:00", "date_time");
         assertSameDate("2018-12-31T10:15:3.123Z", "date_time");
+        assertSameDate("2018-12-31T10:15:3.123+0100", "date_time");
+        assertSameDate("2018-12-31T10:15:3.123+01:00", "date_time");
 
         assertSameDate("2018-12-31T10:15:30Z", "date_time_no_millis");
+        assertSameDate("2018-12-31T10:15:30+0100", "date_time_no_millis");
+        assertSameDate("2018-12-31T10:15:30+01:00", "date_time_no_millis");
         assertSameDate("2018-12-31T10:5:30Z", "date_time_no_millis");
+        assertSameDate("2018-12-31T10:5:30+0100", "date_time_no_millis");
+        assertSameDate("2018-12-31T10:5:30+01:00", "date_time_no_millis");
         assertSameDate("2018-12-31T10:15:3Z", "date_time_no_millis");
+        assertSameDate("2018-12-31T10:15:3+0100", "date_time_no_millis");
+        assertSameDate("2018-12-31T10:15:3+01:00", "date_time_no_millis");
         assertSameDate("2018-12-31T1:15:30Z", "date_time_no_millis");
+        assertSameDate("2018-12-31T1:15:30+0100", "date_time_no_millis");
+        assertSameDate("2018-12-31T1:15:30+01:00", "date_time_no_millis");
 
         assertSameDate("12", "hour");
         assertSameDate("01", "hour");
@@ -165,36 +198,78 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-1", "ordinal_date");
 
         assertSameDate("2018-128T10:15:30.123Z", "ordinal_date_time");
+        assertSameDate("2018-128T10:15:30.123+0100", "ordinal_date_time");
+        assertSameDate("2018-128T10:15:30.123+01:00", "ordinal_date_time");
         assertSameDate("2018-1T10:15:30.123Z", "ordinal_date_time");
+        assertSameDate("2018-1T10:15:30.123+0100", "ordinal_date_time");
+        assertSameDate("2018-1T10:15:30.123+01:00", "ordinal_date_time");
 
         assertSameDate("2018-128T10:15:30Z", "ordinal_date_time_no_millis");
+        assertSameDate("2018-128T10:15:30+0100", "ordinal_date_time_no_millis");
+        assertSameDate("2018-128T10:15:30+01:00", "ordinal_date_time_no_millis");
         assertSameDate("2018-1T10:15:30Z", "ordinal_date_time_no_millis");
+        assertSameDate("2018-1T10:15:30+0100", "ordinal_date_time_no_millis");
+        assertSameDate("2018-1T10:15:30+01:00", "ordinal_date_time_no_millis");
 
         assertSameDate("10:15:30.123Z", "time");
+        assertSameDate("10:15:30.123+0100", "time");
+        assertSameDate("10:15:30.123+01:00", "time");
         assertSameDate("1:15:30.123Z", "time");
+        assertSameDate("1:15:30.123+0100", "time");
+        assertSameDate("1:15:30.123+01:00", "time");
         assertSameDate("10:1:30.123Z", "time");
+        assertSameDate("10:1:30.123+0100", "time");
+        assertSameDate("10:1:30.123+01:00", "time");
         assertSameDate("10:15:3.123Z", "time");
+        assertSameDate("10:15:3.123+0100", "time");
+        assertSameDate("10:15:3.123+01:00", "time");
         assertParseException("10:15:3.1", "time");
         assertParseException("10:15:3Z", "time");
 
         assertSameDate("10:15:30Z", "time_no_millis");
+        assertSameDate("10:15:30+0100", "time_no_millis");
+        assertSameDate("10:15:30+01:00", "time_no_millis");
         assertSameDate("01:15:30Z", "time_no_millis");
+        assertSameDate("01:15:30+0100", "time_no_millis");
+        assertSameDate("01:15:30+01:00", "time_no_millis");
         assertSameDate("1:15:30Z", "time_no_millis");
+        assertSameDate("1:15:30+0100", "time_no_millis");
+        assertSameDate("1:15:30+01:00", "time_no_millis");
         assertSameDate("10:5:30Z", "time_no_millis");
+        assertSameDate("10:5:30+0100", "time_no_millis");
+        assertSameDate("10:5:30+01:00", "time_no_millis");
         assertSameDate("10:15:3Z", "time_no_millis");
+        assertSameDate("10:15:3+0100", "time_no_millis");
+        assertSameDate("10:15:3+01:00", "time_no_millis");
         assertParseException("10:15:3", "time_no_millis");
 
         assertSameDate("T10:15:30.123Z", "t_time");
+        assertSameDate("T10:15:30.123+0100", "t_time");
+        assertSameDate("T10:15:30.123+01:00", "t_time");
         assertSameDate("T1:15:30.123Z", "t_time");
+        assertSameDate("T1:15:30.123+0100", "t_time");
+        assertSameDate("T1:15:30.123+01:00", "t_time");
         assertSameDate("T10:1:30.123Z", "t_time");
+        assertSameDate("T10:1:30.123+0100", "t_time");
+        assertSameDate("T10:1:30.123+01:00", "t_time");
         assertSameDate("T10:15:3.123Z", "t_time");
+        assertSameDate("T10:15:3.123+0100", "t_time");
+        assertSameDate("T10:15:3.123+01:00", "t_time");
         assertParseException("T10:15:3.1", "t_time");
         assertParseException("T10:15:3Z", "t_time");
 
         assertSameDate("T10:15:30Z", "t_time_no_millis");
+        assertSameDate("T10:15:30+0100", "t_time_no_millis");
+        assertSameDate("T10:15:30+01:00", "t_time_no_millis");
         assertSameDate("T1:15:30Z", "t_time_no_millis");
+        assertSameDate("T1:15:30+0100", "t_time_no_millis");
+        assertSameDate("T1:15:30+01:00", "t_time_no_millis");
         assertSameDate("T10:1:30Z", "t_time_no_millis");
+        assertSameDate("T10:1:30+0100", "t_time_no_millis");
+        assertSameDate("T10:1:30+01:00", "t_time_no_millis");
         assertSameDate("T10:15:3Z", "t_time_no_millis");
+        assertSameDate("T10:15:3+0100", "t_time_no_millis");
+        assertSameDate("T10:15:3+01:00", "t_time_no_millis");
         assertParseException("T10:15:3", "t_time_no_millis");
 
         assertSameDate("2012-W48-6", "week_date");
@@ -206,10 +281,18 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertJavaTimeParseException("2012-W1-8", "week_date", "Text '2012-W1-8' could not be parsed");
 
         assertSameDate("2012-W48-6T10:15:30.123Z", "week_date_time");
+        assertSameDate("2012-W48-6T10:15:30.123+0100", "week_date_time");
+        assertSameDate("2012-W48-6T10:15:30.123+01:00", "week_date_time");
         assertSameDate("2012-W1-6T10:15:30.123Z", "week_date_time");
+        assertSameDate("2012-W1-6T10:15:30.123+0100", "week_date_time");
+        assertSameDate("2012-W1-6T10:15:30.123+01:00", "week_date_time");
 
         assertSameDate("2012-W48-6T10:15:30Z", "week_date_time_no_millis");
+        assertSameDate("2012-W48-6T10:15:30+0100", "week_date_time_no_millis");
+        assertSameDate("2012-W48-6T10:15:30+01:00", "week_date_time_no_millis");
         assertSameDate("2012-W1-6T10:15:30Z", "week_date_time_no_millis");
+        assertSameDate("2012-W1-6T10:15:30+0100", "week_date_time_no_millis");
+        assertSameDate("2012-W1-6T10:15:30+01:00", "week_date_time_no_millis");
 
         assertSameDate("2012", "year");
         assertSameDate("1", "year");
@@ -238,14 +321,24 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018W313", "strict_basic_week_date");
         assertParseException("18W313", "strict_basic_week_date");
         assertSameDate("2018W313T121212.123Z", "strict_basic_week_date_time");
+        assertSameDate("2018W313T121212.123+0100", "strict_basic_week_date_time");
+        assertSameDate("2018W313T121212.123+01:00", "strict_basic_week_date_time");
         assertParseException("2018W313T12128.123Z", "strict_basic_week_date_time");
         assertParseException("2018W313T81212.123Z", "strict_basic_week_date_time");
         assertParseException("2018W313T12812.123Z", "strict_basic_week_date_time");
         assertParseException("2018W313T12812.1Z", "strict_basic_week_date_time");
         assertSameDate("2018W313T121212Z", "strict_basic_week_date_time_no_millis");
+        assertSameDate("2018W313T121212+0100", "strict_basic_week_date_time_no_millis");
+        assertSameDate("2018W313T121212+01:00", "strict_basic_week_date_time_no_millis");
         assertParseException("2018W313T12128Z", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12128+0100", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12128+01:00", "strict_basic_week_date_time_no_millis");
         assertParseException("2018W313T81212Z", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T81212+0100", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T81212+01:00", "strict_basic_week_date_time_no_millis");
         assertParseException("2018W313T12812Z", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12812+0100", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12812+01:00", "strict_basic_week_date_time_no_millis");
         assertSameDate("2018-12-31", "strict_date");
         assertParseException("10000-12-31", "strict_date");
         assertParseException("2018-8-31", "strict_date");
@@ -266,15 +359,24 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("2018-1-31", "strict_date_optional_time");
         assertParseException("10000-01-31", "strict_date_optional_time");
         assertSameDate("2018-12-31T10:15:30", "strict_date_optional_time");
+        assertSameDate("2018-12-31T10:15:30Z", "strict_date_optional_time");
+        assertSameDate("2018-12-31T10:15:30+0100", "strict_date_optional_time");
+        assertSameDate("2018-12-31T10:15:30+01:00", "strict_date_optional_time");
         assertParseException("2018-12-31T10:15:3", "strict_date_optional_time");
         assertParseException("2018-12-31T10:5:30", "strict_date_optional_time");
         assertParseException("2018-12-31T9:15:30", "strict_date_optional_time");
         assertSameDate("2018-12-31T10:15:30.123Z", "strict_date_time");
+        assertSameDate("2018-12-31T10:15:30.123+0100", "strict_date_time");
+        assertSameDate("2018-12-31T10:15:30.123+01:00", "strict_date_time");
         assertSameDate("2018-12-31T10:15:30.11Z", "strict_date_time");
+        assertSameDate("2018-12-31T10:15:30.11+0100", "strict_date_time");
+        assertSameDate("2018-12-31T10:15:30.11+01:00", "strict_date_time");
         assertParseException("2018-12-31T10:15:3.123Z", "strict_date_time");
         assertParseException("2018-12-31T10:5:30.123Z", "strict_date_time");
         assertParseException("2018-12-31T1:15:30.123Z", "strict_date_time");
         assertSameDate("2018-12-31T10:15:30Z", "strict_date_time_no_millis");
+        assertSameDate("2018-12-31T10:15:30+0100", "strict_date_time_no_millis");
+        assertSameDate("2018-12-31T10:15:30+01:00", "strict_date_time_no_millis");
         assertParseException("2018-12-31T10:5:30Z", "strict_date_time_no_millis");
         assertParseException("2018-12-31T10:15:3Z", "strict_date_time_no_millis");
         assertParseException("2018-12-31T1:15:30Z", "strict_date_time_no_millis");
@@ -297,12 +399,18 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("2018-1", "strict_ordinal_date");
 
         assertSameDate("2018-128T10:15:30.123Z", "strict_ordinal_date_time");
+        assertSameDate("2018-128T10:15:30.123+0100", "strict_ordinal_date_time");
+        assertSameDate("2018-128T10:15:30.123+01:00", "strict_ordinal_date_time");
         assertParseException("2018-1T10:15:30.123Z", "strict_ordinal_date_time");
 
         assertSameDate("2018-128T10:15:30Z", "strict_ordinal_date_time_no_millis");
+        assertSameDate("2018-128T10:15:30+0100", "strict_ordinal_date_time_no_millis");
+        assertSameDate("2018-128T10:15:30+01:00", "strict_ordinal_date_time_no_millis");
         assertParseException("2018-1T10:15:30Z", "strict_ordinal_date_time_no_millis");
 
         assertSameDate("10:15:30.123Z", "strict_time");
+        assertSameDate("10:15:30.123+0100", "strict_time");
+        assertSameDate("10:15:30.123+01:00", "strict_time");
         assertParseException("1:15:30.123Z", "strict_time");
         assertParseException("10:1:30.123Z", "strict_time");
         assertParseException("10:15:3.123Z", "strict_time");
@@ -310,13 +418,19 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("10:15:3Z", "strict_time");
 
         assertSameDate("10:15:30Z", "strict_time_no_millis");
+        assertSameDate("10:15:30+0100", "strict_time_no_millis");
+        assertSameDate("10:15:30+01:00", "strict_time_no_millis");
         assertSameDate("01:15:30Z", "strict_time_no_millis");
+        assertSameDate("01:15:30+0100", "strict_time_no_millis");
+        assertSameDate("01:15:30+01:00", "strict_time_no_millis");
         assertParseException("1:15:30Z", "strict_time_no_millis");
         assertParseException("10:5:30Z", "strict_time_no_millis");
         assertParseException("10:15:3Z", "strict_time_no_millis");
         assertParseException("10:15:3", "strict_time_no_millis");
 
         assertSameDate("T10:15:30.123Z", "strict_t_time");
+        assertSameDate("T10:15:30.123+0100", "strict_t_time");
+        assertSameDate("T10:15:30.123+01:00", "strict_t_time");
         assertParseException("T1:15:30.123Z", "strict_t_time");
         assertParseException("T10:1:30.123Z", "strict_t_time");
         assertParseException("T10:15:3.123Z", "strict_t_time");
@@ -324,6 +438,8 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("T10:15:3Z", "strict_t_time");
 
         assertSameDate("T10:15:30Z", "strict_t_time_no_millis");
+        assertSameDate("T10:15:30+0100", "strict_t_time_no_millis");
+        assertSameDate("T10:15:30+01:00", "strict_t_time_no_millis");
         assertParseException("T1:15:30Z", "strict_t_time_no_millis");
         assertParseException("T10:1:30Z", "strict_t_time_no_millis");
         assertParseException("T10:15:3Z", "strict_t_time_no_millis");
@@ -343,9 +459,13 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertJavaTimeParseException("2012-W01-8", "strict_week_date", "Text '2012-W01-8' could not be parsed");
 
         assertSameDate("2012-W48-6T10:15:30.123Z", "strict_week_date_time");
+        assertSameDate("2012-W48-6T10:15:30.123+0100", "strict_week_date_time");
+        assertSameDate("2012-W48-6T10:15:30.123+01:00", "strict_week_date_time");
         assertParseException("2012-W1-6T10:15:30.123Z", "strict_week_date_time");
 
         assertSameDate("2012-W48-6T10:15:30Z", "strict_week_date_time_no_millis");
+        assertSameDate("2012-W48-6T10:15:30+0100", "strict_week_date_time_no_millis");
+        assertSameDate("2012-W48-6T10:15:30+01:00", "strict_week_date_time_no_millis");
         assertParseException("2012-W1-6T10:15:30Z", "strict_week_date_time_no_millis");
 
         assertSameDate("2012", "strict_year");

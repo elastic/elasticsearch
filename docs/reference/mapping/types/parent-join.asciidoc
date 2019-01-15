@@ -9,7 +9,7 @@ A parent/child relation can be defined as follows:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -319,7 +319,7 @@ make sense to disable eager loading:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -358,7 +358,7 @@ It is also possible to define multiple children for a single parent:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -388,7 +388,7 @@ Multiple levels of parent/child:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

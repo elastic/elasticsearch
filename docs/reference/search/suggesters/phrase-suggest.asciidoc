@@ -23,7 +23,7 @@ work. The `reverse` analyzer is used only in the last example.
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=true
 {
   "settings": {
     "index": {

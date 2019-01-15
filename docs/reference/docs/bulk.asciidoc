@@ -198,6 +198,17 @@ If using the HTTP API, make sure that the client does not send HTTP
 chunks, as this will slow things down.
 
 [float]
+[[bulk-optimistic-concurrency-control]]
+=== Optimistic Concurrency Control
+
+Each `index` and `delete` action within a bulk API call may include the
+`if_seq_no` and `if_primary_term` parameters in their respective action
+and meta data lines. The `if_seq_no` and `if_primary_term` parameters control
+how operations are executed, based on the last modification to existing
+documents. See <<optimistic-concurrency-control>> for more details.
+
+
+[float]
 [[bulk-versioning]]
 === Versioning
 

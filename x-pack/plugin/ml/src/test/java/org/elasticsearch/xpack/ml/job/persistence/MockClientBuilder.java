@@ -271,6 +271,11 @@ public class MockClientBuilder {
         return this;
     }
 
+    public MockClientBuilder prepareSearches(String index, SearchRequestBuilder first, SearchRequestBuilder... searches) {
+        when(client.prepareSearch(eq(index))).thenReturn(first, searches);
+        return this;
+    }
+
     /**
      * Creates a {@link SearchResponse} with a {@link SearchHit} for each element of {@code docs}
      * @param indexName Index being searched

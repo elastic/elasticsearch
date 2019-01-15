@@ -3,7 +3,7 @@
 
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
         include_type_name: false
@@ -14,7 +14,6 @@
 
   - do:
       indices.get_mapping:
-        include_type_name: false
         index: test_index
 
   - is_true: test_index.mappings
@@ -24,7 +23,7 @@
 
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
         include_type_name: false
@@ -44,7 +43,7 @@
 
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
         include_type_name: false
@@ -58,7 +57,7 @@
 
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
         include_type_name: false
@@ -76,7 +75,7 @@
 
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
         include_type_name: false

@@ -31,7 +31,7 @@ import java.io.IOException;
 public class PutFollowRequestTests extends AbstractXContentTestCase<PutFollowRequest> {
 
     private static final ConstructingObjectParser<PutFollowRequest, Void> PARSER = new ConstructingObjectParser<>("test_parser",
-        (args) -> new PutFollowRequest((String) args[0], (String) args[1], (String) args[2]));
+        true, (args) -> new PutFollowRequest((String) args[0], (String) args[1], (String) args[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.REMOTE_CLUSTER_FIELD);

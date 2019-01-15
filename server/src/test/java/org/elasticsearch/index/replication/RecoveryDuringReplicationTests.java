@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -847,13 +848,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public void finalizeRecovery(long globalCheckpoint) throws IOException {
+        public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
             if (hasBlocked() == false) {
                 // it maybe that not ops have been transferred, block now
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
             blockIfNeeded(RecoveryState.Stage.FINALIZE);
-            super.finalizeRecovery(globalCheckpoint);
+            super.finalizeRecovery(globalCheckpoint, listener);
         }
 
     }

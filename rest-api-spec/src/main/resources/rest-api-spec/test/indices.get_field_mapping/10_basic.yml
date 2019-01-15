@@ -2,7 +2,7 @@
 setup:
   - skip:
       version: " - 6.99.99"
-      reason: include_type_name is not supported before 7.0.0
+      reason: include_type_name defaults to true before 7.0
   - do:
         indices.create:
           include_type_name: false
@@ -18,7 +18,6 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        include_type_name: false
         fields: text
 
   - match: {test_index.mappings.text.mapping.text.type:     text}
@@ -27,7 +26,6 @@ setup:
 "Get field mapping by index only":
   - do:
       indices.get_field_mapping:
-        include_type_name: false
         index: test_index
         fields: text
 
@@ -38,7 +36,6 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        include_type_name: false
         index: test_index
         fields: [ text , text1 ]
 
@@ -50,7 +47,6 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        include_type_name: false
         index: test_index
         fields: text
         include_defaults: true

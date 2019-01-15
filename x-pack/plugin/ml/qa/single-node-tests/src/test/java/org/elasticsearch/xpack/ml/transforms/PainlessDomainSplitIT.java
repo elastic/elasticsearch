@@ -262,8 +262,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
-        createIndex("painless", settings.build(), "\"_doc\": { \"properties\": { \"domain\": { \"type\": \"keyword\" }," +
-                "\"time\": { \"type\": \"date\" } } }");
+        createIndex("painless", settings.build(), "\"properties\": { \"domain\": { \"type\": \"keyword\" }," +
+                "\"time\": { \"type\": \"date\" } }");
 
         // Index some data
         DateTime baseTime = new DateTime().minusYears(1);

@@ -48,6 +48,7 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 
 /** Response object for {@link GetFieldMappingsRequest} API */
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContentObject {
@@ -114,7 +115,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean includeTypeName = params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, true);
+        boolean includeTypeName = params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER,
+            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
         builder.startObject();
         for (Map.Entry<String, Map<String, Map<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {

@@ -49,6 +49,7 @@ import java.util.Objects;
  * optional clause is only executed if the required "low-frequency' clause
  * matches.
  */
+@Deprecated
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
 
     public static final String NAME = "common";

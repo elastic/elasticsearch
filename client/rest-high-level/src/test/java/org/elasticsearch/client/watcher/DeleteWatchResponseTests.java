@@ -18,28 +18,37 @@
  */
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class DeleteWatchResponseTests extends AbstractXContentTestCase<DeleteWatchResponse> {
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-    @Override
-    protected DeleteWatchResponse createTestInstance() {
+public class DeleteWatchResponseTests extends ESTestCase {
+
+    public void testFromXContent() throws IOException {
+        xContentTester(this::createParser,
+            DeleteWatchResponseTests::createTestInstance,
+            DeleteWatchResponseTests::toXContent,
+            DeleteWatchResponse::fromXContent)
+            .supportsUnknownFields(true)
+            .assertToXContentEquivalence(false)
+            .test();
+    }
+
+    private static XContentBuilder toXContent(DeleteWatchResponse response, XContentBuilder builder) throws IOException {
+        return builder.startObject()
+            .field("_id", response.getId())
+            .field("_version", response.getVersion())
+            .field("found", response.isFound())
+            .endObject();
+    }
+
+    private static DeleteWatchResponse createTestInstance() {
         String id = randomAlphaOfLength(10);
         long version = randomLongBetween(1, 10);
         boolean found = randomBoolean();
         return new DeleteWatchResponse(id, version, found);
-    }
-
-    @Override
-    protected DeleteWatchResponse doParseInstance(XContentParser parser) throws IOException {
-        return DeleteWatchResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 }

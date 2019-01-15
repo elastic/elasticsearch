@@ -42,6 +42,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private static final DeprecationLogger DEPRECATION_LOGGER
             = new DeprecationLogger(LogManager.getLogger(LeafDocLookup.class));
+    static final String TYPES_DEPRECATION_KEY = "type-field-doc-lookup";
     static final String TYPES_DEPRECATION_MESSAGE =
             "[types removal] Looking up doc types in scripts is deprecated.";
 
@@ -81,7 +82,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     public ScriptDocValues<?> get(Object key) {
         // deprecate _type
         if ("_type".equals(key)) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog(TYPES_DEPRECATION_MESSAGE, TYPES_DEPRECATION_MESSAGE);
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog(TYPES_DEPRECATION_KEY, TYPES_DEPRECATION_MESSAGE);
         }
         // assume its a string...
         String fieldName = key.toString();

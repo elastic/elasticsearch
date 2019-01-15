@@ -93,7 +93,7 @@ characters, and to replace them with `/`.  The first two tokens are skipped:
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {

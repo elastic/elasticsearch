@@ -55,7 +55,7 @@ enabled for aggregations, as follows:
 
 [source,js]
 ---------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -84,7 +84,7 @@ You can enable fielddata on an existing `text` field using the
 
 [source,js]
 -----------------------------------
-PUT my_index/_mapping/_doc
+PUT my_index/_mapping
 {
   "properties": {
     "my_field": { <1>
@@ -118,7 +118,7 @@ number of docs that the segment should contain with `min_segment_size`:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

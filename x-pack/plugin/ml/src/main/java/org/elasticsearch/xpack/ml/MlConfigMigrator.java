@@ -402,7 +402,8 @@ public class MlConfigMigrator {
     public static Job updateJobForMigration(Job job) {
         Job.Builder builder = new Job.Builder(job);
         Map<String, Object> custom = job.getCustomSettings() == null ? new HashMap<>() : new HashMap<>(job.getCustomSettings());
-        custom.put(MIGRATED_FROM_VERSION, job.getJobVersion());
+        String version = job.getJobVersion() != null ? job.getJobVersion().toString() : null;
+        custom.put(MIGRATED_FROM_VERSION, version);
         builder.setCustomSettings(custom);
         // Increase the model memory limit for 6.1 - 6.3 jobs
         Version jobVersion = job.getJobVersion();

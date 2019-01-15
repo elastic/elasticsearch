@@ -93,6 +93,7 @@ The below list shows the actions which are available in each phase.
   - <<ilm-shrink-action,Shrink>>
 * Cold
   - <<ilm-allocate-action,Allocate>>
+  - <<ilm-freeze-action,Freeze>>
 * Delete
   - <<ilm-delete-action,Delete>>
 
@@ -352,7 +353,7 @@ index "my_index" must be the write index for the alias. For more information, re
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "index.lifecycle.name": "my_policy",

@@ -45,6 +45,7 @@ public class LeafDocLookupTests extends ESTestCase {
         when(fieldType.valueForDisplay(anyObject())).then(returnsFirstArg());
 
         MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fullName("_type")).thenReturn(fieldType);
         when(mapperService.fullName("field")).thenReturn(fieldType);
         when(mapperService.fullName("alias")).thenReturn(fieldType);
 
@@ -71,5 +72,11 @@ public class LeafDocLookupTests extends ESTestCase {
     public void testLookupWithFieldAlias() {
         ScriptDocValues<?> fetchedDocValues = docLookup.get("alias");
         assertEquals(docValues, fetchedDocValues);
+    }
+
+    public void testTypesDeprecation() {
+        ScriptDocValues<?> fetchedDocValues = docLookup.get("_type");
+        assertEquals(docValues, fetchedDocValues);
+        assertWarnings("[types removal] Looking up doc types in scripts is deprecated.");
     }
 }

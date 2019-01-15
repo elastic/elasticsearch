@@ -183,6 +183,13 @@ public final class TransportActionProxy {
     }
 
     /**
+     * Returns the underling action
+     */
+    public static String unwrapAction(String action) {
+        return action.substring(PROXY_ACTION_PREFIX.length());
+    }
+
+    /**
      * Returns <code>true</code> iff the given request is a proxy request
      */
     public static boolean isProxyRequest(TransportRequest request) {

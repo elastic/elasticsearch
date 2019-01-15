@@ -76,21 +76,19 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, refreshPolicy, roles);
-        if (expiration != null) {
-            result = 31 * result + expiration.hashCode();
-        }
-        return result;
+        return Objects.hash(name, refreshPolicy, roles, expiration);
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         final CreateApiKeyRequest that = (CreateApiKeyRequest) o;
-        return Objects.equals(name, that.name)
-                && Objects.equals(refreshPolicy, that.refreshPolicy)
-                && Objects.equals(roles, that.roles)
+        return Objects.equals(name, that.name) && Objects.equals(refreshPolicy, that.refreshPolicy) && Objects.equals(roles, that.roles)
                 && Objects.equals(expiration, that.expiration);
     }
 

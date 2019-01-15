@@ -71,11 +71,7 @@ public final class CreateApiKeyResponse {
 
     @Override
     public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((expiration == null) ? 0 : expiration.hashCode());
-        result = prime * result + Objects.hash(id, name, key);
-        return result;
+        return Objects.hash(id, name, key, expiration);
     }
 
     @Override
@@ -87,14 +83,10 @@ public final class CreateApiKeyResponse {
             return false;
         }
         final CreateApiKeyResponse other = (CreateApiKeyResponse) obj;
-        if (expiration == null) {
-            if (other.expiration != null)
-                return false;
-        } else if (!Objects.equals(expiration, other.expiration))
-            return false;
         return Objects.equals(id, other.id)
                 && Objects.equals(key, other.key)
-                && Objects.equals(name, other.name);
+                && Objects.equals(name, other.name)
+                && Objects.equals(expiration, other.expiration);
     }
 
     static ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("create_api_key_response",

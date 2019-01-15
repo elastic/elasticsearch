@@ -9,5 +9,6 @@ setup:
   - do:
       catch:  missing
       indices.get_template:
+        include_type_name: false
         name: test
 

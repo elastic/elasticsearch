@@ -198,7 +198,7 @@ the cell right next to it -- even though the shape is very close to the point.
 
 [source,js]
 --------------------------------------------------
-PUT /example
+PUT /example?include_type_name=true
 {
     "mappings": {
         "doc": {

@@ -52,7 +52,7 @@ instance, if the `user` field were mapped as follows:
 
 [source,js]
 --------------------------------------------------
-PUT /example
+PUT /example?include_type_name=true
 {
   "mappings": {
     "_doc": {

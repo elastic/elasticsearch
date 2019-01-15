@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;

@@ -9,7 +9,7 @@ Imagine that you are selling shirts that have the following properties:
 
 [source,js]
 --------------------------------------------------
-PUT /shirts
+PUT /shirts?include_type_name=true
 {
     "mappings": {
         "_doc": {

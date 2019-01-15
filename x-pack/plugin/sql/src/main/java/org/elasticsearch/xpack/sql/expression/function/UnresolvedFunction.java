@@ -166,7 +166,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + functionName() + functionArgs();
+        return UNRESOLVED_PREFIX + sourceText();
     }
 
     @Override

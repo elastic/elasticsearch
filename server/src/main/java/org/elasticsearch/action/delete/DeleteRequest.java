@@ -53,7 +53,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
-    private String type = MapperService.SINGLE_MAPPING_NAME;
+    // Set to null initially so we can know to override in bulk requests that have a default type.
+    private String type;
     private String id;
     @Nullable
     private String routing;
@@ -103,7 +104,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (Strings.isEmpty(type)) {
+        if (Strings.isEmpty(type())) {
             validationException = addValidationError("type is missing", validationException);
         }
         if (Strings.isEmpty(id)) {
@@ -142,6 +143,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Deprecated
     @Override
     public String type() {
+        if (type == null) {
+            return MapperService.SINGLE_MAPPING_NAME;                    
+        }
         return type;
     }
 
@@ -156,6 +160,22 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         this.type = type;
         return this;
     }
+    
+    /**
+     * Set the default type supplied to a bulk
+     * request if this individual request's type is null
+     * or empty
+     * 
+     * @deprecated Types are in the process of being removed.
+     */
+    @Deprecated
+    @Override
+    public DeleteRequest defaultTypeIfNull(String defaultType) {
+        if (Strings.isNullOrEmpty(type)) {
+            type = defaultType;
+        }
+        return this;
+    }    
 
     /**
      * The id of the document to delete.
@@ -295,7 +315,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
+        // So we use the type accessor method here to make the type non-null (will default it to "_doc"). 
+        out.writeString(type());
         out.writeString(id);
         out.writeOptionalString(routing());
         if (out.getVersion().before(Version.V_7_0_0)) {
@@ -316,7 +338,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     @Override
     public String toString() {
-        return "delete {[" + index + "][" + type + "][" + id + "]}";
+        return "delete {[" + index + "][" + type() + "][" + id + "]}";
     }
 
     /**

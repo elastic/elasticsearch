@@ -3,8 +3,6 @@
 [[index-lifecycle-and-snapshots]]
 == Restoring snapshots of managed indices
 
-beta[]
-
 When restoring a snapshot that contains indices managed by Index Lifecycle
 Management, the lifecycle will automatically continue to execute after the
 snapshot is restored. Notably, the `min_age` is relative to the original

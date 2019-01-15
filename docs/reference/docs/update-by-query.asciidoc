@@ -637,7 +637,7 @@ added a mapping value to pick up more fields from the data:
 
 [source,js]
 --------------------------------------------------
-PUT test
+PUT test?include_type_name=true
 {
   "mappings": {
     "_doc": {
@@ -659,7 +659,7 @@ POST test/_doc?refresh
   "text": "words words",
   "flag": "foo"
 }
-PUT test/_mapping/_doc   <2>
+PUT test/_mapping   <2>
 {
   "properties": {
     "text": {"type": "text"},

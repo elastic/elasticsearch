@@ -18,7 +18,7 @@ Here is an example:
 
 [source,js]
 --------------------------------------------------
-PUT /limit_example
+PUT /limit_example?include_type_name=true
 {
   "settings": {
     "analysis": {

@@ -5,7 +5,7 @@ A multi-bucket aggregation that works on `geo_point` fields and conceptually wor
 
 [source,js]
 --------------------------------------------------
-PUT /museums
+PUT /museums?include_type_name=true
 {
     "mappings": {
         "_doc": {

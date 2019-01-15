@@ -17,8 +17,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
  * {@code TemplateHttpResource}s allow the checking and uploading of templates to a remote cluster.
@@ -30,6 +35,15 @@ import java.util.function.Supplier;
 public class TemplateHttpResource extends PublishableHttpResource {
 
     private static final Logger logger = LogManager.getLogger(TemplateHttpResource.class);
+
+    public static final Map<String, String> PARAMETERS;
+
+    static {
+        Map<String, String> parameters = new TreeMap<>();
+        parameters.put("filter_path", FILTER_PATH_RESOURCE_VERSION);
+        parameters.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        PARAMETERS = Collections.unmodifiableMap(parameters);
+    }
 
     /**
      * The name of the template that is sent to the remote cluster.
@@ -50,7 +64,7 @@ public class TemplateHttpResource extends PublishableHttpResource {
      */
     public TemplateHttpResource(final String resourceOwnerName, @Nullable final TimeValue masterTimeout,
                                 final String templateName, final Supplier<String> template) {
-        super(resourceOwnerName, masterTimeout, PublishableHttpResource.RESOURCE_VERSION_PARAMETERS);
+        super(resourceOwnerName, masterTimeout, PARAMETERS);
 
         this.templateName = Objects.requireNonNull(templateName);
         this.template = Objects.requireNonNull(template);

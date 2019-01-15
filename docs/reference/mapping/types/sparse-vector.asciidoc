@@ -20,7 +20,7 @@ Dimensions don't need to be in order.
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

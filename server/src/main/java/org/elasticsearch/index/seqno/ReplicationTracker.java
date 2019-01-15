@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -190,14 +191,19 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *
      * @return the new or updated retention lease
      */
-    public synchronized RetentionLease addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
-        assert primaryMode;
-        final RetentionLease retentionLease =
-                new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
-        final RetentionLease maybeExistingRetentionLease = retentionLeases.put(id, retentionLease);
+    public RetentionLease addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+        final RetentionLease retentionLease;
+        final RetentionLease maybeExistingRetentionLease;
+        final Collection<RetentionLease> currentRetentionLeases;
+        synchronized (this) {
+            assert primaryMode;
+            retentionLease = new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
+            maybeExistingRetentionLease = retentionLeases.put(id, retentionLease);
+            currentRetentionLeases = retentionLeases.values();
+        }
         if (maybeExistingRetentionLease == null) {
-            // this is a new retention lease, copy the existing retention leases and callback
-            onNewRetentionLease.accept(Collections.unmodifiableCollection(new ArrayList<>(retentionLeases.values())));
+            // this is a new retention lease, copy the current retention leases and callback; do not execute under lock!
+            onNewRetentionLease.accept(Collections.unmodifiableCollection(new ArrayList<>(currentRetentionLeases)));
         }
         return retentionLease;
     }

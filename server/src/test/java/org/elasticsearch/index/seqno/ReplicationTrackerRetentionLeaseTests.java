@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -78,6 +79,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final AllocationId allocationId = AllocationId.newInitializing();
         final Map<String, Long> retentionLeases = new HashMap<>();
         final AtomicBoolean invoked = new AtomicBoolean();
+        final AtomicReference<ReplicationTracker> reference = new AtomicReference<>();
         final ReplicationTracker replicationTracker = new ReplicationTracker(
                 new ShardId("test", "_na", 0),
                 allocationId.getId(),
@@ -86,11 +88,14 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 value -> {},
                 () -> 0L,
                 leases -> {
-                   invoked.set(true);
-                   assertThat(
-                           leases.stream().collect(Collectors.toMap(RetentionLease::id, RetentionLease::retainingSequenceNumber)),
-                           equalTo(retentionLeases));
+                    // we do not want to hold a lock on the replication tracker in the callback!
+                    assertFalse(Thread.holdsLock(reference.get()));
+                    invoked.set(true);
+                    assertThat(
+                            leases.stream().collect(Collectors.toMap(RetentionLease::id, RetentionLease::retainingSequenceNumber)),
+                            equalTo(retentionLeases));
                 });
+        reference.set(replicationTracker);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),

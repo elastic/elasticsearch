@@ -39,8 +39,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.time.DateTimeException;
 import java.time.ZoneId;
-import java.time.zone.ZoneRulesException;
 import java.util.Objects;
 
 /**
@@ -256,7 +256,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         }
         try {
             this.timeZone = ZoneId.of(timeZone);
-        } catch (ZoneRulesException e) {
+        } catch (DateTimeException e) {
             throw new IllegalArgumentException(e);
         }
         return this;

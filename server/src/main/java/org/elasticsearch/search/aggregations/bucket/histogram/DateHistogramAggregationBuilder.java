@@ -394,7 +394,13 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
                 if (anyInstant != null) {
                     Instant instant = Instant.ofEpochMilli(anyInstant);
-                    final long prevTransition = tz.getRules().previousTransition(instant).getInstant().toEpochMilli();
+                    ZoneOffsetTransition prevOffsetTransition = tz.getRules().previousTransition(instant);
+                    final long prevTransition;
+                    if (prevOffsetTransition  != null) {
+                        prevTransition = prevOffsetTransition.getInstant().toEpochMilli();
+                    } else {
+                        prevTransition = instant.toEpochMilli();
+                    }
                     ZoneOffsetTransition nextOffsetTransition = tz.getRules().nextTransition(instant);
                     final long nextTransition;
                     if (nextOffsetTransition != null) {

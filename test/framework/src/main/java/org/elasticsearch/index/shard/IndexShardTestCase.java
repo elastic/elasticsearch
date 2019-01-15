@@ -367,10 +367,25 @@ public abstract class IndexShardTestCase extends ESTestCase {
             };
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(nodeSettings, clusterSettings);
-            indexShard = new IndexShard(routing, indexSettings, shardPath, store, () -> null, indexCache, mapperService, similarityService,
-                engineFactory, indexEventListener, indexSearcherWrapper, threadPool,
-                BigArrays.NON_RECYCLING_INSTANCE, warmer, Collections.emptyList(), Arrays.asList(listeners), globalCheckpointSyncer,
-                breakerService);
+            indexShard = new IndexShard(
+                    routing,
+                    indexSettings,
+                    shardPath,
+                    store,
+                    () -> null,
+                    indexCache,
+                    mapperService,
+                    similarityService,
+                    engineFactory,
+                    indexEventListener,
+                    indexSearcherWrapper,
+                    threadPool,
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    warmer,
+                    Collections.emptyList(),
+                    Arrays.asList(listeners),
+                    globalCheckpointSyncer,
+                    breakerService);
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
         } finally {

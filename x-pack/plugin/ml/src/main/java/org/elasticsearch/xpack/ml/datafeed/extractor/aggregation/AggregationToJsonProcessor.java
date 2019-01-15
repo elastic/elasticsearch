@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
@@ -93,12 +94,15 @@ class AggregationToJsonProcessor {
 
         List<Aggregation> leafAggregations = new ArrayList<>();
         List<MultiBucketsAggregation> bucketAggregations = new ArrayList<>();
+        List<SingleBucketAggregation> singleBucketAggregations = new ArrayList<>();
 
         // Sort into leaf and bucket aggregations.
         // The leaf aggregations will be processed first.
         for (Aggregation agg : aggregations) {
             if (agg instanceof MultiBucketsAggregation) {
                 bucketAggregations.add((MultiBucketsAggregation)agg);
+            } else if (agg instanceof SingleBucketAggregation){
+                singleBucketAggregations.add((SingleBucketAggregation)agg);
             } else {
                 leafAggregations.add(agg);
             }
@@ -136,6 +140,10 @@ class AggregationToJsonProcessor {
                     noMoreBucketsToProcess = true;
                 }
             }
+        }
+        noMoreBucketsToProcess = singleBucketAggregations.isEmpty() && noMoreBucketsToProcess;
+        for (SingleBucketAggregation singleBucketAggregation : singleBucketAggregations) {
+            processAggs(singleBucketAggregation.getDocCount(), asList(singleBucketAggregation.getAggregations()));
         }
 
         // If there are no more bucket aggregations to process we've reached the end

@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RetentionLeaseSyncIT extends ESIntegTestCase  {
 
     public void testRetentionLeasesSyncedOnAdd() throws Exception {
-        final int numberOfReplicas = randomIntBetween(0, 8);
+        final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
         final Settings settings = Settings.builder()
                         .put("index.number_of_shards", 1)
@@ -50,7 +50,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
                 .getInstance(IndicesService.class, primaryShardNodeName)
                 .getShardOrNull(new ShardId(resolveIndex("index"), 0));
         // we will add multiple retention leases and expect to see them synced to all replicas
-        final int length = randomIntBetween(0, 8);
+        final int length = randomIntBetween(1, 8);
         final Map<String, RetentionLease> currentRetentionLeases = new HashMap<>();
         for (int i = 0; i < length; i++) {
             final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));

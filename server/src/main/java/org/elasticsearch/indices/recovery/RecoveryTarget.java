@@ -372,12 +372,15 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint) throws IOException {
-        final IndexShard indexShard = indexShard();
-        indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
-        // Persist the global checkpoint.
-        indexShard.sync();
-        indexShard.finalizeRecovery();
+    public void finalizeRecovery(final long globalCheckpoint, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            final IndexShard indexShard = indexShard();
+            indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
+            // Persist the global checkpoint.
+            indexShard.sync();
+            indexShard.finalizeRecovery();
+            return null;
+        });
     }
 
     @Override

@@ -382,11 +382,25 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             DirectoryService directoryService = indexStore.newDirectoryService(path);
             store = new Store(shardId, this.indexSettings, directoryService.newDirectory(), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
-            indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
-                indexCache, mapperService, similarityService, engineFactory,
-                eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
-                searchOperationListeners, indexingOperationListeners, () -> globalCheckpointSyncer.accept(shardId),
-                circuitBreakerService);
+            indexShard = new IndexShard(
+                    routing,
+                    this.indexSettings,
+                    path,
+                    store,
+                    indexSortSupplier,
+                    indexCache,
+                    mapperService,
+                    similarityService,
+                    engineFactory,
+                    eventListener,
+                    searcherWrapper,
+                    threadPool,
+                    bigArrays,
+                    engineWarmer,
+                    searchOperationListeners,
+                    indexingOperationListeners,
+                    () -> globalCheckpointSyncer.accept(shardId),
+                    circuitBreakerService);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();

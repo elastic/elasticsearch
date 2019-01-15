@@ -309,7 +309,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
     }
 
-    public void testCanNotCommitStateThreeNodes() throws Exception {
+    public void testCannotCommitStateThreeNodes() throws Exception {
         //bootstrap cluster once 3rd node is started
         bootstrapNodeId = 3;
 

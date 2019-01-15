@@ -53,7 +53,6 @@ public class GceMetadataService extends AbstractLifecycleComponent {
     private HttpTransport gceHttpTransport;
 
     public GceMetadataService(Settings settings) {
-        super(settings);
         this.settings = settings;
     }
 

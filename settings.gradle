@@ -95,6 +95,7 @@ if (isEclipse) {
   projects << 'libs:x-content-tests'
   projects << 'libs:secure-sm-tests'
   projects << 'libs:grok-tests'
+  projects << 'libs:ssl-config'
 }
 
 include projects.toArray(new String[0])
@@ -130,6 +131,10 @@ if (isEclipse) {
   project(":libs:grok").buildFileName = 'eclipse-build.gradle'
   project(":libs:grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
   project(":libs:grok-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:ssl-config").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/main')
+  project(":libs:ssl-config").buildFileName = 'eclipse-build.gradle'
+  project(":libs:ssl-config-tests").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/test')
+  project(":libs:ssl-config-tests").buildFileName = 'eclipse-build.gradle'
 }
 
 // look for extra plugins for elasticsearch
@@ -141,3 +146,4 @@ if (extraProjects.exists()) {
 }
 
 project(":libs:cli").name = 'elasticsearch-cli'
+project(":libs:ssl-config").name = 'elasticsearch-ssl-config'

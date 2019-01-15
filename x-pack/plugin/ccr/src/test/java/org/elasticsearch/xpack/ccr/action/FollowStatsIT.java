@@ -127,7 +127,7 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         statsRequest.setIndices(new String[] {"follower1"});
         Exception e = expectThrows(ResourceNotFoundException.class,
             () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet());
-        assertThat(e.getMessage(), equalTo("No shard follow tasks for index [follower1]"));
+        assertThat(e.getMessage(), equalTo("No shard follow tasks for follower indices [follower1]"));
 
         final String leaderIndexSettings = getIndexSettings(1, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -144,7 +144,7 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         statsRequest.setIndices(new String[] {"follower2"});
         e = expectThrows(ResourceNotFoundException.class,
             () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet());
-        assertThat(e.getMessage(), equalTo("No shard follow tasks for index [follower2]"));
+        assertThat(e.getMessage(), equalTo("No shard follow tasks for follower indices [follower2]"));
 
         assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
     }

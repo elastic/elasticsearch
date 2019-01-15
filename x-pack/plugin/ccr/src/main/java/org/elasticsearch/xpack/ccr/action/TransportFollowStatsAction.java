@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
@@ -72,9 +71,9 @@ public class TransportFollowStatsAction extends TransportTasksAction<
         final ClusterState state = clusterService.state();
         Set<String> shardFollowTaskFollowerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
         if (Strings.isAllOrWildcard(request.indices()) == false && shardFollowTaskFollowerIndices.isEmpty()) {
-            throw new ResourceNotFoundException("No shard follow tasks for index [{}]", request.indices()[0]);
+            String resources = String.join(",", request.indices());
+            throw new ResourceNotFoundException("No shard follow tasks for follower indices [{}]", resources);
         }
-        request.setIndices(shardFollowTaskFollowerIndices.toArray(new String[0]));
         super.doExecute(task, request, listener);
     }
 

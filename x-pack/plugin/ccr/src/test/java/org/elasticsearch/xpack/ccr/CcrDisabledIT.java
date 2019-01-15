@@ -8,24 +8,19 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.EnumSet;
+import java.util.Collections;
 
 public class CcrDisabledIT extends ESIntegTestCase {
 
     public void testClusterCanStartWithCcrInstalledButNotEnabled() throws Exception {
+        // TODO: Assert that x-pack ccr feature is not enabled once feature functionality has been added
         ensureGreen();
-        XPackClient xPackClient = new XPackClient(client());
-        XPackInfoResponse response = xPackClient.prepareInfo().setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES)).get();
-        XPackInfoResponse.FeatureSetsInfo featureSetsInfo = response.getFeatureSetsInfo();
     }
 
     @Override
@@ -41,11 +36,11 @@ public class CcrDisabledIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCcr.class);
+        return Collections.singletonList(LocalStateCcr.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class);
+        return Collections.singletonList(XPackClientPlugin.class);
     }
 }

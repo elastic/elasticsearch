@@ -167,7 +167,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
-        this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService, this::getFoundPeers, this::setInitialConfiguration);
+        this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService, this::getFoundPeers,
+            this::setInitialConfiguration);
         this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService,
             this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::setInitialConfiguration);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),

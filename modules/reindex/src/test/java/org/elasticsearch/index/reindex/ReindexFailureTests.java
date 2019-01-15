@@ -81,7 +81,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().batches(1).versionConflicts(1).failures(1).created(99));
         for (Failure failure: response.getBulkFailures()) {
-            assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[_doc]["));
+            assertThat(failure.getMessage(), containsString("VersionConflictEngineException[["));
         }
     }
 

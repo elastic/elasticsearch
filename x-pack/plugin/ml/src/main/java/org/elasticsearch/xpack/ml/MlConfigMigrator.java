@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
+import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -179,9 +179,9 @@ public class MlConfigMigrator {
     }
 
     private void migrateBatches(List<JobsAndDatafeeds> batches, ActionListener<Boolean> listener) {
-        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(EsExecutors.newDirectExecutorService(), true);
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(EsExecutors.newDirectExecutorService(), true);
         for (JobsAndDatafeeds batch : batches) {
-            chainTaskExecutor.add(chainedListener -> writeConfigToIndex(batch.datafeedConfigs, batch.jobs, ActionListener.wrap(
+            voidChainTaskExecutor.add(chainedListener -> writeConfigToIndex(batch.datafeedConfigs, batch.jobs, ActionListener.wrap(
                 failedDocumentIds -> {
                     List<String> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, batch.jobs);
                     List<String> successfulDatafeedWrites =
@@ -191,7 +191,7 @@ public class MlConfigMigrator {
                 chainedListener::onFailure
             )));
         }
-        chainTaskExecutor.execute(ActionListener.wrap(aVoid -> listener.onResponse(true), listener::onFailure));
+        voidChainTaskExecutor.execute(ActionListener.wrap(aVoids -> listener.onResponse(true), listener::onFailure));
     }
 
     // Exposed for testing
@@ -402,7 +402,8 @@ public class MlConfigMigrator {
     public static Job updateJobForMigration(Job job) {
         Job.Builder builder = new Job.Builder(job);
         Map<String, Object> custom = job.getCustomSettings() == null ? new HashMap<>() : new HashMap<>(job.getCustomSettings());
-        custom.put(MIGRATED_FROM_VERSION, job.getJobVersion());
+        String version = job.getJobVersion() != null ? job.getJobVersion().toString() : null;
+        custom.put(MIGRATED_FROM_VERSION, version);
         builder.setCustomSettings(custom);
         // Increase the model memory limit for 6.1 - 6.3 jobs
         Version jobVersion = job.getJobVersion();

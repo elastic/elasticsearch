@@ -253,7 +253,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
     private BytesReference toBytesReference(IndexTemplateMetaData templateMetaData) {
         try {
             return XContentHelper.toXContent((builder, params) -> {
-                IndexTemplateMetaData.Builder.toInnerXContent(templateMetaData, builder, params);
+                IndexTemplateMetaData.Builder.toInnerXContentWithTypes(templateMetaData, builder, params);
                 return builder;
             }, XContentType.JSON, PARAMS, false);
         } catch (IOException ex) {

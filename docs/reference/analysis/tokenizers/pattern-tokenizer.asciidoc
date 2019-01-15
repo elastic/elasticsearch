@@ -125,7 +125,7 @@ tokens when it encounters commas:
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -215,7 +215,7 @@ escaped, so the pattern ends up looking like:
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {

@@ -174,13 +174,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
             "cluster.remote.",
             "transport.ping_schedule",
-            key -> timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.NodeScope),
+            key -> timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.Dynamic, Setting.Property.NodeScope),
             REMOTE_CLUSTERS_SEEDS);
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
         "cluster.remote.",
         "transport.compress",
-        key -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.NodeScope),
+        key -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.Dynamic, Setting.Property.NodeScope),
         REMOTE_CLUSTERS_SEEDS);
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
@@ -301,6 +301,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     boolean isRemoteClusterRegistered(String clusterName) {
         return remoteClusters.containsKey(clusterName);
+    }
+
+    /**
+     * Returns the registered remote cluster names.
+     */
+    public Set<String> getRegisteredRemoteClusterNames() {
+        // remoteClusters is unmodifiable so its key set will be unmodifiable too
+        return remoteClusters.keySet();
     }
 
     public void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing,

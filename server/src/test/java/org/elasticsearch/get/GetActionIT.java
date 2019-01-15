@@ -441,7 +441,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[1].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
-        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("[type1][1]: version conflict"));
+        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("[1]: version conflict"));
         assertThat(response.getResponses()[2].getFailure().getFailure(), instanceOf(VersionConflictEngineException.class));
 
         //Version from Lucene index
@@ -464,7 +464,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[1].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
-        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("[type1][1]: version conflict"));
+        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("[1]: version conflict"));
         assertThat(response.getResponses()[2].getFailure().getFailure(), instanceOf(VersionConflictEngineException.class));
 
 
@@ -489,7 +489,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
-        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("[type1][2]: version conflict"));
+        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("[2]: version conflict"));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());
@@ -515,7 +515,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
-        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("[type1][2]: version conflict"));
+        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("[2]: version conflict"));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());

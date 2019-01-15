@@ -11,6 +11,9 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotTests;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.QuantilesTests;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
@@ -18,12 +21,8 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotTests;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.QuantilesTests;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 public class AutodetectResultTests extends AbstractSerializingTestCase<AutodetectResult> {

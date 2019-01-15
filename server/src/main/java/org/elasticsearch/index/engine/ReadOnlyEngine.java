@@ -101,6 +101,12 @@ public class ReadOnlyEngine extends Engine {
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(lastCommittedSegmentInfos);
+                    // the global checkpoint is not always known and up to date when the engine is created,
+                    // so we only check the max seq no / global checkpoint coherency when the global checkpoint
+                    // is different from the unassigned sequence number value. In addition to that we only execute
+                    // the check if the index the engine belongs to has been created after the refactoring of the
+                    // Close Index API and its TransportVerifyShardBeforeCloseAction that guarantee that all
+                    // operations have been flushed to Lucene.
                     final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
                     if (globalCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO
                         && engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_7_0)) {

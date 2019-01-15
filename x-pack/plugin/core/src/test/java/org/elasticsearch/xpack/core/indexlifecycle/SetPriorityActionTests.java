@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.util.List;
@@ -56,5 +57,13 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
         assertThat(firstStep.getSettings().size(), equalTo(1));
         assertEquals(priority, (long) IndexMetaData.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()));
+    }
+
+    public void testEqualsAndHashCode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copy);
+    }
+
+    SetPriorityAction copy(SetPriorityAction setPriorityAction) {
+        return new SetPriorityAction(setPriorityAction.recoveryPriority);
     }
 }

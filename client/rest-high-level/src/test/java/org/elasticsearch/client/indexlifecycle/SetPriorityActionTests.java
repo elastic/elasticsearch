@@ -20,6 +20,7 @@ package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 
@@ -46,8 +47,16 @@ public class SetPriorityActionTests extends AbstractXContentTestCase<SetPriority
         return false;
     }
 
-    public void testNonPositiveShardNumber() {
+    public void testNonPositivePriority() {
         Exception e = expectThrows(Exception.class, () -> new SetPriorityAction(randomIntBetween(-100, 0)));
         assertThat(e.getMessage(), equalTo("[priority] must be 0 or greater"));
+    }
+
+    public void testEqualsAndHashCode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copy);
+    }
+
+    SetPriorityAction copy(SetPriorityAction setPriorityAction) {
+        return new SetPriorityAction(setPriorityAction.recoveryPriority);
     }
 }

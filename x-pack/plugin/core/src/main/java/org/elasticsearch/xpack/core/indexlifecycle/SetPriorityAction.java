@@ -22,7 +22,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * A {@link LifecycleAction} which sets the index's priority. The higher the prior, the faster the recovery.
+ * A {@link LifecycleAction} which sets the index's priority. The higher the priority, the faster the recovery.
  */
 public class SetPriorityAction implements LifecycleAction {
     public static final String NAME = "set_priority";
@@ -32,7 +32,8 @@ public class SetPriorityAction implements LifecycleAction {
     private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         a -> new SetPriorityAction((Integer) a[0]));
 
-    private final Integer recoveryPriority;
+    //package private for testing
+    final Integer recoveryPriority;
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), RECOVERY_PRIORITY_FIELD);
@@ -89,19 +90,18 @@ public class SetPriorityAction implements LifecycleAction {
     }
 
     @Override
-    public int hashCode() {
-        return SetPriorityAction.class.hashCode();
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        SetPriorityAction that = (SetPriorityAction) o;
+
+        return recoveryPriority != null ? recoveryPriority.equals(that.recoveryPriority) : that.recoveryPriority == null;
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (obj.getClass() != getClass()) {
-            return false;
-        }
-        return true;
+    public int hashCode() {
+        return recoveryPriority != null ? recoveryPriority.hashCode() : 0;
     }
 
     @Override

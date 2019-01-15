@@ -534,12 +534,12 @@ delete the index one day after it has been created.
 Phases allowed: hot, warm, cold.
 
 This action sets the <<recovery-prioritization, index priority>> on the index as
-soon as the policy enters the hot, warm, or cold phase. The higher the index priority,
-the sooner the index will recover after a node restart. Generally indexes in
-the hot phase should have the highest value and indexes in the cold phase
-should have the lowest values. The recommended values are 100 for the hot phase,
-50 for the warm phase, and 0 for the cold phase. Index's that don't set this
-value have an implicit default priority of 1.
+soon as the policy enters the hot, warm, or cold phase. Indices with a higher
+priority will be recovered before indices with lower priorities following a node
+restart. Generally, indexes in the hot phase should have the highest value and
+indexes in the cold phase should have the lowest values. The recommended values
+are 100 for the hot phase, 50 for the warm phase, and 0 for the cold phase.
+Indicies that don't set this value have an implicit default priority of 1.
 
 [[ilm-set-priority-options]]
 .Set Priority Options

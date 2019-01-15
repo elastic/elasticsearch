@@ -98,7 +98,7 @@ public class AutodetectStateProcessor implements StateProcessor {
 
     void persist(BytesReference bytes) throws IOException {
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bytes, AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE, XContentType.JSON);
+        bulkRequest.add(bytes, AnomalyDetectorsIndex.jobStateIndexWriteAlias(), ElasticsearchMappings.DOC_TYPE, XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
             LOGGER.trace("[{}] Persisting job state document", jobId);
             try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {

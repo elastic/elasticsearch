@@ -526,11 +526,17 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 listener::onFailure
             );
 
+            // Manually create the state index and its alias if necessary
+            ActionListener<Boolean> createMLStateListener = ActionListener.wrap(
+                response -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, jobUpdateListener),
+                listener::onFailure
+            );
+
             // Try adding state doc mapping
             ActionListener<Boolean> resultsPutMappingHandler = ActionListener.wrap(
                     response -> {
-                        addDocMappingIfMissing(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings::stateMapping,
-                                state, jobUpdateListener);
+                        addDocMappingIfMissing(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), ElasticsearchMappings::stateMapping,
+                                state, createMLStateListener);
                     }, listener::onFailure
             );
 

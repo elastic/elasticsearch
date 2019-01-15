@@ -177,7 +177,7 @@ on non-word characters or on underscores (`\W|_`), and to lower-case the result:
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -266,7 +266,7 @@ The following more complicated example splits CamelCase text into tokens:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -386,7 +386,7 @@ customization:
 
 [source,js]
 ----------------------------------------------------
-PUT /pattern_example
+PUT /pattern_example?include_type_name=true
 {
   "settings": {
     "analysis": {

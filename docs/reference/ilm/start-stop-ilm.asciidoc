@@ -3,8 +3,6 @@
 [[start-stop-ilm]]
 == Start and stop {ilm}
 
-beta[]
-
 All indices that are managed by ILM will continue to execute
 their policies. There may be times when this is not desired on certain
 indices, or maybe even all the indices in a cluster. For example,
@@ -41,7 +39,7 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "index.lifecycle.name": "my_policy"

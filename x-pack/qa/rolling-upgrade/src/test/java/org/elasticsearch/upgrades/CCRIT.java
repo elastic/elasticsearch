@@ -8,7 +8,6 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -22,7 +21,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37231")
 public class CCRIT extends AbstractUpgradeTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CCRIT.class);
@@ -38,8 +36,8 @@ public class CCRIT extends AbstractUpgradeTestCase {
     }
 
     public void testIndexFollowing() throws Exception {
-        assumeTrue("CCR became available in 6.5 and test relies on a fix that was shipped with 6.5.4",
-            UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_5_4));
+        assumeTrue("CCR became available in 6.5, but test relies on a fix that was shipped with 6.6.0",
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_6_0));
         setupRemoteCluster();
 
         final String leaderIndex = "my-leader-index";
@@ -92,8 +90,8 @@ public class CCRIT extends AbstractUpgradeTestCase {
     }
 
     public void testAutoFollowing() throws Exception {
-        assumeTrue("CCR became available in 6.5 and test relies on a fix that was shipped with 6.5.4",
-            UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_5_4));
+        assumeTrue("CCR became available in 6.5, but test relies on a fix that was shipped with 6.6.0",
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_6_0));
         setupRemoteCluster();
 
         final Settings indexSettings = Settings.builder()
@@ -268,6 +266,8 @@ public class CCRIT extends AbstractUpgradeTestCase {
     private void assertFollowerGlobalCheckpoint(String followerIndex, int expectedFollowerCheckpoint) throws IOException {
         Request statsRequest = new Request("GET", "/" + followerIndex + "/_stats");
         statsRequest.addParameter("level", "shards");
+        // Just docs metric is sufficient here:
+        statsRequest.addParameter("metric", "docs");
         Map<?, ?> response = toMap(client().performRequest(statsRequest));
         LOGGER.info("INDEX STATS={}", response);
         assertThat(((Map) response.get("indices")).size(), equalTo(1));

@@ -84,7 +84,7 @@ Here is an example:
 
 [source,js]
 --------------------------------------------------
-PUT /compound_word_example
+PUT /compound_word_example?include_type_name=true
 {
     "settings": {
         "index": {

@@ -19,9 +19,14 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -33,9 +38,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -122,6 +130,60 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             currentTimeMillis.set(
                     currentTimeMillis.get() + randomLongBetween(retentionLeaseMillis, Long.MAX_VALUE - currentTimeMillis.get()));
             assertRetentionLeases(indexShard, 0, retainingSequenceNumbers, currentTimeMillis::get);
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testCommit() throws IOException {
+        final Settings settings = Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey(), Long.MAX_VALUE, TimeUnit.NANOSECONDS)
+                .build();
+        final IndexShard indexShard = newStartedShard(
+                true,
+                settings,
+                new InternalEngineFactory());
+        try {
+            final int length = randomIntBetween(0, 8);
+            final long[] minimumRetainingSequenceNumbers = new long[length];
+            for (int i = 0; i < length; i++) {
+                minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+                currentTimeMillis.set(TimeUnit.NANOSECONDS.toMillis(randomNonNegativeLong()));
+                indexShard.addOrUpdateRetentionLease(Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i);
+            }
+
+            currentTimeMillis.set(TimeUnit.NANOSECONDS.toMillis(Long.MAX_VALUE));
+
+            // force a commit
+            indexShard.flush(new FlushRequest().force(true));
+
+            // the committed retention leases should equal our current retention leases
+            final SegmentInfos segmentCommitInfos = indexShard.store().readLastCommittedSegmentsInfo();
+            assertTrue(segmentCommitInfos.getUserData().containsKey(Engine.RETENTION_LEASES));
+            final Collection<RetentionLease> retentionLeases = indexShard.getEngine().config().retentionLeasesSupplier().get();
+            if (retentionLeases.isEmpty()) {
+                assertThat(IndexShard.getRetentionLeases(segmentCommitInfos), empty());
+            } else {
+                assertThat(IndexShard.getRetentionLeases(segmentCommitInfos), contains(retentionLeases.toArray(new RetentionLease[0])));
+            }
+
+            // when we recover, we should recover the retention leases
+            final IndexShard recoveredShard = reinitShard(
+                    indexShard,
+                    ShardRoutingHelper.initWithSameId(indexShard.routingEntry(), RecoverySource.ExistingStoreRecoverySource.INSTANCE));
+            try {
+                recoverShardFromStore(recoveredShard);
+                if (retentionLeases.isEmpty()) {
+                    assertThat(recoveredShard.getEngine().config().retentionLeasesSupplier().get(), empty());
+                } else {
+                    assertThat(
+                            recoveredShard.getEngine().config().retentionLeasesSupplier().get(),
+                            contains(retentionLeases.toArray(new RetentionLease[0])));
+                }
+            } finally {
+                closeShards(recoveredShard);
+            }
         } finally {
             closeShards(indexShard);
         }

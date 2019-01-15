@@ -3,7 +3,6 @@
     "number_of_shards": 1
   },
   "mappings": {
-    "doc": {
       "properties": {
         "region": {
           "type": "keyword"
@@ -20,7 +19,6 @@
         "region_point": {
           "type": "keyword"
         }
-      }
     }
   }
 }

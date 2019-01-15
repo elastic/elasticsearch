@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;
 import java.util.Objects;
@@ -21,8 +21,8 @@ public abstract class ConfigurationFunction extends ScalarFunction {
     private final Configuration configuration;
     private final DataType dataType;
 
-    protected ConfigurationFunction(Location location, Configuration configuration, DataType dataType) {
-        super(location);
+    protected ConfigurationFunction(Source source, Configuration configuration, DataType dataType) {
+        super(source);
         this.configuration = configuration;
         this.dataType = dataType;
     }
@@ -42,8 +42,8 @@ public abstract class ConfigurationFunction extends ScalarFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 
     @Override
@@ -53,11 +53,6 @@ public abstract class ConfigurationFunction extends ScalarFunction {
 
     @Override
     public abstract Object fold();
-
-    @Override
-    protected String functionArgs() {
-        return StringUtils.EMPTY;
-    }
 
     @Override
     public ScriptTemplate asScript() {

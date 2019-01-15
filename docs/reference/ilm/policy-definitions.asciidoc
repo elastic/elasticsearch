@@ -1,10 +1,7 @@
-beta[]
 [role="xpack"]
 [testenv="basic"]
 [[ilm-policy-definition]]
-== Policy Phases and Actions
-
-beta[]
+== Policy phases and actions
 
 There are four stages in the index lifecycle, in the order
 they are executed.
@@ -25,8 +22,6 @@ each phase for an index. For example, one policy may define only the hot
 phase and the delete phase, while another may define all four phases.
 
 === Timing
-
-beta[]
 
 Indices enter phases based on a phase's `min_age` parameter.
 The index will not enter the phase until the index's age is older than that
@@ -71,25 +66,21 @@ index is rolled over, then `min_age` is the time elapsed from the time the index
 is rolled over. The intention here is to execute following phases and actions
 relative to when data was written last to a rolled over index.
 
-The previous phase's actions must complete before {ILM} will check `min_age` and
-transition into the next phase.
+The previous phase's actions must complete before {ilm} will check `min_age`
+and transition into the next phase.
 
 === Phase Execution
 
-beta[]
-
 The current phase definition, of an index's policy being executed, is stored
 in the index's metadata. The phase and its actions are compiled into a series
-of discrete steps that are executed sequentially. Since some {ILM} actions are
-more complex and involve multiple operations against an index, each of these
+of discrete steps that are executed sequentially. Since some {ilm-init} actions
+are more complex and involve multiple operations against an index, each of these
 operations are done in isolation in a unit called a "step". The
 <<ilm-explain-lifecycle,Explain Lifecycle API>> exposes this information to us
 to see which step our index is either to execute next, or is currently
 executing.
 
 === Actions
-
-beta[]
 
 The below list shows the actions which are available in each phase.
 
@@ -102,6 +93,7 @@ The below list shows the actions which are available in each phase.
   - <<ilm-shrink-action,Shrink>>
 * Cold
   - <<ilm-allocate-action,Allocate>>
+  - <<ilm-freeze-action,Freeze>>
 * Delete
   - <<ilm-delete-action,Delete>>
 
@@ -284,6 +276,39 @@ PUT _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 
+[[ilm-freeze-action]]
+==== Freeze
+
+Phases allowed: cold.
+
+This action will <<frozen-indices, freeze>> the index
+by calling the <<freeze-index-api, Freeze Index API>>.
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "cold": {
+        "actions": {
+          "freeze" : { }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+[IMPORTANT]
+================================
+ Freezing an index will close the index and reopen it within the same API call.
+ This causes primaries to not be allocated for a short amount of time and
+ causes the cluster to go red until the primaries are allocated again.
+ This limitation might be removed in the future.
+================================
+
 [[ilm-readonly-action]]
 ==== Read-Only
 
@@ -328,7 +353,7 @@ index "my_index" must be the write index for the alias. For more information, re
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "index.lifecycle.name": "my_policy",
@@ -393,7 +418,7 @@ PUT _ilm/policy/my_policy
 ===== Example: Rollover when index has too many documents
 
 This example rolls the index over when it contains at least
-1000000 documents.
+100000000 documents.
 
 [source,js]
 --------------------------------------------------
@@ -404,7 +429,7 @@ PUT _ilm/policy/my_policy
       "hot": {
         "actions": {
           "rollover" : {
-            "max_docs": 1000000
+            "max_docs": 100000000
           }
         }
       }
@@ -549,11 +574,9 @@ PUT _ilm/policy/my_policy
 
 === Full Policy
 
-beta[]
-
 With all of these actions, we can support complex management strategies for our
 indices. This policy will define an index that will start in the hot phase,
-rolling over every 20g or 7 days. After 30 days it enters the warm phase
+rolling over every 50 GB or 7 days. After 30 days it enters the warm phase
 and increases the replicas to 2, force merges and shrinks. After 60 days
 it enters the cold phase and allocates to "cold" nodes, and after 90 days the
 index is deleted.
@@ -568,7 +591,7 @@ PUT _ilm/policy/full_policy
         "actions": {
           "rollover": {
             "max_age": "7d",
-            "max_size": "20G"
+            "max_size": "50G"
           }
         }
       },

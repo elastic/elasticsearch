@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunctio
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -26,8 +26,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
 
-    protected UnaryStringIntFunction(Location location, Expression field) {
-        super(location, field);
+    protected UnaryStringIntFunction(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override

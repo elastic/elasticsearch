@@ -236,6 +236,9 @@ dep.dep_name.keyword|VARCHAR        |KEYWORD
 dep.from_date       |TIMESTAMP      |DATE           
 dep.to_date         |TIMESTAMP      |DATE           
 emp_no              |INTEGER        |INTEGER        
+extra               |STRUCT         |OBJECT
+extra.info          |STRUCT         |OBJECT
+extra.info.gender   |VARCHAR        |KEYWORD 
 extra_gender        |VARCHAR        |KEYWORD        
 extra_no            |INTEGER        |INTEGER        
 first_name          |VARCHAR        |TEXT           
@@ -261,6 +264,9 @@ dep.dep_name.keyword|VARCHAR        |KEYWORD
 dep.from_date       |TIMESTAMP      |DATE           
 dep.to_date         |TIMESTAMP      |DATE           
 emp_no              |INTEGER        |INTEGER        
+extra               |STRUCT         |OBJECT
+extra.info          |STRUCT         |OBJECT
+extra.info.gender   |VARCHAR        |KEYWORD 
 extra_gender        |VARCHAR        |KEYWORD        
 extra_no            |INTEGER        |INTEGER        
 first_name          |VARCHAR        |TEXT           
@@ -270,7 +276,7 @@ hire_date           |TIMESTAMP      |DATE
 languages           |TINYINT        |BYTE           
 last_name           |VARCHAR        |TEXT           
 last_name.keyword   |VARCHAR        |KEYWORD        
-salary              |INTEGER        |INTEGER         
+salary              |INTEGER        |INTEGER   
 ;
 
 describeSimpleIdentifier

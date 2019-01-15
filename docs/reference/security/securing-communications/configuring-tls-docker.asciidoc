@@ -1,8 +1,10 @@
 [role="xpack"]
 [[configuring-tls-docker]]
-=== Encrypting Communications in an {es} Docker Container
+=== Encrypting communications in an {es} Docker Container
 
-Starting with version 6.0.0, {security} (Gold, Platinum or Enterprise subscriptions) https://www.elastic.co/guide/en/elasticsearch/reference/6.0/breaking-6.0.0-xes.html[requires SSL/TLS]
+Starting with version 6.0.0, {stack} {security-features}
+(Gold, Platinum or Enterprise subscriptions)
+https://www.elastic.co/guide/en/elasticsearch/reference/6.0/breaking-6.0.0-xes.html[require SSL/TLS]
 encryption for the transport networking layer.
 
 This section demonstrates an easy path to get started with SSL/TLS for both
@@ -10,7 +12,7 @@ HTTPS and transport using the {es} Docker image. The example uses
 Docker Compose to manage the containers.
 
 For further details, please refer to
-{xpack-ref}/encrypting-communications.html[Encrypting Communications] and
+{stack-ov}/encrypting-communications.html[Encrypting communications] and
 https://www.elastic.co/subscriptions[available subscriptions].
 
 [float]
@@ -106,17 +108,20 @@ services:
     image: {docker-image}
     environment:
       - node.name=es01
-      - discovery.zen.minimum_master_nodes=2
+      - cluster.initial_master_nodes=es01,es02
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD <1>
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - xpack.license.self_generated.type=trial <2>
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=$CERTS_DIR/es01/es01.key
+      - xpack.security.http.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.http.ssl.certificate=$CERTS_DIR/es01/es01.crt
       - xpack.security.transport.ssl.enabled=true
       - xpack.security.transport.ssl.verification_mode=certificate <3>
-      - xpack.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
-      - xpack.ssl.certificate=$CERTS_DIR/es01/es01.crt
-      - xpack.ssl.key=$CERTS_DIR/es01/es01.key
+      - xpack.security.transport.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.transport.ssl.certificate=$CERTS_DIR/es01/es01.crt
+      - xpack.security.transport.ssl.key=$CERTS_DIR/es01/es01.key
     volumes: ['esdata_01:/usr/share/elasticsearch/data', './certs:$CERTS_DIR']
     ports:
       - 9200:9200
@@ -131,18 +136,21 @@ services:
     image: {docker-image}
     environment:
       - node.name=es02
-      - discovery.zen.minimum_master_nodes=2
-      - ELASTIC_PASSWORD=$ELASTIC_PASSWORD
       - discovery.zen.ping.unicast.hosts=es01
+      - cluster.initial_master_nodes=es01,es02
+      - ELASTIC_PASSWORD=$ELASTIC_PASSWORD
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - xpack.license.self_generated.type=trial
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=$CERTS_DIR/es02/es02.key
+      - xpack.security.http.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.http.ssl.certificate=$CERTS_DIR/es02/es02.crt
       - xpack.security.transport.ssl.enabled=true
-      - xpack.security.transport.ssl.verification_mode=certificate
-      - xpack.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
-      - xpack.ssl.certificate=$CERTS_DIR/es02/es02.crt
-      - xpack.ssl.key=$CERTS_DIR/es02/es02.key
+      - xpack.security.transport.ssl.verification_mode=certificate <3>
+      - xpack.security.transport.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.transport.ssl.certificate=$CERTS_DIR/es02/es02.crt
+      - xpack.security.transport.ssl.key=$CERTS_DIR/es02/es02.key
     volumes: ['esdata_02:/usr/share/elasticsearch/data', './certs:$CERTS_DIR']
 
   wait_until_ready:
@@ -156,7 +164,7 @@ volumes: {"esdata_01": {"driver": "local"}, "esdata_02": {"driver": "local"}}
 <1> Bootstrap `elastic` with the password defined in `.env`. See
 {stack-ov}/built-in-users.html#bootstrap-elastic-passwords[the Elastic Bootstrap Password].
 <2> Automatically generate and apply a trial subscription, in order to enable
-{security}.
+{security-features}.
 <3> Disable verification of authenticity for inter-node communication. Allows
 creating self-signed certificates without having to pin specific internal IP addresses.
 endif::[]
@@ -197,9 +205,9 @@ WARNING: Windows users not running PowerShell will need to remove `\` and join l
 ----
 docker exec es01 /bin/bash -c "bin/elasticsearch-setup-passwords \
 auto --batch \
--Expack.ssl.certificate=certificates/es01/es01.crt \
--Expack.ssl.certificate_authorities=certificates/ca/ca.crt \
--Expack.ssl.key=certificates/es01/es01.key \
+-Expack.security.http.ssl.certificate=certificates/es01/es01.crt \
+-Expack.security.http.ssl.certificate_authorities=certificates/ca/ca.crt \
+-Expack.security.http.ssl.key=certificates/es01/es01.key \
 --url https://localhost:9200"
 ----
 --

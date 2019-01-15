@@ -9,14 +9,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class BinaryExec extends PhysicalPlan {
 
     private final PhysicalPlan left, right;
 
-    protected BinaryExec(Location location, PhysicalPlan left, PhysicalPlan right) {
-        super(location, Arrays.asList(left, right));
+    protected BinaryExec(Source source, PhysicalPlan left, PhysicalPlan right) {
+        super(source, Arrays.asList(left, right));
         this.left = left;
         this.right = right;
     }

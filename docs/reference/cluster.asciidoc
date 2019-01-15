@@ -104,3 +104,5 @@ include::cluster/tasks.asciidoc[]
 include::cluster/nodes-hot-threads.asciidoc[]
 
 include::cluster/allocation-explain.asciidoc[]
+
+include::cluster/voting-exclusions.asciidoc[]

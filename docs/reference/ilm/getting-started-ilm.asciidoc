@@ -3,10 +3,8 @@
 [[getting-started-index-lifecycle-management]]
 == Getting started with {ilm}
 
-beta[]
-
-Let's jump into {ILM} by working through a hands-on scenario.
-This section will leverage many new concepts unique to {ILM} that
+Let's jump into {ilm} ({ilm-init}) by working through a hands-on scenario.
+This section will leverage many new concepts unique to {ilm-init} that
 you may not be familiar with. The following sections will explore
 these in more details.
 
@@ -19,9 +17,7 @@ after 90 days.
 
 === Setting up a new policy
 
-beta[]
-
-There are many new features introduced by {ILM}, but we will only focus on
+There are many new features introduced by {ilm-init}, but we will only focus on
 a few that are needed for our example. For starters, we will use the
 <<ilm-put-lifecycle,Put Policy>> API to define our first policy. Lifecycle
 policies are defined in JSON and include specific
@@ -70,8 +66,6 @@ The index will be deleted 90 days after it is rolled over.
 
 === Applying a policy to our index
 
-beta[]
-
 There are <<set-up-lifecycle-policy,a few ways>> to associate a
 policy to an index. Since we wish specific settings to be applied to
 the new index created from Rollover, we will set the policy via
@@ -99,7 +93,7 @@ PUT _template/datastream_template
 <3> alias to use for the rollover action, required since a rollover action is
     defined in the policy.
 
-The above index template introduces a few new settings specific to {ILM}.
+The above index template introduces a few new settings specific to {ilm-init}.
 The first being `index.lifecycle.name`. This setting will configure
 the "datastream_policy" to the index applying this template. This means
 that all newly created indices prefixed "datastream-" will be managed by
@@ -113,7 +107,7 @@ To begin, we will want to bootstrap our first index to write to.
 
 [source,js]
 -----------------------
-PUT datastream-000001
+PUT datastream-000001?include_type_name=true
 {
   "aliases": {
     "datastream": {
@@ -143,12 +137,10 @@ alias to be read-only for the source index.
 
 === Checking progress
 
-beta[]
-
 Now that we have an index managed by our policy, how do we tell what is going
 on? Which phase are we in? Is something broken? This section will go over a
 few APIs and their responses to help us inspect our indices with respect
-to {ILM}.
+to {ilm-init}.
 
 With the help of the <<ilm-explain-lifecycle,Explain API>>, we can know
 things like which phase we're in and when we entered that phase. The API
@@ -162,7 +154,7 @@ GET datastream-*/_ilm/explain
 // CONSOLE
 // TEST[continued]
 
-The above request will retrieve {ILM} execution information for all our
+The above request will retrieve {ilm-init} execution information for all our
 managed indices.
 
 
@@ -214,7 +206,7 @@ You can read about the full details of this response in the
 <<ilm-explain-lifecycle, explain API docs>>. For now, let's focus on how
 the response details which phase, action, and step we're in. We are in the
 "hot" phase, and "rollover" action. Rollover will continue to be called
-by {ILM} until its conditions are met and it rolls over the index.
+by {ilm-init} until its conditions are met and it rolls over the index.
 Afterwards, the original index will stay in the hot phase until 90 more
 days pass and it is deleted in the delete phase.
 As time goes on, new indices will be created and deleted.
@@ -226,7 +218,7 @@ that same alias.
 
 
 
-That's it! We have our first use-case managed by {ILM}.
+That's it! We have our first use-case managed by {ilm-init}.
 
 To learn more about all our APIs,
 check out <<index-lifecycle-management-api,ILM APIs>>.

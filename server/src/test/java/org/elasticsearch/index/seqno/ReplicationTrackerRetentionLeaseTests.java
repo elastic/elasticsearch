@@ -108,7 +108,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             assertTrue(invoked.get());
             // reset the invocation marker so that we can assert the callback was not invoked when renewing the lease
             invoked.set(false);
-            replicationTracker.addOrUpdateRetentionLease(id, randomLongBetween(retainingSequenceNumber, Long.MAX_VALUE), "test");
+            replicationTracker.addOrUpdateRetentionLease(id, retainingSequenceNumber, "test");
             assertFalse(invoked.get());
         }
     }

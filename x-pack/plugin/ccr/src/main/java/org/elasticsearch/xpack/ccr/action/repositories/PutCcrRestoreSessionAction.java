@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -70,8 +71,8 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
             if (indexShard == null) {
                 throw new ShardNotFoundException(shardId);
             }
-            ccrRestoreService.openSession(request.getSessionUUID(), indexShard);
-            return new PutCcrRestoreSessionResponse(clusterService.localNode());
+            Store.MetadataSnapshot storeFileMetaData = ccrRestoreService.openSession(request.getSessionUUID(), indexShard);
+            return new PutCcrRestoreSessionResponse(clusterService.localNode(), storeFileMetaData);
         }
 
         @Override
@@ -95,33 +96,42 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
     public static class PutCcrRestoreSessionResponse extends ActionResponse {
 
         private DiscoveryNode node;
+        private Store.MetadataSnapshot storeFileMetaData;
 
         PutCcrRestoreSessionResponse() {
         }
 
-        PutCcrRestoreSessionResponse(DiscoveryNode node) {
+        PutCcrRestoreSessionResponse(DiscoveryNode node, Store.MetadataSnapshot storeFileMetaData) {
             this.node = node;
+            this.storeFileMetaData = storeFileMetaData;
         }
 
         PutCcrRestoreSessionResponse(StreamInput in) throws IOException {
             super(in);
             node = new DiscoveryNode(in);
+            storeFileMetaData = new Store.MetadataSnapshot(in);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             node = new DiscoveryNode(in);
+            storeFileMetaData = new Store.MetadataSnapshot(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             node.writeTo(out);
+            storeFileMetaData.writeTo(out);
         }
 
         public DiscoveryNode getNode() {
             return node;
+        }
+
+        public Store.MetadataSnapshot getStoreFileMetaData() {
+            return storeFileMetaData;
         }
     }
 }

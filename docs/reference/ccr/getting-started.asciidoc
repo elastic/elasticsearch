@@ -167,7 +167,7 @@ In the following example, we will create a leader index in the remote cluster:
 
 [source,js]
 --------------------------------------------------
-PUT /server-metrics
+PUT /server-metrics?include_type_name=true
 {
   "settings" : {
     "index" : {

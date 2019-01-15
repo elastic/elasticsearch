@@ -119,7 +119,7 @@ default, but there will be no speed up on analysis for these fields.
 
 [source,js]
 --------------------------------------------------
-PUT /imdb
+PUT /imdb?include_type_name=true
 {
     "mappings": {
         "movies": {

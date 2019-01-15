@@ -52,10 +52,10 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
         Path testNodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         Path testNodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.ssl.key", testNodeKey)
-            .put("xpack.ssl.certificate", testNodeCert)
+            .put("xpack.security.http.ssl.key", testNodeKey)
+            .put("xpack.security.http.ssl.certificate", testNodeCert)
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
@@ -173,9 +173,9 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
 
     public void testThatExceptionIsThrownWhenConfiguredWithoutSslKey() {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.http.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.ssl.truststore.path",
+            .put("xpack.security.http.ssl.truststore.path",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
             .setSecureSettings(secureSettings)
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
@@ -193,9 +193,9 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
 
     public void testNoExceptionWhenConfiguredWithoutSslKeySSLDisabled() {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.http.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.ssl.truststore.path",
+            .put("xpack.security.http.ssl.truststore.path",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
             .setSecureSettings(secureSettings)
             .put("path.home", createTempDir())

@@ -43,7 +43,7 @@ the request URL.
 +
 [source,js]
 ----
-PUT /seats
+PUT /seats?include_type_name=true
 {
   "mappings": {
     "seat": {

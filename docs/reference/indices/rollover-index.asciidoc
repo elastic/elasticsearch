@@ -187,7 +187,7 @@ override any values set in matching index templates. For example, the following
 
 [source,js]
 --------------------------------------------------
-PUT /logs-000001
+PUT /logs-000001?include_type_name=true
 {
   "aliases": {
     "logs_write": {}
@@ -216,7 +216,7 @@ checked without performing the actual rollover:
 
 [source,js]
 --------------------------------------------------
-PUT /logs-000001
+PUT /logs-000001?include_type_name=true
 {
   "aliases": {
     "logs_write": {}
@@ -258,7 +258,7 @@ Look at the behavior of the aliases in the following example where `is_write_ind
 
 [source,js]
 --------------------------------------------------
-PUT my_logs_index-000001
+PUT my_logs_index-000001?include_type_name=true
 {
   "aliases": {
     "logs": { "is_write_index": true } <1>

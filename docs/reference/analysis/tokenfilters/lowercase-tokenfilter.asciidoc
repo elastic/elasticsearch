@@ -10,7 +10,7 @@ custom analyzer
 
 [source,js]
 --------------------------------------------------
-PUT /lowercase_example
+PUT /lowercase_example?include_type_name=true
 {
   "settings": {
     "analysis": {

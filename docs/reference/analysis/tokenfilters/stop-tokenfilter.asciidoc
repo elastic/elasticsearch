@@ -33,7 +33,7 @@ The `stopwords` parameter accepts either an array of stopwords:
 
 [source,js]
 ------------------------------------
-PUT /my_index
+PUT /my_index?include_type_name=true
 {
     "settings": {
         "analysis": {
@@ -53,7 +53,7 @@ or a predefined language-specific list:
 
 [source,js]
 ------------------------------------
-PUT /my_index
+PUT /my_index?include_type_name=true
 {
     "settings": {
         "analysis": {

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.transport.ssl;
 
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -20,6 +21,11 @@ public class SslNullCipherTests extends SecurityIntegTestCase {
     @BeforeClass
     public static void muteInFips() {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
+    }
+
+    @BeforeClass
+    public static void muteInJDK12() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/37403", JavaVersion.current().equals(JavaVersion.parse("12")));
     }
 
     @Override

@@ -209,7 +209,7 @@ digits as tokens, and to produce tri-grams (grams of length `3`):
 
 [source,js]
 ----------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "settings": {
     "analysis": {

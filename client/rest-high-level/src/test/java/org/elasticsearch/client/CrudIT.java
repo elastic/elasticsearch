@@ -255,9 +255,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mapping = "\"_doc\": { \"_source\": {\n" +
-                    "        \"enabled\": false\n" +
-                    "      }  }";
+            String mapping = "\"_source\": {\"enabled\": false}";
             createIndex(noSourceIndex, settings, mapping);
             assertEquals(
                 RestStatus.OK,
@@ -1242,7 +1240,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mappings = "\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\"}}}";
+            String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}}";
             createIndex(sourceIndex, settings, mappings);
             assertEquals(
                 RestStatus.OK,
@@ -1318,7 +1316,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mappings = "\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\"}}}";
+            String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}}";
             createIndex(sourceIndex, settings, mappings);
             assertEquals(
                 RestStatus.OK,

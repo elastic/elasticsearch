@@ -377,7 +377,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 logger.info("snapshot [{}] started", snapshot.snapshot());
                 if (snapshot.indices().isEmpty()) {
                     // No indices in this snapshot - we are done
-                    userCreateSnapshotListener.onResponse();
+                    userCreateSnapshotListener.onResponse(snapshot.snapshot());
                     endSnapshot(snapshot);
                     return;
                 }
@@ -465,7 +465,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // for processing. If client wants to wait for the snapshot completion, it can register snapshot
                         // completion listener in this method. For the snapshot completion to work properly, the snapshot
                         // should still exist when listener is registered.
-                        userCreateSnapshotListener.onResponse();
+                        userCreateSnapshotListener.onResponse(snapshot.snapshot());
 
                         // Now that snapshot completion listener is registered we can end the snapshot if needed
                         // We should end snapshot only if 1) we didn't accept it for processing (which happens when there
@@ -1544,8 +1544,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         /**
          * Called when snapshot has successfully started
+         *
+         * @param snapshot snapshot that was created
          */
-        void onResponse();
+        void onResponse(Snapshot snapshot);
 
         /**
          * Called if a snapshot operation couldn't start

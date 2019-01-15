@@ -75,14 +75,12 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
                                    final ActionListener<CreateSnapshotResponse> listener) {
         snapshotsService.createSnapshot(request, new SnapshotsService.CreateSnapshotListener() {
             @Override
-            public void onResponse() {
+            public void onResponse(Snapshot snapshotCreated) {
                 if (request.waitForCompletion()) {
-                    final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
                     snapshotsService.addListener(new SnapshotsService.SnapshotCompletionListener() {
                         @Override
                         public void onSnapshotCompletion(Snapshot snapshot, SnapshotInfo snapshotInfo) {
-                            if (snapshot.getRepository().equals(request.repository()) &&
-                                    snapshot.getSnapshotId().getName().equals(snapshotName)) {
+                            if (snapshotCreated.equals(snapshot)) {
                                 listener.onResponse(new CreateSnapshotResponse(snapshotInfo));
                                 snapshotsService.removeListener(this);
                             }
@@ -90,8 +88,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
 
                         @Override
                         public void onSnapshotFailure(Snapshot snapshot, Exception e) {
-                            if (snapshot.getRepository().equals(request.repository()) &&
-                                    snapshot.getSnapshotId().getName().equals(snapshotName)) {
+                            if (snapshotCreated.equals(snapshot)) {
                                 listener.onFailure(e);
                                 snapshotsService.removeListener(this);
                             }

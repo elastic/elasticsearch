@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
     /**
-     * Number of lines in the log file to check for the node_name, node.id or cluster.uuid. We don't
+     * Number of lines in the log file to check for the <code>node.name</code>, <code>node.id</code> or <code>cluster.uuid</code>. We don't
      * just check the entire log file because it could be quite long
      */
     private static final int LINES_TO_CHECK = 10;

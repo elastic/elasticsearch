@@ -40,7 +40,6 @@ import java.util.StringJoiner;
 @Plugin(name = "JsonThrowablePatternConverter", category = PatternConverter.CATEGORY)
 @ConverterKeys({"exceptionAsJson"})
 public final class JsonThrowablePatternConverter extends ThrowablePatternConverter {
-    private static final JsonStringEncoder JSON_STRING_ENCODER = JsonStringEncoder.getInstance();
     private final ExtendedThrowablePatternConverter throwablePatternConverter;
 
     /**
@@ -95,7 +94,7 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
     }
 
     private String wrapAsJson(String line) {
-        byte[] bytes = JSON_STRING_ENCODER.quoteAsUTF8(line);
+        byte[] bytes = JsonStringEncoder.getInstance().quoteAsUTF8(line);
         return "\"" + new String(bytes, Charset.defaultCharset()) + "\"";
     }
 

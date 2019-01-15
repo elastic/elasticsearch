@@ -41,7 +41,7 @@ public class NodeAndClusterIdStateListener implements ClusterStateListener {
         boolean wasSet = NodeAndClusterIdConverter.setOnce(clusterUUID, nodeId);
 
         if (wasSet) {
-            logger.info("Eeceived first cluster state update. Setting nodeId=[{}] and clusterUuid=[{}]", nodeId, clusterUUID);
+            logger.debug("Received first cluster state update. Setting nodeId=[{}] and clusterUuid=[{}]", nodeId, clusterUUID);
         }
     }
 }

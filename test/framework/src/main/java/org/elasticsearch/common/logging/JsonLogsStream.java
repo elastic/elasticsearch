@@ -40,7 +40,6 @@ import java.util.stream.StreamSupport;
  * This is intended to be used for easy and readable assertions for logger tests
  */
 public class JsonLogsStream {
-
     private final XContentParser parser;
     private final BufferedReader reader;
 
@@ -55,10 +54,10 @@ public class JsonLogsStream {
     }
 
     public static Stream<JsonLogLine> from(Path path) throws IOException {
-        return new JsonLogsStream(Files.newBufferedReader(path)).stream();
+        return from(Files.newBufferedReader(path));
     }
 
-    public Stream<JsonLogLine> stream() {
+    private Stream<JsonLogLine> stream() {
         Spliterator<JsonLogLine> spliterator = Spliterators.spliteratorUnknownSize(new JsonIterator(), Spliterator.ORDERED);
         return StreamSupport.stream(spliterator, false)
                             .onClose(this::close);

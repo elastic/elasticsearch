@@ -29,23 +29,23 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Pattern converter to format the node_and_cluster_id variable into a json fields node.id and cluster.uuid
- * Keeping those two fields together assures that the will be atomically set and become visible in logs at the same time
+ * Pattern converter to format the node_and_cluster_id variable into a json fields <code>node.id</code> and <code>cluster.uuid</code>.
+ * Keeping those two fields together assures that they will be atomically set and become visible in logs at the same time.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
 @ConverterKeys({"node_and_cluster_id"})
 public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
-    private static final AtomicReference<String> nodeAndClusterIdsReference = new AtomicReference<>();
+    private static final AtomicReference<String> nodeAndClusterId = new AtomicReference<>();
 
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static NodeAndClusterIdConverter newInstance(final String[] options) {
+    public static NodeAndClusterIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
         return new NodeAndClusterIdConverter();
     }
 
     public NodeAndClusterIdConverter() {
-        super("NodeName", "node_and_cluster_id");
+        super("NodeAndClusterId", "node_and_cluster_id");
     }
 
     /**
@@ -56,7 +56,7 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
      * @return true if the update was for the first time (successful) or false if for another calls (does not updates)
      */
     public static boolean setOnce(String clusterUUID, String nodeId) {
-        return nodeAndClusterIdsReference.compareAndSet(null, formatIds(clusterUUID, nodeId));
+        return nodeAndClusterId.compareAndSet(null, formatIds(clusterUUID, nodeId));
     }
 
     /**
@@ -66,8 +66,8 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (nodeAndClusterIdsReference.get() != null) {
-            toAppendTo.append(nodeAndClusterIdsReference.get());
+        if (nodeAndClusterId.get() != null) {
+            toAppendTo.append(nodeAndClusterId.get());
         }
         // nodeId/clusterUuid not received yet, not appending
     }

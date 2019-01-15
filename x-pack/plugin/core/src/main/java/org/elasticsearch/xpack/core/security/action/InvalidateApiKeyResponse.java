@@ -26,7 +26,7 @@ import java.util.Objects;
  * The result contains information about:
  * <ul>
  * <li>API key ids that were actually invalidated</li>
- * <li>API key ids those that were not invalidated in this request because they were already invalidated</li>
+ * <li>API key ids that were not invalidated in this request because they were already invalidated</li>
  * <li>how many errors were encountered while invalidating API keys and the error details</li>
  * </ul>
  */

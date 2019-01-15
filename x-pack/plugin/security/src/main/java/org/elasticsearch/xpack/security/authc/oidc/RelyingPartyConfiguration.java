@@ -26,8 +26,8 @@ public class RelyingPartyConfiguration {
         this.redirectUri = Objects.requireNonNull(redirectUri, "RP Redirect URI must be provided");
         if (Strings.hasText(responseType) == false) {
             throw new IllegalArgumentException("Response type must be provided");
-        } else if (responseType.equals("code") == false && responseType.equals("implicit") == false) {
-            throw new IllegalArgumentException("Invalid response type provided. Only code or implicit are allowed");
+        } else if (responseType.equals("code") == false && responseType.equals("id_token") == false) {
+            throw new IllegalArgumentException("Invalid response type provided. Only code or id_token are allowed");
         } else {
             this.responseType = responseType;
         }

@@ -22,14 +22,4 @@ public class OpenIdConnectPrepareAuthenticationRequestBuilder
         request.setRealmName(name);
         return this;
     }
-
-    public OpenIdConnectPrepareAuthenticationRequestBuilder state(String state) {
-        request.setState(state);
-        return this;
-    }
-
-    public OpenIdConnectPrepareAuthenticationRequestBuilder nonce(String nonce) {
-        request.setNonce(nonce);
-        return this;
-    }
 }

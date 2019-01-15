@@ -21,31 +21,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
 
     private String realmName;
-    private String state;
-    private String nonce;
 
     public String getRealmName() {
         return realmName;
     }
 
-    public String getState() {
-        return state;
-    }
-
-    public String getNonce() {
-        return nonce;
-    }
-
     public void setRealmName(String realmName) {
         this.realmName = realmName;
-    }
-
-    public void setState(String state) {
-        this.state = state;
-    }
-
-    public void setNonce(String nonce) {
-        this.nonce = nonce;
     }
 
     public OpenIdConnectPrepareAuthenticationRequest() {
@@ -54,8 +36,6 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     public OpenIdConnectPrepareAuthenticationRequest(StreamInput in) throws IOException {
         super.readFrom(in);
         realmName = in.readString();
-        state = in.readOptionalString();
-        nonce = in.readOptionalString();
     }
 
     @Override
@@ -71,8 +51,6 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(realmName);
-        out.writeOptionalString(state);
-        out.writeOptionalString(nonce);
     }
 
     @Override
@@ -81,7 +59,7 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     }
 
     public String toString() {
-        return "{realmName=" + realmName + ", state=" + state + ", nonce=" + nonce + "}";
+        return "{realmName=" + realmName + "}";
     }
 
 }

@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.security.authc.oidc;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -25,6 +23,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 
@@ -101,20 +100,16 @@ public class OpenIdConnectRealm extends Realm {
     }
 
     /**
-     * Creates the URI for an OIDC Authentication Request from the realm configuration using URI Query String Serialization and possibly
-     * generates a state parameter. It then returns the URI and state encapsulated in a {@link OpenIdConnectPrepareAuthenticationResponse}
+     * Creates the URI for an OIDC Authentication Request from the realm configuration using URI Query String Serialization and
+     * generates a state parameter and a nonce. It then returns the URI, state and nonce encapsulated in a
+     * {@link OpenIdConnectPrepareAuthenticationResponse}
      *
-     * @param state The oAuth2 state parameter used for CSRF protection. If the facilitator doesn't supply one, we generate one ourselves
-     * @param nonce String value used to associate a Client session with an ID Token, and to mitigate replay attacks. If the facilitator
-     *              doesn't supply one, we don't set one for the authentication request
      * @return an {@link OpenIdConnectPrepareAuthenticationResponse}
      */
-    public OpenIdConnectPrepareAuthenticationResponse buildAuthenticationRequestUri(@Nullable String state, @Nullable String nonce)
-        throws ElasticsearchException {
+    public OpenIdConnectPrepareAuthenticationResponse buildAuthenticationRequestUri() throws ElasticsearchException {
         try {
-            if (Strings.hasText(state) == false) {
-                state = createNonceValue();
-            }
+            final String state = createNonceValue();
+            final String nonce = createNonceValue();
             StringBuilder builder = new StringBuilder();
             builder.append(opConfiguration.getAuthorizationEndpoint());
             addParameter(builder, "response_type", rpConfiguration.getResponseType(), true);
@@ -125,7 +120,7 @@ public class OpenIdConnectRealm extends Realm {
                 addParameter(builder, "nonce", nonce);
             }
             addParameter(builder, "redirect_uri", rpConfiguration.getRedirectUri());
-            return new OpenIdConnectPrepareAuthenticationResponse(builder.toString(), state);
+            return new OpenIdConnectPrepareAuthenticationResponse(builder.toString(), state, nonce);
         } catch (UnsupportedEncodingException e) {
             throw new ElasticsearchException("Cannot build OpenID Connect Authentication Request", e);
         }
@@ -143,13 +138,15 @@ public class OpenIdConnectRealm extends Realm {
     }
 
     /**
-     * Creates a cryptographically secure alphanumeric string to be used as a nonce
+     * Creates a cryptographically secure alphanumeric string to be used as a nonce or state. It adheres to the
+     * <a href="https://tools.ietf.org/html/rfc6749#section-10.10">specification's requirements</a> by using 180 bits for the random value.
+     * The random string is encoded in a URL safe manner.
      *
      * @return an alphanumeric string
      */
     private static String createNonceValue() {
-        final byte[] randomBytes = new byte[16];
+        final byte[] randomBytes = new byte[20];
         RANDOM_INSTANCE.nextBytes(randomBytes);
-        return MessageDigests.toHexString(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }
 }

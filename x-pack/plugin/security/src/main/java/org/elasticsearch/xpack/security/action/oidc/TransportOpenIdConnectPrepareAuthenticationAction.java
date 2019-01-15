@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
@@ -54,14 +53,14 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
                 new ElasticsearchSecurityException("Found multiple ([{}]) OpenID Connect realms with name [{}]", realms.size(),
                     request.getRealmName()));
         } else {
-            prepareAuthenticationResponse(realms.get(0), request.getState(), request.getNonce(), listener);
+            prepareAuthenticationResponse(realms.get(0), listener);
         }
     }
 
-    private void prepareAuthenticationResponse(OpenIdConnectRealm realm, @Nullable String state, @Nullable String nonce,
+    private void prepareAuthenticationResponse(OpenIdConnectRealm realm,
                                                ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener) {
         try {
-            final OpenIdConnectPrepareAuthenticationResponse authenticationResponse = realm.buildAuthenticationRequestUri(state, nonce);
+            final OpenIdConnectPrepareAuthenticationResponse authenticationResponse = realm.buildAuthenticationRequestUri();
             listener.onResponse(authenticationResponse);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);

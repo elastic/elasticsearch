@@ -515,6 +515,13 @@ public class RecoverySourceHandler {
      */
     void phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot, long maxSeenAutoIdTimestamp,
                 long maxSeqNoOfUpdatesOrDeletes, ActionListener<SendSnapshotResult> listener) throws IOException {
+        ActionListener.completeWith(listener, () -> sendSnapshotBlockingly(
+            startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes));
+    }
+
+    private SendSnapshotResult sendSnapshotBlockingly(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo,
+                                                      Translog.Snapshot snapshot, long maxSeenAutoIdTimestamp,
+                                                      long maxSeqNoOfUpdatesOrDeletes) throws IOException {
         assert requiredSeqNoRangeStart <= endingSeqNo + 1:
             "requiredSeqNoRangeStart " + requiredSeqNoRangeStart + " is larger than endingSeqNo " + endingSeqNo;
         assert startingSeqNo <= requiredSeqNoRangeStart :
@@ -598,7 +605,7 @@ public class RecoverySourceHandler {
         stopWatch.stop();
         final TimeValue tookTime = stopWatch.totalTime();
         logger.trace("recovery [phase2]: took [{}]", tookTime);
-        listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint.get(), totalSentOps, tookTime));
+        return new SendSnapshotResult(targetLocalCheckpoint.get(), totalSentOps, tookTime);
     }
 
     void finalizeRecovery(final long targetLocalCheckpoint, final ActionListener<Void> listener) throws IOException {

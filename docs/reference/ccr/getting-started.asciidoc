@@ -337,4 +337,4 @@ Alternatively, you can manage auto-follow patterns on the
 *Management / Elasticsearch / Cross Cluster Replication* page in {kib}:
 
 [role="screenshot"]
-image::ml/images/auto-follow-patterns.jpg["The Remote Clusters page in {kib}"]
+image::ml/images/auto-follow-patterns.jpg["The Auto-follow patterns page in {kib}"]

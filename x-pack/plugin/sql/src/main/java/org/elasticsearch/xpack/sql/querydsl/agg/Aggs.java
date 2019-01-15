@@ -12,6 +12,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -21,7 +22,6 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
-import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
 
 /**
  * SQL Aggregations associated with a query.
@@ -40,7 +40,7 @@ public class Aggs {
 
     public static final String ROOT_GROUP_NAME = "groupby";
 
-    public static final GroupByKey IMPLICIT_GROUP_KEY = new GroupByKey(ROOT_GROUP_NAME, EMPTY, null, null) {
+    public static final GroupByKey IMPLICIT_GROUP_KEY = new GroupByKey(ROOT_GROUP_NAME, StringUtils.EMPTY, null, null) {
 
         @Override
         public CompositeValuesSourceBuilder<?> createSourceBuilder() {
@@ -53,13 +53,11 @@ public class Aggs {
         }
     };
 
+    public static final Aggs EMPTY = new Aggs(emptyList(), emptyList(), emptyList());
+
     private final List<GroupByKey> groups;
     private final List<LeafAgg> metricAggs;
     private final List<PipelineAgg> pipelineAggs;
-
-    public Aggs() {
-        this(emptyList(), emptyList(), emptyList());
-    }
 
     public Aggs(List<GroupByKey> groups, List<LeafAgg> metricAggs, List<PipelineAgg> pipelineAggs) {
         this.groups = groups;

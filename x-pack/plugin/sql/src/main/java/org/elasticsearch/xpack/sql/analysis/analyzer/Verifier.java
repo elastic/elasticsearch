@@ -50,8 +50,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
@@ -114,7 +114,7 @@ public final class Verifier {
     }
 
     private static Failure fail(Node<?> source, String message, Object... args) {
-        return new Failure(source, format(Locale.ROOT, message, args));
+        return new Failure(source, format(message, args));
     }
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
@@ -310,11 +310,31 @@ public final class Verifier {
                 Aggregate a = (Aggregate) child;
 
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
+
+                // track aggs and non-aggs - to keep the final modifier, use an array
+                final Expression[] aggAndNonAgg = new Expression[2];
+
                 o.order().forEach(oe -> {
                     Expression e = oe.child();
-                    // cannot order by aggregates (not supported by composite)
-                    if (Functions.isAggregate(e)) {
-                        missing.put(e, oe);
+
+                    if (Functions.isAggregate(e) || e instanceof AggregateFunctionAttribute) {
+                        if (aggAndNonAgg[0] != null) {
+                            return;
+                        } else {
+                            aggAndNonAgg[0] = e;
+                            if (aggAndNonAgg[1] == null) {
+                                return;
+                            }
+                        }
+                    } else {
+                        aggAndNonAgg[1] = e;
+                    }
+
+                    if (aggAndNonAgg[0] != null && aggAndNonAgg[1] != null) {
+                        localFailures.add(fail(oe,
+                                "Cannot order by aggregated [{}] and non-aggregated [{}] columns at the same time; "
+                                        + "use either one or the other",
+                                Expressions.name(aggAndNonAgg[0]), Expressions.name(aggAndNonAgg[1])));
                         return;
                     }
 
@@ -348,7 +368,7 @@ public final class Verifier {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     // get the location of the first missing expression as the order by might be on a different line
                     localFailures.add(
-                            fail(missing.values().iterator().next(), "Cannot order by non-grouped column" + plural + " %s, expected %s",
+                            fail(missing.values().iterator().next(), "Cannot order by non-grouped column" + plural + " {}, expected {}",
                                     Expressions.names(missing.keySet()),
                                     Expressions.names(a.groupings())));
                     groupingFailures.add(a);
@@ -374,7 +394,7 @@ public final class Verifier {
                 if (!missing.isEmpty()) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
-                            fail(condition, "Cannot use HAVING filter on non-aggregate" + plural + " %s; use WHERE instead",
+                            fail(condition, "Cannot use HAVING filter on non-aggregate" + plural + " {}; use WHERE instead",
                             Expressions.names(missing.keySet())));
                     groupingFailures.add(a);
                     return false;
@@ -456,7 +476,7 @@ public final class Verifier {
                     e.collectFirstChildren(c -> {
                         if (Functions.isGrouping(c)) {
                             localFailures.add(fail(c,
-                                    "Cannot combine [%s] grouping function inside GROUP BY, found [%s];"
+                                    "Cannot combine [{}] grouping function inside GROUP BY, found [{}];"
                                             + " consider moving the expression inside the histogram",
                                     Expressions.name(c), Expressions.name(e)));
                             return true;
@@ -485,7 +505,7 @@ public final class Verifier {
 
             if (!missing.isEmpty()) {
                 String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
-                localFailures.add(fail(missing.values().iterator().next(), "Cannot use non-grouped column" + plural + " %s, expected %s",
+                localFailures.add(fail(missing.values().iterator().next(), "Cannot use non-grouped column" + plural + " {}, expected {}",
                         Expressions.names(missing.keySet()),
                         Expressions.names(a.groupings())));
                 return false;
@@ -568,7 +588,7 @@ public final class Verifier {
                 filter.condition().forEachDown(e -> {
                     if (Functions.isAggregate(e) || e instanceof AggregateFunctionAttribute) {
                         localFailures.add(
-                                fail(e, "Cannot use WHERE filtering on aggregate function [%s], use HAVING instead", Expressions.name(e)));
+                                fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead", Expressions.name(e)));
                     }
                 }, Expression.class);
             }
@@ -582,7 +602,7 @@ public final class Verifier {
             filter.condition().forEachDown(e -> {
                 if (Functions.isGrouping(e) || e instanceof GroupingFunctionAttribute) {
                     localFailures
-                            .add(fail(e, "Cannot filter on grouping function [%s], use its argument instead", Expressions.name(e)));
+                            .add(fail(e, "Cannot filter on grouping function [{}], use its argument instead", Expressions.name(e)));
                 }
             }, Expression.class);
         }
@@ -635,7 +655,7 @@ public final class Verifier {
                     DataType dt = in.value().dataType();
                     for (Expression value : in.list()) {
                         if (areTypesCompatible(dt, value.dataType()) == false) {
-                            localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
+                            localFailures.add(fail(value, "expected data type [{}], value provided is of type [{}]",
                                 dt.esType, value.dataType().esType));
                             return;
                         }
@@ -656,7 +676,7 @@ public final class Verifier {
                             }
                         } else {
                             if (areTypesCompatible(dt, child.dataType()) == false) {
-                                localFailures.add(fail(child, "expected data type [%s], value provided is of type [%s]",
+                                localFailures.add(fail(child, "expected data type [{}], value provided is of type [{}]",
                                     dt.esType, child.dataType().esType));
                                 return;
                             }

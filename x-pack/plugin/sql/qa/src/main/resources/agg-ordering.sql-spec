@@ -1,0 +1,51 @@
+//
+// Custom sorting/ordering on aggregates
+//
+
+countWithImplicitGroupBy
+SELECT MAX(salary) AS m FROM test_emp ORDER BY COUNT(*);
+
+countWithImplicitGroupByWithHaving
+SELECT MAX(salary) AS m FROM test_emp HAVING MIN(salary) > 1 ORDER BY COUNT(*);
+
+countAndMaxWithImplicitGroupBy
+SELECT MAX(salary) AS m FROM test_emp ORDER BY MAX(salary), COUNT(*);
+
+maxWithAliasWithImplicitGroupBy
+SELECT MAX(salary) AS m FROM test_emp ORDER BY m;
+
+maxWithAliasWithImplicitGroupByAndHaving
+SELECT MAX(salary) AS m FROM test_emp HAVING COUNT(*) > 1 ORDER BY m;
+
+aggWithoutAlias
+SELECT MAX(salary) AS max FROM test_emp GROUP BY gender ORDER BY MAX(salary);
+
+aggWithAlias
+SELECT MAX(salary) AS m FROM test_emp GROUP BY gender ORDER BY m;
+
+multipleAggsThatGetRewrittenWithoutAlias
+SELECT MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY gender ORDER BY MAX(salary);
+
+multipleAggsThatGetRewrittenWithAlias
+SELECT MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY gender ORDER BY max;
+
+aggNotSpecifiedInTheAggregate
+SELECT MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender ORDER BY MAX(salary);
+
+aggNotSpecifiedInTheAggregateWithHaving
+SELECT MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY MAX(salary);
+
+multipleAggsThatGetRewrittenWithAliasOnAMediumGroupBy
+SELECT languages, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY languages ORDER BY max;
+
+multipleAggsThatGetRewrittenWithAliasOnALargeGroupBy
+SELECT emp_no, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY emp_no ORDER BY max;
+
+multipleAggsThatGetRewrittenWithAliasOnAMediumGroupByWithHaving
+SELECT languages, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY languages HAVING min BETWEEN 1000 AND 99999 ORDER BY max;
+
+aggNotSpecifiedInTheAggregatemultipleAggsThatGetRewrittenWithAliasOnALargeGroupBy
+SELECT emp_no, MIN(salary) AS min FROM test_emp GROUP BY emp_no ORDER BY MAX(salary);
+
+aggNotSpecifiedWithHavingOnLargeGroupBy
+SELECT MAX(salary) AS max FROM test_emp GROUP BY emp_no HAVING AVG(salary) > 1000 ORDER BY MIN(salary);

@@ -312,14 +312,19 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT * FROM test ORDER BY unsupported"));
     }
 
-    public void testGroupByOrderByNonKey() {
-        assertEquals("1:52: Cannot order by non-grouped column [a], expected [bool]",
-                error("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a"));
+    //    public void testGroupByOrderByNonKey() {
+    //        assertEquals("1:52: Cannot order by non-grouped column [a], expected [bool]",
+    //                error("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a"));
+    //    }
+
+    public void testGroupByOrderByAggs() {
+        accept("SELECT int FROM test GROUP BY int ORDER BY COUNT(*)");
     }
 
-    public void testGroupByOrderByFunctionOverKey() {
-        assertEquals("1:44: Cannot order by non-grouped column [MAX(int)], expected [int]",
-                error("SELECT int FROM test GROUP BY int ORDER BY MAX(int)"));
+    public void testGroupByOrderByAggAndGroupedColumn() {
+        assertEquals("1:49: Cannot order by aggregated [MAX(int)] and non-aggregated [int] columns"
+                + " at the same time; use either one or the other",
+                error("SELECT int FROM test GROUP BY int ORDER BY int, MAX(int)"));
     }
 
     public void testGroupByOrderByScore() {

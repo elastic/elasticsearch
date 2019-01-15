@@ -99,9 +99,9 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
                 if (messages.size() > 0) {
                     String message = messages.get(0);
 
-                    // special case: if forecast failed due to insufficient disk space, log the settings
+                    // special case: if forecast failed due to insufficient disk space, log the setting
                     if (message.contains("disk space is insufficient")) {
-                        message += " Minimum diskspace required: [" + processManager.getMinLocalStorageAvailable() + "]";
+                        message += " Minimum disk space required: [" + processManager.getMinLocalStorageAvailable() + "]";
                     }
 
                     listener.onFailure(ExceptionsHelper.badRequestException("Cannot run forecast: "

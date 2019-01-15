@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.snapshots.blobstore.RateLimitingInputStream;
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -82,6 +85,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private final String remoteClusterAlias;
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final RateLimiter.SimpleRateLimiter rateLimiter;
 
     public CcrRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings) {
         super(settings);
@@ -90,6 +94,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
         this.ccrLicenseChecker = ccrLicenseChecker;
         this.client = client;
+        this.rateLimiter = new RateLimiter.SimpleRateLimiter(new ByteSizeValue(40, ByteSizeUnit.MB).getMbFrac());
     }
 
     @Override
@@ -258,7 +263,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
         //  response, we should be able to retry by creating a new session.
         String name = metadata.name();
-        try (RestoreSession restoreSession = RestoreSession.openSession(name, remoteClient, leaderShardId, indexShard, recoveryState)) {
+        try (RestoreSession restoreSession = openSession(name, remoteClient, leaderShardId, indexShard, recoveryState)) {
             restoreSession.restoreFiles();
         } catch (Exception e) {
             throw new IndexShardRestoreFailedException(indexShard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
@@ -286,7 +291,16 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
     }
 
-    private static class RestoreSession extends FileRestoreContext implements Closeable {
+    private RestoreSession openSession(String repositoryName, Client remoteClient, ShardId leaderShardId, IndexShard indexShard,
+                                       RecoveryState recoveryState) {
+        String sessionUUID = UUIDs.randomBase64UUID();
+        PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
+            new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)).actionGet();
+        return new RestoreSession(repositoryName, remoteClient, sessionUUID, response.getNode(), indexShard, recoveryState,
+            response.getStoreFileMetaData());
+    }
+
+    private class RestoreSession extends FileRestoreContext implements Closeable {
 
         private static final int BUFFER_SIZE = 1 << 16;
 
@@ -304,15 +318,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             this.sourceMetaData = sourceMetaData;
         }
 
-        static RestoreSession openSession(String repositoryName, Client remoteClient, ShardId leaderShardId, IndexShard indexShard,
-                                          RecoveryState recoveryState) {
-            String sessionUUID = UUIDs.randomBase64UUID();
-            PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
-                new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)).actionGet();
-            return new RestoreSession(repositoryName, remoteClient, sessionUUID, response.getNode(), indexShard, recoveryState,
-                response.getStoreFileMetaData());
-        }
-
         void restoreFiles() throws IOException {
             ArrayList<BlobStoreIndexShardSnapshot.FileInfo> fileInfos = new ArrayList<>();
             for (StoreFileMetaData fileMetaData : sourceMetaData) {
@@ -325,7 +330,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         @Override
         protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
-            return new RestoreFileInputStream(remoteClient, sessionUUID, node, fileInfo.metadata());
+            RestoreFileInputStream restoreInputStream = new RestoreFileInputStream(remoteClient, sessionUUID, node, fileInfo.metadata());
+            return new RateLimitingInputStream(restoreInputStream, rateLimiter, (n) -> {});
         }
 
         @Override
@@ -336,7 +342,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
     }
 
-    private static class RestoreFileInputStream extends InputStream {
+    private class RestoreFileInputStream extends InputStream {
 
         private final Client remoteClient;
         private final String sessionUUID;

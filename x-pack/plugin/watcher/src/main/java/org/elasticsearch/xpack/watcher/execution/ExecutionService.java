@@ -318,7 +318,8 @@ public class ExecutionService {
                             historyStore.put(record);
                         }
                     } catch (Exception e) {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to update watch record [{}]", ctx.id()), e);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to update watch status[{}]",
+                            ctx.id().watchId()), e);
                         // TODO log watch record in logger, when saving in history store failed, otherwise the info is gone!
                     }
                 }

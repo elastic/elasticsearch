@@ -266,10 +266,20 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 autoFollower.start();
             }
         }
+        assert assertNoOtherActiveAutoFollower(newAutoFollowers);
         this.autoFollowers = autoFollowers
             .copyAndPutAll(newAutoFollowers)
             .copyAndRemoveAll(removedRemoteClusters);
     }
+
+    private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {
+        for (AutoFollower newAutoFollower : newAutoFollowers.values()) {
+            AutoFollower previousInstance = autoFollowers.get(newAutoFollower.remoteCluster);
+            assert previousInstance == null || previousInstance.removed;
+        }
+        return true;
+    }
+
 
     Map<String, AutoFollower> getAutoFollowers() {
         return autoFollowers;

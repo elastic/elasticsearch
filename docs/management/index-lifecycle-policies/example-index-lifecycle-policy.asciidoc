@@ -1,0 +1,22 @@
+[[example-using-index-lifecycle-policy]]
+=== Example of using an index lifecycle policy
+
+A common use case for managing index lifecycle policies is when you’re using 
+{beats-ref}/beats-reference.html[Beats] to continually send time-series data, 
+such as metrics and log data, to {es}.  When you create the Beats packages, an 
+index template is installed.  The template includes a default policy to apply 
+when new indices are created.  
+
+You can edit the policy in {kib}'s *Index Lifecycle Policies*.  For example, you might:
+
+* Rollover the index when it reaches 50 GB in size or is 30 days old.  These 
+settings are the default for the Beats lifecycle policy. This avoids 
+having 1000s of tiny indices. When a rollover occurs, a new “hot” index is 
+created and added to the index alias.
+
+* Move the index into the warm phase, shrink the index down to a single shard, 
+and force merge to a single segment.
+
+* After 60 days, move the index into the cold phase and onto less expensive hardware.
+
+* Delete the index after 90 days.

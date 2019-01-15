@@ -7,7 +7,7 @@ stored by default and is not searchable:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

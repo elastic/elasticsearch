@@ -19,7 +19,7 @@ that is significant and probably very relevant to their search. 5/10,000,000 vs 
 
 [source,js]
 --------------------------------------------------
-PUT /reports
+PUT /reports?include_type_name=true
 {
     "mappings": {
         "report": {

@@ -15,7 +15,7 @@ If the following mapping configures the `percolator` field type for the
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
     "mappings": {
         "_doc": {
@@ -69,7 +69,7 @@ Lets take a look at the following index with a percolator field type:
 
 [source,js]
 --------------------------------------------------
-PUT index
+PUT index?include_type_name=true
 {
   "mappings": {
     "_doc" : {
@@ -117,7 +117,7 @@ to read your queries you need to reindex your queries into a new index on the cu
 
 [source,js]
 --------------------------------------------------
-PUT new_index
+PUT new_index?include_type_name=true
 {
   "mappings": {
     "_doc" : {
@@ -269,7 +269,7 @@ with these settings and mapping:
 
 [source,js]
 --------------------------------------------------
-PUT /test_index
+PUT /test_index?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -442,7 +442,7 @@ Creating an index with custom analysis settings:
 
 [source,js]
 --------------------------------------------------
-PUT my_queries1
+PUT my_queries1?include_type_name=true
 {
   "settings": {
     "analysis": {
@@ -595,7 +595,7 @@ before the `edge_ngram` token filter.
 
 [source,js]
 --------------------------------------------------
-PUT my_queries2
+PUT my_queries2?include_type_name=true
 {
   "settings": {
     "analysis": {

@@ -14,7 +14,7 @@ For instance the following example shows how to define a sort on a single field:
 
 [source,js]
 --------------------------------------------------
-PUT twitter
+PUT twitter?include_type_name=true
 {
     "settings" : {
         "index" : {
@@ -42,7 +42,7 @@ It is also possible to sort the index by more than one field:
 
 [source,js]
 --------------------------------------------------
-PUT twitter
+PUT twitter?include_type_name=true
 {
     "settings" : {
         "index" : {
@@ -118,7 +118,7 @@ For example, let's say we have an index that contains events sorted by a timesta
 
 [source,js]
 --------------------------------------------------
-PUT events
+PUT events?include_type_name=true
 {
     "settings" : {
         "index" : {

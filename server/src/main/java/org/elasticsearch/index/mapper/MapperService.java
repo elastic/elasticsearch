@@ -666,6 +666,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * Resolves a type from a mapping-related request into the type that should be used when
+     * merging and updating mappings.
+     *
+     * If the special `_doc` type is provided, then we replace it with the actual type that is
+     * being used in the mappings. This allows typeless APIs such as 'index' or 'put mappings'
+     * to work against indices with a custom type name.
+     */
+    public String resolveDocumentType(String type) {
+        if (MapperService.SINGLE_MAPPING_NAME.equals(type)) {
+            if (mapper != null) {
+                return mapper.type();
+            }
+        }
+        return type;
+    }
+
+    /**
      * Returns the document mapper created, including a mapping update if the
      * type has been dynamically created.
      */

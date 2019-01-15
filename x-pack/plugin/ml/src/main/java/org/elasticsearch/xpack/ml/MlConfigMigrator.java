@@ -221,23 +221,23 @@ public class MlConfigMigrator {
         );
     }
 
-    private void removeFromClusterState(List<Job> jobsToRemoveIds, List<DatafeedConfig> datafeedsToRemoveIds,
+    private void removeFromClusterState(List<Job> jobsToRemove, List<DatafeedConfig> datafeedsToRemove,
                                         ActionListener<Void> listener) {
-        if (jobsToRemoveIds.isEmpty() && datafeedsToRemoveIds.isEmpty()) {
+        if (jobsToRemove.isEmpty() && datafeedsToRemove.isEmpty()) {
             listener.onResponse(null);
             return;
         }
 
-        Map<String, Job> jobsMap = jobsToRemoveIds.stream().collect(Collectors.toMap(Job::getId, Function.identity()));
+        Map<String, Job> jobsMap = jobsToRemove.stream().collect(Collectors.toMap(Job::getId, Function.identity()));
         Map<String, DatafeedConfig> datafeedMap =
-                datafeedsToRemoveIds.stream().collect(Collectors.toMap(DatafeedConfig::getId, Function.identity()));
+                datafeedsToRemove.stream().collect(Collectors.toMap(DatafeedConfig::getId, Function.identity()));
 
         AtomicReference<RemovalResult> removedConfigs = new AtomicReference<>();
 
         clusterService.submitStateUpdateTask("remove-migrated-ml-configs", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                RemovalResult removed = removeJobsAndDatafeeds(jobsToRemoveIds, datafeedsToRemoveIds,
+                RemovalResult removed = removeJobsAndDatafeeds(jobsToRemove, datafeedsToRemove,
                         MlMetadata.getMlMetadata(currentState));
                 removedConfigs.set(removed);
 
@@ -287,7 +287,7 @@ public class MlConfigMigrator {
      * @param nodes         The nodes in the cluster
      * @return  The argument {@code currentTasks}
      */
-    public static PersistentTasksCustomMetaData rewritePersistentTaskParams(Map<String, Job> jobs, Map<String, DatafeedConfig>datafeeds,
+    public static PersistentTasksCustomMetaData rewritePersistentTaskParams(Map<String, Job> jobs, Map<String, DatafeedConfig> datafeeds,
                                                                             PersistentTasksCustomMetaData currentTasks,
                                                                             DiscoveryNodes nodes) {
 

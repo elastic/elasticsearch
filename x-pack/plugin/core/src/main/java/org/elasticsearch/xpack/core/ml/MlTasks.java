@@ -146,7 +146,7 @@ public final class MlTasks {
     public static Set<String> unallocatedJobIds(@Nullable PersistentTasksCustomMetaData tasks,
                                                 DiscoveryNodes nodes) {
         return unallocatedJobTasks(tasks, nodes).stream()
-                .map(task ->task.getId().substring(JOB_TASK_ID_PREFIX.length()))
+                .map(task -> task.getId().substring(JOB_TASK_ID_PREFIX.length()))
                 .collect(Collectors.toSet());
     }
 
@@ -162,7 +162,7 @@ public final class MlTasks {
             @Nullable PersistentTasksCustomMetaData tasks,
             DiscoveryNodes nodes) {
         if (tasks == null) {
-            return Collections.emptySet();
+            return Collections.emptyList();
         }
 
         return tasks.findTasks(JOB_TASK_NAME, task -> true)
@@ -216,7 +216,7 @@ public final class MlTasks {
             @Nullable PersistentTasksCustomMetaData tasks,
             DiscoveryNodes nodes) {
         if (tasks == null) {
-            return Collections.emptySet();
+            return Collections.emptyList();
         }
 
         return tasks.findTasks(DATAFEED_TASK_NAME, task -> true)

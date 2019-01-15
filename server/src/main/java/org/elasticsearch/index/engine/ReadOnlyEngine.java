@@ -101,8 +101,9 @@ public class ReadOnlyEngine extends Engine {
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(lastCommittedSegmentInfos);
-                    if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_7_0)) {
-                        final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
+                    final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
+                    if (globalCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO
+                        && engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_7_0)) {
                         if (seqNoStats.getMaxSeqNo() != globalCheckpoint) {
                             throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
                                 + "] from last commit does not match global checkpoint [" + globalCheckpoint + "]");

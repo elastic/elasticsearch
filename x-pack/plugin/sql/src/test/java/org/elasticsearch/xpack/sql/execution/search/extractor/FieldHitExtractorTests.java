@@ -336,6 +336,24 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         assertThat(ex.getMessage(), is("Multiple values (returned by [a.b.c.d.e.f.g]) are not supported"));
     }
 
+    public void testObjectsForSourceValue() throws IOException {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, null, false);
+        SearchHit hit = new SearchHit(1);
+        XContentBuilder source = JsonXContent.contentBuilder();
+        source.startObject(); {
+            source.startObject(fieldName); {
+                source.field("b", "c");
+            }
+            source.endObject();
+        }
+        source.endObject();
+        BytesReference sourceRef = BytesReference.bytes(source);
+        hit.sourceRef(sourceRef);
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
+        assertThat(ex.getMessage(), is("Objects (returned by [" + fieldName + "]) are not supported"));
+    }
+
     private Object randomValue() {
         Supplier<Object> value = randomFrom(Arrays.asList(
                 () -> randomAlphaOfLength(10),

@@ -46,22 +46,20 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
         if (indexingComplete) {
             return new Result(true, null);
         } else {
-            return new Result(false, new Info(indexingComplete));
+            return new Result(false, new IndexingNotCompleteInfo());
         }
     }
 
-    static final class Info implements ToXContentObject {
+    static final class IndexingNotCompleteInfo implements ToXContentObject {
 
         static final ParseField MESSAGE_FIELD = new ParseField("message");
         static final ParseField INDEXING_COMPLETE = new ParseField(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE);
 
         private final String message;
-        private final boolean indexingComplete;
 
-        Info(boolean indexingComplete) {
-            this.indexingComplete = indexingComplete;
+        IndexingNotCompleteInfo() {
             this.message = "waiting for the [" + LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE +
-                "] setting to be set to true on the leader index, it is currently [" + indexingComplete + "]";
+                "] setting to be set to true on the leader index, it is currently [false]";
         }
 
         String getMessage() {
@@ -72,7 +70,7 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(MESSAGE_FIELD.getPreferredName(), message);
-            builder.field(INDEXING_COMPLETE.getPreferredName(), indexingComplete);
+            builder.field(INDEXING_COMPLETE.getPreferredName(), false);
             builder.endObject();
             return builder;
         }
@@ -81,7 +79,7 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Info info = (Info) o;
+            IndexingNotCompleteInfo info = (IndexingNotCompleteInfo) o;
             return Objects.equals(getMessage(), info.getMessage());
         }
 

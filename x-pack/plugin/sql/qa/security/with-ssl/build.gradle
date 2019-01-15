@@ -151,8 +151,10 @@ integTestCluster {
   setting 'xpack.security.transport.ssl.enabled', 'true'
 
   // ceremony to set up ssl
-  setting 'xpack.ssl.keystore.path', 'test-node.jks'
-  keystoreSetting 'xpack.ssl.keystore.secure_password', 'keypass'
+  setting 'xpack.security.transport.ssl.keystore.path', 'test-node.jks'
+  keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
+  setting 'xpack.security.http.ssl.keystore.path', 'test-node.jks'
+  keystoreSetting 'xpack.security.http.ssl.keystore.secure_password', 'keypass'
 
   setting 'xpack.license.self_generated.type', 'trial'
 

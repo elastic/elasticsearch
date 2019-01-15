@@ -82,11 +82,11 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings1 = Settings.builder()
             .put("xpack.security.transport.ssl.enabled", true)
-            .put("xpack.ssl.key", testnodeKey)
-            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
             .put("path.home", createTempDir())
             .put(settings)
             .setSecureSettings(secureSettings)
@@ -153,7 +153,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
     @SuppressForbidden(reason = "Need to open socket connection")
     public void testRenegotiation() throws Exception {
         SSLService sslService = createSSLService();
-        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SocketFactory factory = sslService.sslSocketFactory(sslConfiguration);
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
             SocketAccess.doPrivileged(() -> socket.connect(serviceA.boundAddress().publishAddress().address()));
@@ -205,7 +205,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
-        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLContext sslContext = sslService.sslContext(sslConfiguration);
         final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
         final String sniIp = "sni-hostname";
@@ -245,7 +245,9 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
             InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
 
-            Settings settings = Settings.builder().put("name", "TS_TEST").put("xpack.ssl.verification_mode", "none").build();
+            Settings settings = Settings.builder().put("name", "TS_TEST")
+                .put("xpack.security.transport.ssl.verification_mode", "none")
+                .build();
             try (MockTransportService serviceC = build(settings, version0, null, true)) {
                 serviceC.acceptIncomingRequests();
 
@@ -271,7 +273,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
-        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLContext sslContext = sslService.sslContext(sslConfiguration);
         final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
         final String sniIp = "invalid_hostname";
@@ -290,7 +292,9 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
             InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
 
-            Settings settings = Settings.builder().put("name", "TS_TEST").put("xpack.ssl.verification_mode", "none").build();
+            Settings settings = Settings.builder().put("name", "TS_TEST")
+                .put("xpack.security.transport.ssl.verification_mode", "none")
+                .build();
             try (MockTransportService serviceC = build(settings, version0, null, true)) {
                 serviceC.acceptIncomingRequests();
 

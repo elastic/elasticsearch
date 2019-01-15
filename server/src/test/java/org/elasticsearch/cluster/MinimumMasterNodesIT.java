@@ -295,7 +295,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         });
 
         logger.info("--> start back the 2 nodes ");
-        internalCluster().startNodes(2, settings).stream().toArray(String[]::new);
+        internalCluster().startNodes(2, settings);
 
         internalCluster().validateClusterFormed();
         ensureGreen();

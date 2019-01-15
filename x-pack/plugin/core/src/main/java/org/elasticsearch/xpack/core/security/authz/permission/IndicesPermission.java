@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.index.SystemIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
@@ -232,15 +233,15 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         private final Predicate<String> actionMatcher;
         private final String[] indices;
         private final Predicate<String> indexNameMatcher;
-
-        public FieldPermissions getFieldPermissions() {
-            return fieldPermissions;
-        }
-
         private final FieldPermissions fieldPermissions;
         private final Set<BytesReference> query;
+        // by default certain restricted indices are exempted when granting privileges, as they should generally be hidden for ordinary
+        // users. Setting this flag eliminates this special status, and any index name pattern in the permission will cover restricted
+        // indices as well.
+        private final boolean allowRestrictedIndices;
 
-        public Group(IndexPrivilege privilege, FieldPermissions fieldPermissions, @Nullable Set<BytesReference> query, String... indices) {
+        public Group(IndexPrivilege privilege, FieldPermissions fieldPermissions, @Nullable Set<BytesReference> query,
+                boolean allowRestrictedIndices, String... indices) {
             assert indices.length != 0;
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
@@ -248,6 +249,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             this.indexNameMatcher = indexMatcher(Arrays.asList(indices));
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
+            this.allowRestrictedIndices = allowRestrictedIndices;
         }
 
         public IndexPrivilege privilege() {
@@ -263,13 +265,18 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             return query;
         }
 
+        public FieldPermissions getFieldPermissions() {
+            return fieldPermissions;
+        }
+
         private boolean check(String action) {
             return actionMatcher.test(action);
         }
 
         private boolean check(String action, String index) {
             assert index != null;
-            return check(action) && indexNameMatcher.test(index);
+            return check(action) && (indexNameMatcher.test(index)
+                    && ((false == SystemIndicesNames.indexNames().contains(index)) || allowRestrictedIndices));
         }
 
         boolean hasQuery() {

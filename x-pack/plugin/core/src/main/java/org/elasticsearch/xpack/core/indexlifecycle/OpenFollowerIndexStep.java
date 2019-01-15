@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 
-final class OpenFollowerIndexStep extends AbstractUnfollowIndexStep {
+final class OpenFollowerIndexStep extends AsyncActionStep {
 
     static final String NAME = "open-follower-index";
 
@@ -18,8 +20,8 @@ final class OpenFollowerIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
-    void innerPerformAction(String followerIndex, Listener listener) {
-        OpenIndexRequest request = new OpenIndexRequest(followerIndex);
+    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
+        OpenIndexRequest request = new OpenIndexRequest(indexMetaData.getIndex().getName());
         getClient().admin().indices().open(request, ActionListener.wrap(
             r -> {
                 assert r.isAcknowledged() :  "open index response is not acknowledged";

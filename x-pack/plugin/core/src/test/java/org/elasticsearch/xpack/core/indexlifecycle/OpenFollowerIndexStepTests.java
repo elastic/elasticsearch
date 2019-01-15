@@ -23,11 +23,32 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class OpenFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCase<OpenFollowerIndexStep> {
+public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowerIndexStep> {
 
     @Override
-    protected OpenFollowerIndexStep newInstance(Step.StepKey key, Step.StepKey nextKey, Client client) {
-        return new OpenFollowerIndexStep(key, nextKey, client);
+    protected OpenFollowerIndexStep createRandomInstance() {
+        Step.StepKey stepKey = randomStepKey();
+        Step.StepKey nextStepKey = randomStepKey();
+        return new OpenFollowerIndexStep(stepKey, nextStepKey, Mockito.mock(Client.class));
+    }
+
+    @Override
+    protected OpenFollowerIndexStep mutateInstance(OpenFollowerIndexStep instance) {
+        Step.StepKey key = instance.getKey();
+        Step.StepKey nextKey = instance.getNextStepKey();
+
+        if (randomBoolean()) {
+            key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+        } else {
+            nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+        }
+
+        return new OpenFollowerIndexStep(key, nextKey, instance.getClient());
+    }
+
+    @Override
+    protected OpenFollowerIndexStep copyInstance(OpenFollowerIndexStep instance) {
+        return new OpenFollowerIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
     public void testOpenFollowingIndex() {

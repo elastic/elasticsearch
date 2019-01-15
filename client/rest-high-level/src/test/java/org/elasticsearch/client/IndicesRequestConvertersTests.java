@@ -939,14 +939,15 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.settings(Settings.builder().put("setting-" + ESTestCase.randomInt(), ESTestCase.randomTimeValue()));
         }
+        Map<String, String> expectedParams = new HashMap<>();
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.mapping("doc-" + ESTestCase.randomInt(),
                 "field-" + ESTestCase.randomInt(), "type=" + ESTestCase.randomFrom("text", "keyword"));
+            expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.alias(new Alias("alias-" + ESTestCase.randomInt()));
         }
-        Map<String, String> expectedParams = new HashMap<>();
         if (ESTestCase.randomBoolean()) {
             expectedParams.put("create", Boolean.TRUE.toString());
             putTemplateRequest.create(true);
@@ -955,9 +956,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             String cause = ESTestCase.randomUnicodeOfCodepointLengthBetween(1, 50);
             putTemplateRequest.cause(cause);
             expectedParams.put("cause", cause);
-        }
+        }        
         RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         Request request = IndicesRequestConverters.putTemplate(putTemplateRequest);
         Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));
@@ -1012,9 +1012,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomMasterTimeout(getTemplatesRequest::setMasterNodeTimeout, expectedParams);
         RequestConvertersTests.setRandomLocal(getTemplatesRequest::setLocal, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
-        Request request = IndicesRequestConverters.getTemplates(getTemplatesRequest);
+        Request request = IndicesRequestConverters.getTemplatesWithDocumentTypes(getTemplatesRequest);
+        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         Assert.assertThat(request.getEndpoint(),
             equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));

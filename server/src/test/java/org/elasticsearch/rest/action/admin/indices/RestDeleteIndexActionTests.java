@@ -57,7 +57,7 @@ public class RestDeleteIndexActionTests extends ESTestCase {
             IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
                     () -> handler.prepareRequest(request, mock(NodeClient.class)));
-            assertThat(e.getMessage(), equalTo("delete requests can not have a request body"));
+            assertThat(e.getMessage(), equalTo("delete index requests can not have a request body"));
         }
     }
 

@@ -46,7 +46,7 @@ public class RestDeleteIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.hasContent()) {
-            throw new IllegalArgumentException("delete requests can not have a request body");
+            throw new IllegalArgumentException("delete index requests can not have a request body");
         }
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteIndexRequest.timeout(request.paramAsTime("timeout", deleteIndexRequest.timeout()));

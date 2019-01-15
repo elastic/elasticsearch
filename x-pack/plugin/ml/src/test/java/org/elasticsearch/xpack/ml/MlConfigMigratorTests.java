@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -21,9 +22,11 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -125,7 +128,7 @@ public class MlConfigMigratorTests extends ESTestCase {
         Job migratedJob = MlConfigMigrator.updateJobForMigration(oldJob.build());
         assertEquals(Version.CURRENT, migratedJob.getJobVersion());
         assertTrue(migratedJob.getCustomSettings().containsKey(MlConfigMigrator.MIGRATED_FROM_VERSION));
-        assertEquals(oldVersion, migratedJob.getCustomSettings().get(MlConfigMigrator.MIGRATED_FROM_VERSION));
+        assertEquals(oldVersion.toString(), migratedJob.getCustomSettings().get(MlConfigMigrator.MIGRATED_FROM_VERSION));
     }
 
     public void testUpdateJobForMigration_GivenV54Job() {
@@ -136,6 +139,12 @@ public class MlConfigMigratorTests extends ESTestCase {
         Job migratedJob = MlConfigMigrator.updateJobForMigration(oldJob.build());
         assertNull(migratedJob.getJobVersion());
         assertTrue(migratedJob.getCustomSettings().containsKey(MlConfigMigrator.MIGRATED_FROM_VERSION));
+    }
+
+    public void testSerialisationOfUpdatedJob() throws IOException {
+        Job migratedJob = MlConfigMigrator.updateJobForMigration(JobTests.buildJobBuilder("pre-migration").build(new Date()));
+        Job copy = copyWriteable(migratedJob, new NamedWriteableRegistry(Collections.emptyList()), Job::new, Version.CURRENT);
+        assertEquals(migratedJob, copy);
     }
 
     public void testFilterFailedJobConfigWrites() {

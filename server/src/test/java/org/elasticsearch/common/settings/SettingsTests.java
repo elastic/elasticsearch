@@ -47,6 +47,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -741,6 +742,20 @@ public class SettingsTests extends ESTestCase {
          * we convert to a string using a method that does not lose the original unit.
          */
         final ByteSizeValue actual = setting.get(settings);
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testSetByTimeUnit() {
+        final Setting<TimeValue> setting =
+                Setting.timeSetting("key", TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"), TimeValue.ZERO);
+        final TimeValue expected = new TimeValue(1500, TimeUnit.MICROSECONDS);
+        final Settings settings = Settings.builder().put("key", expected.getMicros(), TimeUnit.MICROSECONDS).build();
+        /*
+         * Previously we would internally convert the duration to a string by converting to milliseconds which could lose precision  (e.g.,
+         * 1500 microseconds would be converted to 1ms). Effectively this test is then asserting that we no longer make this mistake when
+         * doing the internal string conversion. Instead, we convert to a duration using a method that does not lose the original unit.
+         */
+        final TimeValue actual = setting.get(settings);
         assertThat(actual, equalTo(expected));
     }
 

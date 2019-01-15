@@ -67,7 +67,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 /**
  * This is the command-line tool used for migrating users and roles from the file-based realm into the new native realm using the API for
@@ -149,7 +148,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
             // If using SSL, need a custom service because it's likely a self-signed certificate
             if ("https".equalsIgnoreCase(uri.getScheme())) {
                 final SSLService sslService = new SSLService(settings, env);
-                final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(setting("http.ssl"));
+                final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.http.ssl");
                 final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                     // Requires permission java.lang.RuntimePermission "setFactory";

@@ -15,3 +15,7 @@ alias or wildcard expression is required.
 
 The get index API can also be applied to more than one index, or on
 all indices by using `_all` or `*` as index.
+
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although mappings
+in responses no longer contain a type name by default, you can still request the old format
+through the parameter include_type_name. For more details, please see <<removal-of-types>>.

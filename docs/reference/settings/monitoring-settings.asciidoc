@@ -76,9 +76,10 @@ Sets the timeout for collecting the cluster statistics. Defaults to `10s`.
 
 Controls which indices Monitoring collects data from. Defaults to all indices. Specify the index names
 as a comma-separated list, for example `test1,test2,test3`. Names can include wildcards, for
-example `test*`. You can explicitly include or exclude indices by prepending
-`+` to include the index, or `-` to exclude the index. For example, to include all indices that
-start with `test` except `test3`, you could specify `+test*,-test3`.
+example `test*`. You can explicitly exclude indices by prepending `-`. For example `test*,-test3` will
+monitor all indexes that start with `test` except for `test3`. System indices like .security* or .kibana*
+always start with a `.`, and generally should be monitored. Consider adding `.*` to the list of indices
+ensure monitoring of system indices. For example `.*,test*,-test3`
 
 `xpack.monitoring.collection.index.stats.timeout`::
 

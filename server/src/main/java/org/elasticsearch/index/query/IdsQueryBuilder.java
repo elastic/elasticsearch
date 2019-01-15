@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,6 +53,9 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  */
 public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     public static final String NAME = "ids";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(IdsQueryBuilder.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [ids] queries.";
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField VALUES_FIELD = new ParseField("values");
@@ -83,8 +88,10 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     /**
      * Add types to query
+     *
+     * @deprecated Types are in the process of being removed, prefer to filter on a field instead.
      */
-    // TODO: Remove
+    @Deprecated
     public IdsQueryBuilder types(String... types) {
         if (types == null) {
             throw new IllegalArgumentException("[" + NAME + "] types cannot be null");
@@ -95,7 +102,10 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     /**
      * Returns the types used in this query
+     *
+     * @deprecated Types are in the process of being removed, prefer to filter on a field instead.
      */
+    @Deprecated
     public String[] types() {
         return this.types;
     }
@@ -121,7 +131,9 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.array(TYPE_FIELD.getPreferredName(), types);
+        if (types.length > 0) {
+            builder.array(TYPE_FIELD.getPreferredName(), types);
+        }
         builder.startArray(VALUES_FIELD.getPreferredName());
         for (String value : ids) {
             builder.value(value);
@@ -142,7 +154,11 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     public static IdsQueryBuilder fromXContent(XContentParser parser) {
         try {
-            return PARSER.apply(parser, null);
+            IdsQueryBuilder builder = PARSER.apply(parser, null);
+            if (builder.types().length > 0) {
+                deprecationLogger.deprecatedAndMaybeLog("ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
+            }
+            return builder;
         } catch (IllegalArgumentException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }

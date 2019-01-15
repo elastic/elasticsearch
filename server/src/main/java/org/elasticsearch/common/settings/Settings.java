@@ -1019,8 +1019,8 @@ public final class Settings implements ToXContentFragment {
          * @param value   The time value
          * @return The builder
          */
-        public Builder put(String setting, long value, TimeUnit timeUnit) {
-            put(setting, timeUnit.toMillis(value) + "ms");
+        public Builder put(final String setting, final long value, final TimeUnit timeUnit) {
+            put(setting, new TimeValue(value, timeUnit));
             return this;
         }
 

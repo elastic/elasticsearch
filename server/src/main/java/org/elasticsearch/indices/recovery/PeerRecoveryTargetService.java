@@ -29,6 +29,8 @@ import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -304,9 +306,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
                         @Override
                         public RecoveryResponse read(StreamInput in) throws IOException {
-                            RecoveryResponse recoveryResponse = new RecoveryResponse();
-                            recoveryResponse.readFrom(in);
-                            return recoveryResponse;
+                            return new RecoveryResponse(in);
                         }
                     })
             );
@@ -445,11 +445,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel, Task task) throws Exception {
-            try (RecoveryRef recoveryRef =
-                     onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                recoveryRef.target().finalizeRecovery(request.globalCheckpoint());
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+                final ActionListener<TransportResponse> listener =
+                    new HandledTransportAction.ChannelActionListener<>(channel, Actions.FINALIZE, request);
+                recoveryRef.target().finalizeRecovery(request.globalCheckpoint(),
+                    ActionListener.wrap(nullVal -> listener.onResponse(TransportResponse.Empty.INSTANCE), listener::onFailure));
             }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
@@ -604,8 +605,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
-            )) {
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
                 final RecoveryState.Index indexState = recoveryTarget.state().getIndex();
                 if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
@@ -623,12 +623,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         recoveryTarget.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
                     }
                 }
-
-                recoveryTarget.writeFileChunk(request.metadata(), request.position(), request.content(),
-                        request.lastChunk(), request.totalTranslogOps()
-                );
+                final ActionListener<TransportResponse> listener =
+                    new HandledTransportAction.ChannelActionListener<>(channel, Actions.FILE_CHUNK, request);
+                recoveryTarget.writeFileChunk(request.metadata(), request.position(), request.content(), request.lastChunk(),
+                    request.totalTranslogOps(),
+                    ActionListener.wrap(nullVal -> listener.onResponse(TransportResponse.Empty.INSTANCE), listener::onFailure));
             }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 

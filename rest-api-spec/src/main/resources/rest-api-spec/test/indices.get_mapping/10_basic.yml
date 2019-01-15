@@ -2,7 +2,7 @@
 setup:
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason: include_type_name defaults to true before 7.0
   - do:
         indices.create:
           include_type_name: false
@@ -25,7 +25,6 @@ setup:
 
  - do:
      indices.get_mapping:
-       include_type_name: false
        index: t
 
  - match: { t.mappings: {}}
@@ -34,8 +33,7 @@ setup:
 "Get /_mapping":
 
  - do:
-    indices.get_mapping:
-      include_type_name: false
+    indices.get_mapping: {}
 
  - is_true: test_1.mappings
  - is_true: test_2.mappings
@@ -45,7 +43,6 @@ setup:
 
  - do:
     indices.get_mapping:
-      include_type_name: false
       index: test_1
 
  - is_true: test_1.mappings
@@ -58,7 +55,6 @@ setup:
 
  - do:
     indices.get_mapping:
-      include_type_name: false
       index: _all
 
  - is_true: test_1.mappings
@@ -69,7 +65,6 @@ setup:
 
  - do:
     indices.get_mapping:
-      include_type_name: false
       index: '*'
 
  - is_true: test_1.mappings
@@ -80,7 +75,6 @@ setup:
 
  - do:
     indices.get_mapping:
-      include_type_name: false
       index: test_1,test_2
 
  - is_true: test_1.mappings
@@ -91,7 +85,6 @@ setup:
 
  - do:
     indices.get_mapping:
-      include_type_name: false
       index: '*2'
 
  - is_true: test_2.mappings

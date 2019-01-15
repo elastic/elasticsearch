@@ -8,7 +8,7 @@ including filter and routing infos.
 Hidden setup for example:
 [source,js]
 --------------------------------------------------
-PUT test1
+PUT test1?include_type_name=true
 {
   "aliases": {
     "alias1": {},

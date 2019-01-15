@@ -41,7 +41,7 @@ Here is an example:
 
 [source,js]
 --------------------------------------------------
-PUT /common_grams_example
+PUT /common_grams_example?include_type_name=true
 {
     "settings": {
         "analysis": {

@@ -86,7 +86,7 @@ Create a new index:
 
 [source,js]
 --------------------------------------------------
-PUT my_source_index
+PUT my_source_index?include_type_name=true
 {
   "settings": {
     "index.number_of_shards" : 1

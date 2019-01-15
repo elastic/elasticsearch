@@ -61,6 +61,15 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     String type();
 
     /**
+     * Set the default type supplied to a bulk
+     * request if this individual request's type is null
+     * or empty
+     * @return the Request
+     */
+    T defaultTypeIfNull(String defaultType);
+    
+    
+    /**
      * Get the id of the document for this request
      * @return the id
      */

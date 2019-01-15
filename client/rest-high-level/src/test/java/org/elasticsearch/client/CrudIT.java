@@ -65,6 +65,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
@@ -254,9 +255,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mapping = "\"_doc\": { \"_source\": {\n" +
-                    "        \"enabled\": false\n" +
-                    "      }  }";
+            String mapping = "\"_source\": {\"enabled\": false}";
             createIndex(noSourceIndex, settings, mapping);
             assertEquals(
                 RestStatus.OK,
@@ -449,7 +448,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         bulk.add(new IndexRequest("index", "type", "id2")
             .source("{\"field\":\"value2\"}", XContentType.JSON));
 
-        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+        highLevelClient().bulk(bulk, expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.add("index", "id1");
         multiGetRequest.add("index", "type", "id2");
@@ -819,7 +818,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             }
         }
 
-        BulkResponse bulkResponse = execute(bulkRequest, highLevelClient()::bulk, highLevelClient()::bulkAsync);
+        BulkResponse bulkResponse = execute(bulkRequest, highLevelClient()::bulk, highLevelClient()::bulkAsync, RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
         assertTrue(bulkResponse.getTook().getMillis() > 0);
         assertEquals(nbItems, bulkResponse.getItems().length);
@@ -1080,7 +1079,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         };
 
         try (BulkProcessor processor = BulkProcessor.builder(
-                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener)
+                (request, bulkListener) -> highLevelClient().bulkAsync(request, 
+                        RequestOptions.DEFAULT, bulkListener), listener)
                 .setConcurrentRequests(0)
                 .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))
                 .setBulkActions(nbItems + 1)
@@ -1240,7 +1240,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mappings = "\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\"}}}";
+            String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}}";
             createIndex(sourceIndex, settings, mappings);
             assertEquals(
                 RestStatus.OK,
@@ -1316,7 +1316,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mappings = "\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\"}}}";
+            String mappings = "\"properties\":{\"field\":{\"type\":\"text\"}}";
             createIndex(sourceIndex, settings, mappings);
             assertEquals(
                 RestStatus.OK,

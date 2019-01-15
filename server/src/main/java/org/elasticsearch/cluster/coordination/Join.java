@@ -78,6 +78,10 @@ public class Join implements Writeable {
         return targetNode;
     }
 
+    public boolean targetMatches(DiscoveryNode matchingNode) {
+        return targetNode.getId().equals(matchingNode.getId());
+    }
+
     public long getLastAcceptedVersion() {
         return lastAcceptedVersion;
     }

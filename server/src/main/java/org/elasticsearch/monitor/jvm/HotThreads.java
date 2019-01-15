@@ -268,8 +268,8 @@ public class HotThreads {
                             sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
                         }
                     } else {
-                        sb.append(String.format(Locale.ROOT,
-                            "  %d/%d snapshots sharing following %d elements%n", count, threadElementsSnapshotCount, maxSim));
+                        sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n",
+                            count, threadElementsSnapshotCount, maxSim));
                         for (int l = show.length - maxSim; l < show.length; l++) {
                             sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
                         }

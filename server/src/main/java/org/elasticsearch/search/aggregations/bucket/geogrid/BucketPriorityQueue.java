@@ -16,27 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.apache.lucene.util.PriorityQueue;
 
-import java.io.IOException;
+class BucketPriorityQueue<B extends InternalGeoGridBucket> extends PriorityQueue<B> {
 
-public class ParsedGeoHashGrid extends ParsedGeoGrid {
-
-    private static ObjectParser<ParsedGeoGrid, Void> PARSER = createParser(ParsedGeoHashGrid::new,
-        ParsedGeoHashGridBucket::fromXContent, ParsedGeoHashGridBucket::fromXContent);
-
-    public static ParsedGeoGrid fromXContent(XContentParser parser, String name) throws IOException {
-        ParsedGeoGrid aggregation = PARSER.parse(parser, null);
-        aggregation.setName(name);
-        return aggregation;
+    BucketPriorityQueue(int size) {
+        super(size);
     }
 
     @Override
-    public String getType() {
-        return GeoHashGridAggregationBuilder.NAME;
+    protected boolean lessThan(InternalGeoGridBucket o1, InternalGeoGridBucket o2) {
+        int cmp = Long.compare(o2.getDocCount(), o1.getDocCount());
+        if (cmp == 0) {
+            cmp = o2.compareTo(o1);
+            if (cmp == 0) {
+                cmp = System.identityHashCode(o2) - System.identityHashCode(o1);
+            }
+        }
+        return cmp > 0;
     }
 }

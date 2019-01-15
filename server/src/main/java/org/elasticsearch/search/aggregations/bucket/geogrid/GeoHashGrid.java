@@ -18,25 +18,54 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
- * A {@code geohash_grid} aggregation. Defines multiple buckets, each representing a cell in a geo-grid of a specific
- * precision.
+ * Represents a grid of cells where each cell's location is determined by a geohash.
+ * All geohashes in a grid are of the same precision and held internally as a single long
+ * for efficiency's sake.
  */
-public interface GeoHashGrid extends MultiBucketsAggregation {
+public class GeoHashGrid extends InternalGeoGrid<GeoHashGridBucket> {
 
-    /**
-     * A bucket that is associated with a {@code geohash_grid} cell. The key of the bucket is the {@code geohash} of the cell
-     */
-    interface Bucket extends MultiBucketsAggregation.Bucket {
+    private static final String NAME = "geohash_grid";
+
+    GeoHashGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
+                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, requiredSize, buckets, pipelineAggregators, metaData);
     }
 
-    /**
-     * @return  The buckets of this aggregation (each bucket representing a geohash grid cell)
-     */
+    public GeoHashGrid(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    List<? extends Bucket> getBuckets();
+    public InternalGeoGrid create(List<InternalGeoGridBucket> buckets) {
+        return null;
+    }
+
+    @Override
+    public InternalGeoGridBucket createBucket(InternalAggregations aggregations, InternalGeoGridBucket prototype) {
+        return new GeoHashGridBucket(prototype.geohashAsLong, prototype.docCount, aggregations);
+    }
+
+    @Override
+    InternalGeoGrid create(String name, int requiredSize, List buckets, List list, Map metaData) {
+        return new GeoHashGrid(name, requiredSize, buckets, list, metaData);
+    }
+
+    @Override
+    Reader getBucketReader() {
+        return GeoHashGridBucket::new;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

@@ -16,27 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-import java.io.IOException;
+import java.util.List;
 
-public class ParsedGeoHashGrid extends ParsedGeoGrid {
+/**
+ * A {@code geohash_grid} aggregation. Defines multiple buckets, each representing a cell in a geo-grid of a specific
+ * precision.
+ */
+public interface GeoGrid extends MultiBucketsAggregation {
 
-    private static ObjectParser<ParsedGeoGrid, Void> PARSER = createParser(ParsedGeoHashGrid::new,
-        ParsedGeoHashGridBucket::fromXContent, ParsedGeoHashGridBucket::fromXContent);
-
-    public static ParsedGeoGrid fromXContent(XContentParser parser, String name) throws IOException {
-        ParsedGeoGrid aggregation = PARSER.parse(parser, null);
-        aggregation.setName(name);
-        return aggregation;
+    /**
+     * A bucket that is associated with a {@code geohash_grid} cell. The key of the bucket is the {@code geohash} of the cell
+     */
+    interface Bucket extends MultiBucketsAggregation.Bucket {
     }
 
+    /**
+     * @return  The buckets of this aggregation (each bucket representing a geohash grid cell)
+     */
     @Override
-    public String getType() {
-        return GeoHashGridAggregationBuilder.NAME;
-    }
+    List<? extends Bucket> getBuckets();
 }

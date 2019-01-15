@@ -18,19 +18,18 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
-/**
- * Encapsulates relevant parameter defaults and validations for the geo hash grid aggregation.
- */
-final class GeoHashGridParams {
+import java.io.IOException;
 
-    /* recognized field names in JSON */
-    static final ParseField FIELD_PRECISION = new ParseField("precision");
-    static final ParseField FIELD_SIZE = new ParseField("size");
-    static final ParseField FIELD_SHARD_SIZE = new ParseField("shard_size");
+public abstract class ParsedGeoGridBucket extends ParsedMultiBucketAggregation.ParsedBucket implements GeoGrid.Bucket {
 
-    private GeoHashGridParams() {
-        throw new AssertionError("No instances intended");
+    protected String geohashAsString;
+
+    @Override
+    protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+        return builder.field(Aggregation.CommonFields.KEY.getPreferredName(), geohashAsString);
     }
 }

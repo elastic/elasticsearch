@@ -22,7 +22,7 @@ import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyM
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
-import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
@@ -104,7 +104,7 @@ public class AggregationInspectionHelper {
         return agg.getDocCount() > 0;
     }
 
-    public static boolean hasValue(InternalGeoHashGrid agg) {
+    public static boolean hasValue(GeoHashGrid agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 

@@ -315,13 +315,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         UNASSIGNED_SEQ_NO,
                         globalCheckpointListeners::globalCheckpointUpdated,
                         threadPool::absoluteTimeInMillis,
-                        retentionLeases ->
-                            runUnderPrimaryPermit(
-                                    () -> retentionLeaseSyncer.accept(retentionLeases),
-                                    // TODO: handle this!
-                                    e -> {},
-                                    ThreadPool.Names.MANAGEMENT,
-                                    retentionLeases));
+                        retentionLeaseSyncer);
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis

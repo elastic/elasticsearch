@@ -52,6 +52,10 @@ public class InetAddresses {
             }
         }
 
+        return ipStringToBytes(ipString, hasColon, hasDot);
+    }
+
+    private static byte[] ipStringToBytes(String ipString, boolean hasColon, boolean hasDot) {
         // Now decide which address family to parse.
         if (hasColon) {
             if (hasDot) {

@@ -68,7 +68,7 @@ import static org.elasticsearch.common.ssl.SslConfigurationKeys.VERIFICATION_MOD
  */
 public abstract class SslConfigurationLoader {
 
-    static final List<String> DEFAULT_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1");
+    static final List<String> DEFAULT_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1");
     static final List<String> DEFAULT_CIPHERS = loadDefaultCiphers();
     private static final char[] EMPTY_PASSWORD = new char[0];
 

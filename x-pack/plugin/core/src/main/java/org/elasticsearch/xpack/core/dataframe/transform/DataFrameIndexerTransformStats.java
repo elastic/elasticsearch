@@ -30,9 +30,8 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     private static ParseField INDEX_FAILURES = new ParseField("index_failures");
 
     public static final ConstructingObjectParser<DataFrameIndexerTransformStats, Void> PARSER = new ConstructingObjectParser<>(
-            NAME.getPreferredName(),
-            args -> new DataFrameIndexerTransformStats((long) args[0], (long) args[1], (long) args[2], (long) args[3], (long) args[4],
-                    (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9]));
+            NAME.getPreferredName(), args -> new DataFrameIndexerTransformStats((long) args[0], (long) args[1], (long) args[2],
+                    (long) args[3], (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9]));
 
     static {
         PARSER.declareLong(constructorArg(), NUM_PAGES);
@@ -51,8 +50,8 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         super();
     }
 
-    public DataFrameIndexerTransformStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations, long indexTime,
-            long searchTime, long indexTotal, long searchTotal, long indexFailures, long searchFailures) {
+    public DataFrameIndexerTransformStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
+            long indexTime, long searchTime, long indexTotal, long searchTotal, long indexFailures, long searchFailures) {
         super(numPages, numInputDocuments, numOuputDocuments, numInvocations, indexTime, searchTime, indexTotal, searchTotal, indexFailures,
                 searchFailures);
     }

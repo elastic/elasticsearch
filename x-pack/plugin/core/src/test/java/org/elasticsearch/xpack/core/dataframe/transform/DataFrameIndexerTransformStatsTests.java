@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.dataframe.transform;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
 
 import java.io.IOException;
 
@@ -30,9 +29,9 @@ public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTest
     }
 
     public static DataFrameIndexerTransformStats randomStats() {
-        return new DataFrameIndexerTransformStats(randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
+        return new DataFrameIndexerTransformStats(randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
                 randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-                randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L));
+                randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L));
     }
 
     public void testMerge() throws IOException {

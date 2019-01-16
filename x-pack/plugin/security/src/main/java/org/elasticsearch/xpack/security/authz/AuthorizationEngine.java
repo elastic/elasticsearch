@@ -30,7 +30,8 @@ public interface AuthorizationEngine {
                               AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Function<String, AliasOrIndex> aliasOrIndexFunction,
                               ActionListener<IndexAuthorizationResult> listener);
 
-    List<String> loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo info, Map<String, AliasOrIndex> aliasAndIndexLookup);
+    void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo info,
+                               Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener);
 
     interface AuthorizationInfo {
 

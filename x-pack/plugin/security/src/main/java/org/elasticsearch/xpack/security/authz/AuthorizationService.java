@@ -208,10 +208,9 @@ public class AuthorizationService {
             authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener);
         } else if (IndexPrivilege.ACTION_MATCHER.test(action)) {
             final MetaData metaData = clusterService.state().metaData();
-            final AsyncSupplier<AuthorizedIndices> authorizedIndicesSupplier = new CachingAsyncSupplier<>(
-                authzIndicesListener -> authzIndicesListener.onResponse(new AuthorizedIndices(
-                    () -> authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metaData.getAliasAndIndexLookup())))
-            );
+            final AsyncSupplier<List<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener ->
+                authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metaData.getAliasAndIndexLookup(),
+                    authzIndicesListener));
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>((resolvedIndicesListener) -> {
                 authorizedIndicesSupplier.get(ActionListener.wrap(authorizedIndices -> {
                     resolveIndexNames(request, metaData, authorizedIndices, resolvedIndicesListener);
@@ -373,9 +372,9 @@ public class AuthorizationService {
      * is very small, but the results must be cached, to avoid adding a high
      * overhead to each bulk request.
      */
-    private void authorizeBulkItems(RequestInfo requestInfo, AuthorizationInfo authzInfo, AuthorizationEngine authzEngine,
-                                    AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
-                                    AsyncSupplier<AuthorizedIndices> authorizedIndicesSupplier,
+    private void authorizeBulkItems(RequestInfo requestInfo, AuthorizationInfo authzInfo,
+                                    AuthorizationEngine authzEngine, AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
+                                    AsyncSupplier<List<String>> authorizedIndicesSupplier,
                                     MetaData metaData, String requestId, ActionListener<Void> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
         final BulkShardRequest request = (BulkShardRequest) requestInfo.getRequest();
@@ -479,7 +478,7 @@ public class AuthorizationService {
         throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
     }
 
-    private void resolveIndexNames(TransportRequest request, MetaData metaData, AuthorizedIndices authorizedIndices,
+    private void resolveIndexNames(TransportRequest request, MetaData metaData, List<String> authorizedIndices,
                                    ActionListener<ResolvedIndices> listener) {
         listener.onResponse(indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices));
     }

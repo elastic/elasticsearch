@@ -229,12 +229,13 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             Request request = (Request) o;
             return Objects.equals(remoteCluster, request.remoteCluster) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
+                Objects.equals(waitForCompletion, request.waitForCompletion) &&
                 Objects.equals(followRequest, request.followRequest);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(remoteCluster, leaderIndex, followRequest);
+            return Objects.hash(remoteCluster, leaderIndex, waitForCompletion, followRequest);
         }
     }
 

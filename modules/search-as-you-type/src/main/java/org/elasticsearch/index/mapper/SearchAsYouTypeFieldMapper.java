@@ -21,9 +21,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
+import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.shingle.FixedShingleFilter;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -396,7 +398,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
             TokenStream tokenStream = components.getTokenStream();
-            tokenStream = new FixedShingleFilter(tokenStream, shingleSize);
+            tokenStream = new TrailingShingleTokenFilter(tokenStream, shingleSize - 1);
+            tokenStream = new FixedShingleFilter(tokenStream, shingleSize, " ", "");
             if (hasEdgeNGrams) {
                 tokenStream = new EdgeNGramTokenFilter(tokenStream, Defaults.MIN_GRAM, Defaults.MAX_GRAM, true);
             }
@@ -409,6 +412,28 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         public int shingleSize() {
             return shingleSize;
+        }
+
+        private static class TrailingShingleTokenFilter extends TokenFilter {
+
+            private final int numberOfExtraTrailingPositions;
+            private final PositionIncrementAttribute positionIncrementAttribute;
+
+            TrailingShingleTokenFilter(TokenStream input, int numberOfExtraTrailingPositions) {
+                super(input);
+                this.numberOfExtraTrailingPositions = numberOfExtraTrailingPositions;
+                this.positionIncrementAttribute = addAttribute(PositionIncrementAttribute.class);
+            }
+
+            @Override
+            public boolean incrementToken() throws IOException {
+                return input.incrementToken();
+            }
+
+            @Override
+            public void end() {
+                positionIncrementAttribute.setPositionIncrement(numberOfExtraTrailingPositions);
+            }
         }
     }
 

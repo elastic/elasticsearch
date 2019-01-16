@@ -270,11 +270,6 @@ public class RestRequestTests extends ESTestCase {
         }
 
         @Override
-        public boolean hasContent() {
-            return Strings.hasLength(content());
-        }
-
-        @Override
         public BytesReference content() {
             return restRequest.content();
         }

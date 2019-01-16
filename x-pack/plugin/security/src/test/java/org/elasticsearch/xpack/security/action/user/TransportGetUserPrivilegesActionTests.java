@@ -43,7 +43,7 @@ public class TransportGetUserPrivilegesActionTests extends ESTestCase {
             .add(
                 new FieldPermissions(new FieldPermissionsDefinition(new String[]{ "public.*" }, new String[0])),
                 Collections.singleton(query),
-                IndexPrivilege.READ, "index-4", "index-5")
+                IndexPrivilege.READ, randomBoolean(), "index-4", "index-5")
             .addApplicationPrivilege(new ApplicationPrivilege("app01", "read", "data:read"), Collections.singleton("*"))
             .runAs(new Privilege(Sets.newHashSet("user01", "user02"), "user01", "user02"))
             .build();

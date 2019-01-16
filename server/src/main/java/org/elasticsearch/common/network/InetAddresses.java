@@ -38,6 +38,8 @@ public class InetAddresses {
         // Make a first pass to categorize the characters in this string.
         boolean hasColon = false;
         boolean hasDot = false;
+        boolean hasPercent = false;
+        int percentIndex = -1;
         for (int i = 0; i < ipString.length(); i++) {
             char c = ipString.charAt(i);
             if (c == '.') {
@@ -47,9 +49,18 @@ public class InetAddresses {
                     return null;  // Colons must not appear after dots.
                 }
                 hasColon = true;
+            } else if (c == '%'){
+                hasPercent = true;
+                percentIndex = i;
             } else if (Character.digit(c, 16) == -1) {
                 return null;  // Everything else must be a decimal or hex digit.
             }
+        }
+
+        // string zoneId from the address
+        if (hasPercent){
+            String ipStringWithoutZoneId = ipString.substring(0, percentIndex);
+            return ipStringToBytes(ipStringWithoutZoneId, hasColon, hasDot);
         }
 
         return ipStringToBytes(ipString, hasColon, hasDot);

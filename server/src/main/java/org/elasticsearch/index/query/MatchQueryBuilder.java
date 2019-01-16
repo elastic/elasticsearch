@@ -44,6 +44,7 @@ import java.util.Objects;
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
+    @Deprecated
     public static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
     public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");

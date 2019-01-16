@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
+import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
@@ -749,6 +750,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         private static boolean hasGaps(TokenStream stream) throws IOException {
+            assert stream instanceof CachingTokenFilter;
             PositionIncrementAttribute posIncAtt = stream.getAttribute(PositionIncrementAttribute.class);
             stream.reset();
             while (stream.incrementToken()) {

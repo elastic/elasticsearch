@@ -11,12 +11,14 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 
-import java.util.SortedMap;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -91,12 +93,12 @@ public final class AnomalyDetectorsIndex {
             return;
         }
 
-        final ActionListener<Void> createAliasListener = ActionListener.wrap(
-            r -> {
+        final ActionListener<String> createAliasListener = ActionListener.wrap(
+            concreteIndexName -> {
                 final IndicesAliasesRequest request = client.admin()
                     .indices()
                     .prepareAliases()
-                    .addAlias(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, jobStateIndexWriteAlias())
+                    .addAlias(concreteIndexName, jobStateIndexWriteAlias())
                     .request();
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(),
                     ML_ORIGIN,
@@ -109,34 +111,36 @@ public final class AnomalyDetectorsIndex {
             finalListener::onFailure
         );
 
-        // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
-        SortedMap<String, AliasOrIndex> mlLookup = state.getMetaData().getAliasAndIndexLookup().tailMap(".ml");
-        if (mlLookup.isEmpty() == false && mlLookup.firstKey().startsWith(".ml")) {
-            if (mlLookup.containsKey(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)) {
-                createAliasListener.onResponse(null);
-            } else {
-                CreateIndexRequest createIndexRequest = client.admin()
-                    .indices()
-                    .prepareCreate(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
-                    .addAlias(new Alias(jobStateIndexWriteAlias()))
-                    .request();
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-                    ML_ORIGIN,
-                    createIndexRequest,
-                    ActionListener.<CreateIndexResponse>wrap(
-                        createIndexResponse -> finalListener.onResponse(true),
-                        createIndexFailure -> {
-                            // If it was created between our last check, and this request being handled, we should add the alias
-                            // Adding an alias that already exists is idempotent, so, no need to double check if the alias exists
-                            // as well.
-                            if (createIndexFailure instanceof ResourceAlreadyExistsException) {
-                                createAliasListener.onResponse(null);
-                            } else {
-                                finalListener.onFailure(createIndexFailure);
-                            }
-                        }),
-                    client.admin().indices()::create);
-            }
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+        String[] state_indices = indexNameExpressionResolver.concreteIndexNames(state,
+            IndicesOptions.lenientExpandOpen(),
+            jobStateIndexPattern());
+        if (state_indices.length > 0) {
+            List<String> indices = Arrays.asList(state_indices);
+            indices.sort(String::compareTo);
+            createAliasListener.onResponse(indices.get(indices.size() - 1));
+        } else {
+            CreateIndexRequest createIndexRequest = client.admin()
+                .indices()
+                .prepareCreate(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
+                .addAlias(new Alias(jobStateIndexWriteAlias()))
+                .request();
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+                ML_ORIGIN,
+                createIndexRequest,
+                ActionListener.<CreateIndexResponse>wrap(
+                    createIndexResponse -> finalListener.onResponse(true),
+                    createIndexFailure -> {
+                        // If it was created between our last check, and this request being handled, we should add the alias
+                        // Adding an alias that already exists is idempotent. So, no need to double check if the alias exists
+                        // as well.
+                        if (createIndexFailure instanceof ResourceAlreadyExistsException) {
+                            createAliasListener.onResponse(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
+                        } else {
+                            finalListener.onFailure(createIndexFailure);
+                        }
+                    }),
+                client.admin().indices()::create);
         }
     }
 

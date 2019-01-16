@@ -364,14 +364,19 @@ public class MlConfigMigrator {
             return;
         }
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest.request(),
-                ActionListener.<IndexResponse>wrap(
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), ActionListener.wrap(
+            r -> {
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest.request(),
+                    ActionListener.<IndexResponse>wrap(
                         indexResponse -> {
                             listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
                         },
                         listener::onFailure),
-                client::index
-        );
+                    client::index
+                );
+            },
+            listener::onFailure
+        ));
     }
 
     private void createConfigIndex(ActionListener<Boolean> listener) {

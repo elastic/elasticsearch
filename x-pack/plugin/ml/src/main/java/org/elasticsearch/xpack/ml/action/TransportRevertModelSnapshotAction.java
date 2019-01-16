@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
@@ -79,26 +80,38 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         logger.debug("Received request to revert to snapshot id '{}' for job '{}', deleting intervening results: {}",
                 request.getSnapshotId(), request.getJobId(), request.getDeleteInterveningResults());
 
-        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
-                exists -> {
-                    PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                    JobState jobState = MlTasks.getJobState(request.getJobId(), tasks);
 
-                    if (jobState.equals(JobState.CLOSED) == false) {
-                        throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
+        // 3. Revert the state
+        ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
+            exists -> {
+                PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                JobState jobState = MlTasks.getJobState(request.getJobId(), tasks);
+
+                if (jobState.equals(JobState.CLOSED) == false) {
+                    throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
+                }
+
+                getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {
+                    ActionListener<RevertModelSnapshotAction.Response> wrappedListener = listener;
+                    if (request.getDeleteInterveningResults()) {
+                        wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, request.getJobId());
+                        wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, request.getJobId());
                     }
+                    jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
+                }, listener::onFailure);
+            },
+            listener::onFailure
+        );
 
-                    getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {
-                        ActionListener<RevertModelSnapshotAction.Response> wrappedListener = listener;
-                        if (request.getDeleteInterveningResults()) {
-                            wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, request.getJobId());
-                            wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, request.getJobId());
-                        }
-                        jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
-                    }, listener::onFailure);
-                },
-                listener::onFailure
-        ));
+
+        // 2. Verify the job exists
+        ActionListener<Boolean> createStateIndexListener = ActionListener.wrap(
+            r -> jobManager.jobExists(request.getJobId(), jobExistsListener),
+            listener::onFailure
+        );
+
+        // 1. Verify/Create the state index and its alias exists
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, createStateIndexListener);
     }
 
     private void getModelSnapshot(RevertModelSnapshotAction.Request request, JobResultsProvider provider, Consumer<ModelSnapshot> handler,

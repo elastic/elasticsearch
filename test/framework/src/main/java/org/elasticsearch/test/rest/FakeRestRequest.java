@@ -39,7 +39,7 @@ public class FakeRestRequest extends RestRequest {
     private final SocketAddress remoteAddress;
 
     public FakeRestRequest() {
-        this(NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), null, Method.GET, "/", null);
+        this(NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), BytesArray.EMPTY, Method.GET, "/", null);
     }
 
     private FakeRestRequest(NamedXContentRegistry xContentRegistry, Map<String, List<String>> headers,

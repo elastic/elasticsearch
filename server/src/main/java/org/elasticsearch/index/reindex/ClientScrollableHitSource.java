@@ -40,6 +40,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -239,6 +241,18 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         @Override
         public long getVersion() {
             return delegate.getVersion();
+        }
+
+        @Override
+        public long getSeqNo() {
+            DocumentField seqNo = delegate.getFields().get(SeqNoFieldMapper.NAME);
+            return seqNo == null ? SequenceNumbers.UNASSIGNED_SEQ_NO : (Long) seqNo.getValue();
+        }
+
+        @Override
+        public long getPrimaryTerm() {
+            DocumentField primaryTerm = delegate.getFields().get(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+            return primaryTerm == null ? SequenceNumbers.UNASSIGNED_PRIMARY_TERM : (Long)primaryTerm.getValue();
         }
 
         @Override

@@ -21,13 +21,9 @@ package org.elasticsearch.index.reindex.remote;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -37,6 +33,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
@@ -90,10 +91,14 @@ final class RemoteResponseParsers {
         ParseField routingField = new ParseField("_routing");
         ParseField ttlField = new ParseField("_ttl");
         ParseField parentField = new ParseField("_parent");
+        ParseField seqNoField = new ParseField("_seq_no");
+        ParseField primaryTermField = new ParseField("_primary_term");
         HIT_PARSER.declareString(BasicHit::setRouting, routingField);
         // Pre-2.0.0 routing come back in "fields"
         class Fields {
             String routing;
+            long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
         }
         ObjectParser<Fields, XContentType> fieldsParser = new ObjectParser<>("fields", Fields::new);
         HIT_PARSER.declareObject((hit, fields) -> {
@@ -102,6 +107,8 @@ final class RemoteResponseParsers {
         fieldsParser.declareString((fields, routing) -> fields.routing = routing, routingField);
         fieldsParser.declareLong((fields, ttl) -> {}, ttlField); // ignore ttls since they have been removed
         fieldsParser.declareString((fields, parent) -> {}, parentField); // ignore parents since they have been removed
+        fieldsParser.declareLong((fields, seqNo) -> fields.seqNo = seqNo, seqNoField);
+        fieldsParser.declareLong((fields, primaryTerm) -> fields.primaryTerm = primaryTerm, primaryTermField);
     }
 
     /**

@@ -34,17 +34,10 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
     public AsyncDeleteByQueryAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                     ThreadPool threadPool, DeleteByQueryRequest request, ScriptService scriptService,
                                     ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
-        super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
+        super(task, true, false, logger, client, threadPool, request, scriptService, listener);
+        throw new UnsupportedOperationException("bla");
     }
 
-    @Override
-    protected boolean needsSourceDocumentVersions() {
-        /*
-         * We always need the version of the source document so we can report a version conflict if we try to delete it and it has been
-         * changed.
-         */
-        return true;
-    }
 
     @Override
     protected boolean accept(ScrollableHitSource.Hit doc) {

@@ -201,6 +201,9 @@ public class InetAddressesTests extends ESTestCase {
         assertEquals("::1",
             InetAddresses.toAddrString(
                 InetAddresses.forString("::1")));
+        assertEquals("::1",
+            InetAddresses.toAddrString(
+                InetAddresses.forString("::1%0")));
         assertEquals("2001:658:22a:cafe::",
                 InetAddresses.toAddrString(
                         InetAddresses.forString("2001:0658:022a:cafe::")));

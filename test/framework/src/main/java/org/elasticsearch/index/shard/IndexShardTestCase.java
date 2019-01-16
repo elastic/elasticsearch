@@ -367,10 +367,25 @@ public abstract class IndexShardTestCase extends ESTestCase {
             };
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(nodeSettings, clusterSettings);
-            indexShard = new IndexShard(routing, indexSettings, shardPath, store, () -> null, indexCache, mapperService, similarityService,
-                engineFactory, indexEventListener, indexSearcherWrapper, threadPool,
-                BigArrays.NON_RECYCLING_INSTANCE, warmer, Collections.emptyList(), Arrays.asList(listeners), globalCheckpointSyncer,
-                breakerService);
+            indexShard = new IndexShard(
+                    routing,
+                    indexSettings,
+                    shardPath,
+                    store,
+                    () -> null,
+                    indexCache,
+                    mapperService,
+                    similarityService,
+                    engineFactory,
+                    indexEventListener,
+                    indexSearcherWrapper,
+                    threadPool,
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    warmer,
+                    Collections.emptyList(),
+                    Arrays.asList(listeners),
+                    globalCheckpointSyncer,
+                    breakerService);
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
         } finally {
@@ -446,6 +461,16 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newStartedShard(final boolean primary) throws IOException {
         return newStartedShard(primary, Settings.EMPTY, new InternalEngineFactory());
+    }
+
+    /**
+     * Creates a new empty shard and starts it.
+     *
+     * @param primary controls whether the shard will be a primary or a replica.
+     * @param settings the settings to use for this shard
+     */
+    protected IndexShard newStartedShard(final boolean primary, Settings settings) throws IOException {
+        return newStartedShard(primary, settings, new InternalEngineFactory());
     }
 
     /**
@@ -540,7 +565,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         recoverReplica(replica, primary,
             (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, version -> {
             }),
-            true, true);
+            true, startReplica);
     }
 
     /** recovers a replica from the given primary **/
@@ -600,10 +625,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), targetAllocationId,
             pNode, rNode, snapshot, replica.routingEntry().primary(), 0, startingSeqNo);
         final RecoverySourceHandler recovery = new RecoverySourceHandler(
-                primary,
-                recoveryTarget,
-                request,
-                (int) ByteSizeUnit.MB.toBytes(1));
+            primary, recoveryTarget, request, Math.toIntExact(ByteSizeUnit.MB.toBytes(1)), between(1, 8));
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
             currentClusterStateVersion.incrementAndGet(), inSyncIds, routingTable, Collections.emptySet());
 

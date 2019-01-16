@@ -792,17 +792,15 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             String mapping =
-                "\"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"user\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      },\n" +
-                    "      \"field1\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      },\n" +
-                    "      \"field2\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      }\n" +
+                    "  \"properties\": {\n" +
+                    "    \"user\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    },\n" +
+                    "    \"field1\": {\n" +
+                    "      \"type\": \"integer\"\n" +
+                    "    },\n" +
+                    "    \"field2\": {\n" +
+                    "      \"type\": \"integer\"\n" +
                     "    }\n" +
                     "  }";
             createIndex("source1", Settings.EMPTY, mapping);
@@ -1000,19 +998,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             String mapping =
-                "\"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"user\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      },\n" +
-                    "      \"field1\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      },\n" +
-                    "      \"field2\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }";
+                "  \"properties\": {\n" +
+                "    \"user\": {\n" +
+                "      \"type\": \"text\"\n" +
+                "    },\n" +
+                "    \"field1\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    },\n" +
+                "    \"field2\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    }\n" +
+                "  }";
             createIndex("source1", Settings.EMPTY, mapping);
             createIndex("source2", Settings.EMPTY, mapping);
             createPipeline("my_pipeline");
@@ -1125,19 +1121,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             String mapping =
-                "\"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"user\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      },\n" +
-                    "      \"field1\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      },\n" +
-                    "      \"field2\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }";
+                "  \"properties\": {\n" +
+                "    \"user\": {\n" +
+                "      \"type\": \"text\"\n" +
+                "    },\n" +
+                "    \"field1\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    },\n" +
+                "    \"field2\": {\n" +
+                "      \"type\": \"integer\"\n" +
+                "    }\n" +
+                "  }";
             createIndex("source1", Settings.EMPTY, mapping);
             createIndex("source2", Settings.EMPTY, mapping);
         }

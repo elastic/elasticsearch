@@ -64,4 +64,8 @@ public class SetPriorityActionTests extends AbstractXContentTestCase<SetPriority
     SetPriorityAction copy(SetPriorityAction setPriorityAction) {
         return new SetPriorityAction(setPriorityAction.recoveryPriority);
     }
+
+    SetPriorityAction notCopy(SetPriorityAction setPriorityAction) {
+        return new SetPriorityAction(setPriorityAction.recoveryPriority + 1);
+    }
 }

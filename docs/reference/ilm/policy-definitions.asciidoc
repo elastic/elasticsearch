@@ -547,6 +547,7 @@ Indicies that don't set this value have an implicit default priority of 1.
 |======
 | Name         | Required  | Default     | Description
 | `priority`   | yes       | -           | The priority for the index. Must be 0 or greater.
+                                           The value may also be set to null to remove the priority.
 
 |======
 

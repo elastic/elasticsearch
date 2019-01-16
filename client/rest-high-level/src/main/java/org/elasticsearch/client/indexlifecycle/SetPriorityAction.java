@@ -29,8 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
-import java.util.OptionalInt;
 
 /**
  * A {@link LifecycleAction} which sets the index's priority. The higher the priority, the faster the recovery.

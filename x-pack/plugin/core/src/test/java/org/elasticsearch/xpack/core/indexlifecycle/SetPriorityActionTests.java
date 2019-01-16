@@ -20,7 +20,7 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
     private final int priority = randomIntBetween(0, Integer.MAX_VALUE);
 
     static SetPriorityAction randomInstance() {
-        return new SetPriorityAction(randomIntBetween(2, Integer.MAX_VALUE));
+        return new SetPriorityAction(randomIntBetween(2, Integer.MAX_VALUE - 1));
     }
 
     @Override
@@ -82,10 +82,14 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
     }
 
     public void testEqualsAndHashCode() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copy);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copy, this::notCopy);
     }
 
     SetPriorityAction copy(SetPriorityAction setPriorityAction) {
         return new SetPriorityAction(setPriorityAction.recoveryPriority);
+    }
+
+    SetPriorityAction notCopy(SetPriorityAction setPriorityAction) {
+        return new SetPriorityAction(setPriorityAction.recoveryPriority + 1);
     }
 }

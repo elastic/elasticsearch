@@ -505,12 +505,15 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
      * setting its routing, timestamp, and so on if needed.
      */
     @Nullable
-    public MappingMetaData mappingOrDefault(String mappingType) {
-        MappingMetaData mapping = mappings.get(mappingType);
-        if (mapping != null) {
-            return mapping;
+    public MappingMetaData mappingOrDefault() {
+        MappingMetaData mapping = null;
+        for (ObjectCursor<MappingMetaData> m : mappings.values()) {
+            if (mapping == null || mapping.type().equals(MapperService.DEFAULT_MAPPING)) {
+                mapping = m.value;
+            }
         }
-        return mappings.get(MapperService.DEFAULT_MAPPING);
+
+        return mapping;
     }
 
     ImmutableOpenMap<String, DiffableStringMap> getCustomData() {

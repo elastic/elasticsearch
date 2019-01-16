@@ -527,12 +527,12 @@ public class RecoverySourceHandler {
         final AtomicInteger skippedOps = new AtomicInteger();
         final AtomicInteger totalSentOps = new AtomicInteger();
         final LocalCheckpointTracker requiredOpsTracker = new LocalCheckpointTracker(endingSeqNo, requiredSeqNoRangeStart - 1);
-
+        final AtomicInteger lastBatchCount = new AtomicInteger(); // used to estimate the count of the subsequent batch.
         final CheckedSupplier<List<Translog.Operation>, IOException> readNextBatch = () -> {
             // We need to synchronized Snapshot#next() because it's called by different threads through sendBatch.
             // Even though those calls are not concurrent, Snapshot#next() uses non-synchronized state and is not multi-thread-compatible.
             synchronized (snapshot) {
-                final List<Translog.Operation> operations = new ArrayList<>();
+                final List<Translog.Operation> ops = lastBatchCount.get() > 0 ? new ArrayList<>(lastBatchCount.get()) : new ArrayList<>();
                 long batchSizeInBytes = 0L;
                 Translog.Operation operation;
                 while ((operation = snapshot.next()) != null) {
@@ -545,7 +545,7 @@ public class RecoverySourceHandler {
                         skippedOps.incrementAndGet();
                         continue;
                     }
-                    operations.add(operation);
+                    ops.add(operation);
                     batchSizeInBytes += operation.estimateSize();
                     totalSentOps.incrementAndGet();
                     requiredOpsTracker.markSeqNoAsCompleted(seqNo);
@@ -555,7 +555,8 @@ public class RecoverySourceHandler {
                         break;
                     }
                 }
-                return operations;
+                lastBatchCount.set(ops.size());
+                return ops;
             }
         };
 

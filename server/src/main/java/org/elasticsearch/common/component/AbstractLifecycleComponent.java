@@ -21,7 +21,6 @@ package org.elasticsearch.common.component;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.util.List;

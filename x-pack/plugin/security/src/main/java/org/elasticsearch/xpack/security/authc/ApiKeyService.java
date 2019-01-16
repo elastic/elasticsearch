@@ -140,62 +140,73 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            final Instant created = clock.instant();
-            final Instant expiration = getApiKeyExpiration(created, request);
-            final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
-            final Version version = clusterService.state().nodes().getMinNodeVersion();
-            if (version.before(Version.V_7_0_0)) { // TODO(jaymode) change to V6_6_0 on backport!
-                logger.warn("nodes prior to the minimum supported version for api keys {} exist in the cluster; these nodes will not be " +
-                    "able to use api keys", Version.V_7_0_0);
-            }
-
-            final char[] keyHash = hasher.hash(apiKey);
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                builder.startObject()
-                    .field("doc_type", "api_key")
-                    .field("creation_time", created.toEpochMilli())
-                    .field("expiration_time", expiration == null ? null : expiration.toEpochMilli())
-                    .field("api_key_invalidated", false);
-
-                byte[] utf8Bytes = null;
-                try {
-                    utf8Bytes = CharArrays.toUtf8Bytes(keyHash);
-                    builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
-                } finally {
-                    if (utf8Bytes != null) {
-                        Arrays.fill(utf8Bytes, (byte) 0);
+            findActiveApiKeyForApiKeyName(request.getName(), ActionListener.wrap(apiKeyIds -> {
+                if (apiKeyIds.isEmpty()) {
+                    final Instant created = clock.instant();
+                    final Instant expiration = getApiKeyExpiration(created, request);
+                    final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
+                    final Version version = clusterService.state().nodes().getMinNodeVersion();
+                    if (version.before(Version.V_7_0_0)) { // TODO(jaymode) change to V6_6_0 on backport!
+                        logger.warn(
+                                "nodes prior to the minimum supported version for api keys {} exist in the cluster; these nodes will not be "
+                                        + "able to use api keys",
+                                Version.V_7_0_0);
                     }
-                }
 
-                builder.startObject("role_descriptors");
-                for (RoleDescriptor descriptor : request.getRoleDescriptors()) {
-                    builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+                    final char[] keyHash = hasher.hash(apiKey);
+                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                        builder.startObject()
+                            .field("doc_type", "api_key")
+                            .field("creation_time", created.toEpochMilli())
+                            .field("expiration_time", expiration == null ? null : expiration.toEpochMilli())
+                            .field("api_key_invalidated", false);
+
+                        byte[] utf8Bytes = null;
+                        try {
+                            utf8Bytes = CharArrays.toUtf8Bytes(keyHash);
+                            builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
+                        } finally {
+                            if (utf8Bytes != null) {
+                                Arrays.fill(utf8Bytes, (byte) 0);
+                            }
+                        }
+
+                        builder.startObject("role_descriptors");
+                        for (RoleDescriptor descriptor : request.getRoleDescriptors()) {
+                            builder.field(descriptor.getName(),
+                                    (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+                        }
+                        builder.endObject();
+                        builder.field("name", request.getName())
+                            .field("version", version.id)
+                            .startObject("creator")
+                            .field("principal", authentication.getUser().principal())
+                            .field("metadata", authentication.getUser().metadata())
+                            .field("realm", authentication.getLookedUpBy() == null ?
+                                authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
+                            .endObject()
+                            .endObject();
+                        final IndexRequest indexRequest =
+                            client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE)
+                                .setSource(builder)
+                                .setRefreshPolicy(request.getRefreshPolicy())
+                                .request();
+                        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+                        executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexRequest,
+                                ActionListener.wrap(
+                                        indexResponse -> listener.onResponse(
+                                                new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
+                                        listener::onFailure)));
+                    } catch (IOException e) {
+                        listener.onFailure(e);
+                    } finally {
+                        Arrays.fill(keyHash, (char) 0);
+                    }
+                } else {
+                    listener.onFailure(traceLog("create api key", new ElasticsearchSecurityException(
+                            "Error creating api key as api key with name [{}] already exists", request.getName())));
                 }
-                builder.endObject();
-                builder.field("name", request.getName())
-                    .field("version", version.id)
-                    .startObject("creator")
-                    .field("principal", authentication.getUser().principal())
-                    .field("metadata", authentication.getUser().metadata())
-                    .field("realm", authentication.getLookedUpBy() == null ?
-                        authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
-                    .endObject()
-                    .endObject();
-                final IndexRequest indexRequest =
-                    client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE)
-                        .setSource(builder)
-                        .setRefreshPolicy(request.getRefreshPolicy())
-                        .request();
-                securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-                    executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexRequest,
-                        ActionListener.wrap(indexResponse ->
-                                listener.onResponse(new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
-                            listener::onFailure)));
-            } catch (IOException e) {
-                listener.onFailure(e);
-            } finally {
-                Arrays.fill(keyHash, (char) 0);
-            }
+            }, listener::onFailure));
         }
     }
 

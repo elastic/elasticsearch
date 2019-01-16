@@ -113,6 +113,32 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
     }
 
+    public void testCreateApiKeyFailsWhenApiKeyWithSameNameAlreadyExists() {
+        String keyName = randomAlphaOfLength(5);
+        {
+            final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+            Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+                    .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+            SecurityClient securityClient = new SecurityClient(client);
+            final CreateApiKeyResponse response = securityClient.prepareCreateApiKey().setName(keyName).setExpiration(null)
+                    .setRoleDescriptors(Collections.singletonList(descriptor)).get();
+            assertNotNull(response.getId());
+            assertNotNull(response.getKey());
+        }
+
+        final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> securityClient.prepareCreateApiKey()
+            .setName(keyName)
+            .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
+            .setRoleDescriptors(Collections.singletonList(descriptor))
+            .get());
+        assertThat(e.getMessage(), equalTo("Error creating api key as api key with name ["+keyName+"] already exists"));
+    }
+
     public void testInvalidateApiKeysForRealm() throws InterruptedException, ExecutionException {
         int noOfApiKeys = randomIntBetween(3, 5);
         List<CreateApiKeyResponse> responses = createApiKeys(noOfApiKeys, null);

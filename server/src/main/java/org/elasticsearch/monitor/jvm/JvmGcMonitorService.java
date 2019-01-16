@@ -107,7 +107,6 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
     }
 
     public JvmGcMonitorService(Settings settings, ThreadPool threadPool) {
-        super(settings);
         this.threadPool = threadPool;
 
         this.enabled = ENABLED_SETTING.get(settings);

@@ -218,6 +218,42 @@ public class InetAddressesTests extends ESTestCase {
                 InetAddresses.forString("::1.2.3.4%0")));
     }
 
+    public void testToAddrStringIPv6WithInvalidZoneId(){
+        IllegalArgumentException e = null;
+
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.forString("::1%fred"));
+        assertThat(e.getMessage(), Matchers.containsString("is not an IP string literal"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.forString("::1%%"));
+        assertThat(e.getMessage(), Matchers.containsString("is not an IP string literal"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.forString("%::1"));
+        assertThat(e.getMessage(), Matchers.containsString("is not an IP string literal"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.forString("0::0:0:0:0:0:0%:1"));
+        assertThat(e.getMessage(), Matchers.containsString("is not an IP string literal"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.forString("::1%1.2.3.4"));
+        assertThat(e.getMessage(), Matchers.containsString("is not an IP string literal"));
+    }
+
+    public void testToAddrStringZoneIdDelimiterCannotAppearRightAfterOtherDelimiters(){
+        IllegalArgumentException e = null;
+
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.forString("::1:%0"));
+        assertThat(e.getMessage(), Matchers.containsString("is not an IP string literal"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.forString("::1:1.2.3.%0"));
+        assertThat(e.getMessage(), Matchers.containsString("is not an IP string literal"));
+    }
+
+    public void testToAddrStringIPv4DoesNotAllowZoneId(){
+        IllegalArgumentException e = null;
+
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.forString("1.2.3.4%0"));
+        assertThat(e.getMessage(), Matchers.containsString("is not an IP string literal"));
+    }
+
     public void testToUriStringIPv4() {
         String ipStr = "1.2.3.4";
         InetAddress ip = InetAddresses.forString(ipStr);

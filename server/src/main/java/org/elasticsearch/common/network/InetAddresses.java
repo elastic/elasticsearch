@@ -43,13 +43,29 @@ public class InetAddresses {
         for (int i = 0; i < ipString.length(); i++) {
             char c = ipString.charAt(i);
             if (c == '.') {
+                if (hasPercent){
+                    return null;  // Dots must not appear after percents.
+                }
+
                 hasDot = true;
             } else if (c == ':') {
+                if (hasPercent){
+                    return null;  // Colons must not appear after percents.
+                }
+
                 if (hasDot) {
                     return null;  // Colons must not appear after dots.
                 }
                 hasColon = true;
             } else if (c == '%'){
+                if (hasPercent){
+                    return null;  // There can only be one percent.
+                }
+
+                if (!hasColon){
+                    return null;  // Percents can only appear if there are colons.
+                }
+
                 hasPercent = true;
                 percentIndex = i;
             } else if (Character.digit(c, 16) == -1) {
@@ -60,7 +76,7 @@ public class InetAddresses {
         // strip zoneId from the address
         if (hasPercent){
             String ipStringWithoutZoneId = ipString.substring(0, percentIndex);
-            return ipStringToBytes(ipStringWithoutZoneId, hasColon, hasDot);
+            return ipStringToBytes(ipStringWithoutZoneId);
         }
 
         return ipStringToBytes(ipString, hasColon, hasDot);

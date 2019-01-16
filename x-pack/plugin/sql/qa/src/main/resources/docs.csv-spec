@@ -96,7 +96,7 @@ SHOW TABLES;
      name      |     type      
 ---------------+---------------
 emp            |BASE TABLE     
-employees      |ALIAS          
+employees      |VIEW          
 library        |BASE TABLE 
 
 // end::showTables
@@ -120,7 +120,7 @@ SHOW TABLES LIKE 'emp%';
      name      |     type      
 ---------------+---------------
 emp            |BASE TABLE     
-employees      |ALIAS          
+employees      |VIEW          
 
 // end::showTablesLikeWildcard
 ;
@@ -167,7 +167,7 @@ SHOW TABLES "*,-l*";
      name      |     type      
 ---------------+---------------
 emp            |BASE TABLE     
-employees      |ALIAS
+employees      |VIEW
 
 // end::showTablesEsMultiIndex
 ;

@@ -34,6 +34,8 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -42,7 +44,6 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -229,7 +230,7 @@ public class RBACEngine implements AuthorizationEngine {
         } else if (request instanceof IndicesRequest &&
             IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request)) {
             // remote indices are allowed
-            indicesAsyncSupplier.get(ActionListener.wrap(resolvedIndices -> {
+            indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 assert !resolvedIndices.isEmpty()
                     : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                 //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
@@ -246,7 +247,7 @@ public class RBACEngine implements AuthorizationEngine {
             authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES,
                 ActionListener.wrap(indexAuthorizationResult -> {
                     if (indexAuthorizationResult.isGranted()) {
-                        indicesAsyncSupplier.get(ActionListener.wrap(resolvedIndices -> {
+                        indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                             assert !resolvedIndices.isEmpty()
                                 : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                             //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.

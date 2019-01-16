@@ -483,7 +483,7 @@ public class ApiKeyService {
         } else {
             findActiveApiKeyForApiKeyName(apiKeyName, ActionListener.wrap(apiKeyIds -> {
                     if (apiKeyIds.isEmpty()) {
-                        logger.warn("No api keys to invalidate for api key name [{}]", apiKeyName);
+                        logger.warn("No api key to invalidate for api key name [{}]", apiKeyName);
                         invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
                         invalidateAllApiKeys(apiKeyIds, invalidateListener);
@@ -555,7 +555,6 @@ public class ApiKeyService {
     private void indexInvalidation(Collection<String> apiKeyIds, ActionListener<InvalidateApiKeyResponse> listener,
                                    @Nullable InvalidateApiKeyResponse previousResult) {
         if (apiKeyIds.isEmpty()) {
-            logger.warn("No api key ids provided for invalidation");
             listener.onFailure(new ElasticsearchSecurityException("No api key ids provided for invalidation"));
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();

@@ -146,7 +146,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         if (source != null) {
             try (InputStream stream = source.streamInput()) {
-                builder.rawValue(stream, XContentType.JSON);
+                builder.rawValue(stream, xContentType);
             }
         } else {
             builder.startObject().endObject();

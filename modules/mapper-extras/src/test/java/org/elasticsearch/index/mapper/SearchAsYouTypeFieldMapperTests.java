@@ -16,45 +16,57 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeAnalyzer;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SubFieldMapper;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SubFieldType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import static java.util.Arrays.asList;
-import static org.elasticsearch.test.hamcrest.ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(MapperExtrasPlugin.class);
+    }
 
-    public void testDefaultConfiguration() throws IOException {
+    public void testIndex() throws IOException {
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("a_field")
+                        .field("type", "search_as_you_type")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject());
+
+        final DocumentMapper mapper = createIndex("test")
+            .mapperService()
+            .documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "_doc", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("a_field", "new york city")
+                .endObject()),
+            XContentType.JSON));
+
+        for (String field : new String[] { "a_field", "a_field._index_prefix", "a_field._2gram", "a_field._3gram"}) {
+            IndexableField[] fields = doc.rootDoc().getFields(field);
+            assertEquals(1, fields.length);
+            assertEquals("new york city", fields[0].stringValue());
+        }
+    }
+
+   /** public void testDefaultConfiguration() throws IOException {
         final String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
             .startObject("_doc")
@@ -256,6 +268,6 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(mapper, instanceOf(SubFieldMapper.class));
         return (SubFieldMapper) mapper;
     }
-
+**/
 
 }

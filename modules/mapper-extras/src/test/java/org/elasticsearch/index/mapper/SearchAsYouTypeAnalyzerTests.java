@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAsYouTypeAnalyzerTests extends ESTestCase {
@@ -50,17 +49,9 @@ public class SearchAsYouTypeAnalyzerTests extends ESTestCase {
         return tokens;
     }
 
-    public void testSingleTermShingles() throws IOException {
-        for (int shingleSize = 2; shingleSize <= 4; shingleSize++) {
-            final List<String> tokens = analyze(SearchAsYouTypeAnalyzer.withShingles(SIMPLE, shingleSize), "quick");
-            final List<String> expectedTokens = singletonList("quick" + spaces(shingleSize - 1)); // todo we don't want these spaces
-            assertThat("analyzed correctly with [" + shingleSize + "] shingles", tokens, equalTo(expectedTokens));
-        }
-    }
-
     public void testSingleTermNGrams() throws IOException {
         for (int shingleSize = 2; shingleSize <= 4; shingleSize++) {
-            final List<String> tokens = analyze(SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(SIMPLE, shingleSize), "quick");
+            final List<String> tokens = analyze(SearchAsYouTypeAnalyzer.withShingleAndPrefix(SIMPLE, shingleSize), "quick");
             final List<String> expectedTokens = new ArrayList<>(asList("q", "qu", "qui", "quic", "quick"));
             for (int i = 1; i < shingleSize; i++) {
                 expectedTokens.add("quick" + spaces(i));

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CombinedRateLimiter;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
@@ -51,6 +51,7 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionRequest;
@@ -68,9 +69,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-
-import static org.elasticsearch.xpack.ccr.CcrSettings.FOLLOWER_RECOVERY_MAX_BYTES_READ_PER_SECOND;
 
 /**
  * This repository relies on a remote cluster for Ccr restores. It is read-only so it can only be used to
@@ -84,22 +82,22 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private static final SnapshotId SNAPSHOT_ID = new SnapshotId(LATEST, LATEST);
 
     private final RepositoryMetaData metadata;
+    private final CcrSettings ccrSettings;
     private final String remoteClusterAlias;
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
 
-    private final RateLimiter.SimpleRateLimiter rateLimiter;
     private final CounterMetric throttledTime = new CounterMetric();
-    private final AtomicLong bytesSinceLastPause = new AtomicLong();
 
-    public CcrRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings) {
+    public CcrRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings,
+                         CcrSettings ccrSettings) {
         super(settings);
         this.metadata = metadata;
+        this.ccrSettings = ccrSettings;
         assert metadata.name().startsWith(NAME_PREFIX) : "CcrRepository metadata.name() must start with: " + NAME_PREFIX;
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
         this.ccrLicenseChecker = ccrLicenseChecker;
         this.client = client;
-        this.rateLimiter = new RateLimiter.SimpleRateLimiter(FOLLOWER_RECOVERY_MAX_BYTES_READ_PER_SECOND.get(settings).getMbFrac());
     }
 
     @Override
@@ -352,6 +350,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         private final String sessionUUID;
         private final DiscoveryNode node;
         private final StoreFileMetaData fileToRecover;
+        private final CombinedRateLimiter rateLimiter;
 
         private long pos = 0;
 
@@ -360,6 +359,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             this.sessionUUID = sessionUUID;
             this.node = node;
             this.fileToRecover = fileToRecover;
+            this.rateLimiter = ccrSettings.getRateLimiter();
         }
 
 
@@ -404,14 +404,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
 
         private void maybePause(int bytesRequested) {
-            long bytesSincePause = bytesSinceLastPause.addAndGet(bytesRequested);
-            if (bytesSincePause > rateLimiter.getMinPauseCheckBytes()) {
-                // Time to pause
-                bytesSinceLastPause.addAndGet(-bytesSincePause);
-                long throttleTimeInNanos = rateLimiter.pause(bytesSincePause);
-                if (throttleTimeInNanos > 0) {
-                    throttledTime.inc(throttleTimeInNanos);
-                }
+            long throttleTimeInNanos = rateLimiter.maybePause(bytesRequested);
+            if (throttleTimeInNanos > 0) {
+                throttledTime.inc(throttleTimeInNanos);
             }
         }
     }

@@ -111,10 +111,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     @Before
     public final void startClusters() throws Exception {
-        startClusters(Settings.EMPTY);
-    }
-
-    private void startClusters(Settings additionalSettings) throws Exception {
         if (clusterGroup != null && reuseClusters()) {
             clusterGroup.leaderCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
             clusterGroup.followerCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
@@ -126,8 +122,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class, getTestTransportPlugin());
 
         InternalTestCluster leaderCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
-            numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), createNodeConfigurationSource(null, additionalSettings), 0,
-            "leader", mockPlugins, Function.identity());
+            numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), createNodeConfigurationSource(null), 0, "leader", mockPlugins,
+            Function.identity());
         leaderCluster.beforeTest(random(), 0.0D);
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
@@ -137,8 +133,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
         String address = leaderCluster.getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         InternalTestCluster followerCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
-            numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), createNodeConfigurationSource(address, additionalSettings), 0,
-            "follower", mockPlugins, Function.identity());
+            numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), createNodeConfigurationSource(address), 0, "follower",
+            mockPlugins, Function.identity());
         clusterGroup = new ClusterGroup(leaderCluster, followerCluster);
 
         followerCluster.beforeTest(random(), 0.0D);
@@ -147,11 +143,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
             assertNotNull(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
         });
-    }
-
-    protected void restartClustersWithSettings(Settings settings) throws Exception {
-        stopClusters();
-        startClusters(settings);
     }
 
     /**
@@ -189,7 +180,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }
     }
 
-    private NodeConfigurationSource createNodeConfigurationSource(String leaderSeedAddress, Settings settings) {
+    private NodeConfigurationSource createNodeConfigurationSource(String leaderSeedAddress) {
         Settings.Builder builder = Settings.builder();
         builder.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE);
         // Default the watermarks to absurdly low to prevent the tests
@@ -211,7 +202,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // Let cluster state api return quickly in order to speed up auto follow tests:
         builder.put(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
-        builder.put(settings);
         if (configureRemoteClusterViaNodeSettings() && leaderSeedAddress != null) {
             builder.put("cluster.remote.leader_cluster.seeds", leaderSeedAddress);
         }

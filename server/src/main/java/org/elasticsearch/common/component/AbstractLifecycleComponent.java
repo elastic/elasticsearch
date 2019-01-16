@@ -34,6 +34,9 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
 
     private final List<LifecycleListener> listeners = new CopyOnWriteArrayList<>();
 
+    protected AbstractLifecycleComponent() {}
+
+    @Deprecated
     protected AbstractLifecycleComponent(Settings settings) {
         // TODO drop settings from ctor
     }

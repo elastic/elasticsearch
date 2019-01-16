@@ -63,7 +63,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
 
         @Override
         public boolean match(Task task) {
-            // If we are retrieving all the s, the task description does not contain the id
+            // If we are retrieving all the transforms, the task description does not contain the id
             if (id.equals(MetaData.ALL)) {
                 return task.getDescription().startsWith(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX);
             }

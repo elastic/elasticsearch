@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -65,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -692,24 +694,37 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testAddNewReplicas() throws Exception {
-        try (ReplicationGroup shards = createGroup(between(0, 1))) {
+        AtomicBoolean stopped = new AtomicBoolean();
+        List<Thread> threads = new ArrayList<>();
+        Runnable stopIndexing = () -> {
+            try {
+                stopped.set(true);
+                for (Thread thread : threads) {
+                    thread.join();
+                }
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        };
+        try (ReplicationGroup shards = createGroup(between(0, 1));
+             Releasable ignored = stopIndexing::run) {
             shards.startAll();
-            Thread[] threads = new Thread[between(1, 3)];
-            AtomicBoolean isStopped = new AtomicBoolean();
             boolean appendOnly = randomBoolean();
             AtomicInteger docId = new AtomicInteger();
-            for (int i = 0; i < threads.length; i++) {
-                threads[i] = new Thread(() -> {
-                    while (isStopped.get() == false) {
+            int numThreads = between(1, 3);
+            for (int i = 0; i < numThreads; i++) {
+                Thread thread = new Thread(() -> {
+                    while (stopped.get() == false) {
                         try {
+                            int nextId = docId.incrementAndGet();
                             if (appendOnly) {
-                                String id = randomBoolean() ? Integer.toString(docId.incrementAndGet()) : null;
+                                String id = randomBoolean() ? Integer.toString(nextId) : null;
                                 shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
                             } else if (frequently()) {
-                                String id = Integer.toString(frequently() ? docId.incrementAndGet() : between(0, 10));
+                                String id = Integer.toString(frequently() ? nextId : between(0, nextId));
                                 shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
                             } else {
-                                String id = Integer.toString(between(0, docId.get()));
+                                String id = Integer.toString(between(0, nextId));
                                 shards.delete(new DeleteRequest(index.getName(), "type", id));
                             }
                             if (randomInt(100) < 10) {
@@ -720,17 +735,15 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         }
                     }
                 });
-                threads[i].start();
+                threads.add(thread);
+                thread.start();
             }
-            assertBusy(() -> assertThat(docId.get(), greaterThanOrEqualTo(50)));
+            assertBusy(() -> assertThat(docId.get(), greaterThanOrEqualTo(50)), 60, TimeUnit.SECONDS); // we flush quite often
             shards.getPrimary().sync();
             IndexShard newReplica = shards.addReplica();
             shards.recoverReplica(newReplica);
-            assertBusy(() -> assertThat(docId.get(), greaterThanOrEqualTo(100)));
-            isStopped.set(true);
-            for (Thread thread : threads) {
-                thread.join();
-            }
+            assertBusy(() -> assertThat(docId.get(), greaterThanOrEqualTo(100)), 60, TimeUnit.SECONDS); // we flush quite often
+            stopIndexing.run();
             assertBusy(() -> assertThat(getDocIdAndSeqNos(newReplica), equalTo(getDocIdAndSeqNos(shards.getPrimary()))));
         }
     }

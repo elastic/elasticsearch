@@ -148,8 +148,8 @@ public class ApiKeyService {
                     final Version version = clusterService.state().nodes().getMinNodeVersion();
                     if (version.before(Version.V_7_0_0)) { // TODO(jaymode) change to V6_6_0 on backport!
                         logger.warn(
-                                "nodes prior to the minimum supported version for api keys {} exist in the cluster; these nodes will not be "
-                                        + "able to use api keys",
+                                "nodes prior to the minimum supported version for api keys {} exist in the cluster;"
+                                        + " these nodes will not be able to use api keys",
                                 Version.V_7_0_0);
                     }
 

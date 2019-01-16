@@ -121,7 +121,8 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
                 validationException = addValidationError("api key id must not be specified when username or realm name is specified", null);
             }
             if (Strings.hasText(apiKeyName)) {
-                validationException = addValidationError("api key name must not be specified when username or realm name is specified", validationException);
+                validationException = addValidationError("api key name must not be specified when username or realm name is specified",
+                        validationException);
             }
         } else {
             if (Strings.hasText(apiKeyId)) {

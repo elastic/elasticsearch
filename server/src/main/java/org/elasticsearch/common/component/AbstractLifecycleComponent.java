@@ -38,7 +38,7 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
 
     /**
      * @deprecated the settings parameters are not used, therefore the use of this constructor is deprecated.
-     * Going to be removed in subsequent versions
+     * Going to be removed in subsequent versions. The parameterless constructor should be used instead.
      */
     @Deprecated
     protected AbstractLifecycleComponent(Settings settings) {

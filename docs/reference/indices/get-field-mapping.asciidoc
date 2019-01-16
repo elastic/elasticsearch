@@ -9,7 +9,7 @@ For example, consider the following mapping:
 
 [source,js]
 --------------------------------------------------
-PUT publications?include_type_name=true
+PUT publications
 {
     "mappings": {
         "_doc": {

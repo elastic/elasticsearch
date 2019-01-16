@@ -93,8 +93,7 @@ public class RestGetMappingAction extends BaseRestHandler {
             throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
                 " include_type_name is set to true.");
         }
-        // TODO q: do we want to deprecate any use of the parameter or just "true"
-        if (includeTypeName == true) {
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
             deprecationLogger.deprecatedAndMaybeLog("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 

@@ -172,11 +172,10 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
 
     /**
      * check that the "old" legacy response format with types works as expected
-     * @throws IOException
      */
     public void testToXContentWithTypes() throws IOException {
         Params params = new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "true"));
-        xContentTester(this::createParser, t -> createTestInstance(), params, this::fromXContentLegacy)
+        xContentTester(this::createParser, t -> createTestInstance(), params, this::fromXContentWithTypes)
                 .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
                 .supportsUnknownFields(supportsUnknownFields())
                 .shuffleFieldsExceptions(getShuffleFieldsExceptions())
@@ -190,7 +189,7 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
      * including the pre-7.0 parsing code here to test that older HLRC clients using this can parse the responses that are
      * returned when "include_type_name=true"
      */
-    private GetMappingsResponse fromXContentLegacy(XContentParser parser) throws IOException {
+    private GetMappingsResponse fromXContentWithTypes(XContentParser parser) throws IOException {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }

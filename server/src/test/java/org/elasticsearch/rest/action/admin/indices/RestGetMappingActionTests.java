@@ -28,6 +28,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +37,11 @@ import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER
 import static org.mockito.Mockito.mock;
 
 public class RestGetMappingActionTests extends RestActionTestCase {
+
+    @Before
+    public void setUpAction() {
+        new RestGetMappingAction(Settings.EMPTY, controller());
+    }
 
     public void testTypeExistsDeprecation() throws Exception {
         Map<String, String> params = new HashMap<>();
@@ -70,17 +76,21 @@ public class RestGetMappingActionTests extends RestActionTestCase {
         assertEquals(RestStatus.BAD_REQUEST, channel.capturedResponse().status());
     }
 
-    public void testTypeUrlParamerterDeprecation() throws Exception {
+    /**
+     * Setting "include_type_name" to true or false should cause a deprecation warning starting in 7.0
+     */
+    public void testTypeUrlParameterDeprecation() throws Exception {
         Map<String, String> params = new HashMap<>();
-        params.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, Boolean.toString(randomBoolean()));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.GET)
             .withParams(params)
-            .withPath("some_index/some_type/_mapping/some_field")
+            .withPath("/some_index/_mappings")
             .build();
 
-        RestGetMappingAction handler = new RestGetMappingAction(Settings.EMPTY, mock(RestController.class));
-        handler.prepareRequest(request, mock(NodeClient.class));
+        FakeRestChannel channel = new FakeRestChannel(request, false, 1);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        controller().dispatchRequest(request, channel, threadContext);
 
         assertWarnings(RestGetMappingAction.TYPES_DEPRECATION_MESSAGE);
     }

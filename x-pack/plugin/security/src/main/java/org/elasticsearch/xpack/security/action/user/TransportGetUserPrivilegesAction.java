@@ -98,7 +98,8 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
                 Arrays.asList(group.indices()),
                 group.privilege().name(),
                 fieldSecurity,
-                queries
+                queries,
+                group.allowRestrictedIndices()
             ));
         }
 

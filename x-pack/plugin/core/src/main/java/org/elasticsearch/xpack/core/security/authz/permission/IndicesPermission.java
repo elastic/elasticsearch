@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -31,6 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -45,26 +47,15 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
 
     public static final IndicesPermission NONE = new IndicesPermission();
 
-    private final Function<String, Predicate<String>> loadingFunction;
-
-    private final ConcurrentHashMap<String, Predicate<String>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Predicate<String>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
     private final Group[] groups;
 
     public IndicesPermission(Group... groups) {
         this.groups = groups;
-        loadingFunction = (action) -> {
-            List<String> indices = new ArrayList<>();
-            for (Group group : groups) {
-                if (group.actionMatcher.test(action)) {
-                    indices.addAll(Arrays.asList(group.indices));
-                }
-            }
-            return indexMatcher(indices);
-        };
     }
 
-    static Predicate<String> indexMatcher(List<String> indices) {
+    static Predicate<String> indexMatcher(Collection<String> indices) {
         Set<String> exactMatch = new HashSet<>();
         List<String> nonExactMatch = new ArrayList<>();
         for (String indexPattern : indices) {
@@ -121,7 +112,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
      * has the privilege for executing the given action on.
      */
     public Predicate<String> allowedIndicesMatcher(String action) {
-        return allowedIndicesMatchersForAction.computeIfAbsent(action, loadingFunction);
+        return allowedIndicesMatchersForAction.computeIfAbsent(action, Group::buildIndexMatcherPredicateForAction);
     }
 
     /**
@@ -276,11 +267,32 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         private boolean check(String action, String index) {
             assert index != null;
             return check(action) && (indexNameMatcher.test(index)
-                    && ((false == SystemIndicesNames.indexNames().contains(index)) || allowRestrictedIndices));
+                    && ((false == SystemIndicesNames.NAMES_SET.contains(index)) || allowRestrictedIndices));
         }
 
         boolean hasQuery() {
             return query != null;
+        }
+
+        public boolean allowRestrictedIndices() {
+            return allowRestrictedIndices;
+        }
+
+        private static Predicate<String> buildIndexMatcherPredicateForAction(String action, Group... groups) {
+            final Set<String> ordinaryIndices = new HashSet<>();
+            final Set<String> restrictedIndices = new HashSet<>();
+            for (final Group group : groups) {
+                if (group.actionMatcher.test(action)) {
+                    if (group.allowRestrictedIndices) {
+                        restrictedIndices.addAll(Arrays.asList(group.indices()));
+                    } else {
+                        ordinaryIndices.addAll(Arrays.asList(group.indices()));
+                    }
+                }
+            }
+            return indexMatcher(restrictedIndices)
+                    .or(indexMatcher(ordinaryIndices)
+                            .and(index -> false == SystemIndicesNames.NAMES_SET.contains(index)));
         }
     }
 

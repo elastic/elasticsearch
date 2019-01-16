@@ -57,7 +57,7 @@ public class InetAddresses {
             }
         }
 
-        // string zoneId from the address
+        // strip zoneId from the address
         if (hasPercent){
             String ipStringWithoutZoneId = ipString.substring(0, percentIndex);
             return ipStringToBytes(ipStringWithoutZoneId, hasColon, hasDot);

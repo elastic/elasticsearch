@@ -78,7 +78,7 @@ The `arabic` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /arabic_example?include_type_name=true
+PUT /arabic_example
 {
   "settings": {
     "analysis": {
@@ -128,7 +128,7 @@ The `armenian` analyzer could be reimplemented as a `custom` analyzer as follows
 
 [source,js]
 ----------------------------------------------------
-PUT /armenian_example?include_type_name=true
+PUT /armenian_example
 {
   "settings": {
     "analysis": {
@@ -176,7 +176,7 @@ The `basque` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /basque_example?include_type_name=true
+PUT /basque_example
 {
   "settings": {
     "analysis": {
@@ -224,7 +224,7 @@ The `bengali` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /bengali_example?include_type_name=true
+PUT /bengali_example
 {
   "settings": {
     "analysis": {
@@ -275,7 +275,7 @@ The `brazilian` analyzer could be reimplemented as a `custom` analyzer as follow
 
 [source,js]
 ----------------------------------------------------
-PUT /brazilian_example?include_type_name=true
+PUT /brazilian_example
 {
   "settings": {
     "analysis": {
@@ -323,7 +323,7 @@ The `bulgarian` analyzer could be reimplemented as a `custom` analyzer as follow
 
 [source,js]
 ----------------------------------------------------
-PUT /bulgarian_example?include_type_name=true
+PUT /bulgarian_example
 {
   "settings": {
     "analysis": {
@@ -371,7 +371,7 @@ The `catalan` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /catalan_example?include_type_name=true
+PUT /catalan_example
 {
   "settings": {
     "analysis": {
@@ -428,7 +428,7 @@ The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /cjk_example?include_type_name=true
+PUT /cjk_example
 {
   "settings": {
     "analysis": {
@@ -474,7 +474,7 @@ The `czech` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /czech_example?include_type_name=true
+PUT /czech_example
 {
   "settings": {
     "analysis": {
@@ -522,7 +522,7 @@ The `danish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /danish_example?include_type_name=true
+PUT /danish_example
 {
   "settings": {
     "analysis": {
@@ -570,7 +570,7 @@ The `dutch` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /dutch_example?include_type_name=true
+PUT /dutch_example
 {
   "settings": {
     "analysis": {
@@ -628,7 +628,7 @@ The `english` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /english_example?include_type_name=true
+PUT /english_example
 {
   "settings": {
     "analysis": {
@@ -681,7 +681,7 @@ The `finnish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /finnish_example?include_type_name=true
+PUT /finnish_example
 {
   "settings": {
     "analysis": {
@@ -729,7 +729,7 @@ The `french` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /french_example?include_type_name=true
+PUT /french_example
 {
   "settings": {
     "analysis": {
@@ -787,7 +787,7 @@ The `galician` analyzer could be reimplemented as a `custom` analyzer as follows
 
 [source,js]
 ----------------------------------------------------
-PUT /galician_example?include_type_name=true
+PUT /galician_example
 {
   "settings": {
     "analysis": {
@@ -835,7 +835,7 @@ The `german` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /german_example?include_type_name=true
+PUT /german_example
 {
   "settings": {
     "analysis": {
@@ -884,7 +884,7 @@ The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /greek_example?include_type_name=true
+PUT /greek_example
 {
   "settings": {
     "analysis": {
@@ -936,7 +936,7 @@ The `hindi` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /hindi_example?include_type_name=true
+PUT /hindi_example
 {
   "settings": {
     "analysis": {
@@ -987,7 +987,7 @@ The `hungarian` analyzer could be reimplemented as a `custom` analyzer as follow
 
 [source,js]
 ----------------------------------------------------
-PUT /hungarian_example?include_type_name=true
+PUT /hungarian_example
 {
   "settings": {
     "analysis": {
@@ -1036,7 +1036,7 @@ The `indonesian` analyzer could be reimplemented as a `custom` analyzer as follo
 
 [source,js]
 ----------------------------------------------------
-PUT /indonesian_example?include_type_name=true
+PUT /indonesian_example
 {
   "settings": {
     "analysis": {
@@ -1084,7 +1084,7 @@ The `irish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /irish_example?include_type_name=true
+PUT /irish_example
 {
   "settings": {
     "analysis": {
@@ -1148,7 +1148,7 @@ The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /italian_example?include_type_name=true
+PUT /italian_example
 {
   "settings": {
     "analysis": {
@@ -1207,7 +1207,7 @@ The `latvian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /latvian_example?include_type_name=true
+PUT /latvian_example
 {
   "settings": {
     "analysis": {
@@ -1255,7 +1255,7 @@ The `lithuanian` analyzer could be reimplemented as a `custom` analyzer as follo
 
 [source,js]
 ----------------------------------------------------
-PUT /lithuanian_example?include_type_name=true
+PUT /lithuanian_example
 {
   "settings": {
     "analysis": {
@@ -1303,7 +1303,7 @@ The `norwegian` analyzer could be reimplemented as a `custom` analyzer as follow
 
 [source,js]
 ----------------------------------------------------
-PUT /norwegian_example?include_type_name=true
+PUT /norwegian_example
 {
   "settings": {
     "analysis": {
@@ -1351,7 +1351,7 @@ The `persian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /persian_example?include_type_name=true
+PUT /persian_example
 {
   "settings": {
     "analysis": {
@@ -1397,7 +1397,7 @@ The `portuguese` analyzer could be reimplemented as a `custom` analyzer as follo
 
 [source,js]
 ----------------------------------------------------
-PUT /portuguese_example?include_type_name=true
+PUT /portuguese_example
 {
   "settings": {
     "analysis": {
@@ -1445,7 +1445,7 @@ The `romanian` analyzer could be reimplemented as a `custom` analyzer as follows
 
 [source,js]
 ----------------------------------------------------
-PUT /romanian_example?include_type_name=true
+PUT /romanian_example
 {
   "settings": {
     "analysis": {
@@ -1494,7 +1494,7 @@ The `russian` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /russian_example?include_type_name=true
+PUT /russian_example
 {
   "settings": {
     "analysis": {
@@ -1542,7 +1542,7 @@ The `sorani` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /sorani_example?include_type_name=true
+PUT /sorani_example
 {
   "settings": {
     "analysis": {
@@ -1592,7 +1592,7 @@ The `spanish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /spanish_example?include_type_name=true
+PUT /spanish_example
 {
   "settings": {
     "analysis": {
@@ -1640,7 +1640,7 @@ The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /swedish_example?include_type_name=true
+PUT /swedish_example
 {
   "settings": {
     "analysis": {
@@ -1688,7 +1688,7 @@ The `turkish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /turkish_example?include_type_name=true
+PUT /turkish_example
 {
   "settings": {
     "analysis": {
@@ -1741,7 +1741,7 @@ The `thai` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /thai_example?include_type_name=true
+PUT /thai_example
 {
   "settings": {
     "analysis": {

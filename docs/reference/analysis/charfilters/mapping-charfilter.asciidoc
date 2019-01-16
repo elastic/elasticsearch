@@ -33,7 +33,7 @@ numerals with their Latin equivalents:
 
 [source,js]
 ----------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -107,7 +107,7 @@ example replaces the `:)` and `:(` emoticons with a text equivalent:
 
 [source,js]
 ----------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {

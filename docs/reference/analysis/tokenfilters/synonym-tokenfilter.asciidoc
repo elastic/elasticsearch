@@ -7,7 +7,7 @@ Here is an example:
 
 [source,js]
 --------------------------------------------------
-PUT /test_index?include_type_name=true
+PUT /test_index
 {
     "settings": {
         "index" : {
@@ -46,7 +46,7 @@ to note that only those synonym rules which cannot get parsed are ignored. For i
 
 [source,js]
 --------------------------------------------------
-PUT /test_index?include_type_name=true
+PUT /test_index
 {
     "settings": {
         "index" : {
@@ -106,7 +106,7 @@ configuration file (note use of `synonyms` instead of `synonyms_path`):
 
 [source,js]
 --------------------------------------------------
-PUT /test_index?include_type_name=true
+PUT /test_index
 {
     "settings": {
         "index" : {
@@ -138,7 +138,7 @@ declared using `format`:
 
 [source,js]
 --------------------------------------------------
-PUT /test_index?include_type_name=true
+PUT /test_index
 {
     "settings": {
         "index" : {

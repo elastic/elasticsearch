@@ -20,11 +20,13 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
@@ -40,8 +42,79 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class RestRequestTests extends ESTestCase {
+
+    public void testContentConsumesContent() {
+        runConsumesContentTest(RestRequest::content, true);
+    }
+
+    public void testRequiredContentConsumesContent() {
+        runConsumesContentTest(RestRequest::requiredContent, true);
+    }
+
+    public void testContentParserConsumesContent() {
+        runConsumesContentTest(RestRequest::contentParser, true);
+    }
+
+    public void testContentOrSourceParamConsumesContent() {
+        runConsumesContentTest(RestRequest::contentOrSourceParam, true);
+    }
+
+    public void testContentOrSourceParamsParserConsumesContent() {
+        runConsumesContentTest(RestRequest::contentOrSourceParamParser, true);
+    }
+
+    public void testWithContentOrSourceParamParserOrNullConsumesContent() {
+        @SuppressWarnings("unchecked") CheckedConsumer<XContentParser, IOException> consumer = mock(CheckedConsumer.class);
+        runConsumesContentTest(request -> request.withContentOrSourceParamParserOrNull(consumer), true);
+    }
+
+    public void testApplyContentParserConsumesContent() {
+        @SuppressWarnings("unchecked") CheckedConsumer<XContentParser, IOException> consumer = mock(CheckedConsumer.class);
+        runConsumesContentTest(request -> request.applyContentParser(consumer), true);
+    }
+
+    public void testHasContentDoesNotConsumesContent() {
+        runConsumesContentTest(RestRequest::hasContent, false);
+    }
+
+    private <T extends Exception> void runConsumesContentTest(
+            final CheckedConsumer<RestRequest, T> consumer, final boolean expected) {
+        final RestRequest request = new RestRequest(mock(NamedXContentRegistry.class), "", Collections.emptyMap()) {
+            @Override
+            public Method method() {
+                return Method.GET;
+            }
+
+            @Override
+            public String uri() {
+                return "";
+            }
+
+            @Override
+            public boolean hasContent() {
+                return true;
+            }
+
+            private final BytesReference content = new BytesArray(new byte[1]);
+
+            @Override
+            public BytesReference innerContent() {
+                return content;
+            }
+        };
+        request.setXContentType(XContentType.JSON);
+        assertFalse(request.isContentConsumed());
+        try {
+            consumer.accept(request);
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+        assertThat(request.isContentConsumed(), equalTo(expected));
+    }
+
     public void testContentParser() throws IOException {
         Exception e = expectThrows(ElasticsearchParseException.class, () ->
             new ContentRestRequest("", emptyMap()).contentParser());
@@ -194,7 +267,7 @@ public class RestRequestTests extends ESTestCase {
         }
 
         @Override
-        public BytesReference content() {
+        public BytesReference innerContent() {
             return content;
         }
 
@@ -208,4 +281,5 @@ public class RestRequestTests extends ESTestCase {
             throw new UnsupportedOperationException("Not used by this test");
         }
     }
+
 }

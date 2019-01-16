@@ -101,7 +101,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     private final CharacterRunAutomaton remoteWhitelist;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    private ReindexSslConfig sslConfig;
+    private final ReindexSslConfig sslConfig;
 
     @Inject
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,

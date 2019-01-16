@@ -994,70 +994,94 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         queryShardContext.getMapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
-        Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").toQuery(queryShardContext);
-        Query expected = new SpanNearQuery.Builder("field", true)
-            .addClause(new SpanTermQuery(new Term("field", "two")))
-            .addClause(new FieldMaskingSpanQuery(
-                new SpanTermQuery(new Term("field._index_prefix", "words")), "field")
-            )
-            .build();
-        assertThat(q, equalTo(expected));
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").toQuery(queryShardContext);
+            Query expected = new SpanNearQuery.Builder("field", true)
+                .addClause(new SpanTermQuery(new Term("field", "two")))
+                .addClause(new FieldMaskingSpanQuery(
+                    new SpanTermQuery(new Term("field._index_prefix", "words")), "field")
+                )
+                .build();
+            assertThat(q, equalTo(expected));
+        }
 
-        Query q2 = new MatchPhrasePrefixQueryBuilder("field", "three words here").toQuery(queryShardContext);
-        expected = new SpanNearQuery.Builder("field", true)
-            .addClause(new SpanTermQuery(new Term("field", "three")))
-            .addClause(new SpanTermQuery(new Term("field", "words")))
-            .addClause(new FieldMaskingSpanQuery(
-                new SpanTermQuery(new Term("field._index_prefix", "here")), "field")
-            )
-            .build();
-        assertThat(q2, equalTo(expected));
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "three words here").toQuery(queryShardContext);
+            Query expected = new SpanNearQuery.Builder("field", true)
+                .addClause(new SpanTermQuery(new Term("field", "three")))
+                .addClause(new SpanTermQuery(new Term("field", "words")))
+                .addClause(new FieldMaskingSpanQuery(
+                    new SpanTermQuery(new Term("field._index_prefix", "here")), "field")
+                )
+                .build();
+            assertThat(q, equalTo(expected));
+        }
 
-        Query q3 = new MatchPhrasePrefixQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
-        expected = new SpanNearQuery.Builder("field", true)
-            .setSlop(1)
-            .addClause(new SpanTermQuery(new Term("field", "two")))
-            .addClause(new FieldMaskingSpanQuery(
-                new SpanTermQuery(new Term("field._index_prefix", "words")), "field")
-            )
-            .build();
-        assertThat(q3, equalTo(expected));
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
+            MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("field");
+            mpq.setSlop(1);
+            mpq.add(new Term("field", "two"));
+            mpq.add(new Term("field", "words"));
+            assertThat(q, equalTo(mpq));
+        }
 
-        Query q4 = new MatchPhrasePrefixQueryBuilder("field", "singleton").toQuery(queryShardContext);
-        assertThat(q4, is(new SynonymQuery(new Term("field._index_prefix", "singleton"))));
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "singleton").toQuery(queryShardContext);
+            assertThat(q, is(new SynonymQuery(new Term("field._index_prefix", "singleton"))));
+        }
 
-        Query q5 = new MatchPhrasePrefixQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
-        expected = new SpanNearQuery.Builder("field", true)
-            .addClause(new SpanTermQuery(new Term("field", "sparkle")))
-            .addGap(1)
-            .addClause(new FieldMaskingSpanQuery(
-                new SpanTermQuery(new Term("field._index_prefix", "stopword")), "field")
-            )
-            .build();
-        assertThat(q5, equalTo(expected));
+        {
 
-        MatchQuery matchQuery = new MatchQuery(queryShardContext);
-        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-        Query q6 = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "motor dogs");
-        expected = new SpanNearQuery.Builder("synfield", true)
-            .addClause(new SpanTermQuery(new Term("synfield", "motor")))
-            .addClause(
-                new SpanOrQuery(
-                    new FieldMaskingSpanQuery(
-                        new SpanTermQuery(new Term("synfield._index_prefix", "dogs")), "synfield"
-                    ),
-                    new FieldMaskingSpanQuery(
-                        new SpanTermQuery(new Term("synfield._index_prefix", "dog")), "synfield"
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
+            Query expected = new SpanNearQuery.Builder("field", true)
+                .addClause(new SpanTermQuery(new Term("field", "sparkle")))
+                .addGap(1)
+                .addClause(new FieldMaskingSpanQuery(
+                    new SpanTermQuery(new Term("field._index_prefix", "stopword")), "field")
+                )
+                .build();
+            assertThat(q, equalTo(expected));
+        }
+
+        {
+            MatchQuery matchQuery = new MatchQuery(queryShardContext);
+            matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+            Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "motor dogs");
+            Query expected = new SpanNearQuery.Builder("synfield", true)
+                .addClause(new SpanTermQuery(new Term("synfield", "motor")))
+                .addClause(
+                    new SpanOrQuery(
+                        new FieldMaskingSpanQuery(
+                            new SpanTermQuery(new Term("synfield._index_prefix", "dogs")), "synfield"
+                        ),
+                        new FieldMaskingSpanQuery(
+                            new SpanTermQuery(new Term("synfield._index_prefix", "dog")), "synfield"
+                        )
                     )
                 )
-            )
-            .build();
-        assertThat(q6, equalTo(expected));
+                .build();
+            assertThat(q, equalTo(expected));
+        }
 
-        Query q7 = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "field", "motor d");
-        MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("field");
-        mpq.add(new Term("field", "motor"));
-        mpq.add(new Term("field", "d"));
-        assertThat(q7, equalTo(mpq));
+        {
+            MatchQuery matchQuery = new MatchQuery(queryShardContext);
+            matchQuery.setPhraseSlop(1);
+            matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+            Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "two dogs");
+            MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("synfield");
+            mpq.setSlop(1);
+            mpq.add(new Term("synfield", "two"));
+            mpq.add(new Term[] { new Term("synfield", "dogs"), new Term("synfield", "dog") });
+            assertThat(q, equalTo(mpq));
+        }
+
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "motor d").toQuery(queryShardContext);
+            MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("field");
+            mpq.add(new Term("field", "motor"));
+            mpq.add(new Term("field", "d"));
+            assertThat(q, equalTo(mpq));
+        }
     }
 }

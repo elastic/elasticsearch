@@ -36,22 +36,29 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
@@ -124,19 +131,10 @@ public class MatchQuery {
         }
     }
 
-    /**
-     * the default phrase slop
-     */
     public static final int DEFAULT_PHRASE_SLOP = 0;
 
-    /**
-     * the default leniency setting
-     */
     public static final boolean DEFAULT_LENIENCY = false;
 
-    /**
-     * the default zero terms query
-     */
     public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
 
     protected final QueryShardContext context;
@@ -154,6 +152,9 @@ public class MatchQuery {
     protected int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
 
     protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
+
+    protected SpanMultiTermQueryWrapper.SpanRewriteMethod spanRewriteMethod =
+        new SpanBooleanQueryRewriteWithMaxClause(FuzzyQuery.defaultMaxExpansions, false);
 
     protected boolean transpositions = FuzzyQuery.defaultTranspositions;
 
@@ -208,6 +209,7 @@ public class MatchQuery {
 
     public void setMaxExpansions(int maxExpansions) {
         this.maxExpansions = maxExpansions;
+        this.spanRewriteMethod = new SpanBooleanQueryRewriteWithMaxClause(maxExpansions, false);
     }
 
     public void setTranspositions(boolean transpositions) {
@@ -344,22 +346,102 @@ public class MatchQuery {
             setEnablePositionIncrements(enablePositionIncrements);
         }
 
-        /**
-         * Checks if graph analysis should be enabled for the field depending
-         * on the provided {@link Analyzer}
-         */
         @Override
         protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
                                          String queryText, boolean quoted, int slop) {
             assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
-            return createQuery(field, queryText, source -> createFieldQuery(source, operator, field, quoted, slop));
+            Type type = quoted ? Type.PHRASE : Type.BOOLEAN;
+            return createQuery(field, queryText, type, operator, slop);
         }
 
         public Query createPhrasePrefixQuery(String field, String queryText, int slop) {
-            return createQuery(field, queryText, source -> createPhrasePrefixQuery(source, field, slop));
+            return createQuery(field, queryText, Type.PHRASE_PREFIX, occur, slop);
         }
 
-        private Query createQuery(String field, String queryText, CheckedFunction<TokenStream, Query, IOException> queryFunc) {
+        private Query createFieldQuery(TokenStream source, Type type, BooleanClause.Occur operator, String field, int phraseSlop) {
+            assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
+
+            // Build an appropriate query based on the analysis chain.
+            try (CachingTokenFilter stream = new CachingTokenFilter(source)) {
+
+                TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+                PositionIncrementAttribute posIncAtt = stream.addAttribute(PositionIncrementAttribute.class);
+                PositionLengthAttribute posLenAtt = stream.addAttribute(PositionLengthAttribute.class);
+
+                if (termAtt == null) {
+                    return null;
+                }
+
+                // phase 1: read through the stream and assess the situation:
+                // counting the number of tokens/positions and marking if we have any synonyms.
+
+                int numTokens = 0;
+                int positionCount = 0;
+                boolean hasSynonyms = false;
+                boolean isGraph = false;
+
+                stream.reset();
+                while (stream.incrementToken()) {
+                    numTokens++;
+                    int positionIncrement = posIncAtt.getPositionIncrement();
+                    if (positionIncrement != 0) {
+                        positionCount += positionIncrement;
+                    } else {
+                        hasSynonyms = true;
+                    }
+
+                    int positionLength = posLenAtt.getPositionLength();
+                    if (enableGraphQueries && positionLength > 1) {
+                        isGraph = true;
+                    }
+                }
+
+                // phase 2: based on token count, presence of synonyms, and options
+                // formulate a single term, boolean, or phrase.
+                if (numTokens == 0) {
+                    return null;
+                } else if (numTokens == 1) {
+                    // single term
+                    if (type == Type.PHRASE_PREFIX) {
+                        return analyzePhrasePrefix(field, stream, phraseSlop, positionCount);
+                    } else {
+                        return analyzeTerm(field, stream);
+                    }
+                } else if (isGraph) {
+                    // graph
+                    if (type == Type.PHRASE || type == Type.PHRASE_PREFIX) {
+                        return analyzeGraphPhrase(stream, field, type, phraseSlop);
+                    } else {
+                        return analyzeGraphBoolean(field, stream, operator);
+                    }
+                } else if (type == Type.PHRASE && positionCount > 1) {
+                    // phrase
+                    if (hasSynonyms) {
+                        // complex phrase with synonyms
+                        return analyzeMultiPhrase(field, stream, phraseSlop);
+                    } else {
+                        // simple phrase
+                        return analyzePhrase(field, stream, phraseSlop);
+                    }
+                } else if (type == Type.PHRASE_PREFIX) {
+                    // phrase prefix
+                    return analyzePhrasePrefix(field, stream, phraseSlop, positionCount);
+                } else {
+                    // boolean
+                    if (positionCount == 1) {
+                        // only one position, with synonyms
+                        return analyzeBoolean(field, stream);
+                    } else {
+                        // complex case: multiple positions
+                        return analyzeMultiBoolean(field, stream, operator);
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Error analyzing query text", e);
+            }
+        }
+
+        private Query createQuery(String field, String queryText, Type type, BooleanClause.Occur operator, int phraseSlop) {
             // Use the analyzer to get all the tokens, and then build an appropriate
             // query based on the analysis chain.
             try (TokenStream source = analyzer.tokenStream(field, queryText)) {
@@ -371,7 +453,7 @@ public class MatchQuery {
                     setEnableGraphQueries(false);
                 }
                 try {
-                    return queryFunc.apply(source);
+                    return createFieldQuery(source, type, operator, field, phraseSlop);
                 } finally {
                     setEnableGraphQueries(true);
                 }
@@ -380,50 +462,52 @@ public class MatchQuery {
             }
         }
 
-        private Query createPhrasePrefixQuery(TokenStream source, String field, int slop) {
-            // Build an appropriate phrase prefix query based on the analysis chain.
-            try (CachingTokenFilter stream = new CachingTokenFilter(source)) {
+        private SpanQuery newSpanQuery(Term[] terms, boolean prefix) {
+            if (terms.length == 1) {
+                return prefix ? fieldType.spanPrefixQuery(terms[0].text(), spanRewriteMethod, context) : new SpanTermQuery(terms[0]);
+            }
+            SpanQuery[] spanQueries = new SpanQuery[terms.length];
+            for (int i = 0; i < terms.length; i++) {
+                spanQueries[i] = prefix ? new SpanTermQuery(terms[i]) :
+                    fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context);
+            }
+            return new SpanOrQuery(spanQueries);
+        }
 
-                TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-                PositionIncrementAttribute posIncAtt = stream.addAttribute(PositionIncrementAttribute.class);
-                PositionLengthAttribute posLenAtt = stream.addAttribute(PositionLengthAttribute.class);
+        @Override
+        protected SpanQuery createSpanQuery(TokenStream in, String field) throws IOException {
+            return createSpanQuery(in, field, false);
+        }
 
-                if (termAtt == null) {
-                    return null;
+        private SpanQuery createSpanQuery(TokenStream in, String field, boolean prefix) throws IOException {
+            TermToBytesRefAttribute termAtt = in.getAttribute(TermToBytesRefAttribute.class);
+            PositionIncrementAttribute posIncAtt = in.getAttribute(PositionIncrementAttribute.class);
+            if (termAtt == null) {
+                return null;
+            }
+
+            SpanNearQuery.Builder builder = new SpanNearQuery.Builder(field, true);
+            Term lastTerm = null;
+            while (in.incrementToken()) {
+                if (posIncAtt.getPositionIncrement() > 1) {
+                    builder.addGap(posIncAtt.getPositionIncrement()-1);
                 }
-
-                int numTokens = 0;
-                int positionCount = 0;
-                boolean isGraph = false;
-
-                stream.reset();
-                while (stream.incrementToken()) {
-                    numTokens++;
-                    int positionIncrement = posIncAtt.getPositionIncrement();
-                    if (positionIncrement != 0) {
-                        positionCount += positionIncrement;
-                    }
-
-                    int positionLength = posLenAtt.getPositionLength();
-                    if (enableGraphQueries && positionLength > 1) {
-                        isGraph = true;
-                    }
+                if (lastTerm != null) {
+                    builder.addClause(new SpanTermQuery(lastTerm));
                 }
-
-                // phase 2: based on token count, presence of synonyms, and options
-                // formulate a single term, boolean, or phrase.
-
-                if (numTokens == 0) {
-                    return null;
-                } else if (isGraph) {
-                    // graph
-                    return analyzeGraphPhrasePrefix(stream, field, slop);
-                } else {
-                    // single position
-                    return analyzePhrasePrefix(field, stream, slop, positionCount);
-                }
-            } catch (IOException e) {
-                throw new RuntimeException("Error analyzing query text", e);
+                lastTerm = new Term(field, termAtt.getBytesRef());
+            }
+            if (lastTerm != null) {
+                SpanQuery spanQuery = prefix ?
+                    fieldType.spanPrefixQuery(lastTerm.text(), spanRewriteMethod, context) : new SpanTermQuery(lastTerm);
+                builder.addClause(spanQuery);
+            }
+            SpanNearQuery query = builder.build();
+            SpanQuery[] clauses = query.getClauses();
+            if (clauses.length == 1) {
+                return clauses[0];
+            } else {
+                return query;
             }
         }
 
@@ -484,7 +568,7 @@ public class MatchQuery {
                 if (positionCount > 1) {
                     checkForPositions(field);
                 }
-                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions, enablePositionIncrements);
+                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -493,22 +577,87 @@ public class MatchQuery {
             }
         }
 
-        private Query analyzeGraphPhrasePrefix(TokenStream source, String field, int slop) throws IOException {
+        private Query analyzeGraphPhrase(TokenStream source, String field, Type type, int slop) throws IOException {
+            assert type == Type.PHRASE_PREFIX || type == Type.PHRASE;
+
             source.reset();
             GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(source);
+            if (phraseSlop > 0) {
+                /*
+                 * Creates a boolean query from the graph token stream by extracting all the finite strings from the graph
+                 * and using them to create phrase queries with the appropriate slop.
+                 */
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                Iterator<TokenStream> it = graph.getFiniteStrings();
+                while (it.hasNext()) {
+                    Query query = createFieldQuery(it.next(), type, BooleanClause.Occur.MUST, field, slop);
+                    if (query != null) {
+                        builder.add(query, BooleanClause.Occur.SHOULD);
+                    }
+                }
+                return builder.build();
+            }
+
             /*
-             * Creates a boolean query from the graph token stream by extracting all the finite strings from the graph
-             * and using them to create phrase prefix queries with the appropriate slop.
+             * Creates a span near (phrase) query from a graph token stream.
+             * The articulation points of the graph are visited in order and the queries
+             * created at each point are merged in the returned near query.
              */
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            Iterator<TokenStream> it = graph.getFiniteStrings();
-            while (it.hasNext()) {
-                Query query = createPhrasePrefixQuery(it.next(), field, slop);
-                if (query != null) {
-                    builder.add(query, BooleanClause.Occur.SHOULD);
+            List<SpanQuery> clauses = new ArrayList<>();
+            int[] articulationPoints = graph.articulationPoints();
+            int lastState = 0;
+            int maxClauseCount = BooleanQuery.getMaxClauseCount();
+            for (int i = 0; i <= articulationPoints.length; i++) {
+                int start = lastState;
+                int end = -1;
+                if (i < articulationPoints.length) {
+                    end = articulationPoints[i];
+                }
+                lastState = end;
+                final SpanQuery queryPos;
+                boolean endPrefix = end == -1 && type == Type.PHRASE_PREFIX;
+                if (graph.hasSidePath(start)) {
+                    List<SpanQuery> queries = new ArrayList<>();
+                    Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
+                    while (it.hasNext()) {
+                        TokenStream ts = it.next();
+                        SpanQuery q = createSpanQuery(ts, field, endPrefix);
+                        if (q != null) {
+                            if (queries.size() >= maxClauseCount) {
+                                throw new BooleanQuery.TooManyClauses();
+                            }
+                            queries.add(q);
+                        }
+                    }
+                    if (queries.size() > 0) {
+                        queryPos = new SpanOrQuery(queries.toArray(new SpanQuery[0]));
+                    } else {
+                        queryPos = null;
+                    }
+                } else {
+                    Term[] terms = graph.getTerms(field, start);
+                    assert terms.length > 0;
+                    if (terms.length >= maxClauseCount) {
+                        throw new BooleanQuery.TooManyClauses();
+                    }
+                    queryPos = newSpanQuery(terms, endPrefix);
+                }
+
+                if (queryPos != null) {
+                    if (clauses.size() >= maxClauseCount) {
+                        throw new BooleanQuery.TooManyClauses();
+                    }
+                    clauses.add(queryPos);
                 }
             }
-            return builder.build();
+
+            if (clauses.isEmpty()) {
+                return null;
+            } else if (clauses.size() == 1) {
+                return clauses.get(0);
+            } else {
+                return new SpanNearQuery(clauses.toArray(new SpanQuery[0]), 0, true);
+            }
         }
 
         private void checkForPositions(String field) {

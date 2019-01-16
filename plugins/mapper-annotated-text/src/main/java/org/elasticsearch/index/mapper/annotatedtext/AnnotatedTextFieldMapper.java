@@ -33,8 +33,11 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.NormsFieldExistsQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -600,6 +603,14 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+            SpanMultiTermQueryWrapper<?> spanMulti =
+                new SpanMultiTermQueryWrapper<>(new PrefixQuery(new Term(name(), indexedValueForSearch(value))));
+            spanMulti.setRewriteMethod(method);
+            return spanMulti;
+        }
+
+        @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
             return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
         }
@@ -610,9 +621,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions,
-                                       boolean enablePositionIncrements) throws IOException {
-            return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions, enablePositionIncrements);
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+            return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions);
         }
     }
 

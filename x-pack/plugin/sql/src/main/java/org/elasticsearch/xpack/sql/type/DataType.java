@@ -226,12 +226,12 @@ public enum DataType {
      */
     public static DataType fromTypeName(String esType) {
         String uppercase = esType.toUpperCase(Locale.ROOT);
+        if (uppercase.equals("DATE")) {
+            return DataType.DATETIME;
+        }
         try {
             return DataType.valueOf(uppercase);
         } catch (IllegalArgumentException ex) {
-            if (uppercase.equals("DATE")) {
-                return DataType.DATETIME;
-            }
             return DataType.UNSUPPORTED;
         }
     }

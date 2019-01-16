@@ -372,72 +372,72 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT * FROM test WHERE int = 1 OR text IN (1, 2)"));
     }
 
-    public void testNotSupportedAggregateOnDateTime() {
-        assertEquals("1:8: [AVG(date)] argument must be [NUMERIC], found value [date] type [DATETIME]",
+    public void testNotSupportedAggregateOnDate() {
+        assertEquals("1:8: [AVG(date)] argument must be [numeric], found value [date] type [datetime]",
             error("SELECT AVG(date) FROM test"));
     }
 
     public void testNotSupportedAggregateOnString() {
-        assertEquals("1:8: [MAX(keyword)] argument must be [NUMERIC or DATETIME], found value [keyword] type [KEYWORD]",
+        assertEquals("1:8: [MAX(keyword)] argument must be [numeric or date], found value [keyword] type [keyword]",
             error("SELECT MAX(keyword) FROM test"));
     }
 
     public void testInvalidTypeForStringFunction_WithOneArg() {
-        assertEquals("1:8: [LENGTH] argument must be [STRING], found value [1] type [INTEGER]",
+        assertEquals("1:8: [LENGTH] argument must be [string], found value [1] type [integer]",
             error("SELECT LENGTH(1)"));
     }
 
     public void testInvalidTypeForNumericFunction_WithOneArg() {
-        assertEquals("1:8: [COS] argument must be [NUMERIC], found value ['foo'] type [KEYWORD]",
+        assertEquals("1:8: [COS] argument must be [numeric], found value ['foo'] type [keyword]",
             error("SELECT COS('foo')"));
     }
 
     public void testInvalidTypeForBooleanFunction_WithOneArg() {
-        assertEquals("1:8: [NOT 'foo'] argument must be [BOOLEAN], found value ['foo'] type [KEYWORD]",
+        assertEquals("1:8: [NOT 'foo'] argument must be [boolean], found value ['foo'] type [keyword]",
             error("SELECT NOT 'foo'"));
     }
 
     public void testInvalidTypeForStringFunction_WithTwoArgs() {
-        assertEquals("1:8: [CONCAT(1, 'bar')] first argument must be [STRING], found value [1] type [INTEGER]",
+        assertEquals("1:8: [CONCAT(1, 'bar')] first argument must be [string], found value [1] type [integer]",
             error("SELECT CONCAT(1, 'bar')"));
-        assertEquals("1:8: [CONCAT('foo', 2)] second argument must be [STRING], found value [2] type [INTEGER]",
+        assertEquals("1:8: [CONCAT('foo', 2)] second argument must be [string], found value [2] type [integer]",
             error("SELECT CONCAT('foo', 2)"));
     }
 
     public void testInvalidTypeForNumericFunction_WithTwoArgs() {
-        assertEquals("1:8: [TRUNCATE('foo', 2)] first argument must be [NUMERIC], found value ['foo'] type [KEYWORD]",
+        assertEquals("1:8: [TRUNCATE('foo', 2)] first argument must be [numeric], found value ['foo'] type [keyword]",
             error("SELECT TRUNCATE('foo', 2)"));
-        assertEquals("1:8: [TRUNCATE(1.2, 'bar')] second argument must be [NUMERIC], found value ['bar'] type [KEYWORD]",
+        assertEquals("1:8: [TRUNCATE(1.2, 'bar')] second argument must be [numeric], found value ['bar'] type [keyword]",
             error("SELECT TRUNCATE(1.2, 'bar')"));
     }
 
     public void testInvalidTypeForBooleanFuntion_WithTwoArgs() {
-        assertEquals("1:8: [1 OR true] first argument must be [BOOLEAN], found value [1] type [INTEGER]",
+        assertEquals("1:8: [1 OR true] first argument must be [boolean], found value [1] type [integer]",
             error("SELECT 1 OR true"));
-        assertEquals("1:8: [true OR 2] second argument must be [BOOLEAN], found value [2] type [INTEGER]",
+        assertEquals("1:8: [true OR 2] second argument must be [boolean], found value [2] type [integer]",
             error("SELECT true OR 2"));
     }
 
     public void testInvalidTypeForFunction_WithThreeArgs() {
-        assertEquals("1:8: [REPLACE(1, 'foo', 'bar')] first argument must be [STRING], found value [1] type [INTEGER]",
+        assertEquals("1:8: [REPLACE(1, 'foo', 'bar')] first argument must be [string], found value [1] type [integer]",
             error("SELECT REPLACE(1, 'foo', 'bar')"));
-        assertEquals("1:8: [REPLACE('text', 2, 'bar')] second argument must be [STRING], found value [2] type [INTEGER]",
+        assertEquals("1:8: [REPLACE('text', 2, 'bar')] second argument must be [string], found value [2] type [integer]",
             error("SELECT REPLACE('text', 2, 'bar')"));
-        assertEquals("1:8: [REPLACE('text', 'foo', 3)] third argument must be [STRING], found value [3] type [INTEGER]",
+        assertEquals("1:8: [REPLACE('text', 'foo', 3)] third argument must be [string], found value [3] type [integer]",
             error("SELECT REPLACE('text', 'foo', 3)"));
     }
 
     public void testInvalidTypeForFunction_WithFourArgs() {
-        assertEquals("1:8: [INSERT(1, 1, 2, 'new')] first argument must be [STRING], found value [1] type [INTEGER]",
+        assertEquals("1:8: [INSERT(1, 1, 2, 'new')] first argument must be [string], found value [1] type [integer]",
             error("SELECT INSERT(1, 1, 2, 'new')"));
-        assertEquals("1:8: [INSERT('text', 'foo', 2, 'new')] second argument must be [NUMERIC], found value ['foo'] type [KEYWORD]",
+        assertEquals("1:8: [INSERT('text', 'foo', 2, 'new')] second argument must be [numeric], found value ['foo'] type [keyword]",
             error("SELECT INSERT('text', 'foo', 2, 'new')"));
-        assertEquals("1:8: [INSERT('text', 1, 'bar', 'new')] third argument must be [NUMERIC], found value ['bar'] type [KEYWORD]",
+        assertEquals("1:8: [INSERT('text', 1, 'bar', 'new')] third argument must be [numeric], found value ['bar'] type [keyword]",
             error("SELECT INSERT('text', 1, 'bar', 'new')"));
-        assertEquals("1:8: [INSERT('text', 1, 2, 3)] fourth argument must be [STRING], found value [3] type [INTEGER]",
+        assertEquals("1:8: [INSERT('text', 1, 2, 3)] fourth argument must be [string], found value [3] type [integer]",
             error("SELECT INSERT('text', 1, 2, 3)"));
     }
-
+    
     public void testAllowCorrectFieldsInIncompatibleMappings() {
         assertNotNull(incompatibleAccept("SELECT languages FROM \"*\""));
     }
@@ -548,3 +548,4 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             e.getMessage());
     }
 }
+

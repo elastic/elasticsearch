@@ -22,7 +22,7 @@ The table below shows the mapping between {es} and {es-sql}:
 |==========================
 s|{es}
 s|{es-sql}
-2+h| Index/Table date/time math
+2+h| Index/Table datetime math
 2+|<index-{now/M{YYYY.MM}}>
 2+h| Query date/time math
 | 1y  | INTERVAL 1 YEAR

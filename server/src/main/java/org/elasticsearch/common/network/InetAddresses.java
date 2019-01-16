@@ -286,12 +286,13 @@ public class InetAddresses {
             throw new IllegalArgumentException("ip");
         }
         byte[] bytes = ip.getAddress();
+        int zoneId = ((Inet6Address)ip).getScopeId();
         int[] hextets = new int[IPV6_PART_COUNT];
         for (int i = 0; i < hextets.length; i++) {
             hextets[i] =  (bytes[2 * i] & 255) << 8 | bytes[2 * i + 1] & 255;
         }
         compressLongestRunOfZeroes(hextets);
-        return hextetsToIPv6String(hextets);
+        return hextetsToIPv6String(hextets, zoneId);
     }
 
     /**
@@ -333,8 +334,9 @@ public class InetAddresses {
      * sentinel values in place of the elided zeroes.
      *
      * @param hextets {@code int[]} array of eight 16-bit hextets, or -1s
+     * @param zoneId {@code int} the zone ID of an IPv6 address. Ignored from output if zero.
      */
-    private static String hextetsToIPv6String(int[] hextets) {
+    private static String hextetsToIPv6String(int[] hextets, int zoneId) {
     /*
      * While scanning the array, handle these state transitions:
      *   start->num => "num"     start->gap => "::"
@@ -357,6 +359,12 @@ public class InetAddresses {
             }
             lastWasNumber = thisIsNumber;
         }
+
+        if (zoneId != DEFAULT_ZONE_ID){
+            buf.append('%');
+            buf.append(Integer.toString(zoneId, 16));
+        }
+
         return buf.toString();
     }
 

@@ -214,9 +214,18 @@ public class InetAddressesTests extends ESTestCase {
         assertEquals("::1",
             InetAddresses.toAddrString(
                 InetAddresses.forString("::1%0")));
+        assertEquals("::1%1",
+            InetAddresses.toAddrString(
+                InetAddresses.forString("::1%1")));
+        assertEquals("::1%ff",
+            InetAddresses.toAddrString(
+                InetAddresses.forString("::1%ff")));
         assertEquals("::102:304",
             InetAddresses.toAddrString(
                 InetAddresses.forString("::1.2.3.4%0")));
+        assertEquals("::102:304%b",
+            InetAddresses.toAddrString(
+                InetAddresses.forString("::1.2.3.4%b")));
     }
 
     public void testToAddrStringIPv6ReadsZoneId(){

@@ -157,7 +157,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return emptyList();
         }
 
-        CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(settings);
+        CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService();
         this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
             ccrLicenseChecker,

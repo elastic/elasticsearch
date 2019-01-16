@@ -134,8 +134,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
-        indexLifecycleInitialisationService
-            .set(new IndexLifecycleService(settings, client, clusterService, getClock(), System::currentTimeMillis, xContentRegistry));
+        indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
+                getClock(), System::currentTimeMillis, xContentRegistry));
         return Collections.singletonList(indexLifecycleInitialisationService.get());
     }
 

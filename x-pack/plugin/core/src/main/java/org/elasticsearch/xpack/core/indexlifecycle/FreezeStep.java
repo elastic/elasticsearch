@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 
@@ -22,7 +23,7 @@ public class FreezeStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
+    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
         getClient().admin().indices().execute(TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
             new TransportFreezeIndexAction.FreezeRequest(indexMetaData.getIndex().getName()),
             ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));

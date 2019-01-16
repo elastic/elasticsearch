@@ -221,15 +221,18 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final List<Translog.Operation> shippedOps = new ArrayList<>();
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
             @Override
-            public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp, long msu) {
+            public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp, long msu,
+                                                ActionListener<Long> listener) {
                 shippedOps.addAll(operations);
-                return SequenceNumbers.NO_OPS_PERFORMED;
+                listener.onResponse(SequenceNumbers.NO_OPS_PERFORMED);
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes, between(1, 10));
-        RecoverySourceHandler.SendSnapshotResult result = handler.phase2(startingSeqNo, requiredStartingSeqNo,
-            endingSeqNo, newTranslogSnapshot(operations, Collections.emptyList()), randomNonNegativeLong(), randomNonNegativeLong());
+        PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
+        handler.phase2(startingSeqNo, requiredStartingSeqNo, endingSeqNo, newTranslogSnapshot(operations, Collections.emptyList()),
+            randomNonNegativeLong(), randomNonNegativeLong(), future);
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
+        RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
         assertThat(result.totalOperations, equalTo(expectedOps));
         shippedOps.sort(Comparator.comparing(Translog.Operation::seqNo));
         assertThat(shippedOps.size(), equalTo(expectedOps));
@@ -241,8 +244,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             List<Translog.Operation> requiredOps = operations.subList(0, operations.size() - 1).stream() // remove last null marker
                 .filter(o -> o.seqNo() >= requiredStartingSeqNo && o.seqNo() <= endingSeqNo).collect(Collectors.toList());
             List<Translog.Operation> opsToSkip = randomSubsetOf(randomIntBetween(1, requiredOps.size()), requiredOps);
-            expectThrows(IllegalStateException.class, () -> handler.phase2(startingSeqNo, requiredStartingSeqNo,
-                endingSeqNo, newTranslogSnapshot(operations, opsToSkip), randomNonNegativeLong(), randomNonNegativeLong()));
+            PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> failedFuture = new PlainActionFuture<>();
+            expectThrows(IllegalStateException.class, () -> {
+                handler.phase2(startingSeqNo, requiredStartingSeqNo, endingSeqNo, newTranslogSnapshot(operations, opsToSkip),
+                    randomNonNegativeLong(), randomNonNegativeLong(), failedFuture);
+                failedFuture.actionGet();
+            });
         }
     }
 
@@ -438,11 +445,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            SendSnapshotResult phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
-                                      long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) throws IOException {
+            void phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
+                        long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes,
+                        ActionListener<SendSnapshotResult> listener) throws IOException {
                 phase2Called.set(true);
-                return super.phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot,
-                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
+                super.phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot,
+                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, listener);
             }
 
         };
@@ -656,8 +664,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         @Override
-        public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp, long msu) {
-            return 0;
+        public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp, long msu,
+                                            ActionListener<Long> listener) {
         }
 
         @Override

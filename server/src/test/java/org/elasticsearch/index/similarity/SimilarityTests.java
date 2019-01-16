@@ -99,8 +99,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         LegacyBM25Similarity similarity = (LegacyBM25Similarity) mapperService.fullName("field1").similarity().get();
         assertThat(similarity.getK1(), equalTo(2.0f));
         assertThat(similarity.getB(), equalTo(0.5f));
-        // TODO: re-enable when we switch back to BM25Similarity
-        // assertThat(similarity.getDiscountOverlaps(), equalTo(false));
+        assertThat(similarity.getDiscountOverlaps(), equalTo(false));
     }
 
     public void testResolveSimilaritiesFromMapping_boolean() throws IOException {

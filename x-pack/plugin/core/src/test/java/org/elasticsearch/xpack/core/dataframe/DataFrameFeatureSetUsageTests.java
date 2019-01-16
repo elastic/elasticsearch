@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.dataframe;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.dataframe.job.DataFrameIndexerJobStatsTests;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStatsTests;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.util.HashMap;
@@ -18,13 +18,14 @@ public class DataFrameFeatureSetUsageTests extends AbstractWireSerializingTestCa
 
     @Override
     protected DataFrameFeatureSetUsage createTestInstance() {
-        Map<String, Long> jobCountByState = new HashMap<>();
+        Map<String, Long> transformCountByState = new HashMap<>();
 
         if (randomBoolean()) {
-            jobCountByState.put(randomFrom(IndexerState.values()).toString(), randomLong());
+            transformCountByState.put(randomFrom(IndexerState.values()).toString(), randomLong());
         }
 
-        return new DataFrameFeatureSetUsage(randomBoolean(), randomBoolean(), jobCountByState, DataFrameIndexerJobStatsTests.randomStats());
+        return new DataFrameFeatureSetUsage(randomBoolean(), randomBoolean(), transformCountByState,
+                DataFrameIndexerTransformStatsTests.randomStats());
     }
 
     @Override

@@ -41,18 +41,18 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         Map<?, ?> usageAsMap = entityAsMap(usageResponse);
         assertTrue((boolean) XContentMapValues.extractValue("data_frame.available", usageAsMap));
         assertTrue((boolean) XContentMapValues.extractValue("data_frame.enabled", usageAsMap));
-        // no jobs, no stats
-        assertEquals(null, XContentMapValues.extractValue("data_frame.jobs", usageAsMap));
+        // no transforms, no stats
+        assertEquals(null, XContentMapValues.extractValue("data_frame.transforms", usageAsMap));
         assertEquals(null, XContentMapValues.extractValue("data_frame.stats", usageAsMap));
 
-        // create a job
-        createPivotReviewsJob("test_usage", "pivot_reviews");
+        // create a transform
+        createPivotReviewsTransform("test_usage", "pivot_reviews");
 
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
 
         usageAsMap = entityAsMap(usageResponse);
         // we should see some stats
-        assertEquals(1, XContentMapValues.extractValue("data_frame.jobs._all", usageAsMap));
+        assertEquals(1, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
         assertEquals(0, XContentMapValues.extractValue("data_frame.stats.index_failures", usageAsMap));
     }
 }

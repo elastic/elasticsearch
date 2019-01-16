@@ -17,25 +17,25 @@ public final class DataFramePersistentTaskUtils {
     }
 
     /**
-     * Check to see if the PersistentTask's cluster state contains the job(s) we
+     * Check to see if the PersistentTask's cluster state contains the data frame transform(s) we
      * are interested in
      */
-    public static boolean stateHasDataFrameJobs(String id, ClusterState state) {
-        boolean hasJobs = false;
+    public static boolean stateHasDataFrameTransforms(String id, ClusterState state) {
+        boolean hasTransforms = false;
         PersistentTasksCustomMetaData pTasksMeta = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
         if (pTasksMeta != null) {
-            // If the request was for _all jobs, we need to look through the list of
-            // persistent tasks and see if at least once has a DataFrameJob param
+            // If the request was for _all transforms, we need to look through the list of
+            // persistent tasks and see if at least one is a data frame task
             if (id.equals(MetaData.ALL)) {
-                hasJobs = pTasksMeta.tasks().stream()
+                hasTransforms = pTasksMeta.tasks().stream()
                         .anyMatch(persistentTask -> persistentTask.getTaskName().equals(DataFrameField.TASK_NAME));
 
             } else if (pTasksMeta.getTask(id) != null) {
-                // If we're looking for a single job, we can just check directly
-                hasJobs = true;
+                // If we're looking for a single transform, we can just check directly
+                hasTransforms = true;
             }
         }
-        return hasJobs;
+        return hasTransforms;
     }
 }

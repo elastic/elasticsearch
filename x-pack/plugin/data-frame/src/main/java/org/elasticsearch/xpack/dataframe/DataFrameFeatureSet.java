@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
-import org.elasticsearch.xpack.core.dataframe.job.DataFrameIndexerJobStats;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsStatsAction;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,22 +67,22 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         if (enabled == false) {
             listener.onResponse(
-                    new DataFrameFeatureSetUsage(available(), enabled(), Collections.emptyMap(), new DataFrameIndexerJobStats()));
+                    new DataFrameFeatureSetUsage(available(), enabled(), Collections.emptyMap(), new DataFrameIndexerTransformStats()));
             return;
         }
 
-        GetDataFrameJobsStatsAction.Request jobStatsRequest = new GetDataFrameJobsStatsAction.Request(MetaData.ALL);
+        GetDataFrameTransformsStatsAction.Request transformStatsRequest = new GetDataFrameTransformsStatsAction.Request(MetaData.ALL);
 
-        client.execute(GetDataFrameJobsStatsAction.INSTANCE, jobStatsRequest, ActionListener.wrap(jobStatsResponse -> {
-            Map<String, Long> jobCountByState = new HashMap<>();
-            DataFrameIndexerJobStats accumulatedStats = new DataFrameIndexerJobStats();
+        client.execute(GetDataFrameTransformsStatsAction.INSTANCE, transformStatsRequest, ActionListener.wrap(transformStatsResponse -> {
+            Map<String, Long> transformsCountByState = new HashMap<>();
+            DataFrameIndexerTransformStats accumulatedStats = new DataFrameIndexerTransformStats();
 
-            jobStatsResponse.getJobsStateAndStats().stream().forEach(singleResult -> {
-                jobCountByState.merge(singleResult.getJobState().getIndexerState().value(), 1L, Long::sum);
-                accumulatedStats.merge(singleResult.getJobStats());
+            transformStatsResponse.getTransformsStateAndStats().stream().forEach(singleResult -> {
+                transformsCountByState.merge(singleResult.getTransformState().getIndexerState().value(), 1L, Long::sum);
+                accumulatedStats.merge(singleResult.getTransformStats());
             });
 
-            listener.onResponse(new DataFrameFeatureSetUsage(available(), enabled(), jobCountByState, accumulatedStats));
+            listener.onResponse(new DataFrameFeatureSetUsage(available(), enabled(), transformsCountByState, accumulatedStats));
         }, listener::onFailure));
     }
 }

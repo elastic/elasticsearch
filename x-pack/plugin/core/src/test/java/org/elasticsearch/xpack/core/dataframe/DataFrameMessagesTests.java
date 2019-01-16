@@ -17,9 +17,9 @@ import java.util.Locale;
 public class DataFrameMessagesTests extends ESTestCase {
 
     public void testGetMessage_WithFormatStrings() {
-        String formattedMessage = DataFrameMessages.getMessage(DataFrameMessages.REST_STOP_JOB_WAIT_FOR_COMPLETION_TIMEOUT, "30s",
-                "my_job");
-        assertEquals("Timed out after [30s] while waiting for data frame job [my_job] to stop", formattedMessage);
+        String formattedMessage = DataFrameMessages.getMessage(DataFrameMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_TIMEOUT, "30s",
+                "my_transform");
+        assertEquals("Timed out after [30s] while waiting for data frame transform [my_transform] to stop", formattedMessage);
     }
 
     public void testMessageProperFormat() throws IllegalArgumentException, IllegalAccessException {

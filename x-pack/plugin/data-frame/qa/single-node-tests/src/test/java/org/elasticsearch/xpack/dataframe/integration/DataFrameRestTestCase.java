@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
-    protected static final String DATAFRAME_ENDPOINT = DataFrameField.REST_BASE_PATH + "jobs/";
+    protected static final String DATAFRAME_ENDPOINT = DataFrameField.REST_BASE_PATH + "transforms/";
 
     /**
      * Create a simple dataset for testing with reviewers, ratings and businesses
@@ -69,7 +69,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         // create index
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
-            bulk.append("{\"index\":{\"_index\":\"reviews\",\"_type\":\"_doc\"}}\n");
+            bulk.append("{\"index\":{\"_index\":\"reviews\"}}\n");
             long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
             int stars = distributionTable[(i * 33) % distributionTable.length];
             long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
@@ -101,9 +101,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         client().performRequest(bulkRequest);
     }
 
-    protected void createPivotReviewsJob(String jobId, String dataFrameIndex) throws IOException {
-        final Request createDataframeJobRequest = new Request("PUT", DATAFRAME_ENDPOINT + jobId);
-        createDataframeJobRequest.setJsonEntity("{"
+    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex) throws IOException {
+        final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
+        createDataframeTransformRequest.setJsonEntity("{"
                 + " \"index_pattern\": \"reviews\","
                 + " \"destination_index\": \"" + dataFrameIndex + "\","
                 + " \"sources\": {"
@@ -118,59 +118,59 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 + "       \"field\": \"stars\""
                 + " } } }"
                 + "}");
-        Map<String, Object> createDataframeJobResponse = entityAsMap(client().performRequest(createDataframeJobRequest));
-        assertThat(createDataframeJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         assertTrue(indexExists(dataFrameIndex));
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> getDataFrameJobs() throws IOException {
+    private static List<Map<String, Object>> getDataFrameTransforms() throws IOException {
         Response response = adminClient().performRequest(new Request("GET", DATAFRAME_ENDPOINT + "_all"));
-        Map<String, Object> jobs = entityAsMap(response);
-        List<Map<String, Object>> jobConfigs = (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
+        Map<String, Object> transforms = entityAsMap(response);
+        List<Map<String, Object>> transformConfigs = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", transforms);
 
-        return jobConfigs == null ? Collections.emptyList() : jobConfigs;
+        return transformConfigs == null ? Collections.emptyList() : transformConfigs;
     }
 
-    protected static String getDataFrameIndexerState(String jobId) throws IOException {
-        Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + jobId + "/_stats"));
+    protected static String getDataFrameIndexerState(String transformId) throws IOException {
+        Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
 
-        Map<?, ?> jobStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("jobs")).get(0);
-        return (String) XContentMapValues.extractValue("state.job_state", jobStatsAsMap);
+        Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
+        return (String) XContentMapValues.extractValue("state.transform_state", transformStatsAsMap);
     }
 
     @AfterClass
     public static void removeIndices() throws Exception {
-        wipeDataFrameJobs();
+        wipeDataFrameTransforms();
         waitForPendingDataFrameTasks();
         // we might have disabled wiping indices, but now its time to get rid of them
         // note: can not use super.cleanUpCluster() as this method must be static
         wipeIndices();
     }
 
-    protected static void wipeDataFrameJobs() throws IOException, InterruptedException {
-        List<Map<String, Object>> jobConfigs = getDataFrameJobs();
+    protected static void wipeDataFrameTransforms() throws IOException, InterruptedException {
+        List<Map<String, Object>> transformConfigs = getDataFrameTransforms();
 
-        for (Map<String, Object> jobConfig : jobConfigs) {
-            String jobId = (String) jobConfig.get("id");
-            Request request = new Request("POST", DATAFRAME_ENDPOINT + jobId + "/_stop");
+        for (Map<String, Object> transformConfig : transformConfigs) {
+            String transformId = (String) transformConfig.get("id");
+            Request request = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_stop");
             request.addParameter("wait_for_completion", "true");
             request.addParameter("timeout", "10s");
             request.addParameter("ignore", "404");
             adminClient().performRequest(request);
-            assertEquals("stopped", getDataFrameIndexerState(jobId));
+            assertEquals("stopped", getDataFrameIndexerState(transformId));
         }
 
-        for (Map<String, Object> jobConfig : jobConfigs) {
-            String jobId = (String) jobConfig.get("id");
-            Request request = new Request("DELETE", DATAFRAME_ENDPOINT + jobId);
+        for (Map<String, Object> transformConfig : transformConfigs) {
+            String transformId = (String) transformConfig.get("id");
+            Request request = new Request("DELETE", DATAFRAME_ENDPOINT + transformId);
             request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
             adminClient().performRequest(request);
         }
 
-        // jobs should be all gone
-        jobConfigs = getDataFrameJobs();
-        assertTrue(jobConfigs.isEmpty());
+        // transforms should be all gone
+        transformConfigs = getDataFrameTransforms();
+        assertTrue(transformConfigs.isEmpty());
 
         // the configuration index should be empty
         Request request = new Request("GET", DataFrameInternalIndex.INDEX_NAME + "/_search");
@@ -180,7 +180,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
             assertEquals(0, XContentMapValues.extractValue("hits.total.value", searchResult));
         } catch (ResponseException e) {
-            // 404 here just means we had no data frame jobs, true for some tests
+            // 404 here just means we had no data frame transforms, true for some tests
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
                 throw e;
             }

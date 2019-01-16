@@ -36,11 +36,6 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
 
     protected AbstractLifecycleComponent() {}
 
-    @Deprecated
-    protected AbstractLifecycleComponent(Settings settings) {
-        // TODO drop settings from ctor
-    }
-
     @Override
     public Lifecycle.State lifecycleState() {
         return this.lifecycle.state();

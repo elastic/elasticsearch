@@ -183,29 +183,16 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         String table = in.readString();
         String name = in.readString();
         String esType = in.readString();
-        Integer jdbcType;
-        int displaySize;
-        if (in.readBoolean()) {
-            jdbcType = in.readVInt();
-            displaySize = in.readVInt();
-        } else {
-            jdbcType = null;
-            displaySize = 0;
-        }
-        return new ColumnInfo(table, name, esType, jdbcType, displaySize);
+        Integer displaySize = in.readOptionalVInt();
+            
+        return new ColumnInfo(table, name, esType, displaySize);
     }
 
     public static void writeColumnInfo(StreamOutput out, ColumnInfo columnInfo) throws IOException {
         out.writeString(columnInfo.table());
         out.writeString(columnInfo.name());
         out.writeString(columnInfo.esType());
-        if (columnInfo.jdbcType() != null) {
-            out.writeBoolean(true);
-            out.writeVInt(columnInfo.jdbcType());
-            out.writeVInt(columnInfo.displaySize());
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalVInt(columnInfo.displaySize());
     }
 
     @Override

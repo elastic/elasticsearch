@@ -61,7 +61,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "search_as_you_type";
     private static final int LOWEST_MAX_SHINGLE_SIZE = 2;
     private static final int HIGHEST_MAX_SHINGLE_SIZE = 4;
-    private static String PREFIX_FIELD_SUFFIX = "._index_prefix";
+    private static final String PREFIX_FIELD_SUFFIX = "._index_prefix";
 
     public static class Defaults {
 
@@ -167,7 +167,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
     }
 
-    private static final class PrefixFieldType extends StringFieldType {
+    static final class PrefixFieldType extends StringFieldType {
 
         final int minChars;
         final int maxChars;
@@ -181,6 +181,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
+        }
+
+        PrefixFieldType(PrefixFieldType other) {
+            super(other);
+            this.minChars = other.minChars;
+            this.maxChars = other.maxChars;
+            this.parentField = other.parentField;
         }
 
         @Override
@@ -204,7 +211,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public PrefixFieldType clone() {
-            return new PrefixFieldType(parentField, name(), minChars, maxChars);
+            return new PrefixFieldType(this);
         }
 
         @Override
@@ -224,9 +231,15 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            if (!super.equals(o)) {
+                return false;
+            }
             PrefixFieldType that = (PrefixFieldType) o;
             return minChars == that.minChars &&
                 maxChars == that.maxChars;

@@ -63,7 +63,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(configMigrator).migrateConfigsWithoutTasks(any(ClusterState.class), any(ActionListener.class));
+        }).when(configMigrator).migrateConfigs(any(ClusterState.class), any(ActionListener.class));
     }
 
     public void testClusterChanged_info() {
@@ -87,7 +87,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                 .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
         verify(auditor, times(1)).info(eq("job_id"), any());
-        verify(configMigrator, times(1)).migrateConfigsWithoutTasks(eq(newState), any());
+        verify(configMigrator, times(1)).migrateConfigs(eq(newState), any());
 
         // no longer master
         newState = ClusterState.builder(new ClusterName("_name"))
@@ -120,7 +120,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                 .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
         verify(auditor, times(1)).warning(eq("job_id"), any());
-        verify(configMigrator, times(1)).migrateConfigsWithoutTasks(eq(newState), any());
+        verify(configMigrator, times(1)).migrateConfigs(eq(newState), any());
 
         // no longer master
         newState = ClusterState.builder(new ClusterName("_name"))
@@ -153,7 +153,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                 .build();
 
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
-        verify(configMigrator, times(1)).migrateConfigsWithoutTasks(any(), any());
+        verify(configMigrator, times(1)).migrateConfigs(any(), any());
         verifyNoMoreInteractions(auditor);
 
         // no longer master

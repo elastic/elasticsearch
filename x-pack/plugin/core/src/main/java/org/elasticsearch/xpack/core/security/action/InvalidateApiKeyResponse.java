@@ -51,10 +51,9 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
      */
     public InvalidateApiKeyResponse(List<String> invalidatedApiKeys, List<String> previouslyInvalidatedApiKeys,
                                     @Nullable List<ElasticsearchException> errors) {
-        Objects.requireNonNull(invalidatedApiKeys, "invalidated_api_keys must be provided");
-        this.invalidatedApiKeys = invalidatedApiKeys;
-        Objects.requireNonNull(previouslyInvalidatedApiKeys, "previously_invalidated_api_keys must be provided");
-        this.previouslyInvalidatedApiKeys = previouslyInvalidatedApiKeys;
+        this.invalidatedApiKeys = Objects.requireNonNull(invalidatedApiKeys, "invalidated_api_keys must be provided");
+        this.previouslyInvalidatedApiKeys = Objects.requireNonNull(previouslyInvalidatedApiKeys,
+                "previously_invalidated_api_keys must be provided");
         if (null != errors) {
             this.errors = errors;
         } else {

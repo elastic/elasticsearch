@@ -22,12 +22,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public final class InvalidateApiKeyRequest extends ActionRequest {
 
-    private String realmName;
-    private String userName;
-    private String apiKeyId;
-    private String apiKeyName;
+    private final String realmName;
+    private final String userName;
+    private final String apiKeyId;
+    private final String apiKeyName;
 
     public InvalidateApiKeyRequest() {
+        this(null, null, null, null);
     }
 
     public InvalidateApiKeyRequest(StreamInput in) throws IOException {
@@ -113,7 +114,21 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(apiKeyId) == false
                 && Strings.hasText(apiKeyName) == false) {
-            validationException = addValidationError("api key id or api key name or username and/or realm name must be specified", null);
+            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified", null);
+        }
+        if (Strings.hasText(realmName) || Strings.hasText(userName)) {
+            if (Strings.hasText(apiKeyId)) {
+                validationException = addValidationError("api key id must not be specified when username or realm name is specified", null);
+            }
+            if (Strings.hasText(apiKeyName)) {
+                validationException = addValidationError("api key name must not be specified when username or realm name is specified", validationException);
+            }
+        } else {
+            if (Strings.hasText(apiKeyId)) {
+                if (Strings.hasText(apiKeyName)) {
+                    validationException = addValidationError("api key name must not be specified when api key id is specified", null);
+                }
+            }
         }
         return validationException;
     }

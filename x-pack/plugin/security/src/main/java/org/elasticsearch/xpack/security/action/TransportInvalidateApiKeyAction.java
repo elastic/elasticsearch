@@ -35,9 +35,9 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
         if (Strings.hasText(request.getRealmName()) || Strings.hasText(request.getUserName())) {
             apiKeyService.invalidateApiKeysForRealmAndUser(request.getRealmName(), request.getUserName(), listener);
         } else if (Strings.hasText(request.getApiKeyId())) {
-            apiKeyService.invalidateApiKeysForApiKeyId(request.getApiKeyId(), listener);
+            apiKeyService.invalidateApiKeyForApiKeyId(request.getApiKeyId(), listener);
         } else {
-            apiKeyService.invalidateApiKeysForApiKeyName(request.getApiKeyName(), listener);
+            apiKeyService.invalidateApiKeyForApiKeyName(request.getApiKeyName(), listener);
         }
     }
 

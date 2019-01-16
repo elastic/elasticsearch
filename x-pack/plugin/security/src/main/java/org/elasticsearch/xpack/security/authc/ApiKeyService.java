@@ -436,7 +436,7 @@ public class ApiKeyService {
         } else {
             findActiveApiKeysForUserAndRealm(userName, realmName, ActionListener.wrap(apiKeyIds -> {
                     if (apiKeyIds.isEmpty()) {
-                        logger.warn("No api keys to invalidate for realm [{}] and username [{}]", realmName, userName);
+                        logger.warn("No active api keys to invalidate for realm [{}] and username [{}]", realmName, userName);
                         invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
                         invalidateAllApiKeys(apiKeyIds, invalidateListener);
@@ -450,27 +450,27 @@ public class ApiKeyService {
     }
 
     /**
-     * Invalidate API keys for given API key id
+     * Invalidate API key for given API key id
      * @param apiKeyId API key id
      * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
-    public void invalidateApiKeysForApiKeyId(String apiKeyId, ActionListener<InvalidateApiKeyResponse> invalidateListener) {
+    public void invalidateApiKeyForApiKeyId(String apiKeyId, ActionListener<InvalidateApiKeyResponse> invalidateListener) {
         ensureEnabled();
         invalidateAllApiKeys(Collections.singleton(apiKeyId), invalidateListener);
     }
 
     /**
-     * Invalidate API keys for given API key name
+     * Invalidate API key for given API key name
      * @param apiKeyName API key name
      * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
-    public void invalidateApiKeysForApiKeyName(String apiKeyName, ActionListener<InvalidateApiKeyResponse> invalidateListener) {
+    public void invalidateApiKeyForApiKeyName(String apiKeyName, ActionListener<InvalidateApiKeyResponse> invalidateListener) {
         ensureEnabled();
         if (Strings.hasText(apiKeyName) == false) {
             logger.trace("No api key name provided");
             invalidateListener.onFailure(new IllegalArgumentException("api key name must be provided"));
         } else {
-            findActiveApiKeysForApiKeyName(apiKeyName, ActionListener.wrap(apiKeyIds -> {
+            findActiveApiKeyForApiKeyName(apiKeyName, ActionListener.wrap(apiKeyIds -> {
                     if (apiKeyIds.isEmpty()) {
                         logger.warn("No api keys to invalidate for api key name [{}]", apiKeyName);
                         invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
@@ -515,7 +515,7 @@ public class ApiKeyService {
                 (SearchHit hit) -> hit.getId()));
     }
 
-    private void findActiveApiKeysForApiKeyName(String apiKeyName, ActionListener<Collection<String>> listener) {
+    private void findActiveApiKeyForApiKeyName(String apiKeyName, ActionListener<Collection<String>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());

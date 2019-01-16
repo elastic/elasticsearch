@@ -10,6 +10,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -185,7 +186,11 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
     public void testExistingSnapshotDoesNotBlockMigration() throws InterruptedException {
         // index a doc with the same Id as the config snapshot
-        IndexRequestBuilder indexRequest = client().prepareIndex(AnomalyDetectorsIndex.jobStateIndexName(),
+        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client(), clusterService.state(), future);
+        future.actionGet();
+
+        IndexRequestBuilder indexRequest = client().prepareIndex(AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
                 ElasticsearchMappings.DOC_TYPE, "ml-config")
                 .setSource(Collections.singletonMap("a_field", "a_value"))
                 .setOpType(DocWriteRequest.OpType.CREATE)

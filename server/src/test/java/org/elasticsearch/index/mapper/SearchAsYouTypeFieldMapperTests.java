@@ -32,7 +32,6 @@ import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouType
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SubFieldMapper;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SubFieldType;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -54,13 +53,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
-
-    // todo remove when we move this to core
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(SearchAsYouTypePlugin.class);
-    }
-
 
     public void testDefaultConfiguration() throws IOException {
         final String mapping = Strings.toString(XContentFactory.jsonBuilder()

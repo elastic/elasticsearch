@@ -247,7 +247,7 @@ public class TypeParsers {
         return false;
     }
 
-    static IndexOptions nodeIndexOptionValue(final Object propNode) {
+    private static IndexOptions nodeIndexOptionValue(final Object propNode) {
         final String value = propNode.toString();
         if (INDEX_OPTIONS_OFFSETS.equalsIgnoreCase(value)) {
             return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS;

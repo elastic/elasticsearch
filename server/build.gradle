@@ -170,7 +170,6 @@ testingConventions {
     IT {
       baseClass "org.elasticsearch.test.ESIntegTestCase"
       baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
-      baseClass "org.elasticsearch.test.rest.ESRestTestCase"
     }
   }
 }

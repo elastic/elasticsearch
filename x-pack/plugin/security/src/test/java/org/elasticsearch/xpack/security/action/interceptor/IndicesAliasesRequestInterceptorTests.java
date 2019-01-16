@@ -57,7 +57,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         } else {
             queries = null;
         }
-        Role role = Role.builder().add(fieldPermissions, queries, IndexPrivilege.ALL, "foo").build();
+        Role role = Role.builder().add(fieldPermissions, queries, IndexPrivilege.ALL, randomBoolean(), "foo").build();
         final String action = IndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.singletonMap("foo",
                 new IndicesAccessControl.IndexAccessControl(true, fieldPermissions, queries)));

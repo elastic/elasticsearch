@@ -278,6 +278,15 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             return allowRestrictedIndices;
         }
 
+        public static Automaton buildIndexMatcherAutomaton(boolean allowRestrictedIndices, String... indices) {
+            final Automaton indicesAutomaton = Automatons.patterns(indices);
+            if (allowRestrictedIndices) {
+                return indicesAutomaton;
+            } else {
+                return Automatons.minusAndMinimize(indicesAutomaton, SystemIndicesNames.NAMES_AUTOMATON);
+            }
+        }
+
         private static Predicate<String> buildIndexMatcherPredicateForAction(String action, Group... groups) {
             final Set<String> ordinaryIndices = new HashSet<>();
             final Set<String> restrictedIndices = new HashSet<>();

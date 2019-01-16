@@ -6,7 +6,9 @@
 
 package org.elasticsearch.xpack.core.security.index;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
 
 import java.util.Collections;
@@ -19,5 +21,5 @@ public class SystemIndicesNames {
 
     public static final Set<String> NAMES_SET = Collections
             .unmodifiableSet(Sets.newHashSet(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
-    public static final String NAMES_PATTERN = "(" + String.join("|", NAMES_SET) + ")";
+    public static final Automaton NAMES_AUTOMATON = Automatons.patterns(NAMES_SET);
 }

@@ -135,7 +135,8 @@ public class PutRoleRequestTests extends ESTestCase {
                 randomSubsetOf(randomIntBetween(1, 2), "read", "write", "index", "all").toArray(Strings.EMPTY_ARRAY),
                 generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
                 generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
-                null
+                null,
+                randomBoolean()
             );
         }
 

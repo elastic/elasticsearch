@@ -92,13 +92,14 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     }
 
     public void addIndex(String[] indices, String[] privileges, String[] grantedFields, String[] deniedFields,
-                         @Nullable BytesReference query) {
+                         @Nullable BytesReference query, boolean allowRestrictedIndices) {
         this.indicesPrivileges.add(RoleDescriptor.IndicesPrivileges.builder()
                 .indices(indices)
                 .privileges(privileges)
                 .grantedFields(grantedFields)
                 .deniedFields(deniedFields)
                 .query(query)
+                .allowRestrictedIndices(allowRestrictedIndices)
                 .build());
     }
 

@@ -72,6 +72,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField SORTMODE_FIELD = new ParseField("mode");
+    public static final ParseField MISSING = new ParseField("missing");
 
     private final Script script;
 
@@ -84,6 +85,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     private String nestedPath;
 
     private NestedSortBuilder nestedSort;
+
+    private Object missing;
 
     /**
      * Constructs a script sort builder with the given script.
@@ -109,6 +112,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         this.nestedFilter = original.nestedFilter;
         this.nestedPath = original.nestedPath;
         this.nestedSort = original.nestedSort;
+        this.missing = original.missing;
     }
 
     /**
@@ -124,6 +128,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         }
+        missing = in.readGenericValue();
     }
 
     @Override
@@ -137,6 +142,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalWriteable(nestedSort);
         }
+        out.writeGenericValue(missing);
     }
 
     /**
@@ -173,6 +179,18 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public SortMode sortMode() {
         return this.sortMode;
     }
+
+    /**
+     * Sets the value when a field is missing in a doc. Can also be set to {@code _last} or
+     * {@code _first} to sort missing last or first respectively.
+     */
+    public ScriptSortBuilder missing(Object missing){
+        this.missing = missing;
+        return this;
+    }
+
+    /** Returns the value used when a field is missing in a doc. */
+    public Object missing() { return this.missing; }
 
     /**
      * Sets the nested filter that the nested objects should match with in order to be taken into account
@@ -264,6 +282,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (nestedSort != null) {
             builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
         }
+        if (missing != null) {
+            builder.field(MISSING.getPreferredName(), missing);
+        }
         builder.endObject();
         builder.endObject();
         return builder;
@@ -287,6 +308,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
+        PARSER.declareField(ScriptSortBuilder::missing, p -> p.objectText(), MISSING, ValueType.VALUE);
     }
 
     /**
@@ -335,7 +357,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             case STRING:
                 final StringSortScript.Factory factory = context.getScriptService().compile(script, StringSortScript.CONTEXT);
                 final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
-                fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
+                fieldComparatorSource = new BytesRefFieldComparatorSource(null, missing, valueMode, nested) {
                     StringSortScript leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
@@ -364,7 +386,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             case NUMBER:
                 final NumberSortScript.Factory numberSortFactory = context.getScriptService().compile(script, NumberSortScript.CONTEXT);
                 final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), context.lookup());
-                fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
+                fieldComparatorSource = new DoubleValuesComparatorSource(null, missing, valueMode, nested) {
                     NumberSortScript leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
@@ -410,12 +432,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 Objects.equals(sortMode, other.sortMode) &&
                 Objects.equals(nestedFilter, other.nestedFilter) &&
                 Objects.equals(nestedPath, other.nestedPath) &&
-                Objects.equals(nestedSort, other.nestedSort);
+                Objects.equals(nestedSort, other.nestedSort) &&
+                Objects.equals(missing, other.missing);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(script, type, order, sortMode, nestedFilter, nestedPath, nestedSort);
+        return Objects.hash(script, type, order, sortMode, nestedFilter, nestedPath, nestedSort, missing);
     }
 
     @Override

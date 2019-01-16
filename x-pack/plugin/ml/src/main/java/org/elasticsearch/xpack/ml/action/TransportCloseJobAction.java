@@ -266,7 +266,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     @Override
     protected void taskOperation(CloseJobAction.Request request, TransportOpenJobAction.JobTask jobTask,
                                  ActionListener<CloseJobAction.Response> listener) {
-        JobTaskState taskState = new JobTaskState(JobState.CLOSING, jobTask.getAllocationId());
+        JobTaskState taskState = new JobTaskState(JobState.CLOSING, jobTask.getAllocationId(), "close job (api)");
         jobTask.updatePersistentTaskState(taskState, ActionListener.wrap(task -> {
             // we need to fork because we are now on a network threadpool and closeJob method may take a while to complete:
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {

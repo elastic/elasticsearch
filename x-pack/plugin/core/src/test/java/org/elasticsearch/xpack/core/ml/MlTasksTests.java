@@ -33,7 +33,7 @@ public class MlTasksTests extends ESTestCase {
                 new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
         assertEquals(JobState.OPENING, MlTasks.getJobState("foo", tasksBuilder.build()));
 
-        tasksBuilder.updateTaskState(MlTasks.jobTaskId("foo"), new JobTaskState(JobState.OPENED, tasksBuilder.getLastAllocationId()));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId("foo"), new JobTaskState(JobState.OPENED, tasksBuilder.getLastAllocationId(), null));
         assertEquals(JobState.OPENED, MlTasks.getJobState("foo", tasksBuilder.build()));
     }
 

@@ -20,7 +20,7 @@ class NativeNormalizerProcess extends AbstractNativeProcess implements Normalize
     private static final String NAME = "normalizer";
 
     NativeNormalizerProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream) {
-        super(jobId, logStream, processInStream, processOutStream, null, 0, Collections.emptyList(), () -> {});
+        super(jobId, logStream, processInStream, processOutStream, null, 0, Collections.emptyList(), (ignore) -> {});
     }
 
     @Override

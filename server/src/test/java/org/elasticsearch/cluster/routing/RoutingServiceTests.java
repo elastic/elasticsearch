@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.junit.Before;
 
@@ -47,7 +46,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         private AtomicBoolean rerouted = new AtomicBoolean();
 
         TestRoutingService() {
-            super(Settings.EMPTY, null, null);
+            super(null, null);
         }
 
         public boolean hasReroutedAndClear() {

@@ -1143,6 +1143,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         @Override
         public void close() {
+            assert closed == false : "already closed - while technically ok double closing is a likely a bug in this case";
             if (closed == false) {
                 closed = true;
                 if (afterQueryTime != -1) {

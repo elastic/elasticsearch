@@ -72,7 +72,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private final CcrLicenseChecker ccrLicenseChecker;
 
     public CcrRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings) {
-        super(settings);
         this.metadata = metadata;
         assert metadata.name().startsWith(NAME_PREFIX) : "CcrRepository metadata.name() must start with: " + NAME_PREFIX;
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];

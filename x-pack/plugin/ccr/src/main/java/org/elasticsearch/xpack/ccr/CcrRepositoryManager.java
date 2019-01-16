@@ -28,7 +28,6 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
     private final RemoteSettingsUpdateListener updateListener;
 
     CcrRepositoryManager(Settings settings, ClusterService clusterService, NodeClient client) {
-        super(settings);
         this.client = client;
         updateListener = new RemoteSettingsUpdateListener(settings);
         updateListener.listenForUpdates(clusterService.getClusterSettings());

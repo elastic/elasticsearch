@@ -104,7 +104,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
             Supplier<ClusterState.Builder> stateBuilderSupplier) {
-        super(settings);
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();

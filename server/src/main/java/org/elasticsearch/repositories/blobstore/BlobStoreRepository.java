@@ -243,7 +243,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param settings Settings for the node this repository object is created on
      */
     protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry) {
-        super(settings);
         this.settings = settings;
         this.metadata = metadata;
         this.namedXContentRegistry = namedXContentRegistry;

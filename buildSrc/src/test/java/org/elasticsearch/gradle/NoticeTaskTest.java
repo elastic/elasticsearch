@@ -9,12 +9,15 @@ import org.junit.rules.ExpectedException;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
-import static org.apache.commons.io.FileUtils.write;
-import static org.apache.commons.io.FileUtils.readFileToString;
 
 public class NoticeTaskTest extends GradleUnitTestCase {
 
@@ -28,15 +31,18 @@ public class NoticeTaskTest extends GradleUnitTestCase {
         File directory1 = new File(noticeTask.getTemporaryDir(), "directoryA");
         File directory2 = new File(noticeTask.getTemporaryDir(), "directoryB");
 
+        Files.createDirectories(directory1.toPath());
+        Files.createDirectories(directory2.toPath());
+
         File d1Notice = new File(directory1, "test-NOTICE.txt");
         File d1License = new File(directory1, "test-LICENSE.txt");
         File d2Notice = new File(directory2, "test2-NOTICE.txt");
         File d2License = new File(directory2, "test2-LICENSE.txt");
 
-        write(d1Notice, "d1 Notice text file");
-        write(d2Notice, "d2 Notice text file");
-        write(d1License, "d1 License text file");
-        write(d2License, "d2 License text file");
+        write(d1Notice, "d1 Notice text file",StandardCharsets.UTF_8);
+        write(d2Notice, "d2 Notice text file",StandardCharsets.UTF_8);
+        write(d1License, "d1 License text file",StandardCharsets.UTF_8);
+        write(d2License, "d2 License text file",StandardCharsets.UTF_8);
 
         List<File> files = new ArrayList<>();
 
@@ -52,11 +58,13 @@ public class NoticeTaskTest extends GradleUnitTestCase {
         List<File> files = this.getListWithoutCopies();
 
         File directory2 = new File(noticeTask.getTemporaryDir(), "directoryC");
+        Files.createDirectories(directory2.toPath());
+
         File d1NoticeCopy = new File(directory2, "test-NOTICE.txt");
         File d1LicenseCopy = new File(directory2, "test-LICENSE.txt");
 
-        write(d1NoticeCopy, "d1 Copy Notice text file");
-        write(d1LicenseCopy, "d1 License text file");
+        write(d1NoticeCopy, "d1 Copy Notice text file",StandardCharsets.UTF_8);
+        write(d1LicenseCopy, "d1 License text file",StandardCharsets.UTF_8);
 
         files.add(d1LicenseCopy.getParentFile());
         files.add(d1NoticeCopy.getParentFile());
@@ -106,7 +114,7 @@ public class NoticeTaskTest extends GradleUnitTestCase {
         noticeTask.generateNotice();
 
         // Get the output String from the output file so we can compare it
-        final String outputText = readFileToString(outputFile, "UTF-8");
+        final String outputText = readFileToString(outputFile, StandardCharsets.UTF_8);
 
         final String lineDivider =
             "================================================================================";
@@ -140,5 +148,15 @@ public class NoticeTaskTest extends GradleUnitTestCase {
 
     private NoticeTask createTask(Project project) {
         return project.getTasks().create("NoticeTask", NoticeTask.class);
+    }
+
+    private static String readFileToString(File file, Charset charset) throws IOException{
+        return Files.readAllLines(file.toPath(),charset).stream()
+            .collect(Collectors.joining("\n"));
+    }
+
+    private static void write(File outputFile, String output,Charset charset) throws IOException{
+        List<String> lines = Arrays.asList(output.split("\\r?\\n"));
+        Files.write(outputFile.toPath(),lines,charset, StandardOpenOption.CREATE);
     }
 }

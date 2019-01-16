@@ -24,14 +24,27 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
-import static org.apache.commons.io.FileUtils.readFileToString;
-
-import java.io.IOException;
-import java.io.File;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+
+import java.io.InputStreamReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+
+import java.nio.file.StandardOpenOption;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.Collections;
 import java.util.stream.Collectors;
 
 /**
@@ -90,7 +103,7 @@ public class NoticeTask extends DefaultTask {
     public void generateNotice() throws IOException {
         final StringBuilder output = new StringBuilder();
 
-        output.append(readFileToString(this.inputFile,"UTF-8"));
+        output.append(readFileToString(this.inputFile,StandardCharsets.UTF_8));
         output.append("\n\n");
 
         // This is a map rather than a set so that the sort order is the 3rd
@@ -106,12 +119,12 @@ public class NoticeTask extends DefaultTask {
             appendFileToOutput(licenseFile, name, "LICENSE", output);
         }
 
-        Files.write(outputFile.toPath(), output.toString().getBytes());
+        write(outputFile,output.toString(),StandardCharsets.UTF_8);
     }
 
     private static void appendFileToOutput(File file, final String name, final String type,
                                            StringBuilder output) throws IOException {
-        String text = readFileToString(file,"UTF-8");
+        String text = readFileToString(file,StandardCharsets.UTF_8);
         if (text.trim().isEmpty() == false) {
             output.append("================================================================================\n");
             output.append(name + " " + type + "\n");
@@ -136,8 +149,8 @@ public class NoticeTask extends DefaultTask {
                         if (licensesSeen.containsKey(name)) {
                             File prevLicenseFile = licensesSeen.get(name);
 
-                            if (readFileToString(prevLicenseFile,"UTF-8")
-                                .equals(readFileToString(licenseFile,"UTF-8")) == false) {
+                            if (readFileToString(prevLicenseFile,StandardCharsets.UTF_8)
+                                .equals(readFileToString(licenseFile,StandardCharsets.UTF_8)) == false) {
                                     throw new RuntimeException("Two different notices exist for dependency '" +
                                         name + "': " + prevLicenseFile + " and " + licenseFile);
                             }
@@ -149,5 +162,26 @@ public class NoticeTask extends DefaultTask {
             }
         }
         return licensesSeen;
+    }
+    private static String readFileToString(File file, Charset charset) throws IOException{
+        CharsetDecoder decoder = charset.newDecoder();
+        decoder.onMalformedInput(CodingErrorAction.REPLACE);
+        final StringBuilder builder = new StringBuilder();
+
+        try(BufferedReader reader = new
+            BufferedReader(new InputStreamReader(new FileInputStream(file),decoder))){
+            char[] buffer = new char[8192];
+            int read;
+
+            while ((read = reader.read(buffer))!= -1){
+                builder.append(buffer,0,read);
+            }
+        }
+        return builder.toString();
+    }
+
+    private static void write(File outputFile, String output,Charset charset) throws IOException{
+        List<String> lines = Arrays.asList(output.split("\\r?\\n"));
+        Files.write(outputFile.toPath(),lines,charset, StandardOpenOption.CREATE);
     }
 }

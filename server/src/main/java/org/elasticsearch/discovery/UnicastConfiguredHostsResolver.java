@@ -56,7 +56,6 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
 
     public UnicastConfiguredHostsResolver(String nodeName, Settings settings, TransportService transportService,
                                           UnicastHostsProvider hostsProvider) {
-        super(settings);
         this.settings = settings;
         this.nodeName = nodeName;
         this.transportService = transportService;

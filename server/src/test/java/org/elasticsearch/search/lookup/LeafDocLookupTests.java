@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import static org.elasticsearch.search.lookup.LeafDocLookup.TYPES_DEPRECATION_MESSAGE;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.doReturn;
@@ -45,6 +46,7 @@ public class LeafDocLookupTests extends ESTestCase {
         when(fieldType.valueForDisplay(anyObject())).then(returnsFirstArg());
 
         MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fullName("_type")).thenReturn(fieldType);
         when(mapperService.fullName("field")).thenReturn(fieldType);
         when(mapperService.fullName("alias")).thenReturn(fieldType);
 
@@ -71,5 +73,11 @@ public class LeafDocLookupTests extends ESTestCase {
     public void testLookupWithFieldAlias() {
         ScriptDocValues<?> fetchedDocValues = docLookup.get("alias");
         assertEquals(docValues, fetchedDocValues);
+    }
+
+    public void testTypesDeprecation() {
+        ScriptDocValues<?> fetchedDocValues = docLookup.get("_type");
+        assertEquals(docValues, fetchedDocValues);
+        assertWarnings(TYPES_DEPRECATION_MESSAGE);
     }
 }

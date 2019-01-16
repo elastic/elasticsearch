@@ -6,8 +6,11 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -121,10 +124,10 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
     }
 
     public void testMigrateConfigs() throws InterruptedException, IOException {
-        // and jobs and datafeeds clusterstate
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(buildJobBuilder("job-foo").build(), false);
         mlMetadata.putJob(buildJobBuilder("job-bar").build(), false);
+
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df-1", "job-foo");
         builder.setIndices(Collections.singletonList("beats*"));
         mlMetadata.putDatafeed(builder.build(), Collections.emptyMap());
@@ -149,7 +152,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
         // the first time this is called mlmetadata will be snap-shotted
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
@@ -178,6 +181,59 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         assertNull(exceptionHolder.get());
         assertThat(datafeedsHolder.get(), hasSize(1));
         assertEquals("df-1", datafeedsHolder.get().get(0).getId());
+    }
+
+    public void testExistingSnapshotDoesNotBlockMigration() throws InterruptedException {
+        // index a doc with the same Id as the config snapshot
+        IndexRequestBuilder indexRequest = client().prepareIndex(AnomalyDetectorsIndex.jobStateIndexName(),
+                ElasticsearchMappings.DOC_TYPE, "ml-config")
+                .setSource(Collections.singletonMap("a_field", "a_value"))
+                .setOpType(DocWriteRequest.OpType.CREATE)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        indexRequest.execute().actionGet();
+
+        // define the configs
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(buildJobBuilder("job-foo").build(), false);
+
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addMlConfigIndex(metaData, routingTable);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(metaData.putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .routingTable(routingTable.build())
+                .build();
+
+        doAnswer(invocation -> {
+            ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];
+            listener.clusterStateProcessed("source", mock(ClusterState.class), mock(ClusterState.class));
+            return null;
+        }).when(clusterService).submitStateUpdateTask(eq("remove-migrated-ml-configs"), any());
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<Boolean> responseHolder = new AtomicReference<>();
+
+        // do the migration
+        MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
+        // writing the snapshot should fail because the doc already exists
+        // in which case the migration should continue
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
+                responseHolder, exceptionHolder);
+
+        assertNull(exceptionHolder.get());
+        assertTrue(responseHolder.get());
+
+        // check the jobs have been migrated
+        AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
+        JobConfigProvider jobConfigProvider = new JobConfigProvider(client());
+        blockingCall(actionListener -> jobConfigProvider.expandJobs("*", true, true, actionListener),
+                jobsHolder, exceptionHolder);
+
+        assertNull(exceptionHolder.get());
+        assertThat(jobsHolder.get(), hasSize(1));
+        assertTrue(jobsHolder.get().get(0).build().getCustomSettings().containsKey(MlConfigMigrator.MIGRATED_FROM_VERSION));
+        assertEquals("job-foo", jobsHolder.get().get(0).build().getId());
     }
 
     public void testMigrateConfigs_GivenLargeNumberOfJobsAndDatafeeds() throws InterruptedException {
@@ -214,7 +270,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
             responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
@@ -252,7 +308,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(nodeSettings(), client(), clusterService);
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
             responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
@@ -285,7 +341,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(settings, client(), clusterService);
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
@@ -361,7 +417,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // if the cluster state has a job config and the index does not
         // exist it should be created
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
         assertBusy(() -> assertTrue(configIndexExists()));

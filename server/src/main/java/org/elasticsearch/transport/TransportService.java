@@ -155,7 +155,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor,
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders, ConnectionManager connectionManager) {
-        super(settings);
         // The only time we do not want to validate node connections is when this is a transport client using the simple node sampler
         this.validateConnections = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false ||
             TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings);

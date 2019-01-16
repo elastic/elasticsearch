@@ -201,10 +201,9 @@ public class AuthorizationService {
             authzEngine.authorizeClusterAction(authentication, unwrappedRequest, action, authzInfo, clusterAuthzListener);
         } else if (IndexPrivilege.ACTION_MATCHER.test(action)) {
             final MetaData metaData = clusterService.state().metaData();
-            final AsyncSupplier<AuthorizedIndices> authorizedIndicesSupplier = new CachingAsyncSupplier<>(
-                authzIndicesListener -> authzIndicesListener.onResponse(new AuthorizedIndices(
-                    () -> authzEngine.loadAuthorizedIndices(authentication, action, authzInfo, metaData.getAliasAndIndexLookup())))
-            );
+            final AsyncSupplier<List<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener ->
+                authzEngine.loadAuthorizedIndices(authentication, action, authzInfo, metaData.getAliasAndIndexLookup(),
+                    authzIndicesListener));
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>((resolvedIndicesListener) -> {
                 authorizedIndicesSupplier.get(ActionListener.wrap(authorizedIndices -> {
                     resolveIndexNames(unwrappedRequest, metaData, authorizedIndices, resolvedIndicesListener);
@@ -366,7 +365,7 @@ public class AuthorizationService {
      */
     private void authorizeBulkItems(Authentication authentication, BulkShardRequest request, AuthorizationInfo authzInfo,
                                     AuthorizationEngine authzEngine, AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
-                                    AsyncSupplier<AuthorizedIndices> authorizedIndicesSupplier,
+                                    AsyncSupplier<List<String>> authorizedIndicesSupplier,
                                     MetaData metaData, String requestId, ActionListener<Void> listener) {
         // Maps original-index -> expanded-index-name (expands date-math, but not aliases)
         final Map<String, String> resolvedIndexNames = new HashMap<>();
@@ -466,7 +465,7 @@ public class AuthorizationService {
         throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
     }
 
-    private void resolveIndexNames(TransportRequest request, MetaData metaData, AuthorizedIndices authorizedIndices,
+    private void resolveIndexNames(TransportRequest request, MetaData metaData, List<String> authorizedIndices,
                                    ActionListener<ResolvedIndices> listener) {
         listener.onResponse(indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices));
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -53,6 +54,8 @@ import java.util.stream.Collectors;
  */
 public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
 
+    private final DeprecationLogger deprecationLogger;
+
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
 
@@ -67,6 +70,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     
     protected BaseRestHandler(Settings settings) {
         // TODO drop settings from ctor
+        this.deprecationLogger = new DeprecationLogger(logger);
     }
 
     public final long getUsageCount() {
@@ -100,7 +104,10 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         }
 
         if (request.hasContent() && request.isContentConsumed() == false) {
-            throw new IllegalArgumentException("request [" + request.method() + " " + request.path() + "] does not support having a body");
+            deprecationLogger.deprecated(
+                    "request [{} {}] does not support having a body; Elasticsearch 7.x+ will reject such requests",
+                    request.method(),
+                    request.path());
         }
 
         usageCount.increment();

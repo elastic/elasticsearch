@@ -283,7 +283,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         assertTrue(executed.get());
     }
 
-    public void testUnconsumedBody() throws IOException {
+    public void testUnconsumedBody() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
         final BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
             @Override
@@ -303,10 +303,9 @@ public class BaseRestHandlerTests extends ESTestCase {
                     .withContent(new BytesArray(builder.toString()), XContentType.JSON)
                     .build();
             final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
-            final IllegalArgumentException e =
-                    expectThrows(IllegalArgumentException.class, () -> handler.handleRequest(request, channel, mock(NodeClient.class)));
-            assertThat(e, hasToString(containsString("request [GET /] does not support having a body")));
-            assertFalse(executed.get());
+            handler.handleRequest(request, channel, mock(NodeClient.class));
+            assertWarnings("request [GET /] does not support having a body; Elasticsearch 7.x+ will reject such requests");
+            assertTrue(executed.get());
         }
     }
 

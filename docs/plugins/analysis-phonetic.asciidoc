@@ -29,7 +29,7 @@ The `phonetic` token filter takes the following settings:
 
 [source,js]
 --------------------------------------------------
-PUT phonetic_sample
+PUT phonetic_sample?include_type_name=true
 {
   "settings": {
     "index": {
@@ -93,6 +93,6 @@ supported:
 `languageset`::
 
     An array of languages to check. If not specified, then the language will
-    be guessed. Accepts: `any`, `comomon`, `cyrillic`, `english`, `french`,
+    be guessed. Accepts: `any`, `common`, `cyrillic`, `english`, `french`,
     `german`, `hebrew`, `hungarian`, `polish`, `romanian`, `russian`,
     `spanish`.

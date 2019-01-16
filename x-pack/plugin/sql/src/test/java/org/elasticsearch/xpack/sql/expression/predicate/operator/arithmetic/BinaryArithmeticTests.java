@@ -20,7 +20,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Arithmetics.mod;
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_HOUR;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_HOUR;
@@ -139,7 +139,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
         Literal r = interval(t, INTERVAL_HOUR);
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> sub(r, l));
-        assertEquals("Cannot substract a date from an interval; do you mean the reverse?", ex.getMessage());
+        assertEquals("Cannot subtract a date from an interval; do you mean the reverse?", ex.getMessage());
     }
 
     public void testSubNumberFromIntervalIllegal() {

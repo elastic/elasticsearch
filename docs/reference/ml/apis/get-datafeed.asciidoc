@@ -76,7 +76,6 @@ The API returns the following results:
       "indices": [
         "server-metrics"
       ],
-      "types": [],
       "query": {
         "match_all": {
           "boost": 1.0

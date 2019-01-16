@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.sql.type.DataTypeConversion;
  * function.
  */
 public class Floor extends MathFunction {
-    public Floor(Location location, Expression field) {
-        super(location, field);
+    public Floor(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -28,7 +28,7 @@ public class Floor extends MathFunction {
 
     @Override
     protected Floor replaceChild(Expression newChild) {
-        return new Floor(location(), newChild);
+        return new Floor(source(), newChild);
     }
 
     @Override

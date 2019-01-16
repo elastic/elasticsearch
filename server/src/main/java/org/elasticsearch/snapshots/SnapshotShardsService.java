@@ -94,7 +94,7 @@ import static org.elasticsearch.transport.EmptyTransportResponseHandler.INSTANCE
 public class SnapshotShardsService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SnapshotShardsService.class);
 
-    public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
+    private static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
 
     private final ClusterService clusterService;
 
@@ -119,7 +119,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     public SnapshotShardsService(Settings settings, ClusterService clusterService, SnapshotsService snapshotsService,
                                  ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings);
         this.indicesService = indicesService;
         this.snapshotsService = snapshotsService;
         this.transportService = transportService;

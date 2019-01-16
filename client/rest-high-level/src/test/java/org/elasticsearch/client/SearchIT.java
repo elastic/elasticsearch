@@ -66,6 +66,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.WeightedAvg;
+import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -137,11 +140,9 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             create.setJsonEntity(
                 "{" +
                 "  \"mappings\": {" +
-                "    \"_doc\": {" +
-                "      \"properties\": {" +
-                "        \"rating\": {" +
-                "          \"type\":  \"keyword\"" +
-                "        }" +
+                "    \"properties\": {" +
+                "      \"rating\": {" +
+                "        \"type\":  \"keyword\"" +
                 "      }" +
                 "    }" +
                 "  }" +
@@ -169,16 +170,14 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             create.setJsonEntity(
                     "{" +
                     "  \"mappings\": {" +
-                    "    \"_doc\": {" +
-                    "      \"properties\": {" +
-                    "        \"field1\": {" +
-                    "          \"type\":  \"keyword\"," +
-                    "          \"store\":  true" +
-                    "        }," +
-                    "        \"field2\": {" +
-                    "          \"type\":  \"keyword\"," +
-                    "          \"store\":  true" +
-                    "        }" +
+                    "    \"properties\": {" +
+                    "      \"field1\": {" +
+                    "        \"type\":  \"keyword\"," +
+                    "        \"store\":  true" +
+                    "      }," +
+                    "      \"field2\": {" +
+                    "        \"type\":  \"keyword\"," +
+                    "        \"store\":  true" +
                     "      }" +
                     "    }" +
                     "  }" +
@@ -371,6 +370,42 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testSearchWithTermsAndWeightedAvg() throws IOException {
+        SearchRequest searchRequest = new SearchRequest("index");
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        TermsAggregationBuilder agg = new TermsAggregationBuilder("agg1", ValueType.STRING).field("type.keyword");
+        agg.subAggregation(new WeightedAvgAggregationBuilder("subagg")
+            .value(new MultiValuesSourceFieldConfig.Builder().setFieldName("num").build())
+            .weight(new MultiValuesSourceFieldConfig.Builder().setFieldName("num2").build())
+        );
+        searchSourceBuilder.aggregation(agg);
+        searchSourceBuilder.size(0);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertNull(searchResponse.getSuggest());
+        assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
+        assertEquals(0, searchResponse.getHits().getHits().length);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
+        Terms termsAgg = searchResponse.getAggregations().get("agg1");
+        assertEquals("agg1", termsAgg.getName());
+        assertEquals(2, termsAgg.getBuckets().size());
+        Terms.Bucket type1 = termsAgg.getBucketByKey("type1");
+        assertEquals(3, type1.getDocCount());
+        assertEquals(1, type1.getAggregations().asList().size());
+        {
+            WeightedAvg weightedAvg = type1.getAggregations().get("subagg");
+            assertEquals(24.4, weightedAvg.getValue(), 0f);
+        }
+        Terms.Bucket type2 = termsAgg.getBucketByKey("type2");
+        assertEquals(2, type2.getDocCount());
+        assertEquals(1, type2.getAggregations().asList().size());
+        {
+            WeightedAvg weightedAvg = type2.getAggregations().get("subagg");
+            assertEquals(100, weightedAvg.getValue(), 0f);
+        }
+    }
+
     public void testSearchWithMatrixStats() throws IOException {
         SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
@@ -406,12 +441,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         createIndex.setJsonEntity(
                 "{\n" +
                 "    \"mappings\": {\n" +
-                "        \"_doc\" : {\n" +
-                "            \"properties\" : {\n" +
-                "                \"qa_join_field\" : {\n" +
-                "                    \"type\" : \"join\",\n" +
-                "                    \"relations\" : { \"question\" : \"answer\" }\n" +
-                "                }\n" +
+                "        \"properties\" : {\n" +
+                "            \"qa_join_field\" : {\n" +
+                "                \"type\" : \"join\",\n" +
+                "                \"relations\" : { \"question\" : \"answer\" }\n" +
                 "            }\n" +
                 "        }\n" +
                 "    }" +

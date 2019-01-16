@@ -26,7 +26,7 @@ subsequent examples:
 
 [source,js]
 ----------------------------------
-PUT /my_index
+PUT /my_index?include_type_name=true
 {
   "mappings":{
     "_doc":{
@@ -127,7 +127,6 @@ PUT _ml/datafeeds/datafeed-test1
 {
   "job_id": "test1",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1
@@ -233,7 +232,6 @@ PUT _ml/datafeeds/datafeed-test2
 {
   "job_id": "test2",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1
@@ -482,7 +480,6 @@ PUT _ml/datafeeds/datafeed-test3
 {
   "job_id": "test3",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1
@@ -551,7 +548,6 @@ PUT _ml/datafeeds/datafeed-test4
 {
   "job_id": "test4",
   "indices": ["my_index"],
-  "types": ["_doc"],
   "query": {
     "match_all": {
           "boost": 1
@@ -573,7 +569,7 @@ GET _ml/datafeeds/datafeed-test4/_preview
 // TEST[skip:needs-licence]
 
 In {es}, location data can be stored in `geo_point` fields but this data type is
-not supported natively in {xpackml} analytics. This example of a script field
+not supported natively in {ml} analytics. This example of a script field
 transforms the data into an appropriate format. For more information,
 see <<ml-geo-functions>>.
 

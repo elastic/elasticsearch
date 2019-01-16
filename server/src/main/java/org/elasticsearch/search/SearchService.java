@@ -193,7 +193,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public SearchService(ClusterService clusterService, IndicesService indicesService,
                          ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
                          ResponseCollectorService responseCollectorService) {
-        super(clusterService.getSettings());
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -668,8 +667,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return context;
     }
 
-    public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout)
-        throws IOException {
+    public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
         return createSearchContext(request, timeout, true, "search");
     }
 
@@ -684,7 +682,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
             engineSearcher, clusterService, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), timeout,
-            fetchPhase, request.getClusterAlias(), clusterService.state().nodes().getMinNodeVersion());
+            fetchPhase, clusterService.state().nodes().getMinNodeVersion());
         boolean success = false;
         try {
             // we clone the query shard context here just for rewriting otherwise we
@@ -692,7 +690,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // during rewrite and normalized / evaluate templates etc.
             QueryShardContext context = new QueryShardContext(searchContext.getQueryShardContext());
             Rewriteable.rewrite(request.getRewriteable(), context, assertAsyncActions);
-            assert searchContext.getQueryShardContext().isCachable();
+            assert searchContext.getQueryShardContext().isCacheable();
             success = true;
         } finally {
             if (success == false) {
@@ -815,7 +813,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.trackTotalHits() == false && context.scrollContext() != null) {
             throw new SearchContextException(context, "disabling [track_total_hits] is not allowed in a scroll context");
         }
-        context.trackTotalHits(source.trackTotalHits());
+        context.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
         }

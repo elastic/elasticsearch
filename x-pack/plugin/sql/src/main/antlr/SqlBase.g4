@@ -55,7 +55,6 @@ statement
     | (DESCRIBE | DESC) (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
     | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
-    | SYS CATALOGS                                                                                        #sysCatalogs
     | SYS TABLES (CATALOG clusterLike=likePattern)?
                  (tableLike=likePattern | tableIdent=tableIdentifier)?
                  (TYPE string (',' string)* )?                                                            #sysTables
@@ -63,7 +62,6 @@ statement
                   (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
                   (columnPattern=likePattern)?                                                            #sysColumns
     | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
-    | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
     
 query
@@ -342,7 +340,7 @@ nonReserved
     | CATALOGS | COLUMNS | CURRENT 
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
-    | FIRST | FORMAT | FUNCTIONS 
+    | FIRST | FORMAT | FULL | FUNCTIONS
     | GRAPHVIZ
     | HOUR
     | INTERVAL

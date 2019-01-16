@@ -214,6 +214,13 @@ public class AutodetectProcessManager {
      */
     public void persistJob(JobTask jobTask, Consumer<Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
+        if (communicator == null) {
+            String message = String.format(Locale.ROOT, "Cannot persist because job [%s] does not have a corresponding autodetect process",
+                jobTask.getJobId());
+            logger.debug(message);
+            handler.accept(ExceptionsHelper.conflictStatusException(message));
+            return;
+        }
         communicator.persistJob((aVoid, e) -> handler.accept(e));
     }
 
@@ -241,7 +248,8 @@ public class AutodetectProcessManager {
                             XContentType xContentType, DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobTask.getJobId() + "] is not open");
+            throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobTask.getJobId() +
+                "] does not have a corresponding autodetect process");
         }
         communicator.writeToJob(input, analysisRegistry, xContentType, params, handler);
     }
@@ -259,7 +267,8 @@ public class AutodetectProcessManager {
         logger.debug("Flushing job {}", jobTask.getJobId());
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            String message = String.format(Locale.ROOT, "Cannot flush because job [%s] is not open", jobTask.getJobId());
+            String message = String.format(Locale.ROOT, "Cannot flush because job [%s] does not have a corresponding autodetect process",
+                jobTask.getJobId());
             logger.debug(message);
             handler.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
@@ -309,7 +318,8 @@ public class AutodetectProcessManager {
         logger.debug("Forecasting job {}", jobId);
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            String message = String.format(Locale.ROOT, "Cannot forecast because job [%s] is not open", jobId);
+            String message = String.format(Locale.ROOT,
+                "Cannot forecast because job [%s] does not have a corresponding autodetect process", jobId);
             logger.debug(message);
             handler.accept(ExceptionsHelper.conflictStatusException(message));
             return;
@@ -329,7 +339,8 @@ public class AutodetectProcessManager {
     public void writeUpdateProcessMessage(JobTask jobTask, UpdateParams updateParams, Consumer<Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            String message = "Cannot process update model debug config because job [" + jobTask.getJobId() + "] is not open";
+            String message = "Cannot update the job config because job [" + jobTask.getJobId() +
+                "] does not have a corresponding autodetect process";
             logger.debug(message);
             handler.accept(ExceptionsHelper.conflictStatusException(message));
             return;
@@ -665,6 +676,14 @@ public class AutodetectProcessManager {
         return null;
     }
 
+    public boolean hasOpenAutodetectCommunicator(long jobAllocationId) {
+        ProcessContext processContext = processByAllocation.get(jobAllocationId);
+        if (processContext != null && processContext.getState() == ProcessContext.ProcessStateName.RUNNING) {
+            return processContext.getAutodetectCommunicator() != null;
+        }
+        return false;
+    }
+
     public Optional<Duration> jobOpenTime(JobTask jobTask) {
         AutodetectCommunicator communicator = getAutodetectCommunicator(jobTask);
         if (communicator == null) {
@@ -730,6 +749,10 @@ public class AutodetectProcessManager {
         AutodetectWorkerExecutorService autoDetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
         executorService.submit(autoDetectWorkerExecutor::start);
         return autoDetectWorkerExecutor;
+    }
+
+    public ByteSizeValue getMinLocalStorageAvailable() {
+        return nativeStorageProvider.getMinLocalStorageAvailable();
     }
 
     /*

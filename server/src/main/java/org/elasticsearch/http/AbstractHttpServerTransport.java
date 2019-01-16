@@ -87,7 +87,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
-        super(settings);
         this.settings = settings;
         this.networkService = networkService;
         this.bigArrays = bigArrays;

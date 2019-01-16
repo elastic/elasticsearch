@@ -63,15 +63,4 @@ public class PutMappingRequestTests extends AbstractXContentTestCase<PutMappingR
             throw new RuntimeException(e);
         }
     }
-
-    /**
-     * Test that {@link PutMappingRequest#source(Object...)} rejects inputs where the
-     * {@code Object...} varargs of field name and properties are not paired correctly.
-     */
-    public void testSimpleSourceFormat() {
-        PutMappingRequest request = new PutMappingRequest();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> request.source("only_field"));
-        assertEquals("mapping source must be pairs of field names and properties definitions.", e.getMessage());
-    }
 }

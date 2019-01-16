@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -93,73 +92,6 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
      */
     public XContentType xContentType() {
         return xContentType;
-    }
-
-    /**
-     * A specialized simplified mapping source method, takes the form of simple properties definition:
-     * ("field1", "type=string,store=true").
-     *
-     * Also supports metadata mapping fields such as `_all` and `_parent` as property definition, these metadata
-     * mapping fields will automatically be put on the top level mapping object.
-     */
-    public PutMappingRequest source(Object... source) {
-        return source(buildFromSimplifiedDef(source));
-    }
-
-    /**
-     * @param source A list of objects representing field andproperties pairs (e.g. "field", "type=keyword").
-     *
-     * @throws IllegalArgumentException if the number of the source arguments is not divisible by two.
-     * @return the mappings definition
-     */
-    private static XContentBuilder buildFromSimplifiedDef(Object... source) {
-        if (source.length % 2 != 0) {
-            throw new IllegalArgumentException("mapping source must be pairs of field names and properties definitions.");
-        }
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-
-            for (int i = 0; i < source.length; i++) {
-                String fieldName = source[i++].toString();
-                if (RESERVED_FIELDS.contains(fieldName)) {
-                    builder.startObject(fieldName);
-                    String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
-                    for (String s : s1) {
-                        String[] s2 = Strings.split(s, "=");
-                        if (s2.length != 2) {
-                            throw new IllegalArgumentException("malformed " + s);
-                        }
-                        builder.field(s2[0], s2[1]);
-                    }
-                    builder.endObject();
-                }
-            }
-
-            builder.startObject("properties");
-            for (int i = 0; i < source.length; i++) {
-                String fieldName = source[i++].toString();
-                if (RESERVED_FIELDS.contains(fieldName)) {
-                    continue;
-                }
-
-                builder.startObject(fieldName);
-                String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
-                for (String s : s1) {
-                    String[] s2 = Strings.split(s, "=");
-                    if (s2.length != 2) {
-                        throw new IllegalArgumentException("malformed " + s);
-                    }
-                    builder.field(s2[0], s2[1]);
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-            builder.endObject();
-            return builder;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("failed to generate simplified mapping definition", e);
-        }
     }
 
     /**

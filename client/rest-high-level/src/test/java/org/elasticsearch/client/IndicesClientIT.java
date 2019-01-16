@@ -403,7 +403,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             () -> execute(getIndexRequest, highLevelClient().indices()::get, highLevelClient().indices()::getAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
-    
+
     public void testPutMapping() throws IOException {
         String indexName = "mapping_index";
         createIndex(indexName, Settings.EMPTY);

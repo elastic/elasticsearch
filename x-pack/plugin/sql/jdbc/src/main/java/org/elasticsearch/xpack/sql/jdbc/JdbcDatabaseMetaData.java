@@ -781,7 +781,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getTableTypes() throws SQLException {
         // TABLE_TYPE (4)
-        Object[][] data = queryColumn(con, "SYS TABLES", 4);
+        Object[][] data = queryColumn(con, "SYS TABLES TYPE '%'", 4);
         return memorySet(con.cfg, columnInfo("", "TABLE_TYPE"), data);
     }
 

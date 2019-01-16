@@ -132,7 +132,7 @@ public interface DateFormatter {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
-        // support the 6.x BWD compatible way of parsing java 8 dates
+        // support the 6.x BWC compatible way of parsing java 8 dates
         if (input.startsWith("8")) {
             input = input.substring(1);
         }

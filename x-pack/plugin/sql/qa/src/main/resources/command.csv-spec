@@ -178,8 +178,8 @@ SHOW TABLES;
 
        name        |     type      
 logs               |BASE TABLE
-test_alias         |ALIAS          
-test_alias_emp     |ALIAS          
+test_alias         |VIEW          
+test_alias_emp     |VIEW          
 test_emp           |BASE TABLE     
 test_emp_copy      |BASE TABLE     
 ;
@@ -217,8 +217,8 @@ showTablesIdentifierPatternOnAliases
 SHOW TABLES "test*,-test_emp*";
 
  name:s        | type:s
-test_alias     |ALIAS          
-test_alias_emp |ALIAS          
+test_alias     |VIEW          
+test_alias_emp |VIEW          
 ;
 
 // DESCRIBE

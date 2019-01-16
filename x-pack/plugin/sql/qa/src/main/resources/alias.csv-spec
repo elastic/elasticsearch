@@ -84,7 +84,7 @@ SHOW TABLES LIKE 'test\_alias' ESCAPE '\';
 
 name:s               | type:s
 
-test_alias           | ALIAS
+test_alias           | VIEW
 ;
 
 showPattern
@@ -92,8 +92,8 @@ SHOW TABLES LIKE 'test_%';
 
 name:s               | type:s
 
-test_alias           | ALIAS
-test_alias_emp       | ALIAS
+test_alias           | VIEW
+test_alias_emp       | VIEW
 test_emp             | BASE TABLE
 test_emp_copy        | BASE TABLE
 ;

@@ -160,8 +160,8 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         allTotalQueries += randomCommandExecutions;
         for (int i = 0; i < randomCommandExecutions; i++) {
             runSql(randomFrom("SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
-                                 "SHOW TABLES", "SYS CATALOGS", "SYS COLUMNS LIKE '%name'",
-                                 "SYS TABLES", "SYS TYPES"));
+                                 "SHOW TABLES", "SYS TABLES", "SYS COLUMNS LIKE '%name'",
+                                 "SYS TABLES TYPE '%'", "SYS TYPES"));
         }
         responseAsMap = getStats();
         assertFeatureMetric(baseMetrics.get("command") + randomCommandExecutions, responseAsMap, "command");

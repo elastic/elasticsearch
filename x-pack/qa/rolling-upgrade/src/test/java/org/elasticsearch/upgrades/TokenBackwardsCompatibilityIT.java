@@ -7,7 +7,8 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -22,8 +23,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37379")
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
+
+    private static final Logger LOGGER = LogManager.getLogger(TokenBackwardsCompatibilityIT.class);
 
     public void testGeneratingTokenInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
@@ -101,6 +103,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         try (RestClient client = getRestClientForCurrentVersionNodesOnly()) {
             Response response = client.performRequest(createTokenRequest);
             Map<String, Object> responseMap = entityAsMap(response);
+            LOGGER.info("Create token response map: "+responseMap);
             String accessToken = (String) responseMap.get("access_token");
             String refreshToken = (String) responseMap.get("refresh_token");
             assertNotNull(accessToken);
@@ -115,6 +118,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     "}");
             response = client.performRequest(tokenRefreshRequest);
             responseMap = entityAsMap(response);
+            LOGGER.info("Refresh token response map: "+responseMap);
             String updatedAccessToken = (String) responseMap.get("access_token");
             String updatedRefreshToken = (String) responseMap.get("refresh_token");
             assertNotNull(updatedAccessToken);

@@ -894,6 +894,44 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             "action [indices:admin/xpack/rollup/search] is unauthorized for user [ml_admin_plus_data]\""));
     }
 
+    public void testLookbackWithSingleBucketAgg() throws Exception {
+        String jobId = "aggs-date-histogram-with-single-bucket-agg-job";
+        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        createJobRequest.setJsonEntity("{\n"
+            + "  \"description\": \"Aggs job\",\n"
+            + "  \"analysis_config\": {\n"
+            + "    \"bucket_span\": \"3600s\",\n"
+            + "    \"summary_count_field_name\": \"doc_count\",\n"
+            + "    \"detectors\": [\n"
+            + "      {\n"
+            + "        \"function\": \"mean\",\n"
+            + "        \"field_name\": \"responsetime\""
+            + "      }\n"
+            + "    ]\n"
+            + "  },\n"
+            + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
+            + "}");
+        client().performRequest(createJobRequest);
+
+        String datafeedId = "datafeed-" + jobId;
+        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":\"1h\"},"
+            + "\"aggregations\":{"
+            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
+            + "\"airlineFilter\":{\"filter\":{\"term\": {\"airline\":\"AAA\"}},"
+            + "  \"aggregations\":{\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}}}";
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response").setAggregations(aggregations).build();
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
+        Response jobStatsResponse = client().performRequest(new Request("GET",
+            MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+        String jobStatsResponseAsString = EntityUtils.toString(jobStatsResponse.getEntity());
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":2"));
+        assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
+    }
+
     public void testRealtime() throws Exception {
         String jobId = "job-realtime-1";
         createJob(jobId, "airline");

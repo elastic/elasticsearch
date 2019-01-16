@@ -108,7 +108,16 @@ class AggregationToJsonProcessor {
             }
         }
 
-        if (bucketAggregations.size() > 1) {
+        // If on the current level (indicated via bucketAggregations) or on of the next levels (singleBucketAggregations)
+        // we have more than 1 `MultiBucketsAggregation`, we should error out.
+        // We need to make the check in this way as each of the items in `singleBucketAggregations` is treated as a separate branch
+        // in the recursive handling of this method.
+        int bucketAggLevelCount = Math.max(bucketAggregations.size(), (int)singleBucketAggregations.stream()
+            .flatMap(s -> asList(s.getAggregations()).stream())
+            .filter(MultiBucketsAggregation.class::isInstance)
+            .count());
+
+        if (bucketAggLevelCount > 1) {
             throw new IllegalArgumentException("Multiple bucket aggregations at the same level are not supported");
         }
 
@@ -142,6 +151,8 @@ class AggregationToJsonProcessor {
             }
         }
         noMoreBucketsToProcess = singleBucketAggregations.isEmpty() && noMoreBucketsToProcess;
+        // we support more than one `SingleBucketAggregation` at each level, each agg needs to be handled
+        // recursively.
         for (SingleBucketAggregation singleBucketAggregation : singleBucketAggregations) {
             processAggs(singleBucketAggregation.getDocCount(), asList(singleBucketAggregation.getAggregations()));
         }

@@ -968,9 +968,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         Role codeUserRole = Role.builder(roleDescriptor, null).build();
 
 
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
-        assertThat(codeUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".code-"), is(true));
+        assertThat(codeUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test("foo"), is(false));
+        assertThat(codeUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".reporting"), is(false));
+        assertThat(codeUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".code-"), is(true));
         assertThat(codeUserRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
             is(false));
 

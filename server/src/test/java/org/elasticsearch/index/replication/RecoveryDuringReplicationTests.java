@@ -691,6 +691,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37183")
     public void testAddNewReplicas() throws Exception {
         try (ReplicationGroup shards = createGroup(between(0, 1))) {
             shards.startAll();

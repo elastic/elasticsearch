@@ -21,7 +21,6 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -274,4 +273,5 @@ public class RestRequestTests extends ESTestCase {
             return restRequest.content();
         }
     }
+
 }

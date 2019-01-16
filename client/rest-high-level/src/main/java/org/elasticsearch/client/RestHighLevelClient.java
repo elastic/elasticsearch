@@ -1704,7 +1704,7 @@ public class RestHighLevelClient implements Closeable {
         }
     }
 
-    static boolean convertExistsResponse(Response response) {
+    protected static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
     }
 

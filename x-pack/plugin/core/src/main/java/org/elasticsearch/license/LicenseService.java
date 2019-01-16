@@ -121,7 +121,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public LicenseService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
                           ResourceWatcherService resourceWatcherService, XPackLicenseState licenseState) {
-        super(settings);
         this.settings = settings;
         this.clusterService = clusterService;
         this.clock = clock;

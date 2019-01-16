@@ -749,6 +749,10 @@ public class AutodetectProcessManager {
         return autoDetectWorkerExecutor;
     }
 
+    public ByteSizeValue getMinLocalStorageAvailable() {
+        return nativeStorageProvider.getMinLocalStorageAvailable();
+    }
+
     /*
      * The autodetect native process can only handle a single operation at a time. In order to guarantee that, all
      * operations are initially added to a queue and a worker thread from ml autodetect threadpool will process each

@@ -39,6 +39,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public abstract class AbstractIndicesPrivileges {
     static final ParseField NAMES = new ParseField("names");
+    static final ParseField ALLOW_RESTRICTED_INDICES = new ParseField("allow_restricted_indices");
     static final ParseField PRIVILEGES = new ParseField("privileges");
     static final ParseField FIELD_PERMISSIONS = new ParseField("field_security");
     static final ParseField QUERY = new ParseField("query");

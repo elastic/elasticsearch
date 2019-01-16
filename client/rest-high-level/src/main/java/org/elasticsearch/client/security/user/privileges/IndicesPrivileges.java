@@ -60,6 +60,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
         PARSER.declareStringArray(constructorArg(), PRIVILEGES);
         PARSER.declareObject(optionalConstructorArg(), FieldSecurity::parse, FIELD_PERMISSIONS);
         PARSER.declareStringOrNull(optionalConstructorArg(), QUERY);
+        PARSER.declareBoolean(constructorArg(), ALLOW_RESTRICTED_INDICES);
     }
 
     private final FieldSecurity fieldSecurity;

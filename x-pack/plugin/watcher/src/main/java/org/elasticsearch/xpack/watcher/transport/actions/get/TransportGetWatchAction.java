@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
@@ -71,7 +72,7 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
                             watch.version(getResponse.getVersion());
                             watch.status().version(getResponse.getVersion());
                             listener.onResponse(new GetWatchResponse(watch.id(), getResponse.getVersion(), watch.status(),
-                                            BytesReference.bytes(builder), XContentType.JSON));
+                                            new XContentSource(BytesReference.bytes(builder), XContentType.JSON)));
                         }
                     } else {
                         listener.onResponse(new GetWatchResponse(request.getId()));

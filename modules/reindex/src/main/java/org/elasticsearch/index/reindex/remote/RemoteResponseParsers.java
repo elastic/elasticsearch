@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex.remote;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
 import java.util.List;
@@ -108,7 +110,16 @@ final class RemoteResponseParsers {
     public static final ConstructingObjectParser<Object[], XContentType> HITS_PARSER =
             new ConstructingObjectParser<>("hits", true, a -> a);
     static {
-        HITS_PARSER.declareLong(constructorArg(), new ParseField("total"));
+        HITS_PARSER.declareField(constructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                final TotalHits totalHits = SearchHits.parseTotalHitsFragment(p);
+                assert totalHits.relation == TotalHits.Relation.EQUAL_TO;
+                return totalHits.value;
+            } else {
+                // For BWC with nodes pre 7.0
+                return p.longValue();
+            }
+        }, new ParseField("total"), ValueType.OBJECT_OR_LONG);
         HITS_PARSER.declareObjectArray(constructorArg(), HIT_PARSER, new ParseField("hits"));
     }
 
@@ -268,7 +279,11 @@ final class RemoteResponseParsers {
             "/", true, a -> (Version) a[0]);
     static {
         ConstructingObjectParser<Version, XContentType> versionParser = new ConstructingObjectParser<>(
-                "version", true, a -> Version.fromString((String) a[0]));
+                "version", true, a -> Version.fromString(
+                    ((String) a[0])
+                        .replace("-SNAPSHOT", "")
+                        .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
+        ));
         versionParser.declareString(constructorArg(), new ParseField("number"));
         MAIN_ACTION_PARSER.declareObject(constructorArg(), versionParser, new ParseField("version"));
     }

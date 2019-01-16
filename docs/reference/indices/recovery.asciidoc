@@ -24,7 +24,7 @@ indices recovery result.
 [source,js]
 --------------------------------------------------
 # create the index
-PUT index1
+PUT index1?include_type_name=true
 {"settings": {"index.number_of_shards": 1}}
 
 # create the repository
@@ -90,7 +90,8 @@ Response:
         "repository" : "my_repository",
         "snapshot" : "my_snapshot",
         "index" : "index1",
-        "version" : "{version}"
+        "version" : "{version}",
+        "restoreUUID": "PDh1ZAOaRbiGIVtCvZOMww"
       },
       "target" : {
         "id" : "ryqJ5lO5S4-lSFbGntkEkg",

@@ -48,7 +48,7 @@ public class RequestsWithoutContentIT extends ESRestTestCase {
 
     public void testPutMappingsMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () ->
-                client().performRequest(new Request(randomBoolean() ? "POST" : "PUT", "/test_index/test_type/_mapping")));
+                client().performRequest(new Request(randomBoolean() ? "POST" : "PUT", "/test_index/_mapping")));
         assertResponseException(responseException, "request body is required");
     }
 

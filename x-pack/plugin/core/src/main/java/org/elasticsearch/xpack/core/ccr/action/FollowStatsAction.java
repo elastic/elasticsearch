@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,19 +41,20 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
 
     @Override
     public StatsResponses newResponse() {
-        return new StatsResponses();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<StatsResponses> getResponseReader() {
+        return StatsResponses::new;
     }
 
     public static class StatsResponses extends BaseTasksResponse implements ToXContentObject {
 
-        private List<StatsResponse> statsResponse;
+        private final List<StatsResponse> statsResponse;
 
         public List<StatsResponse> getStatsResponses() {
             return statsResponse;
-        }
-
-        public StatsResponses() {
-            this(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
         }
 
         public StatsResponses(
@@ -63,6 +63,17 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
                 final List<StatsResponse> statsResponse) {
             super(taskFailures, nodeFailures);
             this.statsResponse = statsResponse;
+        }
+
+        public StatsResponses(StreamInput in) throws IOException {
+            super(in);
+            statsResponse = in.readList(StatsResponse::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeList(statsResponse);
         }
 
         @Override
@@ -100,18 +111,6 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            statsResponse = in.readList(StatsResponse::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeList(statsResponse);
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -128,6 +127,19 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
     public static class StatsRequest extends BaseTasksRequest<StatsRequest> implements IndicesRequest {
 
         private String[] indices;
+
+        public StatsRequest() {}
+
+        public StatsRequest(StreamInput in) throws IOException {
+            super(in);
+            indices = in.readOptionalStringArray();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalStringArray(indices);
+        }
 
         @Override
         public String[] indices() {
@@ -159,18 +171,6 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            indices = in.readOptionalStringArray();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalStringArray(indices);
         }
 
         @Override

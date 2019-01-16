@@ -287,8 +287,8 @@ buildRestTests.setups['stackoverflow'] = '''
           body: |'''
 
 // Make Kibana strongly connected to elasticsearch and logstash
-// Make Kibana rarer (and therefore higher-ranking) than Javascript
-// Make Javascript strongly connected to jquery and angular
+// Make Kibana rarer (and therefore higher-ranking) than JavaScript
+// Make JavaScript strongly connected to jquery and angular
 // Make Cabana strongly connected to elasticsearch but only as a result of a single author
 
 for (int i = 0; i < 150; i++) {
@@ -525,6 +525,7 @@ for (int i = 0; i < 5; i++) {
 buildRestTests.setups['library'] = '''
   - do:
         indices.create:
+          include_type_name: true
           index: library
           body:
             settings:
@@ -625,7 +626,7 @@ buildRestTests.setups['sensor_rollup_job'] = '''
   - do:
       raw:
         method: PUT
-        path: _xpack/rollup/job/sensor
+        path: _rollup/job/sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -696,7 +697,7 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
   - do:
       raw:
         method: PUT
-        path: _xpack/rollup/job/sensor
+        path: _rollup/job/sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -727,7 +728,7 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
   - do:
       raw:
         method: POST
-        path: _xpack/rollup/job/sensor/_start
+        path: _rollup/job/sensor/_start
 '''
 
 buildRestTests.setups['sensor_index'] = '''

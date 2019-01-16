@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -36,6 +37,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,8 +48,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
 import java.nio.file.DirectoryStream;
@@ -81,7 +85,15 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList(MockFSIndexStore.TestPlugin.class, InternalSettingsPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            // testTwoNodeFirstNodeCleared does unsafe things, and testLatestVersionLoaded / testRecoveryDifferentNodeOrderStartup also fail
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false)
+            .build();
     }
 
     public void testOneNodeRecoverFromGateway() throws Exception {
@@ -363,7 +375,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         logger.info("--> add some metadata and additional template");
         client().admin().indices().preparePutTemplate("template_1")
-            .setTemplate("te*")
+            .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
             .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field1").field("type", "text").field("store", true).endObject()
@@ -404,8 +416,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1))
-            .get();
+            .setSettings(Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 1)
+                // disable merges to keep segments the same
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "false")
+            ).get();
 
         logger.info("--> indexing docs");
         int numDocs = randomIntBetween(1, 1024);

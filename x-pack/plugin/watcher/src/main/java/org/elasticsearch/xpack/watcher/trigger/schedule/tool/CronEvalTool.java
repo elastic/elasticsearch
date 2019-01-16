@@ -20,7 +20,6 @@ import org.joda.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.TimeZone;
 
 public class CronEvalTool extends LoggingAwareCommand {
 
@@ -31,7 +30,7 @@ public class CronEvalTool extends LoggingAwareCommand {
     private static final DateTimeFormatter UTC_FORMATTER = DateTimeFormat.forPattern("EEE, d MMM yyyy HH:mm:ss")
         .withZone(DateTimeZone.UTC).withLocale(Locale.ROOT);
     private static final DateTimeFormatter LOCAL_FORMATTER = DateTimeFormat.forPattern("EEE, d MMM yyyy HH:mm:ss Z")
-        .withZone(DateTimeZone.forTimeZone(TimeZone.getDefault()));
+        .withZone(DateTimeZone.forTimeZone(null));
 
     private final OptionSpec<Integer> countOption;
     private final OptionSpec<String> arguments;

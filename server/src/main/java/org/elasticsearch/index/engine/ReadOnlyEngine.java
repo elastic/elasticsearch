@@ -20,6 +20,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -66,7 +67,7 @@ public class ReadOnlyEngine extends Engine {
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
     private final DocsStats docsStats;
-    protected final RamAccountingSearcherFactory searcherFactory;
+    private final RamAccountingSearcherFactory searcherFactory;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -242,6 +243,9 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
                                                 boolean requiredFullRange) throws IOException {
+        if (engineConfig.getIndexSettings().isSoftDeleteEnabled() == false) {
+            throw new IllegalStateException("accessing changes snapshot requires soft-deletes enabled");
+        }
         return readHistoryOperations(source, mapperService, fromSeqNo);
     }
 
@@ -413,5 +417,14 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public void initializeMaxSeqNoOfUpdatesOrDeletes() {
         advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
+    }
+
+    protected void processReaders(IndexReader reader, IndexReader previousReader) {
+        searcherFactory.processReaders(reader, previousReader);
+    }
+
+    @Override
+    public boolean refreshNeeded() {
+        return false;
     }
 }

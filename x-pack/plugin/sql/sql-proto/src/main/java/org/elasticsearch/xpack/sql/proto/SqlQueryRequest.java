@@ -12,10 +12,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.TimeZone;
 
 /**
  * Sql query request for JDBC/CLI client
@@ -24,7 +24,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     @Nullable
     private final String cursor;
     private final String query;
-    private final TimeZone timeZone;
+    private final ZoneId zoneId;
     private final int fetchSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
@@ -33,12 +33,12 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final List<SqlTypedParamValue> params;
 
 
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, TimeZone timeZone,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, String cursor) {
-        super(mode);
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
+                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, String cursor, RequestInfo requestInfo) {
+        super(requestInfo);
         this.query = query;
         this.params = params;
-        this.timeZone = timeZone;
+        this.zoneId = zoneId;
         this.fetchSize = fetchSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
@@ -46,15 +46,15 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.cursor = cursor;
     }
 
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, ToXContent filter, TimeZone timeZone,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(mode, query, params, timeZone, fetchSize, requestTimeout, pageTimeout, filter, null);
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ToXContent filter, ZoneId zoneId,
+                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+        this(query, params, zoneId, fetchSize, requestTimeout, pageTimeout, filter, null, requestInfo);
     }
 
-    public SqlQueryRequest(Mode mode, String cursor, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(mode, "", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout, null, cursor);
+    public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+        this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
+             null, cursor, requestInfo);
     }
-
 
     /**
      * The key that must be sent back to SQL to access the next page of
@@ -81,8 +81,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     /**
      * The client's time zone
      */
-    public TimeZone timeZone() {
-        return timeZone;
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
 
@@ -116,14 +116,20 @@ public class SqlQueryRequest extends AbstractSqlRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
         SqlQueryRequest that = (SqlQueryRequest) o;
         return fetchSize == that.fetchSize &&
             Objects.equals(query, that.query) &&
             Objects.equals(params, that.params) &&
-            Objects.equals(timeZone, that.timeZone) &&
+            Objects.equals(zoneId, that.zoneId) &&
             Objects.equals(requestTimeout, that.requestTimeout) &&
             Objects.equals(pageTimeout, that.pageTimeout) &&
             Objects.equals(filter, that.filter) &&
@@ -132,13 +138,17 @@ public class SqlQueryRequest extends AbstractSqlRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, timeZone, fetchSize, requestTimeout, pageTimeout, filter, cursor);
+        return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout, filter, cursor);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (query != null) {
             builder.field("query", query);
+        }
+        builder.field("mode", mode().toString());
+        if (clientId() != null) {
+            builder.field("client_id", clientId());
         }
         if (this.params.isEmpty() == false) {
             builder.startArray("params");
@@ -147,8 +157,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             }
             builder.endArray();
         }
-        if (timeZone != null) {
-            builder.field("time_zone", timeZone.getID());
+        if (zoneId != null) {
+            builder.field("time_zone", zoneId.getId());
         }
         if (fetchSize != Protocol.FETCH_SIZE) {
             builder.field("fetch_size", fetchSize);
@@ -168,5 +178,4 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         }
         return builder;
     }
-
 }

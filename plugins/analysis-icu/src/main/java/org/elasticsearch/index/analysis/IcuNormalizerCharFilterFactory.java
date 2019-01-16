@@ -36,7 +36,7 @@ import java.io.Reader;
  * <p>The {@code mode} can be used to provide 'compose' or 'decompose'. Default is compose.</p>
  * <p>The {@code unicodeSetFilter} attribute can be used to provide the UniCodeSet for filtering.</p>
  */
-public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory implements MultiTermAwareComponent {
+public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory implements NormalizingCharFilterFactory {
 
     private final Normalizer2 normalizer;
 
@@ -57,8 +57,4 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
         return new ICUNormalizer2CharFilter(reader, normalizer);
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
 }

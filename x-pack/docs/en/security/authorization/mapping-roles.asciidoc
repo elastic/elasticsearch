@@ -10,9 +10,10 @@ For other types of realms, you must create _role-mappings_ that define which
 roles should be assigned to each user based on their username, groups, or
 other metadata.
 
-{security} allows role-mappings to be defined via an
-<<mapping-roles-api, API>>, or managed through <<mapping-roles-file, files>>.
-These two sources of role-mapping are combined inside of {security}, so it is
+You can define role-mappings via an
+<<mapping-roles-api, API>> or manage them through <<mapping-roles-file, files>>.
+These two sources of role-mapping are combined inside of the {es}
+{security-features}, so it is
 possible for a single user to have some roles that have been mapped through
 the API, and other roles that are mapped through files.
 
@@ -54,7 +55,7 @@ are values. The mappings can have a many-to-many relationship. When you map role
 to groups, the roles of a user in that group are the combination of the roles
 assigned to that group and the roles assigned to that user.
 
-By default, {security} checks role mapping files for changes every 5 seconds.
+By default, {es} checks role mapping files for changes every 5 seconds.
 You can change this default behavior by changing the
 `resource.reload.interval.high` setting in the `elasticsearch.yml` file. Since
 this is a common setting in Elasticsearch, changing its value might effect other
@@ -69,8 +70,8 @@ To specify users and groups in the role mappings, you use their
 _Distinguished Names_ (DNs). A DN is a string that uniquely identifies the user
 or group, for example `"cn=John Doe,cn=contractors,dc=example,dc=com"`.
 
-NOTE: {security} only supports Active Directory security groups. You cannot map
-      distribution groups to roles.
+NOTE: The {es} {security-features} support only Active Directory security groups.
+You cannot map distribution groups to roles.
 
 For example, the following snippet uses the file-based method to map the
 `admins` group to the `monitoring` role and map the `John Doe` user, the
@@ -85,14 +86,14 @@ user:
   - "cn=users,dc=example,dc=com"
   - "cn=admins,dc=example,dc=com"
 ------------------------------------------------------------
-<1> The name of a {security} role.
+<1> The name of a role.
 <2> The distinguished name of an LDAP group or an Active Directory security group.
 <3> The distinguished name of an LDAP or Active Directory user.
 
 You can use the role-mapping API to define equivalent mappings as follows:
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/admins
+PUT /_security/role_mapping/admins
 {
   "roles" : [ "monitoring", "user" ],
   "rules" : { "field" : { "groups" : "cn=admins,dc=example,dc=com" } },
@@ -103,7 +104,7 @@ PUT _xpack/security/role_mapping/admins
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/basic_users
+PUT /_security/role_mapping/basic_users
 {
   "roles" : [ "user" ],
   "rules" : { "any" : [
@@ -136,7 +137,7 @@ The following example creates equivalent mappings using the API:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/admin_user
+PUT /_security/role_mapping/admin_user
 {
   "roles" : [ "monitoring" ],
   "rules" : { "field" : { "dn" : "cn=Admin,ou=example,o=com" } },
@@ -147,7 +148,7 @@ PUT _xpack/security/role_mapping/admin_user
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/basic_user
+PUT /_security/role_mapping/basic_user
 {
   "roles" : [ "user" ],
   "rules" : { "field" : { "dn" : "cn=John Doe,ou=example,o=com" } },

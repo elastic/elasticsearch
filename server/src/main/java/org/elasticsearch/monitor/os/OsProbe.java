@@ -33,10 +33,13 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class OsProbe {
@@ -547,16 +550,13 @@ public class OsProbe {
             final Optional<String> maybePrettyNameLine =
                     prettyNameLines.size() == 1 ? Optional.of(prettyNameLines.get(0)) : Optional.empty();
             if (maybePrettyNameLine.isPresent()) {
-                final String prettyNameLine = maybePrettyNameLine.get();
-                final String[] prettyNameFields = prettyNameLine.split("=");
-                assert prettyNameFields.length == 2 : prettyNameLine;
-                if (prettyNameFields[1].length() >= 3 &&
-                        (prettyNameFields[1].startsWith("\"") && prettyNameFields[1].endsWith("\"")) ||
-                        (prettyNameFields[1].startsWith("'") && prettyNameFields[1].endsWith("'"))) {
-                    return prettyNameFields[1].substring(1, prettyNameFields[1].length() - 1);
-                } else {
-                    return prettyNameFields[1];
-                }
+                // we trim since some OS contain trailing space, for example, Oracle Linux Server 6.9 has a trailing space after the quote
+                final String trimmedPrettyNameLine = maybePrettyNameLine.get().trim();
+                final Matcher matcher = Pattern.compile("PRETTY_NAME=(\"?|'?)?([^\"']+)\\1").matcher(trimmedPrettyNameLine);
+                final boolean matches = matcher.matches();
+                assert matches : trimmedPrettyNameLine;
+                assert matcher.groupCount() == 2 : trimmedPrettyNameLine;
+                return matcher.group(2);
             } else {
                 return Constants.OS_NAME;
             }
@@ -567,22 +567,33 @@ public class OsProbe {
     }
 
     /**
-     * The lines from {@code /etc/os-release} or {@code /usr/lib/os-release} as a fallback. These file represents identification of the
-     * underlying operating system. The structure of the file is newlines of key-value pairs of shell-compatible variable assignments.
+     * The lines from {@code /etc/os-release} or {@code /usr/lib/os-release} as a fallback, with an additional fallback to
+     * {@code /etc/system-release}. These files represent identification of the underlying operating system. The structure of the file is
+     * newlines of key-value pairs of shell-compatible variable assignments.
      *
-     * @return the lines from {@code /etc/os-release} or {@code /usr/lib/os-release}
-     * @throws IOException if an I/O exception occurs reading {@code /etc/os-release} or {@code /usr/lib/os-release}
+     * @return the lines from {@code /etc/os-release} or {@code /usr/lib/os-release} or {@code /etc/system-release}
+     * @throws IOException if an I/O exception occurs reading {@code /etc/os-release} or {@code /usr/lib/os-release} or
+     *                     {@code /etc/system-release}
      */
-    @SuppressForbidden(reason = "access /etc/os-release or /usr/lib/os-release")
+    @SuppressForbidden(reason = "access /etc/os-release or /usr/lib/os-release or /etc/system-release")
     List<String> readOsRelease() throws IOException {
         final List<String> lines;
         if (Files.exists(PathUtils.get("/etc/os-release"))) {
             lines = Files.readAllLines(PathUtils.get("/etc/os-release"));
-        } else {
+            assert lines != null && lines.isEmpty() == false;
+            return lines;
+        } else if (Files.exists(PathUtils.get("/usr/lib/os-release"))) {
             lines = Files.readAllLines(PathUtils.get("/usr/lib/os-release"));
+            assert lines != null && lines.isEmpty() == false;
+            return lines;
+        } else if (Files.exists(PathUtils.get("/etc/system-release"))) {
+            // fallback for older Red Hat-like OS
+            lines = Files.readAllLines(PathUtils.get("/etc/system-release"));
+            assert lines != null && lines.size() == 1;
+            return Collections.singletonList("PRETTY_NAME=\"" + lines.get(0) + "\"");
+        } else {
+            return Collections.emptyList();
         }
-        assert lines != null && lines.isEmpty() == false;
-        return lines;
     }
 
     public OsStats osStats() {

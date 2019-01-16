@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.CleanAliases;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeMap;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
@@ -55,6 +58,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -64,6 +68,7 @@ import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
+import org.elasticsearch.xpack.sql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
@@ -107,11 +112,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch resolution = new Batch("Finish Analysis",
-                new PruneSubqueryAliases(),
-                CleanAliases.INSTANCE
-                );
-
         Batch aggregate = new Batch("Aggregation",
                 new PruneDuplicatesInGroupBy(),
                 new ReplaceDuplicateAggsWithReferences(),
@@ -130,7 +130,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceFoldableAttributes(),
                 new FoldNull(),
                 new ConstantFolding(),
-                new SimplifyCoalesce(),
+                new SimplifyConditional(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -159,69 +159,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(resolution, aggregate, operators, local, label);
+        return Arrays.asList(aggregate, operators, local, label);
     }
 
-
-    static class PruneSubqueryAliases extends OptimizerRule<SubQueryAlias> {
-
-        PruneSubqueryAliases() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected LogicalPlan rule(SubQueryAlias alias) {
-            return alias.child();
-        }
-    }
-
-    static class CleanAliases extends OptimizerRule<LogicalPlan> {
-
-        private static final CleanAliases INSTANCE = new CleanAliases();
-
-        CleanAliases() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof Project) {
-                Project p = (Project) plan;
-                return new Project(p.location(), p.child(), cleanExpressions(p.projections()));
-            }
-
-            if (plan instanceof Aggregate) {
-                Aggregate a = (Aggregate) plan;
-                // clean group expressions
-                List<Expression> cleanedGroups = a.groupings().stream().map(CleanAliases::trimAliases).collect(toList());
-                return new Aggregate(a.location(), a.child(), cleanedGroups, cleanExpressions(a.aggregates()));
-            }
-
-            return plan.transformExpressionsOnly(e -> {
-                if (e instanceof Alias) {
-                    return ((Alias) e).child();
-                }
-                return e;
-            });
-        }
-
-        private List<NamedExpression> cleanExpressions(List<? extends NamedExpression> args) {
-            return args.stream().map(CleanAliases::trimNonTopLevelAliases).map(NamedExpression.class::cast)
-                    .collect(toList());
-        }
-
-        static Expression trimNonTopLevelAliases(Expression e) {
-            if (e instanceof Alias) {
-                Alias a = (Alias) e;
-                return new Alias(a.location(), a.name(), a.qualifier(), trimAliases(a.child()), a.id());
-            }
-            return trimAliases(e);
-        }
-
-        private static Expression trimAliases(Expression e) {
-            return e.transformDown(Alias::child, Alias.class);
-        }
-    }
 
     static class PruneDuplicatesInGroupBy extends OptimizerRule<Aggregate> {
 
@@ -233,7 +173,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
             ExpressionSet<Expression> unique = new ExpressionSet<>(groupings);
             if (unique.size() != groupings.size()) {
-                return new Aggregate(agg.location(), agg.child(), new ArrayList<>(unique), agg.aggregates());
+                return new Aggregate(agg.source(), agg.child(), new ArrayList<>(unique), agg.aggregates());
             }
             return agg;
         }
@@ -266,7 +206,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 for (NamedExpression ne : aggs) {
                     newAggs.add(unique.get(reverse.get(ne)));
                 }
-                return new Aggregate(agg.location(), agg.child(), agg.groupings(), newAggs);
+                return new Aggregate(agg.source(), agg.child(), agg.groupings(), newAggs);
             }
 
             return agg;
@@ -303,11 +243,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 MatrixStats matrixStats = seen.get(argument);
 
                 if (matrixStats == null) {
-                    matrixStats = new MatrixStats(f.location(), argument);
+                    matrixStats = new MatrixStats(f.source(), argument);
                     seen.put(argument, matrixStats);
                 }
 
-                InnerAggregate ia = new InnerAggregate(f.location(), f, matrixStats, f.field());
+                InnerAggregate ia = new InnerAggregate(f.source(), f, matrixStats, f.field());
                 promotedIds.putIfAbsent(f.functionId(), ia.toAttribute());
                 return ia;
             }
@@ -347,7 +287,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 ExtendedStats extendedStats = seen.get(argument);
 
                 if (extendedStats == null) {
-                    extendedStats = new ExtendedStats(f.location(), argument);
+                    extendedStats = new ExtendedStats(f.source(), argument);
                     seen.put(argument, extendedStats);
                 }
 
@@ -413,7 +353,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 Match match = seen.get(argument);
 
                 if (match == null) {
-                    match = new Match(new Stats(f.location(), argument));
+                    match = new Match(new Stats(f.source(), argument));
                     match.functionTypes.add(f.getClass());
                     seen.put(argument, match);
                 }
@@ -579,7 +519,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Map<Expression, Percentiles> percentilesPerField = new LinkedHashMap<>();
             // create a Percentile agg for each field (and its associated percents)
             percentsPerField.forEach((k, v) -> {
-                percentilesPerField.put(k, new Percentiles(v.iterator().next().location(), k, new ArrayList<>(v)));
+                percentilesPerField.put(k, new Percentiles(v.iterator().next().source(), k, new ArrayList<>(v)));
             });
 
             // now replace the agg with pointer to the main ones
@@ -637,7 +577,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Map<Expression, PercentileRanks> ranksPerField = new LinkedHashMap<>();
             // create a PercentileRanks agg for each field (and its associated values)
             valuesPerField.forEach((k, v) -> {
-                ranksPerField.put(k, new PercentileRanks(v.iterator().next().location(), k, new ArrayList<>(v)));
+                ranksPerField.put(k, new PercentileRanks(v.iterator().next().source(), k, new ArrayList<>(v)));
             });
 
             // now replace the agg with pointer to the main ones
@@ -693,12 +633,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return filter.child();
                 }
                 if (FALSE.equals(condition) || Expressions.isNull(condition)) {
-                    return new LocalRelation(filter.location(), new EmptyExecutable(filter.output()));
+                    return new LocalRelation(filter.source(), new EmptyExecutable(filter.output()));
                 }
             }
 
             if (!condition.equals(filter.condition())) {
-                return new Filter(filter.location(), filter.child(), condition);
+                return new Filter(filter.source(), filter.child(), condition);
             }
             return filter;
         }
@@ -741,7 +681,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }, AggregateFunctionAttribute.class);
 
                 if (newCondition != cond) {
-                    return new Filter(filter.location(), filter.child(), newCondition);
+                    return new Filter(filter.source(), filter.child(), newCondition);
                 }
             }
             return filter;
@@ -822,12 +762,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 // no orders left, eliminate it all-together
                 if (orders.isEmpty()) {
-                    return new Project(project.location(), ob.child(), project.projections());
+                    return new Project(project.source(), ob.child(), project.projections());
                 }
 
                 if (orders.size() != ob.order().size()) {
-                    OrderBy newOrder = new OrderBy(ob.location(), ob.child(), orders);
-                    return new Project(project.location(), newOrder, project.projections());
+                    OrderBy newOrder = new OrderBy(ob.source(), ob.child(), orders);
+                    return new Project(project.source(), newOrder, project.projections());
                 }
             }
             return project;
@@ -861,7 +801,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         return true;
                     }).collect(toList());
 
-                    return nonAgg.isEmpty() ? ob.child() : new OrderBy(ob.location(), ob.child(), nonAgg);
+                    return nonAgg.isEmpty() ? ob.child() : new OrderBy(ob.source(), ob.child(), nonAgg);
                 }
             }
             return ob;
@@ -900,8 +840,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 if (orderChanged) {
-                    Aggregate newAgg = new Aggregate(a.location(), a.child(), groupings, a.aggregates());
-                    return new OrderBy(ob.location(), newAgg, ob.order());
+                    Aggregate newAgg = new Aggregate(a.source(), a.child(), groupings, a.aggregates());
+                    return new OrderBy(ob.source(), newAgg, ob.order());
                 }
             }
             return ob;
@@ -940,7 +880,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         Cast c = (Cast) as.child();
 
                         if (c.from() == c.to()) {
-                            Alias newAs = new Alias(as.location(), as.name(), as.qualifier(), c.field(), as.id(), as.synthetic());
+                            Alias newAs = new Alias(as.source(), as.name(), as.qualifier(), c.field(), as.id(), as.synthetic());
                             replacedCast.put(as.toAttribute(), newAs.toAttribute());
                             return newAs;
                         }
@@ -985,7 +925,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         }
                     }
 
-                    return changed ? new Project(p.location(), p.child(), newProjections) : p;
+                    return changed ? new Project(p.source(), p.child(), newProjections) : p;
 
                 }, Project.class);
             }
@@ -1034,11 +974,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (child instanceof Project) {
                 Project p = (Project) child;
                 // eliminate lower project but first replace the aliases in the upper one
-                return new Project(p.location(), p.child(), combineProjections(project.projections(), p.projections()));
+                return new Project(p.source(), p.child(), combineProjections(project.projections(), p.projections()));
             }
             if (child instanceof Aggregate) {
                 Aggregate a = (Aggregate) child;
-                return new Aggregate(a.location(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
+                return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
             }
 
             return project;
@@ -1157,13 +1097,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected Expression rule(Expression e) {
             if (e instanceof IsNotNull) {
-                if (((IsNotNull) e).field().nullable() == false) {
-                    return new Literal(e.location(), Expressions.name(e), Boolean.TRUE, DataType.BOOLEAN);
+                if (((IsNotNull) e).field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Expressions.name(e), Boolean.TRUE, DataType.BOOLEAN);
                 }
 
             } else if (e instanceof IsNull) {
-                if (((IsNull) e).field().nullable() == false) {
-                    return new Literal(e.location(), Expressions.name(e), Boolean.FALSE, DataType.BOOLEAN);
+                if (((IsNull) e).field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Expressions.name(e), Boolean.FALSE, DataType.BOOLEAN);
                 }
 
             } else if (e instanceof In) {
@@ -1172,7 +1112,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
-            } else if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+            } else if (e.nullable() == Nullability.TRUE && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
 
@@ -1197,37 +1137,39 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
     
-    static class SimplifyCoalesce extends OptimizerExpressionRule {
+    static class SimplifyConditional extends OptimizerExpressionRule {
 
-        SimplifyCoalesce() {
+        SimplifyConditional() {
             super(TransformDirection.DOWN);
         }
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof Coalesce) {
-                Coalesce c = (Coalesce) e;
+            if (e instanceof ArbitraryConditionalFunction) {
+                ArbitraryConditionalFunction c = (ArbitraryConditionalFunction) e;
 
-                // find the first non-null foldable child (if any) and remove the rest
-                // while at it, exclude any nulls found
+                // exclude any nulls found
                 List<Expression> newChildren = new ArrayList<>();
-
                 for (Expression child : c.children()) {
                     if (Expressions.isNull(child) == false) {
                         newChildren.add(child);
-                        if (child.foldable()) {
+
+                        // For Coalesce find the first non-null foldable child (if any) and break early
+                        if (e instanceof Coalesce && child.foldable()) {
                             break;
                         }
                     }
                 }
 
                 if (newChildren.size() < c.children().size()) {
-                    return new Coalesce(c.location(), newChildren);
+                    return c.replaceChildren(newChildren);
                 }
             }
+
             return e;
         }
     }
+
 
     static class BooleanSimplification extends OptimizerExpressionRule {
 
@@ -1285,7 +1227,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // (a || b || c || ... ) && (a || b || d || ... ) => ((c || ...) && (d || ...)) || a || b
                 Expression combineLeft = combineOr(lDiff);
                 Expression combineRight = combineOr(rDiff);
-                return combineOr(combine(common, new And(combineLeft.location(), combineLeft, combineRight)));
+                return combineOr(combine(common, new And(combineLeft.source(), combineLeft, combineRight)));
             }
 
             if (bc instanceof Or) {
@@ -1323,7 +1265,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // (a || b || c || ... ) && (a || b || d || ... ) => ((c || ...) && (d || ...)) || a || b
                 Expression combineLeft = combineAnd(lDiff);
                 Expression combineRight = combineAnd(rDiff);
-                return combineAnd(combine(common, new Or(combineLeft.location(), combineLeft, combineRight)));
+                return combineAnd(combine(common, new Or(combineLeft.source(), combineLeft, combineRight)));
             }
 
             // TODO: eliminate conjunction/disjunction
@@ -1369,14 +1311,22 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // true for equality
             if (bc instanceof Equals || bc instanceof GreaterThanOrEqual || bc instanceof LessThanOrEqual) {
-                if (!l.nullable() && !r.nullable() && l.semanticEquals(r)) {
+                if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
                     return TRUE;
+                }
+            }
+            if (bc instanceof NullEquals) {
+                if (l.semanticEquals(r)) {
+                    return TRUE;
+                }
+                if (Expressions.isNull(r)) {
+                    return new IsNull(bc.source(), l);
                 }
             }
 
             // false for equality
             if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
-                if (!l.nullable() && !r.nullable() && l.semanticEquals(r)) {
+                if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
                     return FALSE;
                 }
             }
@@ -1427,7 +1377,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         // combine conjunction
         private Expression propagate(And and) {
             List<Range> ranges = new ArrayList<>();
-            List<Equals> equals = new ArrayList<>();
+            List<BinaryComparison> equals = new ArrayList<>();
             List<Expression> exps = new ArrayList<>();
 
             boolean changed = false;
@@ -1435,11 +1385,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             for (Expression ex : Predicates.splitAnd(and)) {
                 if (ex instanceof Range) {
                     ranges.add((Range) ex);
-                } else if (ex instanceof Equals) {
-                    Equals otherEq = (Equals) ex;
+                } else if (ex instanceof Equals || ex instanceof NullEquals) {
+                    BinaryComparison otherEq = (BinaryComparison) ex;
                     // equals on different values evaluate to FALSE
                     if (otherEq.right().foldable()) {
-                        for (Equals eq : equals) {
+                        for (BinaryComparison eq : equals) {
                             // cannot evaluate equals so skip it
                             if (!eq.right().foldable()) {
                                 continue;
@@ -1464,7 +1414,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             // check
-            for (Equals eq : equals) {
+            for (BinaryComparison eq : equals) {
                 // cannot evaluate equals so skip it
                 if (!eq.right().foldable()) {
                     continue;
@@ -1571,7 +1521,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             bcs.remove(j);
                             bcs.remove(i);
                             
-                            ranges.add(new Range(and.location(), main.left(),
+                            ranges.add(new Range(and.source(), main.left(),
                                     main.right(), main instanceof GreaterThanOrEqual,
                                     other.right(), other instanceof LessThanOrEqual));
 
@@ -1583,7 +1533,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             bcs.remove(j);
                             bcs.remove(i);
                             
-                            ranges.add(new Range(and.location(), main.left(),
+                            ranges.add(new Range(and.source(), main.left(),
                                     other.right(), other instanceof GreaterThanOrEqual,
                                     main.right(), main instanceof LessThanOrEqual));
 
@@ -1706,7 +1656,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (lower || upper) {
                             ranges.remove(i);
                             ranges.add(i,
-                                    new Range(main.location(), main.value(),
+                                    new Range(main.source(), main.value(),
                                             lower ? main.lower() : other.lower(),
                                             lower ? main.includeLower() : other.includeLower(),
                                             upper ? main.upper() : other.upper(),
@@ -1722,7 +1672,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (lower && upper) {
                             ranges.remove(i);
                             ranges.add(i,
-                                    new Range(main.location(), main.value(),
+                                    new Range(main.source(), main.value(),
                                             lower ? main.lower() : other.lower(),
                                             lower ? main.includeLower() : other.includeLower(),
                                             upper ? main.upper() : other.upper(),
@@ -1759,7 +1709,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 if (lower) {
                                     ranges.remove(i);
                                     ranges.add(i,
-                                            new Range(other.location(), other.value(),
+                                            new Range(other.source(), other.value(),
                                                     main.right(), lowerEq ? true : other.includeLower(),
                                                     other.upper(), other.includeUpper()));
                                 }
@@ -1779,7 +1729,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                                 if (upper) {
                                     ranges.remove(i);
-                                    ranges.add(i, new Range(other.location(), other.value(),
+                                    ranges.add(i, new Range(other.source(), other.value(),
                                             other.lower(), other.includeLower(),
                                             main.right(), upperEq ? true : other.includeUpper()));
                                 }
@@ -1884,7 +1834,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(Limit limit) {
             if (limit.limit() instanceof Literal) {
                 if (Integer.valueOf(0).equals((((Literal) limit.limit()).fold()))) {
-                    return new LocalRelation(limit.location(), new EmptyExecutable(limit.output()));
+                    return new LocalRelation(limit.source(), new EmptyExecutable(limit.output()));
                 }
             }
             return limit;
@@ -1897,15 +1847,16 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 List<Object> values = extractConstants(p.projections());
-                if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation)) {
-                    return new LocalRelation(p.location(), new SingletonExecutable(p.output(), values.toArray()));
+                if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation) &&
+                    isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
+                    return new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray()));
                 }
             }
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
                 List<Object> values = extractConstants(a.aggregates());
-                if (values.size() == a.aggregates().size()) {
-                    return new LocalRelation(a.location(), new SingletonExecutable(a.output(), values.toArray()));
+                if (values.size() == a.aggregates().size() && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
+                    return new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray()));
                 }
             }
             return plan;
@@ -1922,6 +1873,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return values;
+        }
+
+        /**
+         * Check if the plan doesn't model a query with FROM clause on a table
+         * that its filter (WHERE clause) is folded to FALSE.
+         */
+        private static boolean isNotQueryWithFromClauseAndFilterFoldedToFalse(UnaryPlan plan) {
+            return (!(plan.child() instanceof LocalRelation) || (plan.child() instanceof LocalRelation &&
+                !(((LocalRelation) plan.child()).executable() instanceof EmptyExecutable)));
         }
     }
 

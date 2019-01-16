@@ -42,7 +42,7 @@ public abstract class Types {
     private static DataType getType(Map<String, Object> content) {
         if (content.containsKey("type")) {
             try {
-                return DataType.fromEsType(content.get("type").toString());
+                return DataType.fromTypeName(content.get("type").toString());
             } catch (IllegalArgumentException ex) {
                 return DataType.UNSUPPORTED;
             }

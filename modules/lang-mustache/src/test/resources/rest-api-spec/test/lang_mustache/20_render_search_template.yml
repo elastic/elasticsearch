@@ -129,5 +129,6 @@
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         body: {  "id" : "1", "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
   - match: { hits.total: 1 }

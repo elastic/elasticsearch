@@ -15,7 +15,7 @@ In order to enable the `_size` field, set the mapping as follows:
 
 [source,js]
 --------------------------
-PUT my_index
+PUT my_index?include_type_name=true
 {
   "mappings": {
     "_doc": {

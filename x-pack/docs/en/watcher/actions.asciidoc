@@ -46,7 +46,7 @@ a throttle period with the `email_administrator` action:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/error_logs_alert
+PUT _watcher/watch/error_logs_alert
 {
   "metadata" : {
     "color" : "red"
@@ -68,14 +68,14 @@ PUT _xpack/watcher/watch/error_logs_alert
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total" : { "gt" : 5 }}
+    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 5 }}
   },
   "actions" : {
     "email_administrator" : {
       "throttle_period": "15m", <1>
       "email" : { <2>
         "to" : "sys.admino@host.domain",
-        "subject" : "Encountered {{ctx.payload.hits.total}} errors",
+        "subject" : "Encountered {{ctx.payload.hits.total.value}} errors",
         "body" : "Too many error in the system, see attached data",
         "attachments" : {
           "attached_data" : {
@@ -101,7 +101,7 @@ defined in the watch:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/log_event_watch
+PUT _watcher/watch/log_event_watch
 {
   "trigger" : {
     "schedule" : { "interval" : "5m" }
@@ -118,14 +118,14 @@ PUT _xpack/watcher/watch/log_event_watch
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total" : { "gt" : 5 }}
+    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 5 }}
   },
   "throttle_period" : "15m", <1>
   "actions" : {
     "email_administrator" : {
       "email" : {
         "to" : "sys.admino@host.domain",
-        "subject" : "Encountered {{ctx.payload.hits.total}} errors",
+        "subject" : "Encountered {{ctx.payload.hits.total.value}} errors",
         "body" : "Too many error in the system, see attached data",
         "attachments" : {
           "attached_data" : {
@@ -143,7 +143,7 @@ PUT _xpack/watcher/watch/log_event_watch
         "host" : "pager.service.domain",
         "port" : 1234,
         "path" : "/{{watch_id}}",
-        "body" : "Encountered {{ctx.payload.hits.total}} errors"
+        "body" : "Encountered {{ctx.payload.hits.total.value}} errors"
       }
     }
   }
@@ -177,7 +177,7 @@ To acknowledge an action, you use the
 
 [source,js]
 ----------------------------------------------------------------------
-POST _xpack/watcher/watch/<id>/_ack/<action_ids>
+POST _watcher/watch/<id>/_ack/<action_ids>
 ----------------------------------------------------------------------
 // CONSOLE
 // TEST[skip:https://github.com/elastic/x-plugins/issues/2513]
@@ -198,13 +198,13 @@ image::images/action-throttling.jpg[align="center"]
 When a watch is triggered, its condition determines whether or not to execute the
 watch actions. Within each action, you can also add a condition per action. These
 additional conditions enable a single alert to execute different actions depending
-on a their respective conditions. The following watch would alway send an email, when
+on a their respective conditions. The following watch would always send an email, when
 hits are found from the input search, but only trigger the `notify_pager` action when
 there are more than 5 hits in the search result.
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/log_event_watch
+PUT _watcher/watch/log_event_watch
 {
   "trigger" : {
     "schedule" : { "interval" : "5m" }
@@ -221,13 +221,13 @@ PUT _xpack/watcher/watch/log_event_watch
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 } }
+    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 } }
   },
   "actions" : {
     "email_administrator" : {
       "email" : {
         "to" : "sys.admino@host.domain",
-        "subject" : "Encountered {{ctx.payload.hits.total}} errors",
+        "subject" : "Encountered {{ctx.payload.hits.total.value}} errors",
         "body" : "Too many error in the system, see attached data",
         "attachments" : {
           "attached_data" : {
@@ -241,14 +241,14 @@ PUT _xpack/watcher/watch/log_event_watch
     },
     "notify_pager" : {
       "condition": { <1>
-        "compare" : { "ctx.payload.hits.total" : { "gt" : 5 } }
+        "compare" : { "ctx.payload.hits.total.value" : { "gt" : 5 } }
       },
       "webhook" : {
         "method" : "POST",
         "host" : "pager.service.domain",
         "port" : 1234,
         "path" : "/{{watch_id}}",
-        "body" : "Encountered {{ctx.payload.hits.total}} errors"
+        "body" : "Encountered {{ctx.payload.hits.total.value}} errors"
       }
     }
   }

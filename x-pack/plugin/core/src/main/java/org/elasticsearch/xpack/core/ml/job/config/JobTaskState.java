@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,7 +23,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 public class JobTaskState implements PersistentTaskState {
 
-    public static final String NAME = OpenJobAction.TASK_NAME;
+    public static final String NAME = MlTasks.JOB_TASK_NAME;
 
     private static ParseField STATE = new ParseField("state");
     private static ParseField ALLOCATION_ID = new ParseField("allocation_id");
@@ -67,6 +67,17 @@ public class JobTaskState implements PersistentTaskState {
         return state;
     }
 
+    /**
+     * The job state stores the allocation ID at the time it was last set.
+     * This method compares the allocation ID in the state with the allocation
+     * ID in the task.  If the two are different then the task has been relocated
+     * to a different node after the last time the state was set.  This in turn
+     * means that the state is not necessarily correct.  For example, a job that
+     * has a state of OPENED but is stale must be considered to be OPENING, because
+     * it won't yet have a corresponding autodetect process.
+     * @param task The job task to check.
+     * @return Has the task been relocated to another node and not had its status set since then?
+     */
     public boolean isStatusStale(PersistentTask<?> task) {
         return allocationId != task.getAllocationId();
     }

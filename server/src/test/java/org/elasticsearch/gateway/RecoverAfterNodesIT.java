@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -30,6 +31,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,6 +41,23 @@ import static org.hamcrest.Matchers.hasItem;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 public class RecoverAfterNodesIT extends ESIntegTestCase {
     private static final TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
+
+    @Override
+    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
+        if (internalCluster().numDataAndMasterNodes() == 0) {
+            final Settings firstNodeSettings = allNodesSettings.get(0);
+            final List<Settings> otherNodesSettings = allNodesSettings.subList(1, allNodesSettings.size());
+
+            final List<Settings> updatedSettings = new ArrayList<>();
+            updatedSettings.add(Settings.builder().put(firstNodeSettings)
+                    .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
+                            Node.NODE_NAME_SETTING.get(firstNodeSettings)).build());
+            updatedSettings.addAll(otherNodesSettings);
+
+            return updatedSettings;
+        }
+        return super.addExtraClusterBootstrapSettings(allNodesSettings);
+    }
 
     public Set<ClusterBlock> waitForNoBlocksOnNode(TimeValue timeout, Client nodeClient) throws InterruptedException {
         long start = System.currentTimeMillis();

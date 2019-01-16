@@ -19,9 +19,11 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -38,12 +40,26 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestDeleteAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document " +
+        "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, " +
+        "or /{index}/_create/{id}).";
+
     public RestIndexAction(Settings settings, RestController controller) {
         super(settings);
+        controller.registerHandler(POST, "/{index}/_doc", this); // auto id creation
+        controller.registerHandler(PUT, "/{index}/_doc/{id}", this);
+        controller.registerHandler(POST, "/{index}/_doc/{id}", this);
+
+        CreateHandler createHandler = new CreateHandler(settings);
+        controller.registerHandler(PUT, "/{index}/_create/{id}", createHandler);
+        controller.registerHandler(POST, "/{index}/_create/{id}/", createHandler);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}", this);
-        CreateHandler createHandler = new CreateHandler(settings);
         controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
@@ -79,13 +95,15 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
+        IndexRequest indexRequest;
         final String type = request.param("type");
-        if (includeTypeName == false && MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
-            throw new IllegalArgumentException("You may only use the [include_type_name=false] option with the index APIs with the " +
-                    "[{index}/_doc/{id}] and [{index}/_doc] endpoints.");
+        if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
+            deprecationLogger.deprecatedAndMaybeLog("index_with_types", TYPES_DEPRECATION_MESSAGE);
+            indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
+        } else {
+            indexRequest = new IndexRequest(request.param("index"));
+            indexRequest.id(request.param("id"));
         }
-        IndexRequest indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.source(request.requiredContent(), request.getXContentType());
@@ -93,6 +111,8 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
+        indexRequest.setIfSeqNo(request.paramAsLong("if_seq_no", indexRequest.ifSeqNo()));
+        indexRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", indexRequest.ifPrimaryTerm()));
         String sOpType = request.param("op_type");
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

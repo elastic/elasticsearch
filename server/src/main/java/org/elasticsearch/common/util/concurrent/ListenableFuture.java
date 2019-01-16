@@ -60,7 +60,13 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
                 if (done) {
                     run = true;
                 } else {
-                    listeners.add(new Tuple<>(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext), executor));
+                    final ActionListener<V> wrappedListener;
+                    if (threadContext == null) {
+                        wrappedListener = listener;
+                    } else {
+                        wrappedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+                    }
+                    listeners.add(new Tuple<>(wrappedListener, executor));
                     run = false;
                 }
             }
@@ -83,14 +89,22 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
 
     private void notifyListener(ActionListener<V> listener, ExecutorService executorService) {
         try {
-            executorService.submit(() -> {
-                try {
-                    // call get in a non-blocking fashion as we could be on a network thread
-                    // or another thread like the scheduler, which we should never block!
-                    V value = FutureUtils.get(this, 0L, TimeUnit.NANOSECONDS);
-                    listener.onResponse(value);
-                } catch (Exception e) {
-                    listener.onFailure(e);
+            executorService.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        // call get in a non-blocking fashion as we could be on a network thread
+                        // or another thread like the scheduler, which we should never block!
+                        V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);
+                        listener.onResponse(value);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "ListenableFuture notification";
                 }
             });
         } catch (Exception e) {

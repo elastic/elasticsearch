@@ -19,12 +19,13 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
@@ -47,11 +48,14 @@ import java.util.stream.Collectors;
  * A basic setting service that can be used for per-index and per-cluster settings.
  * This service offers transactional application of updates settings.
  */
-public abstract class AbstractScopedSettings extends AbstractComponent {
+public abstract class AbstractScopedSettings {
+
     public static final String ARCHIVED_SETTINGS_PREFIX = "archived.";
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
+
+    protected final Logger logger = LogManager.getLogger(this.getClass());
 
     private final Settings settings;
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
@@ -79,7 +83,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         Map<String, Setting<?>> keySettings = new HashMap<>();
         for (Setting<?> setting : settingsSet) {
             if (setting.getProperties().contains(scope) == false) {
-                throw new IllegalArgumentException("Setting must be a " + scope + " setting but has: " + setting.getProperties());
+                throw new IllegalArgumentException("Setting " + setting + " must be a "
+                    + scope + " setting but has: " + setting.getProperties());
             }
             validateSettingKey(setting);
 
@@ -718,10 +723,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
-                validate(key, toApply, false); // we might not have a full picture here do to a dependency validation
+                get(key).validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
-                changed = true;
+                changed |= toApply.get(key).equals(target.get(key)) == false;
             } else {
                 if (isFinalSetting(key)) {
                     throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");

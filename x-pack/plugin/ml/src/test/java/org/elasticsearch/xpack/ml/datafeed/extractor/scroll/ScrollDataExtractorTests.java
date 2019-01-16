@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -64,7 +65,6 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private ArgumentCaptor<ClearScrollRequest> capturedClearScrollRequests;
     private String jobId;
     private TimeBasedExtractedFields extractedFields;
-    private List<String> types;
     private List<String> indices;
     private QueryBuilder query;
     private List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -133,7 +133,6 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractedFields = new TimeBasedExtractedFields(timeField,
                 Arrays.asList(timeField, ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE)));
         indices = Arrays.asList("index-1", "index-2");
-        types = Arrays.asList("type-1", "type-2");
         query = QueryBuilders.matchAllQuery();
         scriptFields = Collections.emptyList();
         scrollSize = 1000;
@@ -421,7 +420,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         List<SearchSourceBuilder.ScriptField> sFields = Arrays.asList(withoutSplit, withSplit);
         ScrollDataExtractorContext context = new ScrollDataExtractorContext(jobId, extractedFields, indices,
-                types, query, sFields, scrollSize, 1000, 2000, Collections.emptyMap());
+                query, sFields, scrollSize, 1000, 2000, Collections.emptyMap());
 
         TestDataExtractor extractor = new TestDataExtractor(context);
 
@@ -466,7 +465,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     private ScrollDataExtractorContext createContext(long start, long end) {
-        return new ScrollDataExtractorContext(jobId, extractedFields, indices, types, query, scriptFields, scrollSize, start, end,
+        return new ScrollDataExtractorContext(jobId, extractedFields, indices, query, scriptFields, scrollSize, start, end,
                 Collections.emptyMap());
     }
 
@@ -488,7 +487,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
             hit.fields(fields);
             hits.add(hit);
         }
-        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]), hits.size(), 1);
+        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]),
+            new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
         return searchResponse;
     }

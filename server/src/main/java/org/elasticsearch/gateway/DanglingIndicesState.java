@@ -20,13 +20,14 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
@@ -50,7 +51,9 @@ import static java.util.Collections.unmodifiableMap;
  * their state written on disk, but don't exists in the metadata of the cluster), and importing
  * them into the cluster.
  */
-public class DanglingIndicesState extends AbstractComponent implements ClusterStateListener {
+public class DanglingIndicesState implements ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(DanglingIndicesState.class);
 
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;

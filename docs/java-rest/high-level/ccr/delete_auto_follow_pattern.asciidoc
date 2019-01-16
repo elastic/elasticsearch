@@ -1,0 +1,32 @@
+--
+:api: ccr-delete-auto-follow-pattern
+:request: DeleteAutoFollowPatternRequest
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Delete Auto Follow Pattern API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Delete Auto Follow Pattern API allows you to delete an auto follow pattern.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of the auto follow pattern to delete.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the delete auto follow pattern request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the delete auto follow pattern request was acknowledged.
+
+include::../execution.asciidoc[]

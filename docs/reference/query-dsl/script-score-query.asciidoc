@@ -1,0 +1,303 @@
+[[query-dsl-script-score-query]]
+=== Script Score Query
+
+experimental[]
+
+The `script_score` allows you to modify the score of documents that are
+retrieved by a query. This can be useful if, for example, a score
+function is computationally expensive and it is sufficient to compute
+the score on a filtered set of documents.
+
+To use `script_score`, you have to define a query and a script -
+a function to be used to compute a new score for each document returned
+by the query. For more information on scripting see
+<<modules-scripting, scripting documentation>>.
+
+
+Here is an example of using `script_score` to assign each matched document
+a score equal to the number of likes divided by 10:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query" : {
+        "script_score" : {
+            "query" : {
+                "match": { "message": "elasticsearch" }
+            },
+            "script" : {
+                "source" : "doc['likes'].value / 10 "
+            }
+        }
+     }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+==== Accessing the score of a document within a script
+
+Within a script, you can
+{ref}/modules-scripting-fields.html#scripting-score[access] 
+the `_score` variable which represents the current relevance score of a
+document.
+
+
+==== Predefined functions within a Painless script
+You can use any of the available
+<<painless-api-reference, painless functions>> in the painless script.
+Besides these functions, there are a number of predefined functions
+that can help you with scoring. We suggest you to use them instead of
+rewriting equivalent functions of your own, as these functions try
+to be the most efficient by using the internal mechanisms.
+
+===== rational
+latexmath:[rational(value,k) = value/(k + value)]
+
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "rational(doc['likes'].value, 1)"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+===== sigmoid
+latexmath:[sigmoid(value, k, a) = value^a/ (k^a + value^a)]
+
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "sigmoid(doc['likes'].value, 2, 1)"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+[[random-functions]]
+===== Random functions
+There are two predefined ways to produce random values:
+
+1. `randomNotReproducible()` uses `java.util.Random` class
+to generate a random value of the type `long`.
+The generated values are not reproducible between requests' invocations.
+
+    [source,js]
+    --------------------------------------------------
+    "script" : {
+        "source" : "randomNotReproducible()"
+    }
+    --------------------------------------------------
+    // NOTCONSOLE
+
+
+2. `randomReproducible(String seedValue, int seed)` produces
+reproducible random values of type `long`. This function requires
+more computational time and memory than the non-reproducible version.
+
+A good candidate for the `seedValue` is document field values that
+are unique across documents and already pre-calculated and preloaded
+in the memory. For example, values of the document's `_seq_no` field
+is a good candidate, as documents on the same shard have unique values
+for the `_seq_no` field.
+
+    [source,js]
+    --------------------------------------------------
+    "script" : {
+        "source" : "randomReproducible(Long.toString(doc['_seq_no'].value), 100)"
+    }
+    --------------------------------------------------
+    // NOTCONSOLE
+
+
+A drawback of using `_seq_no` is that generated values change if
+documents are updated. Another drawback is not absolute uniqueness, as
+documents from different shards with the same sequence numbers
+generate the same random values.
+
+If you need random values to be distinct across different shards,
+you can use a field with unique values across shards,
+such as  `_id`, but watch out for the memory usage as all
+these unique values need to be loaded into memory.
+
+    [source,js]
+    --------------------------------------------------
+    "script" : {
+        "source" : "randomReproducible(doc['_id'].value, 100)"
+    }
+    --------------------------------------------------
+    // NOTCONSOLE
+
+
+[[decay-functions]]
+===== Decay functions for numeric fields
+You can read more about decay functions 
+{ref}/query-dsl-function-score-query.html#function-decay[here].
+
+* `double decayNumericLinear(double origin, double scale, double offset, double decay, double docValue)`
+* `double decayNumericExp(double origin, double scale, double offset, double decay, double docValue)`
+* `double decayNumericGauss(double origin, double scale, double offset, double decay, double docValue)`
+
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "decayNumericLinear(params.origin, params.scale, params.offset, params.decay, doc['dval'].value)",
+    "params": { <1>
+        "origin": 20,
+        "scale": 10,
+        "decay" : 0.5,
+        "offset" : 0
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> Use `params` to compile a script only once for different values of parameters
+
+
+===== Decay functions for geo fields
+
+* `double decayGeoLinear(String originStr, String scaleStr, String offsetStr, double decay, GeoPoint docValue)`
+
+* `double decayGeoExp(String originStr, String scaleStr, String offsetStr, double decay, GeoPoint docValue)`
+
+* `double decayGeoGauss(String originStr, String scaleStr, String offsetStr, double decay, GeoPoint docValue)`
+
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "decayGeoExp(params.origin, params.scale, params.offset, params.decay, doc['location'].value)",
+    "params": {
+        "origin": "40, -70.12",
+        "scale": "200km",
+        "offset": "0km",
+        "decay" : 0.2
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+===== Decay functions for date fields
+
+* `double decayDateLinear(String originStr, String scaleStr, String offsetStr, double decay, JodaCompatibleZonedDateTime docValueDate)`
+
+* `double decayDateExp(String originStr, String scaleStr, String offsetStr, double decay, JodaCompatibleZonedDateTime docValueDate)`
+
+* `double decayDateGauss(String originStr, String scaleStr, String offsetStr, double decay, JodaCompatibleZonedDateTime docValueDate)`
+
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "decayDateGauss(params.origin, params.scale, params.offset, params.decay, doc['date'].value)",
+    "params": {
+        "origin": "2008-01-01T01:00:00Z",
+        "scale": "1h",
+        "offset" : "0",
+        "decay" : 0.5
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+NOTE: Decay functions on dates are limited to dates in the default format
+and default time zone. Also calculations with `now` are not supported.
+
+
+==== Faster alternatives
+Script Score Query calculates the score for every hit (matching document).
+There are faster alternative query types that can efficiently skip
+non-competitive hits:
+
+* If you want to boost documents on some static fields, use
+ <<query-dsl-feature-query, Feature Query>>.
+
+
+==== Transition from Function Score Query
+We are deprecating <<query-dsl-function-score-query, Function Score>>, and
+Script Score Query will be a substitute for it.
+
+Here we describe how Function Score Query's functions can be
+equivalently implemented in Script Score Query:
+
+===== `script_score`
+What you used in `script_score` of the Function Score query, you
+can copy into the Script Score query. No changes here.
+
+===== `weight`
+`weight` function can be implemented in the Script Score query through
+the following script:
+
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "params.weight * _score",
+    "params": {
+        "weight": 2
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+===== `random_score`
+
+Use `randomReproducible` and `randomNotReproducible` functions
+as described in <<random-functions, random functions>>.
+
+
+===== `field_value_factor`
+`field_value_factor` function can be easily implemented through script:
+
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "Math.log10(doc['field'].value * params.factor)",
+    params" : {
+        "factor" : 5
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+For checking if a document has a missing value, you can use
+`doc['field'].size() == 0`. For example, this script will use
+a value `1` if a document doesn't have a field `field`:
+
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "Math.log10((doc['field'].size() == 0 ? 1 : doc['field'].value()) * params.factor)",
+    params" : {
+        "factor" : 5
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+This table lists how `field_value_factor` modifiers can be implemented
+through a script:
+
+[cols="<,<",options="header",]
+|=======================================================================
+| Modifier | Implementation in Script Score
+
+| `none` | -
+| `log` |  `Math.log10(doc['f'].value)`
+| `log1p` | `Math.log10(doc['f'].value + 1)`
+| `log2p` | `Math.log10(doc['f'].value + 2)`
+| `ln` | `Math.log(doc['f'].value)`
+| `ln1p` | `Math.log(doc['f'].value + 1)`
+| `ln2p` | `Math.log(doc['f'].value + 2)`
+| `square` | `Math.pow(doc['f'].value, 2)`
+| `sqrt` | `Math.sqrt(doc['f'].value)`
+| `reciprocal` | `1.0 / doc['f'].value`
+|=======================================================================
+
+
+===== `decay functions`
+Script Score query has equivalent <<decay-functions, decay functions>>
+that can be used in script.
+
+
+

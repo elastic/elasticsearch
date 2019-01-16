@@ -319,26 +319,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
-    private static Version readVersionsFromInfo(RestClient restClient, int numHosts) throws IOException {
-        Version version = null;
-        for (int i = 0; i < numHosts; i++) {
-            //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
-            Response response = restClient.performRequest(new Request("GET", "/"));
-            ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
-            Object latestVersion = restTestResponse.evaluate("version.number");
-            if (latestVersion == null) {
-                throw new RuntimeException("elasticsearch version not found in the response");
-            }
-            final Version currentVersion = Version.fromString(latestVersion.toString());
-            if (version == null) {
-                version = currentVersion;
-            } else if (version.onOrAfter(currentVersion)) {
-                version = currentVersion;
-            }
-        }
-        return version;
-    }
-
     public void test() throws IOException {
         //skip test if it matches one of the blacklist globs
         for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
@@ -431,10 +411,5 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         RestClientBuilder builder = RestClient.builder(sniffer.sniff().toArray(new Node[0]));
         configureClient(builder, restClientSettings());
         return builder;
-    }
-
-    @Override
-    protected boolean getStrictDeprecationMode() {
-        return false;
     }
 }

@@ -159,8 +159,7 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static void configurePackagingArchiveRepositories(Project project) {
         RepositoryHandler repos = project.repositories
 
-        // Try maven central first, it'll have releases before 5.0.0
-        repos.mavenCentral()
+        repos.jcenter() // will have releases before 5.0.0
 
         /* Setup a repository that tries to download from
           https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]
@@ -465,9 +464,9 @@ class VagrantTestPlugin implements Plugin<Project> {
              * execution.
              */
             final String vagrantDestroyProperty = project.getProperties().get('vagrant.destroy', 'true')
-            final boolean vagrantDestroy
+            boolean vagrantDestroy
             if ("true".equals(vagrantDestroyProperty)) {
-                vagrantDestroy = true;
+                vagrantDestroy = true
             } else if ("false".equals(vagrantDestroyProperty)) {
                 vagrantDestroy = false
             } else {

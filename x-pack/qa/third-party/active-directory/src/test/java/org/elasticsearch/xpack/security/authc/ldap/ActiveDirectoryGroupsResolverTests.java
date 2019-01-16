@@ -34,6 +34,7 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
         ldapConnection.getConnectionOptions().setFollowReferrals(AbstractActiveDirectoryTestCase.FOLLOW_REFERRALS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     @SuppressWarnings("unchecked")
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()

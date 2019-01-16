@@ -3,8 +3,8 @@
     "documentation": "Clear SQL cursor",
     "methods": [ "POST"],
     "url": {
-      "path": "/_xpack/sql/close",
-      "paths": [ "/_xpack/sql/close" ],
+      "path": "/_sql/close",
+      "paths": [ "/_sql/close" ],
       "parts": {}
     },
     "body": {

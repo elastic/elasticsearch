@@ -56,9 +56,8 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             job.getDataDescription().getTimeField(),
             job.getAnalysisConfig().analysisFields(),
             datafeedConfig.getIndices(),
-            datafeedConfig.getTypes(),
-            datafeedConfig.getQuery(),
-            datafeedConfig.getAggregations(),
+            datafeedConfig.getParsedQuery(),
+            datafeedConfig.getParsedAggregations(),
             Intervals.alignToCeil(start, histogramInterval),
             Intervals.alignToFloor(end, histogramInterval),
             job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT),
@@ -73,7 +72,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
                               ActionListener<DataExtractorFactory> listener) {
 
         final AggregationBuilder datafeedHistogramAggregation = getHistogramAggregation(
-            datafeed.getAggregations().getAggregatorFactories());
+            datafeed.getParsedAggregations().getAggregatorFactories());
         if ((datafeedHistogramAggregation instanceof DateHistogramAggregationBuilder) == false) {
             listener.onFailure(
                 new IllegalArgumentException("Rollup requires that the datafeed configuration use a [date_histogram] aggregation," +
@@ -104,7 +103,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             return;
         }
         final List<ValuesSourceAggregationBuilder> flattenedAggs = new ArrayList<>();
-        flattenAggregations(datafeed.getAggregations().getAggregatorFactories(), datafeedHistogramAggregation, flattenedAggs);
+        flattenAggregations(datafeed.getParsedAggregations().getAggregatorFactories(), datafeedHistogramAggregation, flattenedAggs);
 
         if (validIntervalCaps.stream().noneMatch(rollupJobConfig -> hasAggregations(rollupJobConfig, flattenedAggs))) {
             listener.onFailure(

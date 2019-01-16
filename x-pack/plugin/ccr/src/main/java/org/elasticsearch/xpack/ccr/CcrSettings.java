@@ -30,10 +30,10 @@ public final class CcrSettings {
             Setting.boolSetting("index.xpack.ccr.following_index", false, Property.IndexScope, Property.InternalIndex);
 
     /**
-     * Setting for controlling the interval in between polling leader clusters to check whether there are indices to follow
+     * Dynamic node setting for specifying the wait_for_timeout that the auto follow coordinator should be using.
      */
-    public static final Setting<TimeValue> CCR_AUTO_FOLLOW_POLL_INTERVAL =
-        Setting.timeSetting("xpack.ccr.auto_follow.poll_interval", TimeValue.timeValueMillis(2500), Property.NodeScope);
+    public static final Setting<TimeValue> CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT = Setting.timeSetting(
+        "ccr.auto_follow.wait_for_metadata_timeout", TimeValue.timeValueSeconds(60), Property.NodeScope, Property.Dynamic);
 
     /**
      * The settings defined by CCR.
@@ -44,7 +44,7 @@ public final class CcrSettings {
         return Arrays.asList(
                 XPackSettings.CCR_ENABLED_SETTING,
                 CCR_FOLLOWING_INDEX_SETTING,
-                CCR_AUTO_FOLLOW_POLL_INTERVAL);
+                CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT);
     }
 
 }

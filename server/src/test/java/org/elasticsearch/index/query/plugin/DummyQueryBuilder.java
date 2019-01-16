@@ -58,7 +58,7 @@ public class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new DummyQuery(context.isFilter());
+        return new DummyQuery();
     }
 
     @Override

@@ -52,6 +52,9 @@
                     "name": {
                       "type": "keyword"
                     },
+                    "hostname": {
+                      "type": "keyword"
+                    },
                     "os": {
                       "properties": {
                         "build": {
@@ -295,6 +298,9 @@
                                   "type": "long"
                                 },
                                 "unauthorized": {
+                                  "type": "long"
+                                },
+                                "internal": {
                                   "type": "long"
                                 },
                                 "decode": {

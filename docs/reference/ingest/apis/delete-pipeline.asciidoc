@@ -1,0 +1,79 @@
+[[delete-pipeline-api]]
+=== Delete Pipeline API
+
+The delete pipeline API deletes pipelines by ID or wildcard match (`my-*`, `*`).
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/my-pipeline-id
+{
+  "description" : "describe pipeline",
+  "version" : 123,
+  "processors" : [
+    {
+      "set" : {
+        "field": "foo",
+        "value": "bar"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+DELETE _ingest/pipeline/my-pipeline-id
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+{
+"acknowledged": true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/wild-one
+{
+  "description" : "first pipeline to be wildcard deleted",
+  "processors" : [ ]
+}
+
+PUT _ingest/pipeline/wild-two
+{
+  "description" : "second pipeline to be wildcard deleted",
+  "processors" : [ ]
+}
+--------------------------------------------------
+// CONSOLE
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+DELETE _ingest/pipeline/*
+--------------------------------------------------
+// CONSOLE
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+{
+"acknowledged": true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////

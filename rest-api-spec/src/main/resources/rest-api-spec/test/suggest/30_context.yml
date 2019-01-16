@@ -75,6 +75,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -116,6 +117,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -131,6 +133,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -146,6 +149,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -191,10 +195,12 @@ setup:
       indices.refresh: {}
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: false
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           suggest:
@@ -242,10 +248,12 @@ setup:
       indices.refresh: {}
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: false
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           suggest:
@@ -264,6 +272,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           suggest:
@@ -322,6 +331,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             result:
@@ -373,6 +383,7 @@ setup:
   - do:
       catch: /Missing mandatory contexts in context query/
       search:
+        rest_total_hits_as_int: true
         allow_partial_search_results: false
         body:
           suggest:
@@ -384,6 +395,7 @@ setup:
   - do:
       catch: /Missing mandatory contexts in context query/
       search:
+        rest_total_hits_as_int: true
         allow_partial_search_results: false
         body:
           suggest:
@@ -396,6 +408,7 @@ setup:
   - do:
       catch: /Missing mandatory contexts in context query/
       search:
+        rest_total_hits_as_int: true
         allow_partial_search_results: false
         body:
           suggest:

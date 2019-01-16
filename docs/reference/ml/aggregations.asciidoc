@@ -8,7 +8,7 @@ and to configure your jobs to analyze aggregated data.
 
 One of the benefits of aggregating data this way is that {es} automatically
 distributes these calculations across your cluster. You can then feed this
-aggregated data into {xpackml} instead of raw results, which
+aggregated data into the {ml-features} instead of raw results, which
 reduces the volume of data that must be considered while detecting anomalies.
 
 There are some limitations to using aggregations in {dfeeds}, however.
@@ -24,7 +24,7 @@ example:
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/anomaly_detectors/farequote
+PUT _ml/anomaly_detectors/farequote
 {
   "analysis_config": {
     "bucket_span": "60m",
@@ -55,11 +55,10 @@ The aggregations are defined in the {dfeed} as follows:
 
 [source,js]
 ----------------------------------
-PUT _xpack/ml/datafeeds/datafeed-farequote
+PUT _ml/datafeeds/datafeed-farequote
 {
   "job_id":"farequote",
   "indices": ["farequote"],
-  "types": ["response"],
   "aggregations": {
     "buckets": {
       "date_histogram": {

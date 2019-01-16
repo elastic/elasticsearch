@@ -79,23 +79,6 @@ public class IndexDeprecationChecks {
         return issues;
     }
 
-    static DeprecationIssue coercionCheck(IndexMetaData indexMetaData) {
-        if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
-            List<String> issues = new ArrayList<>();
-            fieldLevelMappingIssue(indexMetaData, (mappingMetaData, sourceAsMap) -> {
-                issues.addAll(findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
-                    property -> "boolean".equals(property.get("type"))));
-            });
-            if (issues.size() > 0) {
-                return new DeprecationIssue(DeprecationIssue.Level.INFO, "Coercion of boolean fields",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                        "breaking_60_mappings_changes.html#_coercion_of_boolean_fields",
-                    issues.toString());
-            }
-        }
-        return null;
-    }
-
     static DeprecationIssue dynamicTemplateWithMatchMappingTypeCheck(IndexMetaData indexMetaData) {
         if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
             List<String> issues = new ArrayList<>();

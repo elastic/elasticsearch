@@ -16,7 +16,7 @@ Below is an example of configuring a mapping with various range fields followed 
 
 [source,js]
 --------------------------------------------------
-PUT range_index
+PUT range_index?include_type_name=true
 {
   "settings": {
     "number_of_shards": 2
@@ -87,7 +87,10 @@ The result produced by the above query.
     "failed": 0
   },
   "hits" : {
-    "total" : 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score" : 1.0,
     "hits" : [
       {
@@ -147,7 +150,10 @@ This query produces a similar result:
     "failed": 0
   },
   "hits" : {
-    "total" : 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score" : 1.0,
     "hits" : [
       {
@@ -178,7 +184,7 @@ https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
 
 [source,js]
 --------------------------------------------------
-PUT range_index/_mapping/_doc
+PUT range_index/_mapping
 {
   "properties": {
     "ip_whitelist": {

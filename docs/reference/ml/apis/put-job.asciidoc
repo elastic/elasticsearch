@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-job]]
-=== Create Jobs API
+=== Create jobs API
 ++++
-<titleabbrev>Create Jobs</titleabbrev>
+<titleabbrev>Create jobs</titleabbrev>
 ++++
 
 Instantiates a job.
 
 ==== Request
 
-`PUT _xpack/ml/anomaly_detectors/<job_id>`
+`PUT _ml/anomaly_detectors/<job_id>`
 
 //===== Description
 
@@ -65,8 +65,8 @@ Instantiates a job.
   score are applied, as new data is seen. See <<ml-job-resource>>.
 
 `results_index_name`::
-  (string) The name of the index in which to store the {ml} results. The default
-  value is `shared`, which corresponds to the index name `.ml-anomalies-shared`.
+  (string) A text string that affects the name of the {ml} results index. The 
+  default value is `shared`, which generates an index named `.ml-anomalies-shared`. 
 
 `results_retention_days`::
   (long) Advanced configuration option. The number of days for which job results
@@ -85,7 +85,7 @@ The following example creates the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/total-requests
+PUT _ml/anomaly_detectors/total-requests
 {
   "description" : "Total sum of requests",
   "analysis_config" : {

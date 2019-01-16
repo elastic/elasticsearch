@@ -24,9 +24,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeable> extends AbstractWireSerializingTestCase<T> {
 
@@ -35,23 +38,29 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * both for equality and asserts equality on the two instances.
      */
     public final void testFromXContent() throws IOException {
-        AbstractXContentTestCase.testFromXContent(
-                NUMBER_OF_TEST_RUNS,
-                this::createTestInstance,
-                supportsUnknownFields(),
-                getShuffleFieldsExceptions(),
-                getRandomFieldsExcludeFilter(),
-                this::createParser,
-                this::doParseInstance,
-                this::assertEqualInstances,
-                assertToXContentEquivalence(),
-                getToXContentParams());
+        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
+            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+            .supportsUnknownFields(supportsUnknownFields())
+            .shuffleFieldsExceptions(getShuffleFieldsExceptions())
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .assertToXContentEquivalence(assertToXContentEquivalence())
+            .test();
     }
 
     /**
      * Parses to a new instance using the provided {@link XContentParser}
      */
     protected abstract T doParseInstance(XContentParser parser) throws IOException;
+
+    /**
+     * Creates a random instance to use in the xcontent tests.
+     * Override this method if the random instance that you build
+     * should be aware of the {@link XContentType} used in the test.
+     */
+    protected T createXContextTestInstance(XContentType xContentType) {
+        return createTestInstance();
+    }
 
     /**
      * Indicates whether the parser supports unknown fields or not. In case it does, such behaviour will be tested by

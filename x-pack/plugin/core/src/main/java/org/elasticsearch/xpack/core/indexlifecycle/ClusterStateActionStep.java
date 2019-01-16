@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.Index;
 
+/**
+ * Updates the cluster state, similar to {@link org.elasticsearch.cluster.ClusterStateUpdateTask}.
+ */
 public abstract class ClusterStateActionStep extends Step {
 
     public ClusterStateActionStep(StepKey key, StepKey nextStepKey) {

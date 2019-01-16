@@ -55,15 +55,13 @@ statement
     | (DESCRIBE | DESC) (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
     | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
-    | SYS CATALOGS                                                                                        #sysCatalogs
     | SYS TABLES (CATALOG clusterLike=likePattern)?
                  (tableLike=likePattern | tableIdent=tableIdentifier)?
                  (TYPE string (',' string)* )?                                                            #sysTables
     | SYS COLUMNS (CATALOG cluster=string)?
                   (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
                   (columnPattern=likePattern)?                                                            #sysColumns
-    | SYS TYPES                                                                                           #sysTypes
-    | SYS TABLE TYPES                                                                                     #sysTableTypes  
+    | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
     ;
     
 query
@@ -186,7 +184,7 @@ predicated
 // instead the property kind is used to differentiate
 predicate
     : NOT? kind=BETWEEN lower=valueExpression AND upper=valueExpression
-    | NOT? kind=IN '(' expression (',' expression)* ')'
+    | NOT? kind=IN '(' valueExpression (',' valueExpression)* ')'
     | NOT? kind=IN '(' query ')'
     | NOT? kind=LIKE pattern
     | NOT? kind=RLIKE regex=string
@@ -217,6 +215,7 @@ valueExpression
 primaryExpression
     : castExpression                                                                 #cast
     | extractExpression                                                              #extract
+    | builtinDateTimeFunction                                                        #currentDateTimeFunction
     | constant                                                                       #constantDefault
     | (qualifiedName DOT)? ASTERISK                                                  #star
     | functionExpression                                                             #function
@@ -226,8 +225,8 @@ primaryExpression
     ;
 
 castExpression
-    : castTemplate
-    | FUNCTION_ESC castTemplate ESC_END
+    : castTemplate                                                                   
+    | FUNCTION_ESC castTemplate ESC_END                                              
     | convertTemplate
     | FUNCTION_ESC convertTemplate ESC_END
     ;
@@ -236,6 +235,10 @@ castTemplate
     : CAST '(' expression AS dataType ')'
     ;
 
+builtinDateTimeFunction
+    : name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
+    ;
+    
 convertTemplate
     : CONVERT '(' expression ',' dataType ')'
     ;
@@ -265,6 +268,7 @@ functionName
     
 constant
     : NULL                                                                                     #nullLiteral
+    | interval                                                                                 #intervalLiteral
     | number                                                                                   #numericLiteral
     | booleanValue                                                                             #booleanLiteral
     | STRING+                                                                                  #stringLiteral
@@ -276,11 +280,19 @@ constant
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NULLEQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
     : TRUE | FALSE
+    ;
+
+interval
+    : INTERVAL sign=(PLUS | MINUS)? (valueNumeric=number | valuePattern=string) leading=intervalField (TO trailing=intervalField)? 
+    ;
+    
+intervalField
+    : YEAR | YEARS | MONTH | MONTHS | DAY | DAYS | HOUR | HOURS | MINUTE | MINUTES | SECOND | SECONDS
     ;
 
 dataType
@@ -313,8 +325,8 @@ unquoteIdentifier
     ;
 
 number
-    : DECIMAL_VALUE         #decimalLiteral
-    | INTEGER_VALUE         #integerLiteral
+    : DECIMAL_VALUE  #decimalLiteral
+    | INTEGER_VALUE  #integerLiteral
     ;
 
 string
@@ -325,19 +337,23 @@ string
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS 
-    | DEBUG 
+    | CATALOGS | COLUMNS | CURRENT 
+    | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
-    | FORMAT | FUNCTIONS 
-    | GRAPHVIZ 
-    | MAPPED 
+    | FIRST | FORMAT | FULL | FUNCTIONS
+    | GRAPHVIZ
+    | HOUR
+    | INTERVAL
+    | LAST | LIMIT 
+    | MAPPED | MINUTE | MONTH
     | OPTIMIZED 
     | PARSED | PHYSICAL | PLAN 
     | QUERY 
     | RLIKE
-    | SCHEMAS | SHOW | SYS
+    | SCHEMAS | SECOND | SHOW | SYS
     | TABLES | TEXT | TYPE | TYPES
     | VERIFY
+    | YEAR
     ;
 
 ALL: 'ALL';
@@ -354,6 +370,10 @@ CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 CONVERT: 'CONVERT';
+CURRENT: 'CURRENT';
+CURRENT_TIMESTAMP : 'CURRENT_TIMESTAMP';
+DAY: 'DAY';
+DAYS: 'DAYS';
 DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
@@ -372,8 +392,11 @@ FUNCTIONS: 'FUNCTIONS';
 GRAPHVIZ: 'GRAPHVIZ';
 GROUP: 'GROUP';
 HAVING: 'HAVING';
+HOUR: 'HOUR';
+HOURS: 'HOURS';
 IN: 'IN';
 INNER: 'INNER';
+INTERVAL: 'INTERVAL';
 IS: 'IS';
 JOIN: 'JOIN';
 LAST: 'LAST';
@@ -382,6 +405,10 @@ LIKE: 'LIKE';
 LIMIT: 'LIMIT';
 MAPPED: 'MAPPED';
 MATCH: 'MATCH';
+MINUTE: 'MINUTE';
+MINUTES: 'MINUTES';
+MONTH: 'MONTH';
+MONTHS: 'MONTHS';
 NATURAL: 'NATURAL';
 NOT: 'NOT';
 NULL: 'NULL';
@@ -398,6 +425,8 @@ RIGHT: 'RIGHT';
 RLIKE: 'RLIKE';
 QUERY: 'QUERY';
 SCHEMAS: 'SCHEMAS';
+SECOND: 'SECOND';
+SECONDS: 'SECONDS';
 SELECT: 'SELECT';
 SHOW: 'SHOW';
 SYS: 'SYS';
@@ -405,12 +434,15 @@ TABLE: 'TABLE';
 TABLES: 'TABLES';
 TEXT: 'TEXT';
 TRUE: 'TRUE';
+TO: 'TO';
 TYPE: 'TYPE';
 TYPES: 'TYPES';
 USING: 'USING';
 VERIFY: 'VERIFY';
 WHERE: 'WHERE';
 WITH: 'WITH';
+YEAR: 'YEAR';
+YEARS: 'YEARS';
 
 // Escaped Sequence
 ESCAPE_ESC: '{ESCAPE';
@@ -425,7 +457,8 @@ GUID_ESC: '{GUID';
 ESC_END: '}';
 
 EQ  : '=';
-NEQ : '<>' | '!=' | '<=>';
+NULLEQ: '<=>';
+NEQ : '<>' | '!=';
 LT  : '<';
 LTE : '<=';
 GT  : '>';

@@ -3,9 +3,9 @@
 
 IMPORTANT: See <<removal-of-types>>.
 
-The index API adds or updates a typed JSON document in a specific index,
+The index API adds or updates a JSON document in a specific index,
 making it searchable. The following example inserts the JSON document
-into the "twitter" index, under a type called `_doc` with an id of 1:
+into the "twitter" index with an id of 1:
 
 [source,js]
 --------------------------------------------------
@@ -60,13 +60,13 @@ The index operation automatically creates an index if it has not been
 created before (check out the
 <<indices-create-index,create index API>> for manually
 creating an index), and also automatically creates a
-dynamic type mapping for the specific type if one has not yet been
+dynamic mapping if one has not yet been
 created (check out the <<indices-put-mapping,put mapping>>
-API for manually creating a type mapping).
+API for manually creating a mapping).
 
 The mapping itself is very flexible and is schema-free. New fields and
-objects will automatically be added to the mapping definition of the
-type specified. Check out the <<mapping,mapping>>
+objects will automatically be added to the mapping definition.
+Check out the <<mapping,mapping>>
 section for more information on mapping definitions.
 
 Automatic index creation can be disabled by setting
@@ -79,89 +79,6 @@ Automatic index creation can include a pattern based white/black list,
 for example, set `action.auto_create_index` to `+aaa*,-bbb*,+ccc*,-*` (+
 meaning allowed, and - meaning disallowed).
 
-[float]
-[[index-versioning]]
-=== Versioning
-
-Each indexed document is given a version number. The associated
-`version` number is returned as part of the response to the index API
-request. The index API optionally allows for
-http://en.wikipedia.org/wiki/Optimistic_concurrency_control[optimistic
-concurrency control] when the `version` parameter is specified. This
-will control the version of the document the operation is intended to be
-executed against. A good example of a use case for versioning is
-performing a transactional read-then-update. Specifying a `version` from
-the document initially read ensures no changes have happened in the
-meantime. For example:
-
-[source,js]
---------------------------------------------------
-PUT twitter/_doc/1?version=2
-{
-    "message" : "elasticsearch now has versioning support, double cool!"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-// TEST[catch: conflict]
-
-*NOTE:* versioning is completely real time, and is not affected by the
-near real time aspects of search operations. If no version is provided,
-then the operation is executed without any version checks.
-
-By default, internal versioning is used that starts at 1 and increments
-with each update, deletes included. Optionally, the version number can be
-supplemented with an external value (for example, if maintained in a
-database). To enable this functionality, `version_type` should be set to
-`external`. The value provided must be a numeric, long value greater or equal to 0,
-and less than around 9.2e+18. When using the external version type, instead
-of checking for a matching version number, the system checks to see if
-the version number passed to the index request is greater than the
-version of the currently stored document. If true, the document will be
-indexed and the new version number used. If the value provided is less
-than or equal to the stored document's version number, a version
-conflict will occur and the index operation will fail.
-
-WARNING: External versioning supports the value 0 as a valid version number.
-This allows the version to be in sync with an external versioning system
-where version numbers start from zero instead of one. It has the side effect
-that documents with version number equal to zero cannot neither be updated
-using the <<docs-update-by-query,Update-By-Query API>> nor be deleted
-using the <<docs-delete-by-query,Delete By Query API>> as long as their
-version number is equal to zero.
-
-A nice side effect is that there is no need to maintain strict ordering
-of async indexing operations executed as a result of changes to a source
-database, as long as version numbers from the source database are used.
-Even the simple case of updating the Elasticsearch index using data from
-a database is simplified if external versioning is used, as only the
-latest version will be used if the index operations are out of order for
-whatever reason.
-
-[float]
-==== Version types
-
-Next to the `internal` & `external` version types explained above, Elasticsearch
-also supports other types for specific use cases. Here is an overview of
-the different version types and their semantics.
-
-`internal`:: only index the document if the given version is identical to the version
-of the stored document.
-
-`external` or `external_gt`:: only index the document if the given version is strictly higher
-than the version of the stored document *or* if there is no existing document. The given
-version will be used as the new version and will be stored with the new document. The supplied
-version must be a non-negative long number.
-
-`external_gte`:: only index the document if the given version is *equal* or higher
-than the version of the stored document. If there is no existing document
-the operation will succeed as well. The given version will be used as the new version
-and will be stored with the new document. The supplied version must be a non-negative long number.
-
-*NOTE*: The `external_gte` version type is meant for special use cases and
-should be used with care. If used incorrectly, it can result in loss of data.
-There is another option, `force`, which is deprecated because it can cause
-primary and replica shards to diverge.
 
 [float]
 [[operation-type]]
@@ -189,7 +106,7 @@ Another option to specify `create` is to use the following uri:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/_doc/1/_create
+PUT twitter/_create/1
 {
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
@@ -237,6 +154,16 @@ The result of the above index operation is:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/ s/"successful" : 2/"successful" : 1/]
+
+[float]
+[[optimistic-concurrency-control-index]]
+=== Optimistic concurrency control
+
+Index operations can be made optional and only be performed if the last
+modification to the document was assigned the sequence number and primary 
+term specified by the `if_seq_no` and `if_primary_term` parameters. If a
+mismatch is detected, the operation will result in a `VersionConflictException`
+and a status code of 409. See <<optimistic-concurrency-control>> for more details. 
 
 [float]
 [[index-routing]]
@@ -380,3 +307,83 @@ PUT twitter/_doc/1?timeout=5m
 }
 --------------------------------------------------
 // CONSOLE
+
+[float]
+[[index-versioning]]
+=== Versioning
+
+Each indexed document is given a version number. By default, 
+internal versioning is used that starts at 1 and increments
+with each update, deletes included. Optionally, the version number can be
+set to an external value (for example, if maintained in a
+database). To enable this functionality, `version_type` should be set to
+`external`. The value provided must be a numeric, long value greater or equal to 0,
+and less than around 9.2e+18. 
+
+When using the external version type, the system checks to see if
+the version number passed to the index request is greater than the
+version of the currently stored document. If true, the document will be
+indexed and the new version number used. If the value provided is less
+than or equal to the stored document's version number, a version
+conflict will occur and the index operation will fail. For example:
+
+[source,js]
+--------------------------------------------------
+PUT twitter/_doc/1?version=2&version_type=external
+{
+    "message" : "elasticsearch now has versioning support, double cool!"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+*NOTE:* versioning is completely real time, and is not affected by the
+near real time aspects of search operations. If no version is provided,
+then the operation is executed without any version checks.
+
+The above will succeed since the the supplied version of 2 is higher than
+the current document version of 1. If the document was already updated
+and its version was set to 2 or higher, the indexing command will fail
+and result in a conflict (409 http status code).
+
+WARNING: External versioning supports the value 0 as a valid version number.
+This allows the version to be in sync with an external versioning system
+where version numbers start from zero instead of one. It has the side effect
+that documents with version number equal to zero can neither be updated
+using the <<docs-update-by-query,Update-By-Query API>> nor be deleted
+using the <<docs-delete-by-query,Delete By Query API>> as long as their
+version number is equal to zero.
+
+A nice side effect is that there is no need to maintain strict ordering
+of async indexing operations executed as a result of changes to a source
+database, as long as version numbers from the source database are used.
+Even the simple case of updating the Elasticsearch index using data from
+a database is simplified if external versioning is used, as only the
+latest version will be used if the index operations arrive out of order for
+whatever reason.
+
+[float]
+==== Version types
+
+Next to the `external` version type explained above, Elasticsearch
+also supports other types for specific use cases. Here is an overview of
+the different version types and their semantics.
+
+`internal`:: only index the document if the given version is identical to the version
+of the stored document.
+
+`external` or `external_gt`:: only index the document if the given version is strictly higher
+than the version of the stored document *or* if there is no existing document. The given
+version will be used as the new version and will be stored with the new document. The supplied
+version must be a non-negative long number.
+
+`external_gte`:: only index the document if the given version is *equal* or higher
+than the version of the stored document. If there is no existing document
+the operation will succeed as well. The given version will be used as the new version
+and will be stored with the new document. The supplied version must be a non-negative long number.
+
+*NOTE*: The `external_gte` version type is meant for special use cases and
+should be used with care. If used incorrectly, it can result in loss of data.
+There is another option, `force`, which is deprecated because it can cause
+primary and replica shards to diverge.
+

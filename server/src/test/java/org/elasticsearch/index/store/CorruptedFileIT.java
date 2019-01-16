@@ -21,7 +21,10 @@ package org.elasticsearch.index.store;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -104,7 +107,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class CorruptedFileIT extends ESIntegTestCase {
 
     @Override
@@ -146,7 +149,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
+            // no translog based flush - it might change the .liv / segments.N files
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
         ));
         ensureGreen();
         disableAllocation("test");
@@ -222,7 +226,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
             }
         };
 
-        for (MockIndexEventListener.TestEventListener eventListener : internalCluster().getDataNodeInstances(MockIndexEventListener.TestEventListener.class)) {
+        for (MockIndexEventListener.TestEventListener eventListener :
+                internalCluster().getDataNodeInstances(MockIndexEventListener.TestEventListener.class)) {
             eventListener.setNewDelegate(listener);
         }
         try {
@@ -230,7 +235,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
             latch.await();
             assertThat(exception, empty());
         } finally {
-            for (MockIndexEventListener.TestEventListener eventListener : internalCluster().getDataNodeInstances(MockIndexEventListener.TestEventListener.class)) {
+            for (MockIndexEventListener.TestEventListener eventListener :
+                    internalCluster().getDataNodeInstances(MockIndexEventListener.TestEventListener.class)) {
                 eventListener.setNewDelegate(null);
             }
         }
@@ -248,7 +254,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
+            // no translog based flush - it might change the .liv / segments.N files
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
         ));
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -284,7 +291,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
+        GroupShardsIterator<ShardIterator> shardIterators =
+            state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         for (ShardIterator iterator : shardIterators) {
             ShardRouting routing;
             while ((routing = iterator.nextOrNull()) != null) {
@@ -338,8 +346,10 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final AtomicBoolean corrupt = new AtomicBoolean(true);
         final CountDownLatch hasCorrupted = new CountDownLatch(1);
         for (NodeStats dataNode : dataNodeStats) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
-            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), (connection, requestId, action, request, options) -> {
+            MockTransportService mockTransportService =
+                ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
+            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
+                (connection, requestId, action, request, options) -> {
                 if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                     RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                     byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
@@ -353,7 +363,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         Settings build = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put("index.routing.allocation.include._name", primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName()).build();
+            .put("index.routing.allocation.include._name",
+                primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName()).build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         client().admin().cluster().prepareReroute().get();
         hasCorrupted.await();
@@ -369,7 +380,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
         if (cluster().numDataNodes() < 3) {
-            internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true).put(Node.NODE_MASTER_SETTING.getKey(), false));
+            internalCluster().startNode(Settings.builder()
+                .put(Node.NODE_DATA_SETTING.getKey(), true)
+                .put(Node.NODE_MASTER_SETTING.getKey(), false));
         }
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
@@ -406,14 +419,17 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertHitCount(countResponse, numDocs);
         final boolean truncate = randomBoolean();
         for (NodeStats dataNode : dataNodeStats) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
-            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), (connection, requestId, action, request, options) -> {
+            MockTransportService mockTransportService =
+                ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
+            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
+                    (connection, requestId, action, request, options) -> {
                 if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                     RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                     if (truncate && req.length() > 1) {
                         BytesRef bytesRef = req.content().toBytesRef();
                         BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
-                        request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
+                        request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(),
+                            array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
                     } else {
                         assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
                         final byte[] array = req.content().toBytesRef().bytes;
@@ -466,12 +482,16 @@ public class CorruptedFileIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
-                        .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                        .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
-        ));
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                // no checkindex - we corrupt shards on purpose
+                .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
+                // no translog based flush - it might change the .liv / segments.N files
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+            )
+        );
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
@@ -496,10 +516,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
         logger.info("--> snapshot");
-        final CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-                                                                                        .setWaitForCompletion(true)
-                                                                                        .setIndices("test")
-                                                                                        .get();
+        final CreateSnapshotResponse createSnapshotResponse =
+            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                .setWaitForCompletion(true)
+                .setIndices("test")
+                .get();
         final SnapshotState snapshotState = createSnapshotResponse.getSnapshotInfo().state();
         logger.info("--> snapshot terminated with state " + snapshotState);
         final List<Path> files = listShardFiles(shardRouting);
@@ -623,20 +644,29 @@ public class CorruptedFileIT extends ESIntegTestCase {
         Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
         for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {
             String path = info.getPath();
-            Path file = PathUtils.get(path).resolve("indices").resolve(test.getUUID()).resolve(Integer.toString(shardRouting.getId())).resolve("index");
+            Path file = PathUtils.get(path)
+                .resolve("indices").resolve(test.getUUID()).resolve(Integer.toString(shardRouting.getId())).resolve("index");
             if (Files.exists(file)) { // multi data path might only have one path in use
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
-                    for (Path item : stream) {
-                        if (Files.isRegularFile(item) && "write.lock".equals(item.getFileName().toString()) == false) {
-                            if (includePerCommitFiles || isPerSegmentFile(item.getFileName().toString())) {
-                                files.add(item);
+                try (Directory dir = FSDirectory.open(file)) {
+                    SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(dir);
+                    if (includePerCommitFiles) {
+                        files.add(file.resolve(segmentCommitInfos.getSegmentsFileName()));
+                    }
+                    for (SegmentCommitInfo commitInfo : segmentCommitInfos) {
+                        if (commitInfo.getDelCount() + commitInfo.getSoftDelCount() == commitInfo.info.maxDoc()) {
+                            // don't corrupt fully deleted segments - they might be removed on snapshot
+                            continue;
+                        }
+                        for (String commitFile : commitInfo.files()) {
+                            if (includePerCommitFiles || isPerSegmentFile(commitFile)) {
+                                files.add(file.resolve(commitFile));
                             }
                         }
                     }
+
                 }
             }
         }
-        pruneOldDeleteGenerations(files);
         CorruptionUtils.corruptFile(random(), files.toArray(new Path[0]));
         return shardRouting;
     }
@@ -648,36 +678,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     private static boolean isPerSegmentFile(String fileName) {
         return isPerCommitFile(fileName) == false;
-    }
-
-    /**
-     * prunes the list of index files such that only the latest del generation files are contained.
-     */
-    private void pruneOldDeleteGenerations(Set<Path> files) {
-        final TreeSet<Path> delFiles = new TreeSet<>();
-        for (Path file : files) {
-            if (file.getFileName().toString().endsWith(".liv")) {
-                delFiles.add(file);
-            }
-        }
-        Path last = null;
-        for (Path current : delFiles) {
-            if (last != null) {
-                final String newSegmentName = IndexFileNames.parseSegmentName(current.getFileName().toString());
-                final String oldSegmentName = IndexFileNames.parseSegmentName(last.getFileName().toString());
-                if (newSegmentName.equals(oldSegmentName)) {
-                    int oldGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(last.getFileName().toString())).replace("_", ""), Character.MAX_RADIX);
-                    int newGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(current.getFileName().toString())).replace("_", ""), Character.MAX_RADIX);
-                    if (newGen > oldGen) {
-                        files.remove(last);
-                    } else {
-                        files.remove(current);
-                        continue;
-                    }
-                }
-            }
-            last = current;
-        }
     }
 
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {

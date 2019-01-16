@@ -21,9 +21,11 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
+import org.junit.Ignore;
 
 import java.util.Arrays;
 
+@Ignore // https://github.com/elastic/elasticsearch/issues/37218
 public class TestClustersPluginIT extends GradleIntegrationTestCase {
 
     public void testListClusters() {
@@ -55,6 +57,9 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     }
 
     public void testUseClusterByUpToDateTask() {
+        // Run it once, ignoring the result and again to make sure it's considered up to date.
+        // Gradle randomly considers tasks without inputs and outputs as as up-to-date or success on the first run
+        getTestClustersRunner("upToDate1", "upToDate2").build();
         BuildResult result = getTestClustersRunner("upToDate1", "upToDate2").build();
         assertTaskUpToDate(result, ":upToDate1", ":upToDate2");
         assertNotStarted(result);
@@ -73,19 +78,18 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertOutputContains(
             result.getOutput(),
             "> Task :user1",
-            "Starting `ElasticsearchNode{name='myTestCluster'}`",
-            "Stopping `ElasticsearchNode{name='myTestCluster'}`"
+            "Starting `node{::myTestCluster}`",
+            "Stopping `node{::myTestCluster}`"
         );
     }
 
     public void testMultiProject() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("testclusters_multiproject"))
-            .withArguments("user1", "user2", "-s", "-i", "--parallel")
+            .withArguments("user1", "user2", "-s", "-i", "--parallel", "-Dlocal.repo.path=" + getLocalTestRepoPath())
             .withPluginClasspath()
             .build();
         assertTaskSuccessful(result, ":user1", ":user2");
-
         assertStartedAndStoppedOnce(result);
     }
 
@@ -95,7 +99,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertStartedAndStoppedOnce(result);
         assertOutputContains(
             result.getOutput(),
-            "Stopping `ElasticsearchNode{name='myTestCluster'}`, tailLogs: true",
+            "Stopping `node{::myTestCluster}`, tailLogs: true",
             "Execution failed for task ':itAlwaysFails'."
         );
     }
@@ -107,7 +111,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertStartedAndStoppedOnce(result);
         assertOutputContains(
             result.getOutput(),
-            "Stopping `ElasticsearchNode{name='myTestCluster'}`, tailLogs: true",
+            "Stopping `node{::myTestCluster}`, tailLogs: true",
             "Execution failed for task ':itAlwaysFails'."
         );
     }
@@ -130,21 +134,21 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     }
 
     private GradleRunner getTestClustersRunner(String... tasks) {
-        String[] arguments = Arrays.copyOf(tasks, tasks.length + 2);
+        String[] arguments = Arrays.copyOf(tasks, tasks.length + 3);
         arguments[tasks.length] = "-s";
         arguments[tasks.length + 1] = "-i";
+        arguments[tasks.length + 2] = "-Dlocal.repo.path=" + getLocalTestRepoPath();
         return GradleRunner.create()
             .withProjectDir(getProjectDir("testclusters"))
             .withArguments(arguments)
             .withPluginClasspath();
     }
 
-
     private void assertStartedAndStoppedOnce(BuildResult result) {
         assertOutputOnlyOnce(
             result.getOutput(),
-            "Starting `ElasticsearchNode{name='myTestCluster'}`",
-            "Stopping `ElasticsearchNode{name='myTestCluster'}`"
+            "Starting `node{::myTestCluster}`",
+            "Stopping `node{::myTestCluster}`"
         );
     }
 }

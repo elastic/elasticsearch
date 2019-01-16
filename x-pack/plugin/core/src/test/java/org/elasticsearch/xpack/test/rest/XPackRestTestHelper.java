@@ -20,20 +20,38 @@ import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class XPackRestTestHelper {
 
+    public static final List<String> ML_PRE_V660_TEMPLATES = Collections.unmodifiableList(
+            Arrays.asList(AuditorField.NOTIFICATIONS_INDEX,
+                    MlMetaIndex.INDEX_NAME,
+                    AnomalyDetectorsIndex.jobStateIndexName(),
+                    AnomalyDetectorsIndex.jobResultsIndexPrefix()));
+
+    public static final List<String> ML_POST_V660_TEMPLATES = Collections.unmodifiableList(
+            Arrays.asList(AuditorField.NOTIFICATIONS_INDEX,
+                    MlMetaIndex.INDEX_NAME,
+                    AnomalyDetectorsIndex.jobStateIndexName(),
+                    AnomalyDetectorsIndex.jobResultsIndexPrefix(),
+                    AnomalyDetectorsIndex.configIndexName()));
+
     private XPackRestTestHelper() {
     }
 
     /**
-     * Waits for the Machine Learning templates to be created
-     * and check the version is up to date
+     * For each template name wait for the template to be created and
+     * for the template version to be equal to the master node version.
+     *
+     * @param client            The rest client
+     * @param templateNames     Names of the templates to wait for
+     * @throws InterruptedException If the wait is interrupted
      */
-    public static void waitForMlTemplates(RestClient client) throws InterruptedException {
+    public static void waitForTemplates(RestClient client, List<String> templateNames) throws InterruptedException {
         AtomicReference<Version> masterNodeVersion = new AtomicReference<>();
         ESTestCase.awaitBusy(() -> {
             String response;
@@ -53,8 +71,6 @@ public final class XPackRestTestHelper {
             return false;
         });
 
-        final List<String> templateNames = Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
-                AnomalyDetectorsIndex.jobStateIndexName(), AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String template : templateNames) {
             ESTestCase.awaitBusy(() -> {
                 Map<?, ?> response;
@@ -74,5 +90,4 @@ public final class XPackRestTestHelper {
             });
         }
     }
-
 }

@@ -721,7 +721,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ensureWriteAllowed(origin);
         Engine.Index operation;
         try {
-            final String resolvedType = resolveType(sourceToParse.type());
+            final String resolvedType = mapperService.resolveDocumentType(sourceToParse.type());
             final SourceToParse sourceWithResolvedType;
             if (resolvedType.equals(sourceToParse.type())) {
                 sourceWithResolvedType = sourceToParse;
@@ -844,11 +844,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (MapperParsingException | IllegalArgumentException | TypeMissingException e) {
             return new Engine.DeleteResult(e, version, operationPrimaryTerm, seqNo, false);
         }
-        if (resolveType(type).equals(mapperService.documentMapper().type()) == false) {
+        if (mapperService.resolveDocumentType(type).equals(mapperService.documentMapper().type()) == false) {
             // We should never get there due to the fact that we generate mapping updates on deletes,
             // but we still prefer to have a hard exception here as we would otherwise delete a
             // document in the wrong type.
-            throw new IllegalStateException("Deleting document from type [" + resolveType(type) + "] while current type is [" +
+            throw new IllegalStateException("Deleting document from type [" +
+                    mapperService.resolveDocumentType(type) + "] while current type is [" +
                     mapperService.documentMapper().type() + "]");
         }
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
@@ -861,8 +862,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                                VersionType versionType, Engine.Operation.Origin origin,
                                                long ifSeqNo, long ifPrimaryTerm) {
         long startTime = System.nanoTime();
-        return new Engine.Delete(resolveType(type), id, uid, seqNo, primaryTerm, version, versionType, origin, startTime,
-            ifSeqNo, ifPrimaryTerm);
+        return new Engine.Delete(mapperService.resolveDocumentType(type), id, uid, seqNo, primaryTerm, version, versionType,
+            origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
     private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) throws IOException {
@@ -885,7 +886,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
         DocumentMapper mapper = mapperService.documentMapper();
-        if (mapper == null || mapper.type().equals(resolveType(get.type())) == false) {
+        if (mapper == null || mapper.type().equals(mapperService.resolveDocumentType(get.type())) == false) {
             return GetResult.NOT_EXISTS;
         }
         return getEngine().get(get, this::acquireSearcher);
@@ -2319,23 +2320,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    /**
-     * If an index/update/get/delete operation is using the special `_doc` type, then we replace
-     * it with the actual type that is being used in the mappings so that users may use typeless
-     * APIs with indices that have types.
-     */
-    private String resolveType(String type) {
-        if (MapperService.SINGLE_MAPPING_NAME.equals(type)) {
-            DocumentMapper docMapper = mapperService.documentMapper();
-            if (docMapper != null) {
-                return docMapper.type();
-            }
-        }
-        return type;
-    }
 
     private DocumentMapperForType docMapper(String type) {
-        return mapperService.documentMapperWithAutoCreate(resolveType(type));
+        return mapperService.documentMapperWithAutoCreate(
+            mapperService.resolveDocumentType(type));
     }
 
     private EngineConfig newEngineConfig() {
@@ -3010,7 +2998,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.
      *
      * @see #acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)
-     * @see org.elasticsearch.indices.recovery.RecoveryTarget#indexTranslogOperations(List, int, long, long)
+     * @see org.elasticsearch.indices.recovery.RecoveryTarget#indexTranslogOperations(List, int, long, long, ActionListener)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
         assert seqNo != UNASSIGNED_SEQ_NO

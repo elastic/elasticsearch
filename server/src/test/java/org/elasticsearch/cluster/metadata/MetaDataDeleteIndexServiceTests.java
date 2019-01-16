@@ -32,6 +32,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -63,7 +64,7 @@ public class MetaDataDeleteIndexServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterState(index))
                 .putCustom(SnapshotsInProgress.TYPE, snaps)
                 .build();
-        Exception e = expectThrows(IllegalArgumentException.class,
+        Exception e = expectThrows(SnapshotInProgressException.class,
                 () -> service.deleteIndices(state, singleton(state.metaData().getIndices().get(index).getIndex())));
         assertEquals("Cannot delete indices that are being snapshotted: [[" + index + "]]. Try again after snapshot finishes "
                 + "or cancel the currently running snapshot.", e.getMessage());

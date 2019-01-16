@@ -2492,7 +2492,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         logger.info("--> delete index while non-partial snapshot is running");
                         client.admin().indices().prepareDelete("test-idx-1").get();
                         fail("Expected deleting index to fail during snapshot");
-                    } catch (IllegalArgumentException e) {
+                    } catch (SnapshotInProgressException e) {
                         assertThat(e.getMessage(), containsString("Cannot delete indices that are being snapshotted: [[test-idx-1/"));
                     }
                 } else {
@@ -2500,7 +2500,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         logger.info("--> close index while non-partial snapshot is running");
                         client.admin().indices().prepareClose("test-idx-1").get();
                         fail("Expected closing index to fail during snapshot");
-                    } catch (IllegalArgumentException e) {
+                    } catch (SnapshotInProgressException e) {
                         assertThat(e.getMessage(), containsString("Cannot close indices that are being snapshotted: [[test-idx-1/"));
                     }
                 }

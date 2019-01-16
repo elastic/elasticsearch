@@ -391,9 +391,9 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
     public void testDescribeWorksAsAdmin() throws Exception {
         Map<String, List<String>> expected = new TreeMap<>();
-        expected.put("a", asList("BIGINT", "LONG"));
-        expected.put("b", asList("BIGINT", "LONG"));
-        expected.put("c", asList("BIGINT", "LONG"));
+        expected.put("a", asList("BIGINT", "long"));
+        expected.put("b", asList("BIGINT", "long"));
+        expected.put("c", asList("BIGINT", "long"));
         actions.expectDescribe(expected, null);
         createAuditLogAsserter()
             .expectSqlCompositeActionFieldCaps("test_admin", "test")
@@ -434,7 +434,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     public void testDescribeSingleFieldGranted() throws Exception {
         createUser("only_a", "read_test_a");
 
-        actions.expectDescribe(singletonMap("a", asList("BIGINT", "LONG")), "only_a");
+        actions.expectDescribe(singletonMap("a", asList("BIGINT", "long")), "only_a");
         createAuditLogAsserter()
             .expectSqlCompositeActionFieldCaps("only_a", "test")
             .assertLogs();
@@ -444,8 +444,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("not_c", "read_test_a_and_b");
 
         Map<String, List<String>> expected = new TreeMap<>();
-        expected.put("a", asList("BIGINT", "LONG"));
-        expected.put("b", asList("BIGINT", "LONG"));
+        expected.put("a", asList("BIGINT", "long"));
+        expected.put("b", asList("BIGINT", "long"));
         actions.expectDescribe(expected, "not_c");
         createAuditLogAsserter()
             .expectSqlCompositeActionFieldCaps("not_c", "test")

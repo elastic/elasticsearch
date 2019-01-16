@@ -140,6 +140,11 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
+            /*
+             * Check if requested API key name already exists to avoid duplicate key names,
+             * this check is best effort as there could be two nodes executing search and
+             * then index concurrently allowing a duplicate name.
+             */
             findActiveApiKeyForApiKeyName(request.getName(), ActionListener.wrap(apiKeyIds -> {
                 if (apiKeyIds.isEmpty()) {
                     final Instant created = clock.instant();

@@ -45,12 +45,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
         assertBusy(() -> {
             ensureYellow(index1);
-
-            try {
-                verifyDocuments(index1, 5, "filtered_field:true");
-            } catch (Exception e) {
-                fail(e.getMessage());
-            }
+            verifyDocuments(index1, 5, "filtered_field:true");
         });
 
         String index2 = "logs-20190102";

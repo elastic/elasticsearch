@@ -187,7 +187,7 @@ public class BytesRestResponseTests extends ESTestCase {
                     }
 
                     @Override
-                    public BytesReference content() {
+                    public BytesReference innerContent() {
                         return null;
                     }
                 };

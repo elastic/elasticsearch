@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
@@ -185,6 +186,7 @@ public abstract class TaskBatcher {
 
         @Override
         public void run() {
+            Thread.currentThread().setUncaughtExceptionHandler((t, e) -> logger.error(() -> new ParameterizedMessage("fatal error in thread [{}], continue", t.getName()), e));
             runIfNotProcessed(this);
         }
 

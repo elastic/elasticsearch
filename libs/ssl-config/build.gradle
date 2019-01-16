@@ -17,8 +17,6 @@
  * under the License.
  */
 
-archivesBaseName = 'elasticsearch-ssl-config'
-
 dependencies {
     compile "org.elasticsearch:elasticsearch-core:${version}"
 

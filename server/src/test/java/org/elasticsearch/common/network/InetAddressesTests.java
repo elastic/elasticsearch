@@ -20,6 +20,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
@@ -216,6 +217,13 @@ public class InetAddressesTests extends ESTestCase {
         assertEquals("::102:304",
             InetAddresses.toAddrString(
                 InetAddresses.forString("::1.2.3.4%0")));
+    }
+
+    public void testToAddrStringIPv6ReadsZoneId(){
+        assertEquals(1,
+            ((Inet6Address)InetAddresses.forString("::1%1")).getScopeId());
+        assertEquals(10,
+            ((Inet6Address)InetAddresses.forString("::1%A")).getScopeId());
     }
 
     public void testToAddrStringIPv6WithInvalidZoneId(){

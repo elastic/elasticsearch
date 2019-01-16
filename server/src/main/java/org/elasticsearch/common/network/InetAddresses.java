@@ -29,9 +29,21 @@ import java.util.Locale;
 public class InetAddresses {
     private static int IPV4_PART_COUNT = 4;
     private static int IPV6_PART_COUNT = 8;
+    private static final int DEFAULT_ZONE_ID = 0;
 
     public static boolean isInetAddress(String ipString) {
         return ipStringToBytes(ipString) != null;
+    }
+
+    private static int ipStringToZoneId(String ipString){
+        int percentIndex = ipString.lastIndexOf('%');
+
+        if (percentIndex >= 0 && (percentIndex + 1) < ipString.length()){
+            String zoneId = ipString.substring(percentIndex + 1);
+            return Integer.parseInt(zoneId, 16);
+        }
+
+        return DEFAULT_ZONE_ID;
     }
 
     private static byte[] ipStringToBytes(String ipString) {
@@ -366,7 +378,9 @@ public class InetAddresses {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "'%s' is not an IP string literal.", ipString));
         }
 
-        return bytesToInetAddress(addr);
+        int zoneId = ipStringToZoneId(ipString);
+
+        return bytesToInetAddress(addr, zoneId);
     }
 
     /**
@@ -378,10 +392,16 @@ public class InetAddresses {
      * is an array of length 4 or 16.
      *
      * @param addr the raw 4-byte or 16-byte IP address in big-endian order
+     * @param zoneId the IPv6 zone ID. Zero by default.
+     *               Uses {@code Inet6Address.getByAddress} for non-zero values.
      * @return an InetAddress object created from the raw IP address
      */
-    private static InetAddress bytesToInetAddress(byte[] addr) {
+    private static InetAddress bytesToInetAddress(byte[] addr, int zoneId) {
         try {
+            if (zoneId != DEFAULT_ZONE_ID){
+                return Inet6Address.getByAddress(null, addr, zoneId);
+            }
+
             return InetAddress.getByAddress(addr);
         } catch (UnknownHostException e) {
             throw new AssertionError(e);

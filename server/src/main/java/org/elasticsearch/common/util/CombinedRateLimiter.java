@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class CombinedRateLimiter {
 
-    // TODO: This rate limiter has some concurrency issues between the two add operations
+    // TODO: This rate limiter has some concurrency issues between the two maybePause operations
 
     private final AtomicLong bytesSinceLastPause = new AtomicLong();
     private final RateLimiter.SimpleRateLimiter rateLimiter;
@@ -46,7 +46,7 @@ public class CombinedRateLimiter {
             if (bytesSincePause > rateLimiter.getMinPauseCheckBytes()) {
                 // Time to pause
                 bytesSinceLastPause.addAndGet(-bytesSincePause);
-                return rateLimiter.pause(bytesSincePause);
+                return Math.max(rateLimiter.pause(bytesSincePause), 0);
             }
         }
         return 0;

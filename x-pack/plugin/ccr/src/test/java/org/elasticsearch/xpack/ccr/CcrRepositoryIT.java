@@ -257,13 +257,10 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
         List<CcrRepository> repositories = new ArrayList<>();
-        try {
-            for (RepositoriesService repositoriesService : getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
-                Repository repository = repositoriesService.repository(leaderClusterRepoName);
-                repositories.add((CcrRepository) repository);
-            }
-        } catch (RepositoryMissingException e) {
-            fail("need repository");
+
+        for (RepositoriesService repositoriesService : getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
+            Repository repository = repositoriesService.repository(leaderClusterRepoName);
+            repositories.add((CcrRepository) repository);
         }
 
         logger.info("--> indexing some data");

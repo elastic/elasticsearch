@@ -69,6 +69,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.LongConsumer;
 
 /**
  * This repository relies on a remote cluster for Ccr restores. It is read-only so it can only be used to
@@ -299,10 +300,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
             new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)).actionGet();
         return new RestoreSession(repositoryName, remoteClient, sessionUUID, response.getNode(), indexShard, recoveryState,
-            response.getStoreFileMetaData());
+            response.getStoreFileMetaData(), ccrSettings.getRateLimiter(), throttledTime::inc);
     }
 
-    private class RestoreSession extends FileRestoreContext implements Closeable {
+    private static class RestoreSession extends FileRestoreContext implements Closeable {
 
         private static final int BUFFER_SIZE = 1 << 16;
 
@@ -310,14 +311,19 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         private final String sessionUUID;
         private final DiscoveryNode node;
         private final Store.MetadataSnapshot sourceMetaData;
+        private final CombinedRateLimiter rateLimiter;
+        private final LongConsumer throttleListener;
 
         RestoreSession(String repositoryName, Client remoteClient, String sessionUUID, DiscoveryNode node, IndexShard indexShard,
-                       RecoveryState recoveryState, Store.MetadataSnapshot sourceMetaData) {
+                       RecoveryState recoveryState, Store.MetadataSnapshot sourceMetaData, CombinedRateLimiter rateLimiter,
+                       LongConsumer throttleListener) {
             super(repositoryName, indexShard, SNAPSHOT_ID, recoveryState, BUFFER_SIZE);
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;
             this.sourceMetaData = sourceMetaData;
+            this.rateLimiter = rateLimiter;
+            this.throttleListener = throttleListener;
         }
 
         void restoreFiles() throws IOException {
@@ -332,7 +338,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         @Override
         protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
-            return new RestoreFileInputStream(remoteClient, sessionUUID, node, fileInfo.metadata());
+            return new RestoreFileInputStream(remoteClient, sessionUUID, node, fileInfo.metadata(), rateLimiter, throttleListener);
         }
 
         @Override
@@ -343,22 +349,25 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
     }
 
-    private class RestoreFileInputStream extends InputStream {
+    private static class RestoreFileInputStream extends InputStream {
 
         private final Client remoteClient;
         private final String sessionUUID;
         private final DiscoveryNode node;
         private final StoreFileMetaData fileToRecover;
         private final CombinedRateLimiter rateLimiter;
+        private final LongConsumer throttleListener;
 
         private long pos = 0;
 
-        private RestoreFileInputStream(Client remoteClient, String sessionUUID, DiscoveryNode node, StoreFileMetaData fileToRecover) {
+        private RestoreFileInputStream(Client remoteClient, String sessionUUID, DiscoveryNode node, StoreFileMetaData fileToRecover,
+                                       CombinedRateLimiter rateLimiter, LongConsumer throttleListener) {
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;
             this.fileToRecover = fileToRecover;
-            this.rateLimiter = ccrSettings.getRateLimiter();
+            this.rateLimiter = rateLimiter;
+            this.throttleListener = throttleListener;
         }
 
 
@@ -376,7 +385,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
             int bytesRequested = (int) Math.min(remainingBytes, len);
 
-            maybePause(bytesRequested);
+            long nanosPaused = rateLimiter.maybePause(bytesRequested);
+            throttleListener.accept(nanosPaused);
 
             String fileName = fileToRecover.name();
             GetCcrRestoreFileChunkRequest request = new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileName, bytesRequested);
@@ -402,11 +412,5 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             return bytesReceived;
         }
 
-        private void maybePause(int bytesRequested) {
-            long throttleTimeInNanos = rateLimiter.maybePause(bytesRequested);
-            if (throttleTimeInNanos > 0) {
-                throttledTime.inc(throttleTimeInNanos);
-            }
-        }
     }
 }

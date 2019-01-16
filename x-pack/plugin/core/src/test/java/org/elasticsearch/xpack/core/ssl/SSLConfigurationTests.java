@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.TrustConfig.CombiningTrustConfig;
 
 import javax.net.ssl.KeyManager;
@@ -20,8 +21,10 @@ import javax.net.ssl.TrustManager;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
@@ -35,6 +38,8 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(globalConfig.keyConfig(), sameInstance(KeyConfig.NONE));
         assertThat(globalConfig.trustConfig(), is(not((globalConfig.keyConfig()))));
         assertThat(globalConfig.trustConfig(), instanceOf(DefaultJDKTrustConfig.class));
+        assertThat(globalConfig.supportedProtocols(), equalTo(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
+        assertThat(globalConfig.supportedProtocols(), not(hasItem("TLSv1")));
     }
 
     public void testThatOnlyKeystoreInSettingsSetsTruststoreSettings() {

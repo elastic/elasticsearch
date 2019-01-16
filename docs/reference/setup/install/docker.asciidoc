@@ -338,7 +338,7 @@ needed, adjust them in the Daemon, or override them per container, for example
 using `docker run`:
 +
 --
-  --ulimit nofile=65536:65536
+  --ulimit nofile=65535:65535
 
 NOTE: One way of checking the Docker daemon defaults for the aforementioned
 ulimits is by running:

@@ -129,13 +129,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             return true;
         }
         synchronized (this) {
+            if (closed) {
+                throw new IllegalStateException("can't wait for refresh on a closed index");
+            }
             List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
             if (listeners == null) {
-                if (closed) {
-                    throw new IllegalStateException("can't wait for refresh on a closed index");
-                }
                 listeners = new ArrayList<>();
-                refreshListeners = listeners;
             }
             if (refreshForcers == 0 && listeners.size() < getMaxRefreshListeners.getAsInt()) {
                 ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
@@ -145,6 +144,9 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                         listener.accept(forced);
                     }
                 };
+                if (refreshListeners == null) {
+                    refreshListeners = listeners;
+                }
                 // We have a free slot so register the listener
                 listeners.add(new Tuple<>(location, contextPreservingListener));
                 return false;

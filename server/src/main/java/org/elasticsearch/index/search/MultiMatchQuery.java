@@ -136,6 +136,7 @@ public class MultiMatchQuery extends MatchQuery {
             } else {
                 builder = new BlendedQueryBuilder(group.getKey(), group.getValue(), tieBreaker);
             }
+
             /*
              * We have to pick some field to pass through the superclass so
              * we just pick the first field. It shouldn't matter because
@@ -145,6 +146,13 @@ public class MultiMatchQuery extends MatchQuery {
             Query query = parseInternal(type.matchQueryType(), representativeField, builder, value);
             query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
             if (query != null) {
+                if (group.getValue().size() == 1) {
+                    // apply the field boost to groups that contain a single field
+                    float boost = group.getValue().get(0).boost;
+                    if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
+                        query = new BoostQuery(query, boost);
+                    }
+                }
                 queries.add(query);
             }
         }
@@ -181,7 +189,7 @@ public class MultiMatchQuery extends MatchQuery {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
                 Query query = fieldType.fieldType.phraseQuery(stream, slop, enablePositionIncrements);
-                if (fieldType.boost != AbstractQueryBuilder.DEFAULT_BOOST) {
+                if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
                 disjunctions.add(query);
@@ -194,7 +202,7 @@ public class MultiMatchQuery extends MatchQuery {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
                 Query query = fieldType.fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements);
-                if (fieldType.boost != AbstractQueryBuilder.DEFAULT_BOOST) {
+                if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
                 disjunctions.add(query);

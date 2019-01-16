@@ -61,7 +61,7 @@ public class IndexResolver {
     public enum IndexType {
 
         INDEX("BASE TABLE"),
-        ALIAS("ALIAS"),
+        ALIAS("VIEW"),
         // value for user types unrecognized
         UNKNOWN("UNKNOWN");
 

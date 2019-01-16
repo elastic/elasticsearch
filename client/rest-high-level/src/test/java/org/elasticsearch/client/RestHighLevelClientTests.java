@@ -669,7 +669,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(7), categories.get(LifecycleAction.class));
+        assertEquals(Integer.valueOf(8), categories.get(LifecycleAction.class));
         assertTrue(names.contains(AllocateAction.NAME));
         assertTrue(names.contains(DeleteAction.NAME));
         assertTrue(names.contains(ForceMergeAction.NAME));

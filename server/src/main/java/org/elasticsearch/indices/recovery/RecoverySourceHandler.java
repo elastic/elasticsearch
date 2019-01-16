@@ -531,7 +531,7 @@ public class RecoverySourceHandler {
         final AtomicInteger totalSentOps = new AtomicInteger();
         final LocalCheckpointTracker requiredOpsTracker = new LocalCheckpointTracker(endingSeqNo, requiredSeqNoRangeStart - 1);
 
-        // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
+        // Wrap translog snapshot to make it synchronized as it is accessed by different threads through sendBatch.
         // Even though those calls are not concurrent, snapshot.next() uses non-synchronized state and is not multi-thread-compatible.
         final Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
             @Override

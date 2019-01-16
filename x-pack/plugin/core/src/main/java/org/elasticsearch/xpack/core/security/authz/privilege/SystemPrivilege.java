@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collections;
@@ -15,8 +14,8 @@ public final class SystemPrivilege extends Privilege {
 
     public static SystemPrivilege INSTANCE = new SystemPrivilege();
 
-    private static final Predicate<String> UNDERLYING = Automatons.predicate(Automatons.
-        minusAndMinimize(Automatons.patterns(
+    private static final Predicate<String> PREDICATE = Automatons.predicate(Automatons.
+            minusAndMinimize(Automatons.patterns(
             "internal:*",
             "indices:monitor/*", // added for monitoring
             "cluster:monitor/*",  // added for monitoring
@@ -27,18 +26,7 @@ public final class SystemPrivilege extends Privilege {
             "indices:admin/template/delete", // needed for the TemplateUpgradeService
             "indices:admin/seq_no/global_checkpoint_sync*", // needed for global checkpoint syncs
             "indices:admin/settings/update" // needed for DiskThresholdMonitor.markIndicesReadOnly
-        ), Automatons.patterns(
-            // TODO: Determine how to handle CCR security for proxy actions
-//        "internal:transport/proxy/*"
-        )));
-
-    private static final Predicate<String> PREDICATE = s -> {
-        if (TransportActionProxy.isProxyAction(s)) {
-            return UNDERLYING.test(TransportActionProxy.unwrapAction(s));
-        } else {
-            return UNDERLYING.test(s);
-        }
-    };
+    ), Automatons.patterns("internal:transport/proxy/*"))); // no proxy actions for system user!
 
     private SystemPrivilege() {
         super(Collections.singleton("internal"));

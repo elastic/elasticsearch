@@ -35,13 +35,16 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Tests that extend this class verify that all json layout fields appear in the first few log lines after startup
- * Fields available from the first log line: type, timestamp, level, component, message, nodeName, clusterName
- * whereas: nodeId and clusterId are available later once the clusterState was received.
+ * Fields available upon process startup: <code>type</code>, <code>timestamp</code>, <code>level</code>, <code>component</code>,
+ * <code>message</code>, <code>node.name</code>, <code>cluster.name</code>.
+ * Whereas <code>node.id</code> and <code>cluster.uuid</code> are available later once the first clusterState has been received.
  *
- * NodeName, ClusterName, NodeId, ClusterId should not change across all log lines
+ *
+ * <code>node.name</code>, <code>cluster.name</code>, <code>node.id</code>, <code>cluster.uuid</code>
+ * should not change across all log lines
  *
  * Note that this won't pass for nodes in clusters that don't have the node name defined in elasticsearch.yml <strong>and</strong> start
- * with DEBUG or TRACE level logging. Those nodes log a few lines before the node.name is set by LogConfigurator.setNodeName
+ * with DEBUG or TRACE level logging. Those nodes log a few lines before the node.name is set by <code>LogConfigurator.setNodeName</code>.
  */
 public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
     /**

@@ -213,6 +213,9 @@ public class InetAddressesTests extends ESTestCase {
         assertEquals("::1",
             InetAddresses.toAddrString(
                 InetAddresses.forString("::1%0")));
+        assertEquals("::102:304",
+            InetAddresses.toAddrString(
+                InetAddresses.forString("::1.2.3.4%0")));
     }
 
     public void testToUriStringIPv4() {

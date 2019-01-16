@@ -204,6 +204,9 @@ public abstract class StreamInput extends InputStream {
                 | ((readByte() & 0xFF) << 8) | (readByte() & 0xFF);
     }
 
+    /**
+     * Reads an optional {@link Integer}.
+     */
     public Integer readOptionalInt() throws IOException {
         if (readBoolean()) {
             return readInt();

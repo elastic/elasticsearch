@@ -82,6 +82,9 @@ public class EarlyTerminatingCollector extends FilterCollector {
         };
     }
 
+    /**
+     * Returns true if this collector has early terminated.
+     */
     public boolean hasEarlyTerminated() {
         return earlyTerminated;
     }

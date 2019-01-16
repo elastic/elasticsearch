@@ -158,7 +158,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             assertFalse(blockedIndices.containsKey(closed));
         }
         {
-            SnapshotInProgressException exception = expectThrows(SnapshotInProgressException.class, () -> {
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
                     ClusterState state = addRestoredIndex("restored", randomIntBetween(1, 3), randomIntBetween(0, 3), initialState);
                     if (randomBoolean()) {
                         state = addOpenedIndex("opened", randomIntBetween(1, 3), randomIntBetween(0, 3), state);

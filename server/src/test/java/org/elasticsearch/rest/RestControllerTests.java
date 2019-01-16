@@ -569,7 +569,7 @@ public class RestControllerTests extends ESTestCase {
         }
 
         @Override
-        public BytesReference content() {
+        public BytesReference innerContent() {
             return content;
         }
 

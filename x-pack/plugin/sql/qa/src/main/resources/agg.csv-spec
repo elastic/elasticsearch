@@ -98,6 +98,14 @@ SELECT CAST(SUM(salary) AS DOUBLE) FROM test_emp;
 4824855.0
 ;
 
+aggregateWithUpCastAsFloat
+SELECT CAST(SUM(salary) AS FLOAT) FROM test_emp;
+
+  CAST(SUM(salary) AS FLOAT)
+-----------------------------
+4824855.0
+;
+
 aggregateWithCastNumericToString
 SELECT CAST(AVG(salary) AS VARCHAR) FROM test_emp;
 

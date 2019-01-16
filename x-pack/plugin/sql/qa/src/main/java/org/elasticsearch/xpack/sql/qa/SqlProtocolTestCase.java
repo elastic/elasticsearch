@@ -63,7 +63,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         assertQuery("SELECT 'abc123'", "'abc123'", "keyword", "abc123", 0);
     }
     
-    public void testDates() throws IOException {
+    public void testDateTimes() throws IOException {
         assertQuery("SELECT CAST('2019-01-14T12:29:25.000Z' AS DATE)", "CAST('2019-01-14T12:29:25.000Z' AS DATE)", "date",
                 "2019-01-14T12:29:25.000Z", 24);
         assertQuery("SELECT CAST(-26853765751000 AS DATE)", "CAST(-26853765751000 AS DATE)", "date", "1119-01-15T12:37:29.000Z", 24);

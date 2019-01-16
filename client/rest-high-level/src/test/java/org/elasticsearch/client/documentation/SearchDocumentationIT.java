@@ -23,8 +23,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.explain.ExplainRequest;
@@ -52,6 +50,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
@@ -1249,12 +1249,12 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private void indexSearchTestData() throws IOException {
         CreateIndexRequest authorsRequest = new CreateIndexRequest("authors")
-            .mapping("_doc", "user", "type=keyword,doc_values=false");
+            .mapping("user", "type=keyword,doc_values=false");
         CreateIndexResponse authorsResponse = highLevelClient().indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
 
         CreateIndexRequest reviewersRequest = new CreateIndexRequest("contributors")
-            .mapping("_doc", "user", "type=keyword,store=true");
+            .mapping("user", "type=keyword,store=true");
         CreateIndexResponse reviewersResponse = highLevelClient().indices().create(reviewersRequest, RequestOptions.DEFAULT);
         assertTrue(reviewersResponse.isAcknowledged());
 
@@ -1368,7 +1368,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private static void indexCountTestData() throws IOException {
         CreateIndexRequest authorsRequest = new CreateIndexRequest("author")
-            .mapping("_doc", "user", "type=keyword,doc_values=false");
+            .mapping("user", "type=keyword,doc_values=false");
         CreateIndexResponse authorsResponse = highLevelClient().indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
 

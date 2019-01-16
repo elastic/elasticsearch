@@ -17,18 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.create;
+package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -39,50 +35,23 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 
     private static final ParseField INDEX = new ParseField("index");
-
     private static final ConstructingObjectParser<CreateIndexResponse, Void> PARSER = new ConstructingObjectParser<>("create_index",
         true, args -> new CreateIndexResponse((boolean) args[0], (boolean) args[1], (String) args[2]));
 
     static {
-        declareFields(PARSER);
-    }
-
-    protected static <T extends CreateIndexResponse> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
-        declareAcknowledgedAndShardsAcknowledgedFields(objectParser);
-        objectParser.declareField(constructorArg(), (parser, context) -> parser.textOrNull(), INDEX, ObjectParser.ValueType.STRING_OR_NULL);
+        declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.textOrNull(), INDEX, ObjectParser.ValueType.STRING_OR_NULL);
     }
 
     private String index;
-
-    public CreateIndexResponse() {}
 
     public CreateIndexResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
         super(acknowledged, shardsAcknowledged);
         this.index = index;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readShardsAcknowledged(in);
-        index = in.readString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        writeShardsAcknowledged(out);
-        out.writeString(index);
-    }
-
     public String index() {
         return index;
-    }
-
-    @Override
-    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
-        super.addCustomFields(builder, params);
-        builder.field(INDEX.getPreferredName(), index());
     }
 
     public static CreateIndexResponse fromXContent(XContentParser parser) {

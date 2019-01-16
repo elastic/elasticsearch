@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -29,6 +28,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.ESTestCase.frequently;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -41,15 +41,18 @@ public final class RandomCreateIndexGenerator {
      * Returns a random {@link CreateIndexRequest}.
      *
      * Randomizes the index name, the aliases, mappings and settings associated with the
-     * index. If present, the mapping definition will be nested under a type name.
+     * index. When present, the mappings make no mention of types.
      */
-    public static CreateIndexRequest randomCreateIndexRequest() throws IOException {
+    public static CreateIndexRequest randomCreateIndexRequest() {
         String index = randomAlphaOfLength(5);
         CreateIndexRequest request = new CreateIndexRequest(index);
         randomAliases(request);
-        if (randomBoolean()) {
-            String type = randomAlphaOfLength(5);
-            request.mapping(type, randomMapping(type));
+        if (frequently()) {
+            try {
+                request.mapping(randomMapping());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
         if (randomBoolean()) {
             request.settings(randomIndexSettings());
@@ -62,7 +65,7 @@ public final class RandomCreateIndexGenerator {
      * {@link org.elasticsearch.cluster.metadata.IndexMetaData#SETTING_NUMBER_OF_SHARDS} and
      * {@link org.elasticsearch.cluster.metadata.IndexMetaData#SETTING_NUMBER_OF_REPLICAS}
      */
-    public static Settings randomIndexSettings() {
+    private static Settings randomIndexSettings() {
         Settings.Builder builder = Settings.builder();
 
         if (randomBoolean()) {
@@ -78,20 +81,18 @@ public final class RandomCreateIndexGenerator {
         return builder.build();
     }
 
-    public static XContentBuilder randomMapping(String type) throws IOException {
+    private static XContentBuilder randomMapping() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject().startObject(type);
-
+        builder.startObject();
         randomMappingFields(builder, true);
-
-        builder.endObject().endObject();
+        builder.endObject();
         return builder;
     }
 
     /**
      * Adds random mapping fields to the provided {@link XContentBuilder}
      */
-    public static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
+    private static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
         builder.startObject("properties");
 
         int fieldsNo = randomIntBetween(0, 5);

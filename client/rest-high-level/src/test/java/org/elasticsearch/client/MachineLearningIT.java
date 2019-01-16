@@ -20,7 +20,6 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -28,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
@@ -527,7 +527,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping("timestamp", "type=date", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -601,7 +601,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping("timestamp", "type=date", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // create the job and the datafeed
@@ -665,7 +665,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping("timestamp", "type=date", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // create the job and the datafeed
@@ -734,7 +734,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping("timestamp", "type=date", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -791,7 +791,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexId = jobId + "-data";
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexId);
-        createIndexRequest.mapping("_doc", "timestamp", "type=date,format=epoch_millis", "total", "type=long");
+        createIndexRequest.mapping("timestamp", "type=date,format=epoch_millis", "total", "type=long");
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

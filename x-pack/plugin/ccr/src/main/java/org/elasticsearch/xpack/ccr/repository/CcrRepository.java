@@ -88,10 +88,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private final CcrLicenseChecker ccrLicenseChecker;
 
     private final CounterMetric throttledTime = new CounterMetric();
-
+    
     public CcrRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings,
-                         CcrSettings ccrSettings) {
-        super(settings);
+            CcrSettings ccrSettings) {
         this.metadata = metadata;
         this.ccrSettings = ccrSettings;
         assert metadata.name().startsWith(NAME_PREFIX) : "CcrRepository metadata.name() must start with: " + NAME_PREFIX;

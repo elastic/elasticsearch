@@ -2,11 +2,10 @@
 "Put template":
   - skip:
       version: " - 6.99.99"
-      reason:  include_type_name is not supported before 7.0.0
+      reason:  include_type_name defaults to true before 7.0.0
 
   - do:
       indices.put_template:
-        include_type_name: false
         name: test
         body:
           index_patterns: test-*
@@ -20,7 +19,6 @@
 
   - do:
       indices.get_template:
-        include_type_name: false
         name: test
         flat_settings: true
 
@@ -32,11 +30,10 @@
 "Put multiple template":
   - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
+      reason:  include_type_name defaults to true before 7.0.0
 
   - do:
       indices.put_template:
-        include_type_name: false
         name: test
         body:
           index_patterns: [test-*, test2-*]
@@ -50,7 +47,6 @@
 
   - do:
       indices.get_template:
-        include_type_name: false
         name: test
         flat_settings: true
 
@@ -62,11 +58,10 @@
 "Put template with empty mappings":
   - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
+      reason:  include_type_name defaults to true before 7.0.0
 
   - do:
       indices.put_template:
-        include_type_name: false
         name: test
         body:
           index_patterns: test-*
@@ -77,7 +72,6 @@
 
   - do:
       indices.get_template:
-        include_type_name: false
         name: test
         flat_settings: true
 

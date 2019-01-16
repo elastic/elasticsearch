@@ -69,7 +69,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
         allocationService = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
-        delayedAllocationService = new TestDelayAllocationService(Settings.EMPTY, threadPool, clusterService, allocationService);
+        delayedAllocationService = new TestDelayAllocationService(threadPool, clusterService, allocationService);
         verify(clusterService).addListener(delayedAllocationService);
     }
 
@@ -464,9 +464,9 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     private static class TestDelayAllocationService extends DelayedAllocationService {
         private volatile long nanoTimeOverride = -1L;
 
-        TestDelayAllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                   AllocationService allocationService) {
-            super(settings, threadPool, clusterService, allocationService);
+        private TestDelayAllocationService(ThreadPool threadPool, ClusterService clusterService,
+                                           AllocationService allocationService) {
+            super(threadPool, clusterService, allocationService);
         }
 
         @Override

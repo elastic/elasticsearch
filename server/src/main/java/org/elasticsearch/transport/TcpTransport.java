@@ -156,7 +156,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool,
                         PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService,
                         NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-        super(settings);
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
         this.version = version;
